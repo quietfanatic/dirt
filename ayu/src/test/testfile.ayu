@@ -1,0 +1,4 @@
+[ayu::Document {
+    foo:[int32 4]
+    bar:[std::string qux]
+}]
