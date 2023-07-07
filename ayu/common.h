@@ -10,10 +10,10 @@
 #include <string_view>
 #include <utility>
 #include "../uni/arrays.h"
+#include "../uni/assertions.h"
 #include "../uni/callback-ref.h"
 #include "../uni/common.h"
 #include "../uni/copy-ref.h"
-#include "../uni/requirements.h"
 #include "../uni/strings.h"
 
 namespace iri { struct IRI; }

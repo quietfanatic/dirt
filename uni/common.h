@@ -8,7 +8,6 @@
 
 namespace uni {
 inline namespace common {
-using namespace std::literals;
 
 using int8 = std::int8_t;
 using int16 = std::int16_t;

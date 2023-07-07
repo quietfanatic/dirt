@@ -4,7 +4,7 @@
 #include "common.h"
 
 namespace uni {
-inline namespace requirements {
+inline namespace assertions {
 
  // Abort if the condition isn't true.
 template <class T>
@@ -53,5 +53,5 @@ ALWAYS_INLINE static constexpr T&& expect (T&& v, std::source_location loc) {
     return std::forward<T>(v);
 }
 
-} // requirements
+} // assertions
 } // uni

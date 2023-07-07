@@ -40,8 +40,8 @@
 #include <functional> // std::hash
 #include <iterator>
 #include "array-implementations.h"
+#include "assertions.h"
 #include "common.h"
-#include "requirements.h"
 
 namespace uni {
 inline namespace arrays {

@@ -1,4 +1,4 @@
-#include "requirements.h"
+#include "assertions.h"
 
 #include "strings.h"
 #include "utf.h"
@@ -6,16 +6,16 @@
 #include <iostream>
 
 namespace uni {
-inline namespace requirements {
+inline namespace assertions {
 
 [[gnu::cold]]
 void abort_requirement_failed (std::source_location loc) {
     warn_utf8(cat(
         "ERROR: require() failed at ", loc.file_name(), ':',
-        loc.line(), " in ", loc.function_name()
+        loc.line(), "\n       in ", loc.function_name()
     ));
     std::abort();
 }
 
-} // requirements
+} // assertions
 } // uni

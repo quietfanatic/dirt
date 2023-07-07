@@ -1,6 +1,6 @@
 #include "iri.h"
 
-#include "../uni/requirements.h"
+#include "../uni/assertions.h"
 
 namespace iri {
 
@@ -252,7 +252,7 @@ IRI::IRI (Str input, const IRI& base) :
             expect(hash + 1 == spec.size());
             goto parse_fragment;
         }
-        default: expect(false);
+        default: never();
     }
      // Okay NOW start parsing.
 
