@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "../uni/iri.h"
+#include "../iri/iri.h"
 #include "../uni/utf.h"
 #include "common.h"
 #include "type.h"
@@ -79,7 +79,7 @@ struct FileResourceScheme : ResourceScheme {
     }
 
     AnyString get_file (const IRI& iri) const override {
-        return cat(folder, decode(iri.path()));
+        return cat(folder, iri::decode(iri.path()));
     }
 
     FileResourceScheme (

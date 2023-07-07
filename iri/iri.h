@@ -59,11 +59,11 @@
 
 #pragma once
 
-#include "common.h"
-#include "strings.h"
+#include "../uni/common.h"
+#include "../uni/strings.h"
 
-namespace uni {
-inline namespace iri {
+namespace iri {
+using namespace uni;
 
 constexpr uint32 maximum_length = uint16(-1);
 
@@ -230,12 +230,11 @@ struct IRI {
     uint16 hash_ = 0;
 };
 
-} // inline namespace iri
-} // namespace uni
+} // namespace iri
 
 // I was going to specialize std::hash, but using IRIs as keys in an
 // unordered_map would likely be a mistake, since you can just use Strings or
 // Strs instead with the same behavior but less weight.
 
 // Inline implementations
-#include "internal/iri-internal.h"
+#include "iri-internal.h"

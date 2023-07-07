@@ -9,8 +9,9 @@ into its own repo.  So far there is:
    anything else in this repo.
  - uni: Some random universal stuff that doesn't depend on anything else,
    including array and string classes that are faster than the STL's, a tiny
-   callback reference type, modern assertions, UTF-8/UTF-16 conversion routines,
-   and an IRI class.
+   callback reference type, modern assertions, and UTF-8/UTF-16 conversion
+   routines.
+ - iri: A lightweight International Resource Identifier class.
  - ayu: A data language, a C++ reflection and serialization system, and a
    resource management system.
  - geo: A math and geometry library including vectors, ranges, matrixes, and

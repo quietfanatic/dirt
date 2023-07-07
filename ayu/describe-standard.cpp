@@ -1,7 +1,7 @@
 // Provides ayu descriptions for builtin scalar types.  For template types like
 // std::vector, include the .h file.
 
-#include "../uni/iri.h"
+#include "../iri/iri.h"
 #include "describe-standard.h"
 #include "resource.h"
 
@@ -71,7 +71,7 @@ AYU_DESCRIBE(uni::StaticString,
  // a problem, but if the templates are in different compilation units, it'll
  // cause a duplicate definition error from the linker.
 
-AYU_DESCRIBE(uni::IRI,
+AYU_DESCRIBE(iri::IRI,
     delegate(mixed_funcs<AnyString>(
         [](const IRI& v) {
              // current_location().as_iri() would be more intentful, but also
@@ -105,8 +105,8 @@ AYU_DESCRIBE(uni::IRI,
 static tap::TestSet tests ("dirt/ayu/describe-standard", []{
     using namespace tap;
      // Test wstrings
-    std::string s8 = "\"あいうえお\""s;
-    std::u16string s16 = u"あいうえお"s;
+    std::string s8 = "\"あいうえお\"";
+    std::u16string s16 = u"あいうえお";
     is(item_to_string(&s16), s8, "Can serialize wstring");
     std::u16string s16_got;
     doesnt_throw([&]{
@@ -116,7 +116,7 @@ static tap::TestSet tests ("dirt/ayu/describe-standard", []{
      // Test tuples
     std::tuple<int32, std::string, std::vector<int32>> data;
     std::tuple<int32, std::string, std::vector<int32>> expected_data
-        = {45, "asdf"s, {3, 4, 5}};
+        = {45, "asdf", {3, 4, 5}};
     Str s = "[45 asdf [3 4 5]]";
     doesnt_throw([&]{
         return item_from_string(&data, s);

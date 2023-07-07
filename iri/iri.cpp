@@ -1,9 +1,8 @@
 #include "iri.h"
 
-#include "requirements.h"
+#include "../uni/requirements.h"
 
-namespace uni {
-inline namespace iri {
+namespace iri {
 
 #define IRI_UPPERCASE \
          'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': \
@@ -519,13 +518,12 @@ UniqueString IRI::spec_relative_to (const IRI& base) const {
     }
 }
 
-} // inline namespace iri;
-} using namespace uni;
+} using namespace iri;
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
 
-namespace uni::iri::test {
+namespace iri::test {
 
 struct TestCase {
     Str i = "";
@@ -575,11 +573,11 @@ constexpr TestCase cases [] = {
 };
 constexpr auto n_cases = sizeof(cases) / sizeof(cases[0]);
 
-} // namespace uni::iri::test
+} // namespace iri::test
 
 static tap::TestSet tests ("dirt/uni/iri", []{
     using namespace tap;
-    using namespace uni::iri::test;
+    using namespace iri::test;
     IRI empty;
     ok(!empty.is_valid(), "!empty.is_valid()");
     ok(empty.is_empty(), "empty.is_empty()");
