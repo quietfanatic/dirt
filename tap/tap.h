@@ -69,7 +69,7 @@ using namespace std;
  // This is the struct you use to declare a set of tests.
 struct TestSet {
      // The constructor will register the test at init-time.
-    TestSet (const std::string& name, void(* code )());
+    TestSet (std::string_view name, void(* code )());
 };
 
 #else
@@ -77,7 +77,7 @@ struct TestSet {
  // Stub struct for when TAP_DISABLE_TESTS is defined.
 namespace {
 struct TestSet {
-    TestSet (const std::string&, void(*)()) { }
+    TestSet (std::string_view, void(*)()) { }
 };
 }
 
@@ -96,10 +96,10 @@ void done_testing ();
  // Run a test.  If succeeded is true, the test is successful, otherwise it
  //  is a failure.
  // TODO: take string_view
-bool ok (bool succeeded, const std::string& name = "");
+bool ok (bool succeeded, std::string_view name = "");
  // The try_* versions of testing functions fail if the code throws an exception.
  //  Otherwise, they behave like the non-try versions with the returned result.
-bool try_ok (CallbackRef<bool()> code, const std::string& name = "");
+bool try_ok (CallbackRef<bool()> code, std::string_view name = "");
 
  // Run a test that succeeds if got == expected (with overloaded operator ==).
  //  If the test failed, it will try to tell you what it got vs. what it expected.
@@ -109,76 +109,76 @@ bool try_ok (CallbackRef<bool()> code, const std::string& name = "");
  // As a special case, you can use is() with const char* and it'll do a strcmp (with
  //  NULL checks).
 template <class A, class B>
-bool is (const A& got, const B& expected, const std::string& name = "");
+bool is (const A& got, const B& expected, std::string_view name = "");
 template <class A, class B>
-bool try_is (CallbackRef<A()> code, const B& expected, const std::string& name = "");
+bool try_is (CallbackRef<A()> code, const B& expected, std::string_view name = "");
  // You can call the special case directly if you want.
-bool is_strcmp(const char* got, const char* expected, const std::string& name = "");
-bool try_is_strcmp(CallbackRef<const char*()> code, const char* expected, const std::string& name = "");
+bool is_strcmp(const char* got, const char* expected, std::string_view name = "");
+bool try_is_strcmp(CallbackRef<const char*()> code, const char* expected, std::string_view name = "");
 
  // Unlike is, isnt isn't that useful, but at least it catches exceptions in the != operator.
 template <class A, class B>
-bool isnt (const A& got, const B& unexpected, const std::string& name = "");
+bool isnt (const A& got, const B& unexpected, std::string_view name = "");
 template <class A, class B>
-bool try_isnt (CallbackRef<A()> code, const B& unexpected, const std::string& name = "");
-bool isnt_strcmp(const char* got, const char* unexpected, const std::string& name = "");
-bool try_isnt_strcmp(CallbackRef<const char*()> code, const char* unexpected, const std::string& name = "");
+bool try_isnt (CallbackRef<A()> code, const B& unexpected, std::string_view name = "");
+bool isnt_strcmp(const char* got, const char* unexpected, std::string_view name = "");
+bool try_isnt_strcmp(CallbackRef<const char*()> code, const char* unexpected, std::string_view name = "");
 
  // Tests that got is within +/- range of expected.
-bool within (double got, double range, double expected, const std::string& name = "");
-bool try_within (CallbackRef<double()> code, double range, double expected, const std::string& name = "");
+bool within (double got, double range, double expected, std::string_view name = "");
+bool try_within (CallbackRef<double()> code, double range, double expected, std::string_view name = "");
  // Tests that got is within a factor of .001 of expected.
-static inline bool about (double got, double expected, const std::string& name = "") {
+static inline bool about (double got, double expected, std::string_view name = "") {
     return within(got, expected*0.001, expected, name);
 }
-static inline bool try_about (CallbackRef<double()> code, double expected, const std::string& name = "") {
+static inline bool try_about (CallbackRef<double()> code, double expected, std::string_view name = "") {
     return try_within(code, expected*0.001, expected, name);
 }
 
  // Tests that code throws an exception of class Except.  If a different kind of
  //  exception is thrown, the test fails.
 template <class E = std::exception>
-bool throws (CallbackRef<void()> code, const std::string& name = "");
+bool throws (CallbackRef<void()> code, std::string_view name = "");
 
  // Like above, but fails if the thrown exception does not == expected.
 template <class E = std::exception>
-bool throws_is (CallbackRef<void()> code, const E& expected, const std::string& name = "");
+bool throws_is (CallbackRef<void()> code, const E& expected, std::string_view name = "");
 
  // Like above, but fails if the thrown exception does not satisfy check.
 template <class E = std::exception>
-bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, const std::string& name = "");
+bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, std::string_view name = "");
 
  // Succeeds if no exception is thrown.
-bool doesnt_throw (CallbackRef<void()> code, const std::string& name = "");
+bool doesnt_throw (CallbackRef<void()> code, std::string_view name = "");
 
  // Automatically pass a test with this name.  Only resort to this if you can't
  //  make your test work with the other testing functions.
-bool pass (const std::string& name = "");
+bool pass (std::string_view name = "");
  // Likewise with fail.
-bool fail (const std::string& name = "");
+bool fail (std::string_view name = "");
 
  // Alias for doesnt_throw
-static inline bool try_pass (CallbackRef<void()> code, const std::string& name = "") {
+static inline bool try_pass (CallbackRef<void()> code, std::string_view name = "") {
     return doesnt_throw(code, name);
 }
 
  // Mark the next num tests as todo.  You must still run the tests.  If only
  //  todo tests fail, the test set is still considered successful.
-void todo (unsigned num, const std::string& excuse = "");
+void todo (unsigned num, std::string_view excuse = "");
  // Just todo one test.
-static inline void todo (const std::string& excuse = "") {
+static inline void todo (std::string_view excuse = "") {
     todo(1, excuse);
 }
  // The block form marks as todo every test that runs inside it.  It can be safely
-void todo (const std::string& excuse, CallbackRef<void()> code);
-static inline void todo (CallbackRef<void()> code, const std::string& excuse = "") {
+void todo (std::string_view excuse, CallbackRef<void()> code);
+static inline void todo (CallbackRef<void()> code, std::string_view excuse = "") {
     todo(excuse, code);
 }
 
  // Declare that you've skipped num tests.  You must not still run the tests.
-void skip (unsigned num, const std::string& excuse = "");
+void skip (unsigned num, std::string_view excuse = "");
  // Just skip one test.
-static inline void skip (const std::string& excuse = "") {
+static inline void skip (std::string_view excuse = "") {
     skip(1, excuse);
 }
 
@@ -186,7 +186,7 @@ static inline void skip (const std::string& excuse = "") {
 
  // Tap will use this to print strings to stdout.  By default, this is
  //  fputs(s.c_str(), stdout);
-void set_print (void(*)(const std::string&));
+void set_print (void(*)(std::string_view));
 
  // Convert an arbitrary item to a string.  Feel free to overload this for your
  //  own types.  Throwing exceptions from show() may cause duplicate test failures.
@@ -197,13 +197,13 @@ struct Show {
 };
 
  // Print a message as diagnostics.  Should not contain newlines.
-void diag (const std::string& message);
+void diag (std::string_view message);
 
 ///// UH-OH
 
  // When everything is wrong and you can't even continue testing.  Immediately fails
  //  the whole test set and calls exit(1).
-void BAIL_OUT (const std::string& reason = "");
+void BAIL_OUT (std::string_view reason = "");
 
  // Testing functions normally catch exceptions, but they won't catch ones that
  //  inherit from this (unless it's a throws<>() and the exception matches it).
@@ -215,7 +215,7 @@ struct scary_exception : std::exception { };
 void allow_testing (int argc, char** argv, const char* test_flag = "--test");
 
  // To run a test set manually, do this.  It will not exit unless BAIL_OUT is called.
-void run_test (const std::string& name);
+void run_test (std::string_view name);
  // To list the tests manually, do this.  It will print test set names to stdout.
 void list_tests ();
 
@@ -229,7 +229,7 @@ extern char** argv;
 namespace internal {
     std::string type_name (const std::type_info& type);
 
-    bool fail_on_throw (CallbackRef<bool()>, const std::string& name);
+    bool fail_on_throw (CallbackRef<bool()>, std::string_view name);
 
     template <class A, class B>
     void diag_unexpected (const A& got, const B& expected);
@@ -246,7 +246,7 @@ namespace internal {
 ///// TEMPLATE IMPLEMENTATIONS
 
 template <class A, class B>
-bool is (const A& got, const B& expected, const std::string& name) {
+bool is (const A& got, const B& expected, std::string_view name) {
     return internal::fail_on_throw([&]{
         if (got == expected) {
             return pass(name);
@@ -259,7 +259,7 @@ bool is (const A& got, const B& expected, const std::string& name) {
     }, name);
 }
 template <class A, class B>
-bool try_is (CallbackRef<A()> code, const B& expected, const std::string& name) {
+bool try_is (CallbackRef<A()> code, const B& expected, std::string_view name) {
     return internal::fail_on_throw([&]{
         const A& got = code();
         if (got == expected) {
@@ -272,34 +272,34 @@ bool try_is (CallbackRef<A()> code, const B& expected, const std::string& name) 
         }
     }, name);
 }
-static inline bool is (const char* got, const char* expected, const std::string& name) {
+static inline bool is (const char* got, const char* expected, std::string_view name) {
     return is_strcmp(got, expected, name);
 }
-static inline bool try_is (CallbackRef<const char*()> code, const char* expected, const std::string& name) {
+static inline bool try_is (CallbackRef<const char*()> code, const char* expected, std::string_view name) {
     return try_is_strcmp(code, expected, name);
 }
 
 template <class A, class B>
-bool isnt (const A& got, const B& unexpected, const std::string& name) {
+bool isnt (const A& got, const B& unexpected, std::string_view name) {
     return internal::fail_on_throw([&]{
         return ok(got != unexpected, name);
     }, name);
 }
 template <class A, class B>
-bool try_isnt (CallbackRef<A()> code, const B& unexpected, const std::string& name) {
+bool try_isnt (CallbackRef<A()> code, const B& unexpected, std::string_view name) {
     return internal::fail_on_throw([&]{
         return try_ok(code() != unexpected, name);
     }, name);
 }
-static inline bool isnt (const char* got, const char* unexpected, const std::string& name) {
+static inline bool isnt (const char* got, const char* unexpected, std::string_view name) {
     return isnt_strcmp(got, unexpected, name);
 }
-static inline bool try_isnt (CallbackRef<const char*()> code, const char* unexpected, const std::string& name) {
+static inline bool try_isnt (CallbackRef<const char*()> code, const char* unexpected, std::string_view name) {
     return try_isnt_strcmp(code, unexpected, name);
 }
 
 template <class E>
-bool throws (CallbackRef<void()> code, const std::string& name) {
+bool throws (CallbackRef<void()> code, std::string_view name) {
     try {
         code();
         fail(name);
@@ -323,7 +323,7 @@ bool throws (CallbackRef<void()> code, const std::string& name) {
 }
 
 template <class E>
-bool throws_is (CallbackRef<void()> code, const E& expected, const std::string& name) {
+bool throws_is (CallbackRef<void()> code, const E& expected, std::string_view name) {
     try {
         code();
         fail(name);
@@ -354,7 +354,7 @@ bool throws_is (CallbackRef<void()> code, const E& expected, const std::string& 
 }
 
 template <class E>
-bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, const std::string& name) {
+bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, std::string_view name) {
     try {
         code();
         fail(name);

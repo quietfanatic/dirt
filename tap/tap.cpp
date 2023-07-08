@@ -33,8 +33,8 @@ static std::vector<std::unique_ptr<TestSetData>>& testers () {
     return testers;
 }
 
-TestSet::TestSet (const std::string& name, void(* code )()) {
-    testers().emplace_back(new TestSetData{name, code});
+TestSet::TestSet (std::string_view name, void(* code )()) {
+    testers().emplace_back(new TestSetData{std::string(name), code});
 }
 
 #endif
@@ -46,8 +46,8 @@ static unsigned num_tested = 0;
 static unsigned num_to_todo = 0;
 static bool block_todo = false;
 static std::string todo_excuse;
-static void(* print )(const std::string&) = [](const std::string& s){
-    fputs(s.c_str(), stdout);
+static void(* print )(std::string_view) = [](std::string_view s){
+    fwrite(s.data(), 1, s.size(), stdout);
 };
 
  ///// API
@@ -63,30 +63,30 @@ void done_testing () {
     plan(num_tested);
 }
 
-bool ok (bool succeeded, const std::string& name) {
+bool ok (bool succeeded, std::string_view name) {
     num_tested += 1;
     std::string m;
     if (!succeeded) {
         m += "not ";
     }
-    m += "ok " + std::to_string(num_tested);
+    m += "ok "; m += std::to_string(num_tested);
     if (!name.empty()) {
-        m += " " + name;
+        m += " "; m += name;
     };
     if (num_to_todo || block_todo) {
-        m += " # TODO " + todo_excuse;
+        m += " # TODO "; m += todo_excuse;
         if (num_to_todo) num_to_todo--;
     }
-    print(m + "\n");
+    print(m += "\n");
     return succeeded;
 }
-bool try_ok (CallbackRef<bool()> code, const std::string& name) {
+bool try_ok (CallbackRef<bool()> code, std::string_view name) {
     return fail_on_throw([&]{
         return ok(code(), name);
     }, name);
 }
 
-bool is_strcmp(const char* got, const char* expected, const std::string& name) {
+bool is_strcmp(const char* got, const char* expected, std::string_view name) {
     if (!got && !expected) {
         return pass(name);
     }
@@ -104,17 +104,17 @@ bool is_strcmp(const char* got, const char* expected, const std::string& name) {
         return false;
     }
 }
-bool try_is_strcmp(CallbackRef<const char*()> code, const char* expected, const std::string& name) {
+bool try_is_strcmp(CallbackRef<const char*()> code, const char* expected, std::string_view name) {
     return fail_on_throw([&]{
         return is_strcmp(code(), expected, name);
     }, name);
 }
-bool isnt_strcmp(const char* got, const char* unexpected, const std::string& name) {
+bool isnt_strcmp(const char* got, const char* unexpected, std::string_view name) {
     if (!got && !unexpected) return pass(name);
     else if (!got || !unexpected) return fail(name);
     else return ok(0 != strcmp(got, unexpected), name);
 }
-bool try_isnt_strcmp(CallbackRef<const char*()> code, const char* unexpected, const std::string& name) {
+bool try_isnt_strcmp(CallbackRef<const char*()> code, const char* unexpected, std::string_view name) {
     return fail_on_throw([&]{
         return isnt_strcmp(code(), unexpected, name);
     }, name);
@@ -131,7 +131,7 @@ struct Show<plusminus> {
     }
 };
 
-bool within (double got, double range, double expected, const std::string& name) {
+bool within (double got, double range, double expected, std::string_view name) {
     if (range < 0) range = -range;
     if (got >= expected - range && got <= expected + range) {
         return pass(name);
@@ -143,31 +143,31 @@ bool within (double got, double range, double expected, const std::string& name)
         return false;
     }
 }
-bool try_within (CallbackRef<double()> code, double range, double expected, const std::string& name) {
+bool try_within (CallbackRef<double()> code, double range, double expected, std::string_view name) {
     return fail_on_throw([&]{
         return within(code(), range, expected, name);
     }, name);
 }
 
-bool doesnt_throw (CallbackRef<void()> code, const std::string& name) {
+bool doesnt_throw (CallbackRef<void()> code, std::string_view name) {
     return fail_on_throw([&]{
         code();
         return pass(name);
     }, name);
 }
 
-bool pass (const std::string& name) {
+bool pass (std::string_view name) {
     return ok(true, name);
 }
-bool fail (const std::string& name) {
+bool fail (std::string_view name) {
     return ok(false, name);
 }
 
-void todo (unsigned num, const std::string& excuse) {
+void todo (unsigned num, std::string_view excuse) {
     num_to_todo = num;
     todo_excuse = excuse;
 }
-void todo (const std::string& excuse, CallbackRef<void()> code) {
+void todo (std::string_view excuse, CallbackRef<void()> code) {
     auto old_excuse = todo_excuse;
     auto old_block_todo = block_todo;
     todo_excuse = excuse;
@@ -177,23 +177,23 @@ void todo (const std::string& excuse, CallbackRef<void()> code) {
     block_todo = old_block_todo;
 }
 
-void skip (unsigned num, const std::string& excuse) {
+void skip (unsigned num, std::string_view excuse) {
     for (unsigned int i = 0; i < num; i++) {
         num_tested++;
-        print("ok " + std::to_string(num_tested) + " # SKIP " + excuse + "\n");
+        print("ok " + std::to_string(num_tested) + " # SKIP " + std::string(excuse) + "\n");
     }
 }
 
-void set_print (void(* f )(const std::string&)) {
+void set_print (void(* f )(std::string_view)) {
     print = f;
 }
 
-void diag (const std::string& message) {
-    print(" # " + message + "\n");
+void diag (std::string_view message) {
+    print(" # " + std::string(message) + "\n");
 }
 
-void BAIL_OUT (const std::string& reason) {
-    printf("Bail out!  %s", reason.c_str());
+void BAIL_OUT (std::string_view reason) {
+    print("Bail out!  " + std::string(reason));
     exit(1);
 }
 
@@ -224,7 +224,7 @@ void allow_testing (int argc, char** argv, const char* test_flag) {
 }
 
 #ifndef TAP_DISABLE_TESTS
-void run_test (const std::string& name) {
+void run_test (std::string_view name) {
     for (auto& t : testers()) {
         if (t->name == name) {
             try {
@@ -241,11 +241,11 @@ void run_test (const std::string& name) {
             return;
         }
     }
-    printf("1..1\nnot ok 1 - No test named %s has been compiled.\n", name.c_str());
+    print("1..1\nnot ok 1 - No test named " + std::string(name) + " has been compiled.\n");
 }
 #else
-void run_test (const std::string&) {
-    printf("1..0 # SKIP this program was compiled with testing disabled\n");
+void run_test (std::string_view) {
+    print("1..0 # SKIP this program was compiled with testing disabled\n");
 }
 #endif
 
@@ -279,7 +279,7 @@ namespace internal {
 #endif
     }
 
-    bool fail_on_throw(CallbackRef<bool()> code, const std::string& name) {
+    bool fail_on_throw(CallbackRef<bool()> code, std::string_view name) {
         try {
             return code();
         }
