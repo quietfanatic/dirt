@@ -67,11 +67,14 @@ AYU_DESCRIBE(ayu::IOError,
     )
 )
 AYU_DESCRIBE(ayu::OpenFailed,
-    delegate(base<Error>())
+    delegate(base<IOError>())
 )
 AYU_DESCRIBE(ayu::ReadFailed,
-    delegate(base<Error>())
+    delegate(base<IOError>())
+)
+AYU_DESCRIBE(ayu::WriteFailed,
+    delegate(base<IOError>())
 )
 AYU_DESCRIBE(ayu::CloseFailed,
-    delegate(base<Error>())
+    delegate(base<IOError>())
 )

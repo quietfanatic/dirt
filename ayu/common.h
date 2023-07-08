@@ -85,6 +85,8 @@ struct IOError : Error {
 struct OpenFailed : IOError { };
  // Failure to read from an open file
 struct ReadFailed : IOError { };
+ // Failure to write to an open file
+struct WriteFailed : IOError { };
  // Failure to close a file
 struct CloseFailed : IOError { };
 

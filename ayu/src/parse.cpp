@@ -446,6 +446,7 @@ UniqueString string_from_file (AnyString filename) {
         ReadFailed x;
         x.filename = move(filename);
         x.errnum = errno;
+        fclose(f);
         throw x;
     }
 

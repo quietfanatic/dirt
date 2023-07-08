@@ -368,8 +368,14 @@ void string_to_file (Str content, AnyString filename) {
         x.errnum = errno;
         throw x;
     }
-     // TODO: check return value!
-    fwrite(content.data(), 1, content.size(), f);
+    usize did_write = fwrite(content.data(), 1, content.size(), f);
+    if (did_write != content.size()) {
+        WriteFailed x;
+        x.filename = move(filename);
+        x.errnum = errno;
+        fclose(f);
+        throw x;
+    }
     if (fclose(f) != 0) {
         CloseFailed x;
         x.filename = move(filename);
