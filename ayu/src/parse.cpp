@@ -433,6 +433,7 @@ UniqueString string_from_file (AnyString filename) {
         OpenFailed x;
         x.filename = move(filename);
         x.errnum = errno;
+        x.mode = "rb";
         throw x;
     }
 

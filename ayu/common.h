@@ -81,8 +81,10 @@ struct IOError : Error {
     AnyString filename;
     int errnum; // TODO: use std::errc
 };
- // Failure to open a file.  TODO: Add mode to OpenFailed
-struct OpenFailed : IOError { };
+ // Failure to open a file.
+struct OpenFailed : IOError {
+    AnyString mode;
+};
  // Failure to read from an open file
 struct ReadFailed : IOError { };
  // Failure to write to an open file

@@ -67,7 +67,10 @@ AYU_DESCRIBE(ayu::IOError,
     )
 )
 AYU_DESCRIBE(ayu::OpenFailed,
-    delegate(base<IOError>())
+    elems(
+        elem(base<IOError>(), include),
+        elem(&OpenFailed::mode)
+    )
 )
 AYU_DESCRIBE(ayu::ReadFailed,
     delegate(base<IOError>())

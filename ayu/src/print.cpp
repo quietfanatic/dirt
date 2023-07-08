@@ -366,6 +366,7 @@ void string_to_file (Str content, AnyString filename) {
         OpenFailed x;
         x.filename = move(filename);
         x.errnum = errno;
+        x.mode = "wb";
         throw x;
     }
     usize did_write = fwrite(content.data(), 1, content.size(), f);
