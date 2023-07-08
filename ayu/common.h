@@ -63,26 +63,35 @@ void dump (const Args&... v) {
 
 ///// BASIC ERRORS
 
- // Base class for ayu-related errors.  Do not throw this or a base class
- // directly; throw X<SomethingError>(...) instead.
-struct Error {
-    const std::source_location* source_location;
+ // Base class for ayu-related errors.
+struct Error : std::exception {
+    mutable UniqueString mess_cache;
+     // Calls item_to_string on the most derived type
+    const char* what () const noexcept final;
 };
  // Unclassified error
 struct GenericError : Error {
     AnyString mess;
+    GenericError (StaticString s) : mess(s) { }
+    template <class... Args> requires (sizeof...(Args) > 1)
+    GenericError (Args&&... args) : mess(cat(std::forward<Args>(args)...)) { }
 };
  // General IO-related problem
 struct IOError : Error {
     AnyString filename;
     int errnum; // TODO: use std::errc
 };
- // Failure to open a file
+ // Failure to open a file.  TODO: Add mode to OpenFailed
 struct OpenFailed : IOError { };
  // Failure to read from an open file
 struct ReadFailed : IOError { };
  // Failure to close a file
 struct CloseFailed : IOError { };
+
+ // Called when an exception is thrown in a place where the library can't
+ // properly clean up after itself, such as when a resource value throws
+ // from its destructor.
+[[noreturn]] void unrecoverable_exception (std::exception& e, Str when);
 
 } // namespace ayu
 

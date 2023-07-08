@@ -31,7 +31,6 @@ namespace ayu::in {
     const Description* need_description_for_type_info (const std::type_info&);
     const Description* get_description_for_name (Str);
     const Description* need_description_for_name (Str);
-    [[noreturn]] void throw_UnknownType (const std::type_info&);
 
     StaticString get_description_name (const Description*);
      // If this returns false, the type is probably a corrupted pointer and

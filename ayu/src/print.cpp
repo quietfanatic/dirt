@@ -5,7 +5,6 @@
 
 #include "../../uni/utf.h"
 #include "../describe-base.h"
-#include "../exception.h"
 #include "../type.h"
 #include "char-cases-private.h"
 
@@ -341,11 +340,12 @@ struct Printer {
 };
 
 static void validate_print_options (PrintOptions opts) {
-    if (opts & ~VALID_PRINT_OPTION_BITS) {
-        throw X<InvalidPrintOptions>(opts);
-    }
-    if ((opts & PRETTY) && (opts & COMPACT)) {
-        throw X<InvalidPrintOptions>(opts);
+    if (opts & ~VALID_PRINT_OPTION_BITS ||
+        ((opts & PRETTY) && (opts & COMPACT))
+    ) {
+        InvalidPrintOptions x;
+        x.options = opts;
+        throw x;
     }
 }
 
@@ -363,11 +363,18 @@ UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
 void string_to_file (Str content, AnyString filename) {
     FILE* f = fopen_utf8(filename.c_str(), "wb");
     if (!f) {
-        throw X<OpenFailed>(move(filename), errno);
+        OpenFailed x;
+        x.filename = move(filename);
+        x.errnum = errno;
+        throw x;
     }
+     // TODO: check return value!
     fwrite(content.data(), 1, content.size(), f);
     if (fclose(f) != 0) {
-        throw X<CloseFailed>(move(filename), errno);
+        CloseFailed x;
+        x.filename = move(filename);
+        x.errnum = errno;
+        throw x;
     }
 }
 
@@ -384,7 +391,7 @@ void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
 AYU_DESCRIBE(ayu::InvalidPrintOptions,
     elems(
         elem(base<Error>(), include),
-        elem(&InvalidPrintOptions::opts)
+        elem(&InvalidPrintOptions::options)
     )
 )
 

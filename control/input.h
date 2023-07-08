@@ -40,11 +40,4 @@ int input_to_integer (const Input& i);
 Input input_from_string (Str c);
 Str input_to_string (const Input& i);
 
-namespace X {
-    struct InvalidInputName : ayu::Error {
-        std::string name;
-        InvalidInputName (std::string name) : name(name) { }
-    };
-}
-
 } // namespace control

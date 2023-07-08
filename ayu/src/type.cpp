@@ -37,15 +37,29 @@ usize Type::cpp_align () const {
 
 void Type::default_construct (void* target) const {
     auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc->default_construct) throw X<CannotDefaultConstruct>(*this);
+    if (!desc->default_construct) {
+        CannotDefaultConstruct x;
+        x.type = *this;
+        throw x;
+    }
      // Don't allow constructing objects that can't be destroyed
-    if (!desc->destroy) throw X<CannotDestroy>(*this);
+    if (!desc->destroy) {
+        CannotDestroy x;
+        x.type = *this;
+        throw x;
+    }
     desc->default_construct(target);
 }
 
 void Type::destroy (Mu* p) const {
     auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc->destroy) throw X<CannotDestroy>(*this);
+    if (!desc->destroy) {
+         // Likely shouldn't get here since we forbid constructing objects with
+         // no destructor.
+        CannotDestroy x;
+        x.type = *this;
+        throw x;
+    }
     desc->destroy(p);
 }
 
@@ -63,8 +77,16 @@ void Type::deallocate (void* p) const {
 Mu* Type::default_new () const {
     auto desc = in::DescriptionPrivate::get(*this);
      // Throw before allocating
-    if (!desc->default_construct) throw X<CannotDefaultConstruct>(*this);
-    if (!desc->destroy) throw X<CannotDestroy>(*this);
+    if (!desc->default_construct) {
+        CannotDefaultConstruct x;
+        x.type = *this;
+        throw x;
+    }
+    if (!desc->destroy) {
+        CannotDestroy x;
+        x.type = *this;
+        throw x;
+    }
     void* p = allocate();
     desc->default_construct(p);
     return (Mu*)p;
@@ -104,7 +126,12 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
 }
 Mu* Type::upcast_to (Type to, Mu* p) const {
     if (Mu* r = try_upcast_to(to, p)) return r;
-    else throw X<CannotCoerce>(*this, to);
+    else {
+        CannotCoerce x;
+        x.from = *this;
+        x.to = to;
+        throw x;
+    }
 }
 
 Mu* Type::try_downcast_to (Type to, Mu* p) const {
@@ -142,7 +169,12 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
 Mu* Type::downcast_to (Type to, Mu* p) const {
     if (!p) return p;
     if (Mu* r = try_downcast_to(to, p)) return r;
-    else throw X<CannotCoerce>(*this, to);
+    else {
+        CannotCoerce x;
+        x.from = *this;
+        x.to = to;
+        throw x;
+    }
 }
 
 Mu* Type::try_cast_to (Type to, Mu* p) const {
@@ -153,7 +185,12 @@ Mu* Type::try_cast_to (Type to, Mu* p) const {
 Mu* Type::cast_to (Type to, Mu* p) const {
     if (!p) return p;
     if (Mu* r = try_cast_to(to, p)) return r;
-    else throw X<CannotCoerce>(*this, to);
+    else {
+        CannotCoerce x;
+        x.from = *this;
+        x.to = to;
+        throw x;
+    }
 }
 
 namespace in {
@@ -181,7 +218,7 @@ static void init_names () {
 
 const Description* register_description (const Description* desc) {
     if (registry().initted) {
-        throw X<GenericError>("register_description called after init time");
+        throw GenericError("register_description called after init time");
     }
     auto [p, e] = registry().by_cpp_type.emplace(*desc->cpp_type, desc);
     return p->second;
@@ -196,7 +233,11 @@ const Description* get_description_for_type_info (const std::type_info& t) {
 const Description* need_description_for_type_info (const std::type_info& t) {
     auto desc = get_description_for_type_info(t);
     if (desc) return desc;
-    else throw X<UnknownType>(t);
+    else {
+        UnknownType x;
+        x.cpp_type = &t;
+        throw x;
+    }
 }
 
 const Description* get_description_for_name (Str name) {
@@ -209,10 +250,11 @@ const Description* get_description_for_name (Str name) {
 const Description* need_description_for_name (Str name) {
     auto desc = get_description_for_name(name);
     if (desc) return desc;
-    else throw X<TypeNotFound>(name);
-}
-void throw_UnknownType (const std::type_info& t) {
-    throw X<UnknownType>(t);
+    else {
+        TypeNotFound x;
+        x.name = name;
+        throw x;
+    }
 }
 
 StaticString get_description_name (const Description* desc) {
@@ -273,7 +315,7 @@ AYU_DESCRIBE(ayu::UnknownType,
     elems(
         elem(base<TypeError>(), include),
         elem(value_func<UniqueString>(
-            [](const ayu::UnknownType& v){ return get_demangled_name(v.cpp_type); }
+            [](const ayu::UnknownType& v){ return get_demangled_name(*v.cpp_type); }
         ))
     )
 )

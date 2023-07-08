@@ -232,7 +232,7 @@ struct ResourceError : Error { };
  // for that operation.
 struct InvalidResourceState : ResourceError {
     StaticString tried;
-    Resource res;
+    Resource resource;
     ResourceState state;
 };
  // Tried to create a resource with an empty value.
@@ -253,7 +253,7 @@ struct ReloadWouldBreak : ResourceError {
 };
  // Failed to delete a resource's source file.
 struct RemoveSourceFailed : ResourceError {
-    Resource res;
+    Resource resource;
     int errnum; // errno
 };
 

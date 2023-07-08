@@ -97,14 +97,18 @@ void* Document::allocate (Type t) {
 }
 
 void* Document::allocate_named (Type t, AnyString name) {
-    if (name.empty()) throw X<DocumentInvalidName>(move(name));
-
     usize id = parse_numbered_name(name);
-    if (id == usize(-1) && name[0] == '_') {
-        throw X<DocumentInvalidName>(move(name));
+    if (id == usize(-1) && (!name || name[0] == '_')) {
+        DocumentInvalidName x;
+        x.name = move(name);
+        throw x;
     }
     auto ref = DocumentItemRef(data, name);
-    if (ref.header) throw X<DocumentDuplicateName>(move(name));
+    if (ref.header) {
+        DocumentDuplicateName x;
+        x.name = move(name);
+        throw x;
+    }
 
     if (id == usize(-1)) {
         auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
@@ -112,7 +116,9 @@ void* Document::allocate_named (Type t, AnyString name) {
         return header+1;
     }
     else { // Actually a numbered item
-        if (id > data->next_id + 10000) throw X<GenericError>("Unreasonable growth of next_id");
+        if (id > data->next_id + 10000) {
+            throw GenericError("Unreasonable growth of next_id");
+        }
         if (id >= data->next_id) data->next_id = id + 1;
         auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
         auto header = new (p) DocumentItemHeader(&data->items, t, id);
@@ -131,7 +137,12 @@ void Document::delete_ (Type t, Mu* p) {
     we_good:;
 #endif
     auto header = (DocumentItemHeader*)p - 1;
-    if (header->type != t) throw X<DocumentDeleteWrongType>(header->type, t);
+    if (header->type != t) {
+        DocumentDeleteWrongType x;
+        x.existing = header->type;
+        x.deleted_as = t;
+        throw x;
+    }
     if (header->type) header->type.destroy(p);
     header->~DocumentItemHeader();
     free(header);
@@ -147,7 +158,11 @@ void Document::delete_named (Str name) {
         free(ref.header);
         return;
     }
-    else throw X<DocumentDeleteMissing>(name);
+    else {
+        DocumentDeleteMissing x;
+        x.name = name;
+        throw x;
+    }
 }
 
 void Document::deallocate (void* p) {

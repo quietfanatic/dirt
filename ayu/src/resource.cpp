@@ -19,26 +19,39 @@
 namespace ayu {
 namespace in {
 
-    inline void verify_tree_for_scheme (
-        Resource res,
-        const ResourceScheme* scheme,
-        const Tree& tree
-    ) {
-        if (tree.form == NULLFORM) {
-            throw X<EmptyResourceValue>(res.name().spec());
-        }
-        auto a = TreeArraySlice(tree);
-        if (a.size() == 2) {
-            Type type = Type(Str(a[0]));
-            if (!scheme->accepts_type(type)) {
-                throw X<UnacceptableResourceType>{res.name().spec(), type};
-            }
-        }
-        else {
-             // TODO: Figure out/remember what to do here
-            require(false);
+static auto invalid_state (StaticString t, Resource r) {
+    InvalidResourceState x;
+    x.tried = t;
+    x.resource = r;
+    x.state = r.state();
+    return x;
+}
+
+static void verify_tree_for_scheme (
+    Resource res,
+    const ResourceScheme* scheme,
+    const Tree& tree
+) {
+    if (tree.form == NULLFORM) {
+        EmptyResourceValue x;
+        x.name = res.name().spec();
+        throw x;
+    }
+    auto a = TreeArraySlice(tree);
+    if (a.size() == 2) {
+        Type type = Type(Str(a[0]));
+        if (!scheme->accepts_type(type)) {
+            UnacceptableResourceType x;
+            x.name = res.name().spec();
+            x.type = type;
+            throw x;
         }
     }
+    else {
+         // TODO: Figure out/remember what to do here
+        require(false);
+    }
+}
 
 } using namespace in;
 
@@ -68,11 +81,15 @@ Resource::Resource (const IRI& name) {
         return;
     }
     if (!name) {
-        throw X<InvalidResourceName>(name.possibly_invalid_spec());
+        InvalidResourceName x;
+        x.name = name.possibly_invalid_spec();
+        throw x;
     }
     auto scheme = universe().require_scheme(name);
     if (!scheme->accepts_iri(name)) {
-        throw X<UnacceptableResourceName>(name.spec());
+        UnacceptableResourceName x;
+        x.name = name.spec();
+        throw x;
     }
     auto& resources = universe().resources;
     auto iter = resources.find(name.spec());
@@ -98,10 +115,14 @@ Resource::Resource (const IRI& name, Dynamic&& value) :
     Resource(name)
 {
     if (!value.has_value()) {
-        throw X<EmptyResourceValue>(name.spec());
+        EmptyResourceValue x;
+        x.name = name.spec();
+        throw x;
     }
     if (data->state == UNLOADED) set_value(move(value));
-    else throw X<InvalidResourceState>("construct"_s, *this, data->state);
+    else {
+        throw invalid_state("construct", *this);
+    }
 }
 
 const IRI& Resource::name () const { return data->name; }
@@ -118,12 +139,17 @@ Dynamic& Resource::get_value () const {
 }
 void Resource::set_value (Dynamic&& value) const {
     if (!value.has_value()) {
-        throw X<EmptyResourceValue>(data->name.spec());
+        EmptyResourceValue x;
+        x.name = data->name.spec();
+        throw x;
     }
     if (data->name) {
         auto scheme = universe().require_scheme(data->name);
         if (!scheme->accepts_type(value.type)) {
-            throw X<UnacceptableResourceType>(data->name.spec(), value.type);
+            UnacceptableResourceType x;
+            x.name = data->name.spec();
+            x.type = value.type;
+            throw x;
         }
     }
     switch (data->state) {
@@ -133,7 +159,13 @@ void Resource::set_value (Dynamic&& value) const {
         case LOAD_CONSTRUCTING:
         case LOADED:
             break;
-        default: throw X<InvalidResourceState>("set_value"_s, data, data->state);
+        default: {
+            InvalidResourceState x;
+            x.tried = "set_value";
+            x.resource = *this;
+            x.state = data->state;
+            throw x;
+        }
     }
     data->value = move(value);
 }
@@ -158,7 +190,7 @@ void load (Slice<Resource> reses) {
         case UNLOADED: rs.push_back(res); break;
         case LOADED:
         case LOAD_CONSTRUCTING: continue;
-        default: throw X<InvalidResourceState>("load"_s, res, res.data->state);
+        default: throw invalid_state("load", res);
     }
     try {
         for (auto res : rs) res.data->state = LOAD_CONSTRUCTING;
@@ -192,10 +224,10 @@ void load (Slice<Resource> reses) {
 
 void rename (Resource old_res, Resource new_res) {
     if (old_res.data->state != LOADED) {
-        throw X<InvalidResourceState>("rename from"_s, old_res, old_res.data->state);
+        throw invalid_state("rename from", old_res);
     }
     if (new_res.data->state != UNLOADED) {
-        throw X<InvalidResourceState>("rename to"_s, new_res, old_res.data->state);
+        throw invalid_state("rename to", new_res);
     }
     new_res.data->value = move(old_res.data->value);
     new_res.data->state = LOADED;
@@ -207,9 +239,7 @@ void save (Resource res) {
 }
 void save (Slice<Resource> reses) {
     for (auto res : reses) {
-        if (res.data->state != LOADED) {
-            throw X<InvalidResourceState>("save"_s, res, res.data->state);
-        }
+        if (res.data->state != LOADED) throw invalid_state("save", res);
     }
     try {
         for (auto res : reses) res.data->state = SAVE_VERIFYING;
@@ -220,14 +250,16 @@ void save (Slice<Resource> reses) {
             for (usize i = 0; i < reses.size(); i++) {
                 Resource res = reses[i];
                 if (!res.data->value.has_value()) {
-                    throw X<EmptyResourceValue>(res.data->name.spec());
+                    EmptyResourceValue x;
+                    x.name = res.data->name.spec();
+                    throw x;
                 }
                 auto scheme = universe().require_scheme(res.data->name);
                 if (!scheme->accepts_type(res.data->value.type)) {
-                    throw X<UnacceptableResourceType>{
-                        res.data->name.spec(),
-                        res.data->value.type
-                    };
+                    UnacceptableResourceType x;
+                    x.name = res.data->name.spec();
+                    x.type = res.data->value.type;
+                    throw x;
                 }
                 auto filename = scheme->get_file(res.data->name);
                 auto contents = tree_to_string(
@@ -260,7 +292,7 @@ void unload (Slice<Resource> reses) {
     switch (res.data->state) {
         case UNLOADED: continue;
         case LOADED: rs.push_back(res); break;
-        default: throw X<InvalidResourceState>("unload"_s, res, res.data->state);
+        default: throw invalid_state("unload", res);
     }
      // Verify step
     try {
@@ -271,7 +303,7 @@ void unload (Slice<Resource> reses) {
                 case UNLOADED: continue;
                 case UNLOAD_VERIFYING: continue;
                 case LOADED: others.emplace_back(&*other); break;
-                default: throw X<InvalidResourceState>("scan for unload"_s, &*other, other->state);
+                default: throw invalid_state("scan for unload", &*other);
             }
         }
          // If we're unloading everything, no need to do any scanning.
@@ -297,7 +329,10 @@ void unload (Slice<Resource> reses) {
                         Reference ref = ref_ref.get_as<Reference>();
                         auto iter = ref_set.find(ref);
                         if (iter != ref_set.end()) {
-                            throw X<UnloadWouldBreak>(loc, iter->second);
+                            UnloadWouldBreak x;
+                            x.from = loc;
+                            x.to = iter->second;
+                            throw x;
                         }
                         return false;
                     }
@@ -332,7 +367,7 @@ void force_unload (Slice<Resource> reses) {
     switch (res.data->state) {
         case UNLOADED: continue;
         case LOADED: rs.push_back(res); break;
-        default: throw X<InvalidResourceState>("force_unload"_s, res, res.data->state);
+        default: throw invalid_state("force_unload", res);
     }
      // Skip straight to destruct step
     for (auto res : rs) res.data->state = UNLOAD_COMMITTING;
@@ -353,7 +388,7 @@ void reload (Resource res) {
 void reload (Slice<Resource> reses) {
     for (auto res : reses)
     if (res.data->state != LOADED) {
-        throw X<InvalidResourceState>("reload"_s, res, res.data->state);
+        throw invalid_state("reload", res);
     }
      // Preparation (this won't throw)
     for (auto res : reses) {
@@ -382,7 +417,7 @@ void reload (Slice<Resource> reses) {
                 case UNLOADED: continue;
                 case RELOAD_VERIFYING: continue;
                 case LOADED: others.emplace_back(&*other); break;
-                default: throw X<InvalidResourceState>("scan for reload"_s, &*other, other->state);
+                default: throw invalid_state("scan for reload", &*other);
             }
         }
          // If we're reloading everything, no need to do any scanning.
@@ -415,7 +450,11 @@ void reload (Slice<Resource> reses) {
                         }
                         catch (Error&) {
                              // It's probably okay to throw away the error info
-                            throw X<ReloadWouldBreak>(loc, iter->second);
+                             // TODO: wrap it instead
+                            ReloadWouldBreak x;
+                            x.from = loc;
+                            x.to = iter->second;
+                            throw x;
                         }
                         return false;
                     }
@@ -538,7 +577,7 @@ AYU_DESCRIBE(ayu::InvalidResourceState,
         elem(base<ResourceError>(), include),
         elem(&InvalidResourceState::tried),
         elem(&InvalidResourceState::state),
-        elem(&InvalidResourceState::res)
+        elem(&InvalidResourceState::resource)
     )
 )
 AYU_DESCRIBE(ayu::EmptyResourceValue,
@@ -564,7 +603,7 @@ AYU_DESCRIBE(ayu::ReloadWouldBreak,
 AYU_DESCRIBE(ayu::RemoveSourceFailed,
     elems(
         elem(base<ResourceError>(), include),
-        elem(&RemoveSourceFailed::res),
+        elem(&RemoveSourceFailed::resource),
         elem(value_func<Str>(
             [](const RemoveSourceFailed& v){
                 return Str(std::strerror(v.errnum));

@@ -108,14 +108,6 @@ struct ImageTexture : Texture {
     void init ();
 };
 
-struct ImageLoadFailed : GlowError {
-    std::string filename;
-    std::string details;
-};
-struct ImageSaveFailed : GlowError {
-    std::string filename;
-    std::string details;
-};
 struct SubImageBoundsNotProper : GlowError {
     IRect bounds;
 };

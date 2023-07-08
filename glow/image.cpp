@@ -15,10 +15,16 @@ Image::~Image () { delete[](pixels); }
 void SubImage::validate () {
     if (bounds != GINF) {
         if (!proper(bounds)) {
-            throw ayu::X<SubImageBoundsNotProper>(bounds);
+            SubImageBoundsNotProper x;
+            x.bounds = bounds;
+            throw x;
         }
         if (image && !contains(image->bounds(), bounds)) {
-            throw ayu::X<SubImageOutOfBounds>(image, image->size, bounds);
+            SubImageOutOfBounds x;
+            x.image = image;
+            x.size = image->size;
+            x.bounds = bounds;
+            throw x;
         }
     }
 }
@@ -106,21 +112,6 @@ AYU_DESCRIBE(glow::ImageTexture,
     init([](ImageTexture& v){ v.init(); })
 )
 
-AYU_DESCRIBE(glow::ImageLoadFailed,
-    delegate(base<glow::GlowError>()),
-    elems(
-        elem(&glow::ImageLoadFailed::filename),
-        elem(&glow::ImageLoadFailed::details)
-    )
-)
-
-AYU_DESCRIBE(glow::ImageSaveFailed,
-    delegate(base<glow::GlowError>()),
-    elems(
-        elem(&glow::ImageSaveFailed::filename),
-        elem(&glow::ImageSaveFailed::details)
-    )
-)
 AYU_DESCRIBE(glow::SubImageBoundsNotProper,
     delegate(base<glow::GlowError>()),
     elems( elem(&glow::SubImageBoundsNotProper::bounds) )

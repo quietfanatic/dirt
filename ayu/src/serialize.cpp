@@ -79,10 +79,8 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         });
         return r;
     }
-    if (trav.desc->values()) {
-        throw X<NoNameForValue>(trav_location(trav), trav.desc);
-    }
-    else throw X<CannotToTree>(trav_location(trav), trav.desc);
+    if (trav.desc->values()) throw trav_error<NoNameForValue>(trav);
+    else throw trav_error<CannotToTree>(trav);
 }
 catch (const Error& e) {
     if (diagnostic_serialization) {
@@ -166,22 +164,28 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) {
     if (tree->form == OBJECT &&
         (trav.desc->values() || trav.desc->accepts_array())
     ) {
-        throw X<InvalidForm>(trav_location(trav), trav.desc, tree);
+        auto x = trav_error<InvalidForm>(trav);
+        x.tree = tree;
+        throw x;
     }
     else if (tree->form == ARRAY &&
         (trav.desc->values() || trav.desc->accepts_object())
     ) {
-        throw X<InvalidForm>(trav_location(trav), trav.desc, tree);
+        auto x = trav_error<InvalidForm>(trav);
+        x.tree = tree;
+        throw x;
     }
     else if (trav.desc->accepts_array() || trav.desc->accepts_object()) {
-        throw X<InvalidForm>(trav_location(trav), trav.desc, tree);
+        auto x = trav_error<InvalidForm>(trav);
+        x.tree = tree;
+        throw x;
     }
     else if (trav.desc->values()) {
-        throw X<NoValueForName>(trav_location(trav), trav.desc, tree);
+        auto x = trav_error<NoValueForName>(trav);
+        x.name = tree;
+        throw x;
     }
-    else {
-        throw X<CannotFromTree>(trav_location(trav), trav.desc);
-    }
+    else throw trav_error<CannotFromTree>(trav);
 
     done:
      // Now register swizzle and init ops.  We're doing it now instead of at the
@@ -242,7 +246,7 @@ void item_from_tree (
     ItemFromTreeFlags flags
 ) {
     if (tree->form == UNDEFINED) {
-        throw X<GenericError>("Undefined tree passed to item_from_tree");
+        throw GenericError("Undefined tree passed to item_from_tree");
     }
     if (flags & DELAY_SWIZZLE && IFTContext::current) {
          // Delay swizzle and inits to the outer item_from_tree call.  Basically
@@ -290,14 +294,16 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
                  // We might be able to optimize this more, but it's not that
                  // important.
                 auto tree = item_to_tree(Pointer(keys_type, &ksv));
-                if (tree.form != ARRAY) {
-                    throw X<InvalidKeysType>(trav_location(trav), trav.desc, keys_type);
-                }
+                if (tree.form != ARRAY) goto bad;
                 for (const Tree& e : TreeArraySlice(tree)) {
-                    if (e.form != STRING) {
-                        throw X<InvalidKeysType>(trav_location(trav), trav.desc, keys_type);
-                    }
+                    if (e.form != STRING) goto bad;
                     ser_collect_key(ks, AnyString(move(e)));
+                }
+                return;
+                bad: {
+                    auto x = trav_error<InvalidKeysType>(trav);
+                    x.keys_type = keys_type;
+                    throw x;
                 }
             });
         }
@@ -322,7 +328,7 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
             ser_collect_keys(child, ks);
         });
     }
-    else throw X<NoAttrs>(trav_location(trav), trav.desc);
+    else throw trav_error<NoAttrs>(trav);
 }
 
 AnyArray<AnyString> item_get_keys (
@@ -391,7 +397,9 @@ void in::ser_claim_keys (
                     optional = false;
                 }
                 else if (!optional) {
-                    throw X<MissingAttr>(trav_location(trav), trav.desc, k);
+                    auto x = trav_error<MissingAttr>(trav);
+                    x.key = k;
+                    throw x;
                 }
             }
             return;
@@ -421,7 +429,9 @@ void in::ser_claim_keys (
                  // Allow omitting optional or included attrs
             }
             else {
-                throw X<MissingAttr>(trav_location(trav), trav.desc, attr->key);
+                auto x = trav_error<MissingAttr>(trav);
+                x.key = attr->key;
+                throw x;
             }
         }
          // Then check included attrs
@@ -447,13 +457,15 @@ void in::ser_claim_keys (
             ser_claim_keys(child, ks, optional);
         });
     }
-    else throw X<NoAttrs>(trav_location(trav), trav.desc);
+    else throw trav_error<NoAttrs>(trav);
 }
 
 void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) {
     ser_claim_keys(trav, ks, false);
     if (!ks.empty()) {
-        throw X<UnwantedAttr>(trav_location(trav), trav.desc, ks[0]);
+        auto x = trav_error<UnwantedAttr>(trav);
+        x.key = ks[0];
+        throw x;
     }
 }
 
@@ -524,13 +536,15 @@ bool in::ser_maybe_attr (
         });
         return r;
     }
-    else throw X<NoAttrs>(trav_location(trav), trav.desc);
+    else throw trav_error<NoAttrs>(trav);
 }
 void in::ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, TravCallbackRef cb
 ) {
     if (!ser_maybe_attr(trav, key, mode, cb)) {
-        throw X<AttrNotFound>(trav_location(trav), trav.desc, key);
+        auto x = trav_error<AttrNotFound>(trav);
+        x.key = key;
+        throw x;
     }
 }
 
@@ -551,7 +565,13 @@ Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     if (Reference r = item_maybe_attr(item, key)) {
         return r;
     }
-    else throw X<AttrNotFound>(loc, item.type(), move(key));
+    else {
+        AttrNotFound x;
+        x.location = loc;
+        x.type = item.type();
+        x.key = move(key);
+        throw x;
+    }
 }
 
 ///// ELEM OPERATIONS
@@ -576,7 +596,7 @@ usize in::ser_get_length (const Traversal& trav) {
         });
         return len;
     }
-    else throw X<NoElems>(trav_location(trav), trav.desc);
+    else throw trav_error<NoElems>(trav);
 }
 
 usize item_get_length (const Reference& item, LocationRef loc) {
@@ -601,9 +621,11 @@ void in::ser_set_length (const Traversal& trav, usize len) {
                 expected = reinterpret_cast<const usize&>(lv);
             });
             if (len != expected) {
-                throw X<WrongLength>{
-                    trav_location(trav), trav.desc, expected, expected, len
-                };
+                auto x = trav_error<WrongLength>(trav);
+                x.min = expected;
+                x.max = expected;
+                x.got = len;
+                throw x;
             }
         }
     }
@@ -617,7 +639,11 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             else break;
         }
         if (len < min || len > elems->n_elems) {
-            throw X<WrongLength>(trav_location(trav), trav.desc, min, elems->n_elems, len);
+            auto x = trav_error<WrongLength>(trav);
+            x.min = min;
+            x.max = elems->n_elems;
+            x.got = len;
+            throw x;
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
@@ -625,7 +651,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             ser_set_length(child, len);
         });
     }
-    else throw X<NoElems>(trav_location(trav), trav.desc);
+    else throw trav_error<NoElems>(trav);
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
@@ -662,13 +688,15 @@ bool in::ser_maybe_elem (
         });
         return found;
     }
-    else throw X<NoElems>(trav_location(trav), trav.desc);
+    else throw trav_error<NoElems>(trav);
 }
 void in::ser_elem (
     const Traversal& trav, usize index, AccessMode mode, TravCallbackRef cb
 ) {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
-        throw X<ElemNotFound>(trav_location(trav), trav.desc, index);
+        auto x = trav_error<ElemNotFound>(trav);
+        x.index = index;
+        throw x;
     }
 }
 Reference item_maybe_elem (
@@ -689,7 +717,13 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     if (Reference r = item_maybe_elem(item, index)) {
         return r;
     }
-    else throw X<ElemNotFound>(loc, item.type(), index);
+    else {
+        ElemNotFound x;
+        x.location = loc;
+        x.type = item.type();
+        x.index = index;
+        throw x;
+    }
 }
 
 ///// MISC
@@ -770,7 +804,7 @@ AYU_DESCRIBE(ayu::ElemNotFound,
 AYU_DESCRIBE(ayu::InvalidKeysType,
     elems(
         elem(base<SerError>(), include),
-        elem(&InvalidKeysType::type)
+        elem(&InvalidKeysType::keys_type)
     )
 )
 

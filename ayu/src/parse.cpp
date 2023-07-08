@@ -74,7 +74,12 @@ struct Parser {
             }
         }
         uint col = p - nl;
-        throw X<ParseError>(cat(std::forward<Args>(args)...), filename, line, col);
+        ParseError x;
+        x.mess = cat(std::forward<Args>(args)...);
+        x.filename = filename;
+        x.line = line;
+        x.col = col;
+        throw x;
     }
 
     void skip_comment () {
@@ -425,7 +430,10 @@ Tree tree_from_string (Str s, AnyString filename) {
 UniqueString string_from_file (AnyString filename) {
     FILE* f = fopen_utf8(filename.c_str(), "rb");
     if (!f) {
-        throw X<OpenFailed>(move(filename), errno);
+        OpenFailed x;
+        x.filename = move(filename);
+        x.errnum = errno;
+        throw x;
     }
 
     fseek(f, 0, SEEK_END);
@@ -435,11 +443,17 @@ UniqueString string_from_file (AnyString filename) {
     UniqueString r = UniqueString::Uninitialized(size);
     usize did_read = fread(r.data(), 1, size, f);
     if (did_read != size) {
-        throw X<ReadFailed>(move(filename), errno);
+        ReadFailed x;
+        x.filename = move(filename);
+        x.errnum = errno;
+        throw x;
     }
 
     if (fclose(f) != 0) {
-        throw X<CloseFailed>(move(filename), errno);
+        CloseFailed x;
+        x.filename = move(filename);
+        x.errnum = errno;
+        throw x;
     }
     return r;
 }

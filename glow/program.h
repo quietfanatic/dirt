@@ -41,7 +41,9 @@ struct Program {
 };
 
 struct ShaderCompileFailed : GlowError {
+     // TODO: replace with pointer
     ayu::Location location;
+     // TODO: replace with UniqueString
     std::string info_log;
 };
 struct ProgramLinkFailed : GlowError {

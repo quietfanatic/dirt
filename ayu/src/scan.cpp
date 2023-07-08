@@ -224,14 +224,22 @@ Location pointer_to_location (Pointer item) {
     else if (Location r = find_pointer(item)) {
         return r;
     }
-    else throw X<ReferenceNotFound>(item.type);
+    else {
+        ReferenceNotFound x;
+        x.type = item.type;
+        throw x;
+    }
 }
 Location reference_to_location (const Reference& item) {
     if (!item) return Location();
     else if (Location r = find_reference(item)) {
         return r;
     }
-    else throw X<ReferenceNotFound>(item.type());
+    else {
+        ReferenceNotFound x;
+        x.type = item.type();
+        throw x;
+    }
 }
 
 } using namespace ayu;

@@ -22,11 +22,11 @@ void Shader::compile () {
     int status = 0; glGetShaderiv(id, GL_COMPILE_STATUS, &status);
     int loglen = 0; glGetShaderiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
-        auto info_log = std::string(loglen, 0);
-        glGetShaderInfoLog(id, loglen, nullptr, info_log.data());
-        throw ayu::X<ShaderCompileFailed>(
-            ayu::reference_to_location(this), move(info_log)
-        );
+        ShaderCompileFailed x;
+        x.location = ayu::reference_to_location(this);
+        x.info_log = std::string(loglen, 0);
+        glGetShaderInfoLog(id, loglen, nullptr, x.info_log.data());
+        throw x;
     }
 }
 
@@ -64,11 +64,11 @@ void Program::link () {
     int status = 0; glGetProgramiv(id, GL_LINK_STATUS, &status);
     int loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
-        auto info_log = std::string(loglen, 0);
-        glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
-        throw ayu::X<ProgramLinkFailed>(
-            ayu::reference_to_location(this), move(info_log)
-        );
+        ProgramLinkFailed x;
+        x.location = ayu::reference_to_location(this);
+        x.info_log = std::string(loglen, 0);
+        glGetProgramInfoLog(id, loglen, nullptr, x.info_log.data());
+        throw x;
     }
      // Extra
     if (current_program) current_program->unuse();

@@ -11,6 +11,7 @@ namespace ayu {
 using namespace in;
 
 void dump_refs (Slice<Reference> rs) {
+    DiagnosticSerialization _;
     switch (rs.size()) {
         case 0: warn_utf8("[]\n"); break;
         case 1: warn_utf8(item_to_string(rs[0])); break;
@@ -28,15 +29,29 @@ void dump_refs (Slice<Reference> rs) {
     }
 }
 
+const char* Error::what () const noexcept {
+    auto derived = Pointer(this).try_downcast_to(Type(typeid(*this), true));
+    if (derived) {
+        DiagnosticSerialization _;
+        mess_cache = cat(
+            '[', derived.type.name(), ' ', item_to_string(derived), ']', '\0'
+        );
+    }
+    else mess_cache = "?(Couldn't downcast error data)\0";
+    return mess_cache.data();
+}
+
+void unrecoverable_exception (std::exception& e, Str when) {
+    warn_utf8(cat(
+        "ERROR: Unrecoverable exception ", when,
+        ":\n       ", e.what(), '\n'
+    ));
+    std::terminate();
+}
+
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::Error,
-    delegate(const_ref_func<std::source_location>(
-        [](const ayu::Error& e) -> const std::source_location& {
-            return *e.source_location;
-        }
-    ))
-)
+AYU_DESCRIBE(ayu::Error)
 
 AYU_DESCRIBE(ayu::GenericError,
     elems(

@@ -224,7 +224,7 @@ struct ElemNotFound : SerError {
  // The accessor given to a keys() descriptor did not serialize to an array
  // of strings.
 struct InvalidKeysType : SerError {
-    Type type;
+    Type keys_type;
 };
 
 } // namespace ayu

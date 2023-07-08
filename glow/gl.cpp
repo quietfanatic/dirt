@@ -42,7 +42,13 @@ void throw_on_glGetError (
     std::source_location loc
 ) {
     GLenum err = p_glGetError<>();
-    if (err) throw ayu::X<GLError>(err, gl_function, loc);
+    if (err) {
+        GLError x;
+        x.error_code = err;
+        x.gl_function = gl_function;
+        x.loc = loc;
+        throw x;
+    }
 }
 
 } using namespace glow;

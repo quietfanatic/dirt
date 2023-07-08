@@ -179,7 +179,7 @@ struct WrongForm : TreeError {
  // Tried to extract a number from a tree, but the tree's number won't fit
  // into the requested type.
 struct CantRepresent : TreeError {
-    AnyString type_name;
+    StaticString type_name;
     Tree tree;
 };
 

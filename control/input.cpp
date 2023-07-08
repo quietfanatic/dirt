@@ -123,6 +123,7 @@ Input input_from_string (Str name) {
         case hash32("btn4"): return {.type = BUTTON, .code = SDL_BUTTON_X1};
         case hash32("button5"):
         case hash32("btn5"): return {.type = BUTTON, .code = SDL_BUTTON_X2};
+         // TODO: throw exception
         default: return {};
     }
 }
@@ -194,7 +195,7 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
     for (auto& e : a) {
         if (e.form == ayu::NUMBER) {
             if (input.type != NONE) {
-                throw ayu::X<ayu::GenericError>("Too many descriptors for Input");
+                throw ayu::GenericError("Too many descriptors for Input");
             }
             Input tmp = input_from_integer(int(e));
             input.type = tmp.type;
@@ -207,7 +208,7 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
             else if (name == "shift") input.shift = true;
             else {
                 if (input.type != NONE) {
-                    throw ayu::X<ayu::GenericError>("Too many descriptors for Input");
+                    throw ayu::GenericError("Too many descriptors for Input");
                 }
                 Input tmp = input_from_string(name);
                 input.type = tmp.type;

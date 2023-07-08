@@ -12,9 +12,11 @@ static std::unordered_map<Str, const Command*>& commands_by_name () {
 void Command::register_command () const {
     auto [iter, emplaced] = commands_by_name().emplace(name, this);
     if (!emplaced) {
-        throw ayu::X<ConflictingCommandName>(
-            name, iter->second->description, description
-        );
+        ConflictingCommandName x;
+        x.name = name;
+        x.desc_a = iter->second->description;
+        x.desc_b = description;
+        throw x;
     }
 }
 
@@ -26,12 +28,19 @@ const Command* lookup_command (Str name) {
 const Command* require_command (Str name) {
     auto iter = commands_by_name().find(name);
     if (iter != commands_by_name().end()) return iter->second;
-    else throw ayu::X<CommandNotFound>(name);
+    else {
+        CommandNotFound x;
+        x.name = name;
+        throw x;
+    }
 }
 
 Statement::Statement (Command* c, ayu::Dynamic&& a) : command(c), args(move(a)) {
     if (args.type != command->args_type()) {
-        throw ayu::X<StatementWrongArgsType>(args.type, command->args_type());
+        StatementWrongArgsType x;
+        x.expected = args.type;
+        x.got = command->args_type();
+        throw x;
     }
 }
 

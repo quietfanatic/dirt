@@ -16,7 +16,6 @@
 #include <vector>
 
 #include "common.h"
-#include "exception.h"
 #include "describe-base.h"
 #include "reference.h"
 
@@ -207,9 +206,11 @@ AYU_DESCRIBE_TEMPLATE(
     }),
     desc::from_tree([](std::unordered_set<T>& v, const ayu::Tree& tree){
         if (tree.form != ayu::ARRAY) {
-            throw ayu::X<ayu::InvalidForm>(
-                ayu::current_location(), ayu::Type::CppType<std::unordered_set<T>>(), tree
-            );
+            ayu::InvalidForm x;
+            x.location = ayu::current_location();
+            x.type = ayu::Type::CppType<std::unordered_set<T>>();
+            x.tree = tree;
+            throw x;
         }
         auto a = ayu::TreeArraySlice(tree);
         v.reserve(a.size());
@@ -229,10 +230,10 @@ AYU_DESCRIBE_TEMPLATE(
             auto res = v.insert(move(node));
              // Check for duplicates.
             if (!res.inserted) {
-                throw ayu::X<ayu::GenericError>{uni::cat(
+                throw ayu::GenericError(
                     "Duplicate element given for ",
                     ayu::Type::CppType<std::unordered_set<T>>().name()
-                )};
+                );
             }
         }
     })
@@ -258,9 +259,11 @@ AYU_DESCRIBE_TEMPLATE(
     }),
     desc::from_tree([](std::set<T>& v, const ayu::Tree& tree){
         if (tree.form != ayu::ARRAY) {
-            throw ayu::X<ayu::InvalidForm>(
-                ayu::current_location(), ayu::Type::CppType<std::set<T>>(), tree
-            );
+            ayu::InvalidForm x;
+            x.location = ayu::current_location();
+            x.type = ayu::Type::CppType<std::set<T>>();
+            x.tree = tree;
+            throw x;
         }
         auto a = ayu::TreeArraySlice(tree);
         std::set<T> source;
@@ -273,10 +276,10 @@ AYU_DESCRIBE_TEMPLATE(
             auto res = v.insert(move(node));
              // Check for duplicates.
             if (!res.inserted) {
-                throw ayu::X<ayu::GenericError>{uni::cat(
+                throw ayu::GenericError(
                     "Duplicate element given for ",
                     ayu::Type::CppType<std::set<T>>().name()
-                )};
+                );
             }
         }
     })
@@ -341,9 +344,13 @@ AYU_DESCRIBE_TEMPLATE(
         if (tree.form == ayu::STRING) {
             auto s = uni::Str(tree);
             if (s.size() != n) {
-                throw ayu::X<ayu::WrongLength>(
-                    ayu::current_location(), ayu::Type::CppType<char[n]>(), n, n, s.size()
-                );
+                ayu::WrongLength x;
+                x.location = ayu::current_location();
+                x.type = ayu::Type::CppType<char[n]>();
+                x.min = n;
+                x.max = n;
+                x.got = s.size();
+                throw x;
             }
             for (uint i = 0; i < n; i++) {
                 v[i] = s[i];
@@ -352,17 +359,25 @@ AYU_DESCRIBE_TEMPLATE(
         else if (tree.form == ayu::ARRAY) {
             auto a = ayu::TreeArraySlice(tree);
             if (a.size() != n) {
-                throw ayu::X<ayu::WrongLength>(
-                    ayu::current_location(), ayu::Type::CppType<char[n]>(), n, n, a.size()
-                );
+                ayu::WrongLength x;
+                x.location = ayu::current_location();
+                x.type = ayu::Type::CppType<char[n]>();
+                x.min = n;
+                x.max = n;
+                x.got = a.size();
+                throw x;
             }
             for (uint i = 0; i < n; i++) {
                 v[i] = char(a[i]);
             }
         }
-        else throw ayu::X<ayu::InvalidForm>(
-            ayu::current_location(), ayu::Type::CppType<char[n]>(), tree
-        );
+        else {
+            ayu::InvalidForm x;
+            x.location = ayu::current_location();
+            x.type = ayu::Type::CppType<char[n]>();
+            x.tree = tree;
+            throw x;
+        }
     }),
      // Allow accessing individual elements like an array
     desc::length(desc::template constant<uni::usize>(n)),

@@ -13,14 +13,22 @@ using namespace in;
 
 void Reference::require_writeable () const {
     if (readonly()) {
-        throw X<WriteReadonlyReference>(reference_to_location(*this), type());
+        WriteReadonlyReference x;
+        x.location = reference_to_location(*this);
+        x.type = type();
+        throw x;
     }
 }
 
 Mu* Reference::require_address () const {
     if (!*this) return null;
     if (auto a = address()) return a;
-    else throw X<UnaddressableReference>(reference_to_location(*this), type());
+    else {
+        UnaddressableReference x;
+        x.location = reference_to_location(*this);
+        x.type = type();
+        throw x;
+    }
 }
 
 Reference Reference::chain (const Accessor* o_acr) const {
@@ -38,7 +46,13 @@ Reference Reference::chain_attr_func (
     if (auto a = address()) {
         auto r = f(*a, k);
         if (r) return r;
-        else throw X<AttrNotFound>(reference_to_location(*this), type(), move(k));
+        else {
+            AttrNotFound x;
+            x.location = reference_to_location(*this);
+            x.type = type();
+            x.key = move(k);
+            throw x;
+        }
     }
     else {
          // Extra read just to check if the func returns null Reference.
@@ -47,9 +61,11 @@ Reference Reference::chain_attr_func (
         read([&](const Mu& v){
             Reference ref = f(const_cast<Mu&>(v), k);
             if (!ref) {
-                throw X<AttrNotFound>(
-                    reference_to_location(*this), type(), move(k)
-                );
+                AttrNotFound x;
+                x.location = reference_to_location(*this);
+                x.type = type();
+                x.key = move(k);
+                throw x;
             }
         });
         return Reference(host, new ChainAcr(acr, new AttrFuncAcr(f, move(k))));
@@ -62,13 +78,23 @@ Reference Reference::chain_elem_func (
     if (auto a = address()) {
         auto r = f(*a, i);
         if (r) return r;
-        else throw X<ElemNotFound>(reference_to_location(*this), type(), i);
+        else {
+            ElemNotFound x;
+            x.location = reference_to_location(*this);
+            x.type = type();
+            x.index = i;
+            throw x;
+        }
     }
     else {
         read([&](const Mu& v){
             Reference ref = f(const_cast<Mu&>(v), i);
             if (!ref) {
-                throw X<ElemNotFound>(reference_to_location(*this), type(), i);
+                ElemNotFound x;
+                x.location = reference_to_location(*this);
+                x.type = type();
+                x.index = i;
+                throw x;
             }
         });
         return Reference(host, new ChainAcr(acr, new ElemFuncAcr(f, i)));

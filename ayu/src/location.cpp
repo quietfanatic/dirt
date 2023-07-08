@@ -109,7 +109,7 @@ Location::Location (const IRI& iri) {
                             segment.begin(), segment.end(), index
                         );
                         if (ptr == 0) {
-                            throw X<GenericError>("Index segment too big?");
+                            throw GenericError("Index segment too big?");
                         }
                         self = Location(self, index);
                     }

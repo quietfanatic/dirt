@@ -263,4 +263,12 @@ static Location trav_location (const Traversal& trav) {
     }
 }
 
+template <class T>
+static T trav_error (const Traversal& trav) {
+    T x;
+    x.location = trav_location(trav);
+    x.type = trav.desc;
+    return x;
+}
+
 } // namespace ayu::in

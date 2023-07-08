@@ -6,7 +6,6 @@
 #include <typeinfo>
 
 #include "../common.h"
-#include "../exception.h"
 #include "../tree.h"
 #include "../type.h"
 

@@ -73,7 +73,8 @@ struct Type {
      // Get the alignof() of this type
     usize cpp_align () const;
      // Construct an instance of this type in-place.  The target must have at
-     // least the required size and alignment.
+     // least the required size and alignment.  May throw CannotDefaultConstruct 
+     // or CannotDestroy.
     void default_construct (void* target) const;
      // Destory an instance of this type in-place.  The memory will not be
      // allocated.
@@ -170,7 +171,7 @@ struct TypeError : Error { };
  // type (it has no AYU_DESCRIBE description).
  // TODO: serializing this doesn't work?
 struct UnknownType : TypeError {
-    const std::type_info& cpp_type;
+    const std::type_info* cpp_type;
 };
  // Tried to look up a type by name, but there is no type with that name.
 struct TypeNotFound : TypeError {

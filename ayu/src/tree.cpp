@@ -39,11 +39,24 @@ void delete_Tree_data (TreeRef t) {
     }
 }
 
-[[noreturn]]
-void bad_Tree_form (TreeRef t, TreeForm form) {
+[[noreturn, gnu::cold]]
+void throw_WrongForm (TreeRef t, TreeForm form) {
     if (t->rep == REP_ERROR) std::rethrow_exception(std::exception_ptr(*t));
     else if (t->form == form) never();
-    else throw X<WrongForm>(form, t);
+    else {
+        WrongForm x;
+        x.form = form;
+        x.tree = t;
+        throw x;
+    }
+}
+
+[[noreturn, gnu::cold]]
+void throw_CantRepresent (StaticString type_name, TreeRef t) {
+    CantRepresent x;
+    x.type_name = type_name;
+    x.tree = t;
+    throw x;
 }
 
 } using namespace in;

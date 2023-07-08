@@ -84,19 +84,32 @@ AYU_DESCRIBE(iri::IRI,
         },
         [](IRI& v, const AnyString& s){
             if (s.empty()) {
-                v = iri::IRI();
+                v = IRI();
             }
             else {
                 if (auto res = current_location().root_resource()) {
-                    v = iri::IRI(s, res->name());
+                    v = IRI(s, res->name());
                 }
                 else {
-                    v = iri::IRI(s);
+                    v = IRI(s);
                 }
-                if (!v) throw ayu::X<GenericError>(cat("Invalid IRI ", s));
+                if (!v) throw GenericError("Invalid IRI ", s);
             }
         }
     ))
+)
+
+AYU_DESCRIBE(std::source_location,
+    elems(
+        elem(value_func<std::string>([](const std::source_location& v) -> std::string {
+            return v.file_name();
+        })),
+        elem(value_method<uint32, &std::source_location::line>()),
+        elem(value_method<uint32, &std::source_location::column>()),
+        elem(value_func<std::string>([](const std::source_location& v) -> std::string {
+            return v.function_name();
+        }))
+    )
 )
 
 #ifndef TAP_DISABLE_TESTS
