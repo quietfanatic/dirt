@@ -31,12 +31,13 @@ struct Location {
      // The empty location is treated as the location of an anonymous item, and
      // can't be transformed into a reference.
     explicit operator bool () const { return !!data; }
-     // Constructs a root location from a Resource.
+     // Constructs a root location from a Resource.  The empty Resource
+     // represents an anonymous item.
     explicit Location (Resource);
      // Constructs a location based on another one with an added attribute key
      // or element index.
-    Location (LocationRef parent, AnyString key);
-    Location (LocationRef parent, usize index);
+    Location (Location parent, AnyString key);
+    Location (Location parent, usize index);
      // Parses an IRI into a location.  All of the IRI up to the fragment will
      // be used as the resource name for the root, and the fragment will be
      // split on / and each segment used as either a key or index.  To force a
@@ -59,8 +60,8 @@ struct Location {
      // Returns 1 for root, plus 1 for every key or index in the list.
     usize length () const;
 
-     // Walks all the way to the root and returns its Resource, if any
-    const Resource* root_resource () const;
+     // Walks down to the root and returns its Resource.
+    Resource root_resource () const;
 };
 
 bool operator == (LocationRef a, LocationRef b) noexcept;

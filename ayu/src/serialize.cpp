@@ -1081,7 +1081,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<FromTreeFailed>(
         [&]{ item_from_string(&mt, "{a:16}"); },
         "[ayu::FromTreeFailed {"
-            "location:\"\" "
+            "location:\"anonymous-item:\" "
             "type:ayu::test::MemberTest "
             "inner:[ayu::MissingAttr [[] b]]"
         "}]",
@@ -1108,7 +1108,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<FromTreeFailed>(
         [&]{ item_from_string(&mt, "[54 43]"); },
         "[ayu::FromTreeFailed {"
-            "location:\"\" "
+            "location:\"anonymous-item:\" "
             "type:ayu::test::MemberTest "
             "inner:[ayu::InvalidForm [[] array]]"
         "}]",
@@ -1117,7 +1117,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<FromTreeFailed>(
         [&]{ item_from_string(&mt, "{a:0 b:1 c:60}"); },
         "[ayu::FromTreeFailed {"
-            "location:\"\" "
+            "location:\"anonymous-item:\" "
             "type:ayu::test::MemberTest "
             "inner:[ayu::UnwantedAttr [[] c]]"
         "}]",
@@ -1133,7 +1133,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<FromTreeFailed>(
         [&]{ item_from_string(&bt, "{a:-7,b:-8,c:-9}"); },
         "[ayu::FromTreeFailed {"
-            "location:\"\" "
+            "location:\"anonymous-item:\" "
             "type:ayu::test::BaseTest "
             "inner:[ayu::MissingAttr [[] MemberTest]]"
         "}]",
@@ -1172,7 +1172,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<FromTreeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5]"); },
         "[ayu::FromTreeFailed {"
-            "location:\"\" "
+            "location:\"anonymous-item:\" "
             "type:ayu::test::ElemTest "
             "inner:[ayu::WrongLength {min:3 max:3 got:2}]"
         "}]",
@@ -1181,7 +1181,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<FromTreeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5 8.5 9.5]"); },
         "[ayu::FromTreeFailed {"
-            "location:\"\" "
+            "location:\"anonymous-item:\" "
             "type:ayu::test::ElemTest "
             "inner:[ayu::WrongLength {min:3 max:3 got:4}]"
         "}]",

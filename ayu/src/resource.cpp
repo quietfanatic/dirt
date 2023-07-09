@@ -106,7 +106,13 @@ Resource::Resource (const IRI& name, Dynamic&& value) :
     }
 }
 
-const IRI& Resource::name () const { return data->name; }
+const IRI& Resource::name () const {
+    if (!data) {
+        static IRI anon ("anonymous-item:");
+        return anon;
+    }
+    return data->name;
+}
 ResourceState Resource::state () const { return data->state; }
 
 Dynamic& Resource::value () const {
@@ -484,11 +490,10 @@ bool source_exists (Resource res) {
     else return false;
 }
 
+ // TODO: Store this somewhere so we don't have to generate a Location to access
+ // it.  Maybe with a PushCurrentResource RAII object
 Resource current_resource () {
-    if (auto res = current_location().root_resource()) {
-        return *res;
-    }
-    else return Resource();
+    return current_location().root_resource();
 }
 
 UniqueArray<Resource> loaded_resources () {

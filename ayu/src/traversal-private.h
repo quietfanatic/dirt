@@ -248,7 +248,8 @@ static Reference trav_reference (const Traversal& trav) noexcept {
 
 static Location trav_location (const Traversal& trav) noexcept {
     if (trav.op == START) {
-        return trav.location;
+        if (*trav.location) return trav.location;
+        else return Location(Resource());
     }
     else {
         Location parent = trav_location(*trav.parent);

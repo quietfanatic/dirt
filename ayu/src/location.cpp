@@ -24,7 +24,7 @@ struct LocationData : RefCounted {
 
 struct RootLocation : LocationData {
     Resource resource;
-    RootLocation (Resource&& res) :
+    RootLocation (Resource res) :
         LocationData(ROOT), resource(res)
     { }
 };
@@ -32,15 +32,15 @@ struct RootLocation : LocationData {
 struct KeyLocation : LocationData {
     Location parent;
     AnyString key;
-    KeyLocation (Location p, AnyString&& k) :
-        LocationData(KEY), parent(p), key(move(k))
+    KeyLocation (Location p, AnyString k) :
+        LocationData(KEY), parent(move(p)), key(move(k))
     { }
 };
 struct IndexLocation : LocationData {
     Location parent;
     usize index;
     IndexLocation (Location p, usize i) :
-        LocationData(INDEX), parent(p), index(i)
+        LocationData(INDEX), parent(move(p)), index(i)
     { }
 };
 struct ErrorLocation : LocationData {
@@ -77,15 +77,16 @@ void delete_LocationData (LocationData* p) noexcept {
 Location::Location (Resource res) :
     data(new RootLocation(move(res)))
 { }
-Location::Location (LocationRef p, AnyString k) :
-    data(new KeyLocation(p, move(k)))
+Location::Location (Location p, AnyString k) :
+    data(new KeyLocation(expect(move(p)), move(k)))
 { }
-Location::Location (LocationRef p, usize i) :
-    data(new IndexLocation(p, i))
+Location::Location (Location p, usize i) :
+    data(new IndexLocation(expect(move(p)), i))
 { }
 
 Location::Location (const IRI& iri) {
     if (!iri) return;
+     // TODO: support anonymous-item:
     Location self = Location(new RootLocation(iri.iri_without_fragment()));
     Str fragment = iri.fragment();
     if (!fragment.empty()) {
@@ -136,38 +137,32 @@ IRI Location::as_iri () const {
     if (!*this) return IRI();
     UniqueString fragment;
     for (const Location* l = this;; l = l->parent()) {
-        expect(l);
-        if (!l->data) {
-            if (fragment.empty()) return IRI("anonymous-item:");
-            else return IRI(cat("anonymous-item:", "#", fragment));
-        }
-        else switch (l->data->form) {
+        expect(l->data);
+        switch (l->data->form) {
             case ROOT: {
-                const IRI& base = static_cast<RootLocation*>(
-                    l->data.p
-                )->resource.name();
-                if (fragment.empty()) return base;
-                else return IRI(cat('#', fragment), base);
+                auto res = static_cast<RootLocation*>(l->data.p)->resource;
+                if (!fragment) return res.name();
+                else return IRI(cat('#', fragment), res.name());
             }
             case KEY: {
                 Str key = static_cast<KeyLocation*>(
                     l->data.p
                 )->key;
                 UniqueString segment;
-                if (key.empty() || key[0] == '\'' || std::isdigit(key[0])) {
+                if (!key || key[0] == '\'' || std::isdigit(key[0])) {
                     segment = cat('\'', iri::encode(key));
                 }
                 else segment = iri::encode(key);
-                if (fragment.empty()) fragment = segment;
-                else fragment = cat(segment, '/', fragment);
+                if (!fragment) fragment = move(segment);
+                else fragment = cat(move(segment), '/', move(fragment));
                 break;
             }
             case INDEX: {
                 usize index = static_cast<IndexLocation*>(
                     l->data.p
                 )->index;
-                if (fragment.empty()) fragment = cat(index);
-                else fragment = cat(index, '/', fragment);
+                if (!fragment) fragment = cat(index);
+                else fragment = cat(index, '/', move(fragment));
                 break;
             }
             case ERROR_LOC: rethrow(*l);
@@ -219,10 +214,10 @@ usize Location::length () const {
     return r;
 }
 
-const Resource* Location::root_resource () const {
-    if (!data) return null;
+Resource Location::root_resource () const {
+    if (!data) return Resource();
     switch (data->form) {
-        case ROOT: return &static_cast<RootLocation*>(data.p)->resource;
+        case ROOT: return static_cast<RootLocation*>(data.p)->resource;
         case INDEX: return static_cast<IndexLocation*>(data.p)->parent.root_resource();
         case KEY: return static_cast<KeyLocation*>(data.p)->parent.root_resource();
         case ERROR_LOC: rethrow(*this);

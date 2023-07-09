@@ -19,7 +19,8 @@ struct ValueDcrPrivate : ValueDcr<Mu> {
 
 struct ValuesDcrPrivate : ValuesDcr<Mu> {
     const ValueDcrPrivate* value (uint16 i) const {
-        return offset_get<ValueDcrPrivate>(this, (&n_values)[i+1]);
+        uint16 offset = (&n_values)[i+1];
+        return (const ValueDcrPrivate*)((char*)this + offset);
     }
 };
 
@@ -43,7 +44,8 @@ struct AttrDcrPrivate : AttrDcr<Mu> {
 
 struct AttrsDcrPrivate : AttrsDcr<Mu> {
     const AttrDcrPrivate* attr (uint16 i) const {
-        return offset_get<AttrDcrPrivate>(this, (&n_attrs)[i+1]);
+        uint16 offset = (&n_attrs)[i+1];
+        return (const AttrDcrPrivate*)((char*)this + offset);
     }
 };
 
@@ -57,7 +59,8 @@ struct ElemDcrPrivate : ElemDcr<Mu> {
 
 struct ElemsDcrPrivate : ElemsDcr<Mu> {
     const ElemDcrPrivate* elem (uint16 i) const {
-        return offset_get<ElemDcrPrivate>(this, (&n_elems)[i+1]);
+        uint16 offset = (&n_elems)[i+1];
+        return (const ElemDcrPrivate*)((char*)this + offset);
     }
 };
 

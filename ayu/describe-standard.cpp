@@ -74,25 +74,15 @@ AYU_DESCRIBE(uni::StaticString,
 AYU_DESCRIBE(iri::IRI,
     delegate(mixed_funcs<AnyString>(
         [](const IRI& v) {
-             // current_location().as_iri() would be more intentful, but also
-             // slower since it does a bunch of string concatenation to build
-             // the IRI fragment, which we don't need.
-            if (auto res = current_location().root_resource()) {
-                return AnyString(v.spec_relative_to(res->name()));
-            }
-            else return v.spec();
+            const IRI& base = current_resource().name();
+            return AnyString(v.spec_relative_to(base));
         },
         [](IRI& v, const AnyString& s){
             if (s.empty()) {
                 v = IRI();
             }
             else {
-                if (auto res = current_location().root_resource()) {
-                    v = IRI(s, res->name());
-                }
-                else {
-                    v = IRI(s);
-                }
+                v = IRI(s, current_resource().name());
                 if (!v) throw GenericError("Invalid IRI ", s);
             }
         }
