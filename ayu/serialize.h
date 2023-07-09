@@ -166,90 +166,88 @@ struct DiagnosticSerialization {
     ~DiagnosticSerialization ();
 };
 
- // Generic serialization error
-struct SerError : Error {
+///// HIGH-LEVEL SERIALIZATION ERRORS
+
+ // A serialization operation failed.  The inner exception can be anything, but
+ // it's likely to be one of the below low-level exceptions.
+struct SerializeFailed : Error {
     Location location;
     Type type;
-    SerError (Location l, Type t) : location(move(l)), type(t) { }
+    std::exception_ptr inner;
+    SerializeFailed (Location l, Type t, std::exception_ptr i) :
+        location(move(l)), type(t), inner(move(i))
+    { }
 };
+
+ // Failed in a call to item_to_tree or something related.
+struct ToTreeFailed : SerializeFailed { using SerializeFailed::SerializeFailed; };
+ // Failed in a call to item_from_tree or something related.
+struct FromTreeFailed : SerializeFailed { using SerializeFailed::SerializeFailed; };
+
+///// LOW-LEVEL SERIALIZATION ERRORS
+
  // Tried to call to_tree on a type that doesn't support to_tree
-struct CannotToTree : SerError { using SerError::SerError; };
+struct ToTreeNotSupported : Error { };
  // Tried to call from_tree on a type that doesn't support from_tree
-struct CannotFromTree : SerError { using SerError::SerError; };
+struct FromTreeNotSupported : Error { };
  // Tried to deserialize an item from a tree, but the item didn't accept
  // the tree's form.
-struct InvalidForm : SerError {
-    Tree tree;
-    InvalidForm (Location l, Type ty, Tree tr) :
-        SerError(move(l), ty), tree(tr)
-    { }
+struct InvalidForm : Error {
+    TreeForm form;
+    InvalidForm (TreeForm f) : form(f) { }
 };
  // Tried to serialize an item using a values() descriptor, but no value()
  // entry was found for the item's current value.
-struct NoNameForValue : SerError { using SerError::SerError; };
+struct NoNameForValue : Error { };
  // Tried to deserialize an item using a values() descriptor, but no value()
  // entry was found that matched the provided name.
-struct NoValueForName : SerError {
+struct NoValueForName : Error {
     Tree name;
-    NoValueForName (Location l, Type t, Tree n) :
-        SerError(move(l), t), name(n)
-    { }
+    NoValueForName (Tree n) : name(n) { }
 };
  // Tried to deserialize an item from an object tree, but the tree lacks an
  // attribute that the item requires.
-struct MissingAttr : SerError {
+struct MissingAttr : Error {
     AnyString key;
-    MissingAttr (Location l, Type t, AnyString k) :
-        SerError(move(l), t), key(move(k))
-    { }
+    MissingAttr (AnyString k) : key(move(k)) { }
 };
  // Tried to deserialize an item from an object tree, but the item rejected
  // one of the attributes in the tree.
-struct UnwantedAttr : SerError {
+struct UnwantedAttr : Error {
     AnyString key;
-    UnwantedAttr (Location l, Type t, AnyString k) :
-        SerError(move(l), t), key(move(k))
-    { }
+    UnwantedAttr (AnyString k) : key(move(k)) { }
 };
  // Tried to deserialize an item from an array tree, but the array has too
  // few or too many elements for the item.
-struct WrongLength : SerError {
+struct WrongLength : Error {
     usize min;
     usize max;
     usize got;
-    WrongLength (Location l, Type t, usize mi, usize ma, usize g) :
-        SerError(move(l), t), min(mi), max(ma), got(g)
-    { }
+    WrongLength (usize mi, usize ma, usize g) : min(mi), max(ma), got(g) { }
 };
  // Tried to treat an item like it has attributes, but it does not support
  // behaving like an object.
-struct NoAttrs : SerError { using SerError::SerError; };
+struct NoAttrs : Error { };
  // Tried to treat an item like it has elements, but it does not support
  // behaving like an array.
-struct NoElems : SerError { using SerError::SerError; };
+struct NoElems : Error { };
  // Tried to get an attribute from an item, but it doesn't have an attribute
  // with the given key.
-struct AttrNotFound : SerError {
+struct AttrNotFound : Error {
     AnyString key;
-    AttrNotFound (Location l, Type t, AnyString k) :
-        SerError(move(l), t), key(move(k))
-    { }
+    AttrNotFound (AnyString k) : key(move(k)) { }
 };
  // Tried to get an element from an item, but it doesn't have an element
  // with the given index (the index is out of bounds).
-struct ElemNotFound : SerError {
+struct ElemNotFound : Error {
     usize index;
-    ElemNotFound (Location l, Type t, usize i) :
-        SerError(move(l), t), index(i)
-    { }
+    ElemNotFound (usize i) : index(i) { }
 };
  // The accessor given to a keys() descriptor did not serialize to an array
  // of strings.
-struct InvalidKeysType : SerError {
+struct InvalidKeysType : Error {
     Type keys_type;
-    InvalidKeysType (Location l, Type t, Type k) :
-        SerError(move(l), t), keys_type(k)
-    { }
+    InvalidKeysType (Type k) : keys_type(k) { }
 };
 
 } // namespace ayu

@@ -144,6 +144,10 @@ bool throws (CallbackRef<void()> code, std::string_view name = "");
 template <class E = std::exception>
 bool throws_is (CallbackRef<void()> code, const E& expected, std::string_view name = "");
 
+ // Like above, but checks the exception's what() against a string.
+template <class E = std::exception>
+bool throws_what (CallbackRef<void()> code, std::string_view what, std::string_view name = "");
+
  // Like above, but fails if the thrown exception does not satisfy check.
 template <class E = std::exception>
 bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, std::string_view name = "");
@@ -337,6 +341,37 @@ bool throws_is (CallbackRef<void()> code, const E& expected, std::string_view na
         else {
             fail(name);
             internal::diag_unexpected(e, expected);
+            return false;
+        }
+    }
+    catch (const scary_exception& e) { throw; }
+    catch (const std::exception& e) {
+        fail(name);
+        internal::diag_wrong_exception(e, typeid(E));
+        return false;
+    }
+    catch (...) {
+        fail(name);
+        internal::diag_wrong_exception_nonstandard(typeid(E));
+        return false;
+    }
+}
+
+template <class E>
+bool throws_what (CallbackRef<void()> code, std::string_view what, std::string_view name) {
+    try {
+        code();
+        fail(name);
+        internal::diag_didnt_throw(typeid(E));
+        return false;
+    }
+    catch (const E& e) {
+        if (e.what() == what) {
+            return pass(name);
+        }
+        else {
+            fail(name);
+            internal::diag_unexpected(e.what(), what);
             return false;
         }
     }

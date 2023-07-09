@@ -101,6 +101,7 @@ AYU_DESCRIBE(iri::IRI,
 
 AYU_DESCRIBE(std::source_location,
     elems(
+         // TODO: StaticString
         elem(value_func<std::string>([](const std::source_location& v) -> std::string {
             return v.file_name();
         })),
@@ -110,6 +111,26 @@ AYU_DESCRIBE(std::source_location,
             return v.function_name();
         }))
     )
+)
+
+AYU_DESCRIBE(std::exception_ptr,
+    to_tree([](const std::exception_ptr& v){
+        try { std::rethrow_exception(v); }
+        catch (Error& e) {
+            Type real_type = Type(typeid(e));
+            Pointer real = Pointer(&e).try_downcast_to(Type(typeid(e)));
+            return Tree(TreeArray{
+                Tree(real_type.name()),
+                item_to_tree(real)
+            });
+        }
+        catch (std::exception& e) {
+            return Tree(TreeArray{
+                Tree(Str(typeid(e).name())),
+                Tree(Str(e.what()))
+            });
+        }
+    })
 )
 
 #ifndef TAP_DISABLE_TESTS

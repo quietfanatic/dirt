@@ -39,7 +39,11 @@ Tree in::ser_to_tree (const Traversal& trav) try {
             ser_attr(trav, k, ACR_READ, [&](const Traversal& child){
                  // Don't serialize readonly attributes, because they can't
                  // be deserialized.
-                if (child.readonly) return;
+                 // Except if the parent is readonly, in which case we're
+                 // probably serializing an exception?  TODO: Figure out how to
+                 // make this actually make any sort of sense.  Probably with
+                 // another attr_flag called invisible.
+                if (child.readonly && !trav.readonly) return;
                 Tree t = ser_to_tree(child);
                  // Get flags from acr
                 if (child.op == ATTR) {
@@ -80,15 +84,23 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         return r;
     }
     if (trav.desc->values()) {
-        throw NoNameForValue(trav_location(trav), trav.desc);
+        throw NoNameForValue();
     }
-    else throw CannotToTree(trav_location(trav), trav.desc);
+    else throw ToTreeNotSupported();
+}
+catch (const ToTreeFailed& e) {
+    if (diagnostic_serialization) {
+        return Tree(std::current_exception());
+    }
+    else throw;
 }
 catch (const Error& e) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
-    else throw;
+    else throw ToTreeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
 }
 
 Tree item_to_tree (const Reference& item, LocationRef loc) {
@@ -100,7 +112,7 @@ Tree item_to_tree (const Reference& item, LocationRef loc) {
 }
 
 ///// FROM_TREE
-void in::ser_from_tree (const Traversal& trav, TreeRef tree) {
+void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
      // If description has a from_tree, just use that.
     if (auto from_tree = trav.desc->from_tree()) [[likely]] {
         from_tree->f(*trav.address, tree);
@@ -166,20 +178,20 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) {
     if (tree->form == OBJECT &&
         (trav.desc->values() || trav.desc->accepts_array())
     ) {
-        throw InvalidForm(trav_location(trav), trav.desc, tree);
+        throw InvalidForm(tree->form);
     }
     else if (tree->form == ARRAY &&
         (trav.desc->values() || trav.desc->accepts_object())
     ) {
-        throw InvalidForm(trav_location(trav), trav.desc, tree);
+        throw InvalidForm(tree->form);
     }
     else if (trav.desc->accepts_array() || trav.desc->accepts_object()) {
-        throw InvalidForm(trav_location(trav), trav.desc, tree);
+        throw InvalidForm(tree->form);
     }
     else if (trav.desc->values()) {
-        throw NoValueForName(trav_location(trav), trav.desc, tree);
+        throw NoValueForName(tree);
     }
-    else throw CannotFromTree(trav_location(trav), trav.desc);
+    else throw FromTreeNotSupported();
 
     done:
      // Now register swizzle and init ops.  We're doing it now instead of at the
@@ -198,6 +210,12 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) {
             IFTContext::current->init_ops.emplace_back(init->f, ref);
         }
     }
+}
+catch (const FromTreeFailed&) { throw; }
+catch (const Error& e) {
+    throw FromTreeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
 }
 
 void in::IFTContext::do_swizzles () {
@@ -288,15 +306,11 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
                  // We might be able to optimize this more, but it's not that
                  // important.
                 auto tree = item_to_tree(Pointer(keys_type, &ksv));
-                if (tree.form != ARRAY) goto bad;
+                if (tree.form != ARRAY) throw InvalidKeysType(keys_type);
                 for (const Tree& e : TreeArraySlice(tree)) {
-                    if (e.form != STRING) goto bad;
+                    if (e.form != STRING) throw InvalidKeysType(keys_type);
                     ser_collect_key(ks, AnyString(move(e)));
                 }
-                return;
-                bad: throw InvalidKeysType(
-                    trav_location(trav), trav.desc, keys_type
-                );
             });
         }
     }
@@ -320,7 +334,7 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
             ser_collect_keys(child, ks);
         });
     }
-    else throw NoAttrs(trav_location(trav), trav.desc);
+    else throw NoAttrs();
 }
 
 AnyArray<AnyString> item_get_keys (
@@ -388,9 +402,7 @@ void in::ser_claim_keys (
                      // longer optional.
                     optional = false;
                 }
-                else if (!optional) throw MissingAttr(
-                    trav_location(trav), trav.desc, k
-                );
+                else if (!optional) throw MissingAttr(k);
             }
             return;
         }
@@ -418,7 +430,7 @@ void in::ser_claim_keys (
             else if (optional || acr->attr_flags & (ATTR_OPTIONAL|ATTR_INCLUDE)) {
                  // Allow omitting optional or included attrs
             }
-            else throw MissingAttr(trav_location(trav), trav.desc, attr->key);
+            else throw MissingAttr(attr->key);
         }
          // Then check included attrs
         for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -443,12 +455,12 @@ void in::ser_claim_keys (
             ser_claim_keys(child, ks, optional);
         });
     }
-    else throw NoAttrs(trav_location(trav), trav.desc);
+    else throw NoAttrs();
 }
 
 void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) {
     ser_claim_keys(trav, ks, false);
-    if (ks) throw UnwantedAttr(trav_location(trav), trav.desc, ks[0]);
+    if (ks) throw UnwantedAttr(ks[0]);
 }
 
 void item_set_keys (
@@ -518,13 +530,13 @@ bool in::ser_maybe_attr (
         });
         return r;
     }
-    else throw NoAttrs(trav_location(trav), trav.desc);
+    else throw NoAttrs();
 }
 void in::ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, TravCallbackRef cb
 ) {
     if (!ser_maybe_attr(trav, key, mode, cb)) {
-        throw AttrNotFound(trav_location(trav), trav.desc, key);
+        throw AttrNotFound(key);
     }
 }
 
@@ -542,10 +554,10 @@ Reference item_maybe_attr (
     return r;
 }
 Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
-    if (Reference r = item_maybe_attr(item, key)) {
+    if (Reference r = item_maybe_attr(item, key, loc)) {
         return r;
     }
-    else throw AttrNotFound(loc, item.type(), move(key));
+    else throw AttrNotFound(move(key));
 }
 
 ///// ELEM OPERATIONS
@@ -570,7 +582,7 @@ usize in::ser_get_length (const Traversal& trav) {
         });
         return len;
     }
-    else throw NoElems(trav_location(trav), trav.desc);
+    else throw NoElems();
 }
 
 usize item_get_length (const Reference& item, LocationRef loc) {
@@ -595,10 +607,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
                 expected = reinterpret_cast<const usize&>(lv);
             });
             if (len != expected) {
-                throw WrongLength(
-                    trav_location(trav), trav.desc,
-                    expected, expected, len
-                );
+                throw WrongLength(expected, expected, len);
             }
         }
     }
@@ -612,10 +621,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             else break;
         }
         if (len < min || len > elems->n_elems) {
-            throw WrongLength(
-                trav_location(trav), trav.desc,
-                min, elems->n_elems, len
-            );
+            throw WrongLength(min, elems->n_elems, len);
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
@@ -623,7 +629,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             ser_set_length(child, len);
         });
     }
-    else throw NoElems(trav_location(trav), trav.desc);
+    else throw NoElems();
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
@@ -660,13 +666,13 @@ bool in::ser_maybe_elem (
         });
         return found;
     }
-    else throw NoElems(trav_location(trav), trav.desc);
+    else throw NoElems();
 }
 void in::ser_elem (
     const Traversal& trav, usize index, AccessMode mode, TravCallbackRef cb
 ) {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
-        throw ElemNotFound(trav_location(trav), trav.desc, index);
+        throw ElemNotFound(index);
     }
 }
 Reference item_maybe_elem (
@@ -684,10 +690,10 @@ Reference item_maybe_elem (
     return r;
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
-    if (Reference r = item_maybe_elem(item, index)) {
+    if (Reference r = item_maybe_elem(item, index, loc)) {
         return r;
     }
-    else throw ElemNotFound(loc, item.type(), index);
+    else throw ElemNotFound(index);
 }
 
 ///// MISC
@@ -701,73 +707,83 @@ Location current_location () {
 
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::SerError,
-    elems(
-        elem(base<Error>(), include),
-        elem(&SerError::location),
-        elem(&SerError::type)
+AYU_DESCRIBE(ayu::SerializeFailed,
+    attrs(
+        attr("Error", base<Error>(), include),
+        attr("location", &SerializeFailed::location),
+        attr("type", &SerializeFailed::type),
+        attr("inner", &SerializeFailed::inner)
     )
 )
-
-AYU_DESCRIBE(ayu::CannotToTree,
-    delegate(base<SerError>())
+AYU_DESCRIBE(ayu::ToTreeFailed,
+    delegate(base<SerializeFailed>())
 )
-AYU_DESCRIBE(ayu::CannotFromTree,
-    delegate(base<SerError>())
+AYU_DESCRIBE(ayu::FromTreeFailed,
+    delegate(base<SerializeFailed>())
+)
+
+AYU_DESCRIBE(ayu::ToTreeNotSupported,
+    delegate(base<Error>())
+)
+AYU_DESCRIBE(ayu::FromTreeNotSupported,
+    delegate(base<Error>())
 )
 AYU_DESCRIBE(ayu::InvalidForm,
-    delegate(base<SerError>())
+    elems(
+        elem(base<Error>(), include),
+        elem(&InvalidForm::form)
+    )
 )
 AYU_DESCRIBE(ayu::NoNameForValue,
-    delegate(base<SerError>())
+    delegate(base<Error>())
 )
 AYU_DESCRIBE(ayu::NoValueForName,
     elems(
-        elem(base<SerError>(), include),
+        elem(base<Error>(), include),
         elem(&NoValueForName::name)
     )
 )
 AYU_DESCRIBE(ayu::MissingAttr,
     elems(
-        elem(base<SerError>(), include),
+        elem(base<Error>(), include),
         elem(&MissingAttr::key)
     )
 )
 AYU_DESCRIBE(ayu::UnwantedAttr,
     elems(
-        elem(base<SerError>(), include),
+        elem(base<Error>(), include),
         elem(&UnwantedAttr::key)
     )
 )
 AYU_DESCRIBE(ayu::WrongLength,
     attrs(
-        attr("ayu::SerError", base<SerError>(), include),
+        attr("ayu::Error", base<Error>(), include),
         attr("min", &WrongLength::min),
         attr("max", &WrongLength::max),
         attr("got", &WrongLength::got)
     )
 )
 AYU_DESCRIBE(ayu::NoAttrs,
-    delegate(base<SerError>())
+    delegate(base<Error>())
 )
 AYU_DESCRIBE(ayu::NoElems,
-    delegate(base<SerError>())
+    delegate(base<Error>())
 )
 AYU_DESCRIBE(ayu::AttrNotFound,
     elems(
-        elem(base<SerError>(), include),
+        elem(base<Error>(), include),
         elem(&AttrNotFound::key)
     )
 )
 AYU_DESCRIBE(ayu::ElemNotFound,
     elems(
-        elem(base<SerError>(), include),
+        elem(base<Error>(), include),
         elem(&ElemNotFound::index)
     )
 )
 AYU_DESCRIBE(ayu::InvalidKeysType,
     elems(
-        elem(base<SerError>(), include),
+        elem(base<Error>(), include),
         elem(&InvalidKeysType::keys_type)
     )
 )
@@ -1061,21 +1077,52 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     item_from_string(&mt, "{b:92 a:47}");
     is(mt.a, 47, "item_from_tree works with attrs out of order (a)");
     is(mt.b, 92, "item_from_tree works with attrs out of order (b)");
-    throws<MissingAttr>([&]{
-        item_from_string(&mt, "{a:16}");
-    }, "item_from_tree throws on missing attr with attrs descriptor");
-    throws<WrongForm>([&]{
-        item_from_string(&mt, "{a:41 b:foo}");
-    }, "item_from_tree throws WrongForm when attr has wrong form");
-    throws<CantRepresent>([&]{
-        item_from_string(&mt, "{a:41 b:4.3}");
-    }, "item_from_tree throws CantRepresent when int attr isn't integer");
-    throws<InvalidForm>([&]{
-        item_from_string(&mt, "[54 43]");
-    }, "item_from_tree throws InvalidForm when trying to make attrs object from array");
-    throws<UnwantedAttr>([&]{
-        item_from_string(&mt, "{a:0 b:1 c:60}");
-    }, "item_from_tree throws on extra attr");
+     // TODO: location should be "anonymous-item:" not empty
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&mt, "{a:16}"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"\" "
+            "type:ayu::test::MemberTest "
+            "inner:[ayu::MissingAttr [[] b]]"
+        "}]",
+        "item_from_tree throws on missing attr with attrs descriptor"
+    );
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&mt, "{a:41 b:foo}"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"anonymous-item:#b\" "
+            "type:int32 "
+            "inner:[ayu::WrongForm [[] number foo]]"
+        "}]",
+        "item_from_tree throws when attr has wrong form"
+    );
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&mt, "{a:41 b:4.3}"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"anonymous-item:#b\" "
+            "type:int32 "
+            "inner:[ayu::CantRepresent [[] int32 4.3]]"
+        "}]",
+        "item_from_tree throws when int attr isn't integer"
+    );
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&mt, "[54 43]"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"\" "
+            "type:ayu::test::MemberTest "
+            "inner:[ayu::InvalidForm [[] array]]"
+        "}]",
+        "item_from_tree throws when trying to make attrs object from array"
+    );
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&mt, "{a:0 b:1 c:60}"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"\" "
+            "type:ayu::test::MemberTest "
+            "inner:[ayu::UnwantedAttr [[] c]]"
+        "}]",
+        "item_from_tree throws on extra attr"
+    );
 
     auto bt = BaseTest{{-1, -2}, -3};
     Tree btt = item_to_tree(&bt);
@@ -1083,9 +1130,15 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     Tree from_tree_bt1 = tree_from_string("{c:-4,MemberTest:{a:-5,b:-6}}");
     item_from_tree(&bt, from_tree_bt1);
     is(bt.b, -6, "item_from_tree with base attr");
-    throws<MissingAttr>([&]{
-        item_from_string(&bt, "{a:-7,b:-8,c:-9}");
-    }, "item_from_tree with base attr throws when collapsed but include is not specified");
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&bt, "{a:-7,b:-8,c:-9}"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"\" "
+            "type:ayu::test::BaseTest "
+            "inner:[ayu::MissingAttr [[] MemberTest]]"
+        "}]",
+        "item_from_tree with base attr throws when collapsed but include is not specified"
+    );
 
     auto it = InheritTest{{{99, 88}, 77}, 66};
     Tree itt = item_to_tree(&it);
@@ -1102,11 +1155,11 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     item_from_tree(&iot, from_tree_iot1);
     is(iot.d, 44, "Inherit optional works");
     is(iot.a, 23, "Didn't set attrs of optional included attrs");
-    throws<MissingAttr>([&]{
+    throws<FromTreeFailed>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 MemberTest:{a:56 b:67}}"));
     }, "Optional included attrs need either all or no attrs");
     todo(1);
-    throws<MissingAttr>([&]{
+    throws<FromTreeFailed>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 c:78}"));
     }, "Optional included attrs need either all or no attrs (2)");
 
@@ -1116,15 +1169,26 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     Tree from_tree_et1 = tree_from_string("[3.5 4.5 5.5]");
     item_from_tree(&et, from_tree_et1);
     is(et.y, 4.5, "item_from_tree with elems descriptor");
-    throws<WrongLength>([&]{
-        item_from_string(&et, "[6.5 7.5]");
-    }, "item_from_tree throws on too short array with elems descriptor");
-    throws<WrongLength>([&]{
-        item_from_string(&et, "[6.5 7.5 8.5 9.5]");
-    }, "item_from_tree throws on too long array with elems descriptor");
-    throws<InvalidForm>([&]{
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&et, "[6.5 7.5]"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"\" "
+            "type:ayu::test::ElemTest "
+            "inner:[ayu::WrongLength {min:3 max:3 got:2}]"
+        "}]",
+        "item_from_tree throws on too short array with elems descriptor"
+    );
+    throws_what<FromTreeFailed>(
+        [&]{ item_from_string(&et, "[6.5 7.5 8.5 9.5]"); },
+        "[ayu::FromTreeFailed {"
+            "location:\"\" "
+            "type:ayu::test::ElemTest "
+            "inner:[ayu::WrongLength {min:3 max:3 got:4}]"
+        "}]",
+        "item_from_tree throws on too long array with elems descriptor");
+    throws<FromTreeFailed>([&]{
         item_from_string(&et, "{x:1.1 y:2.2}");
-    }, "item_from_tree throws InvalidForm when trying to make elems thing from object");
+    }, "item_from_tree throws when trying to make elems thing from object");
 
     auto est = ElemsTest{{1, 3, 6, 10, 15, 21}};
     is(item_get_length(&est), 6u, "item_get_length");

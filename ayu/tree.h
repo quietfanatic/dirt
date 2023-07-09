@@ -174,7 +174,7 @@ struct TreeError : Error { };
  // Tried to treat a tree as though it's a form which it's not.
 struct WrongForm : TreeError {
     TreeForm form;
-    Tree tree;
+    Tree tree;  // TODO: take TreeForm not Tree
     WrongForm (TreeForm f, Tree t) : form(f), tree(move(t)) { }
 };
  // Tried to extract a number from a tree, but the tree's number won't fit

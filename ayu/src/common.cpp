@@ -52,7 +52,7 @@ void unrecoverable_exception (std::exception& e, Str when) {
 
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::Error, elems())
+AYU_DESCRIBE(ayu::Error, elems(), attrs())
 
 AYU_DESCRIBE(ayu::GenericError,
     elems(

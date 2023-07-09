@@ -40,19 +40,15 @@ Reference Reference::chain_attr_func (
     if (auto a = address()) {
         auto r = f(*a, k);
         if (r) return r;
-        else throw AttrNotFound(
-            reference_to_location(*this), type(), move(k)
-        );
+        else throw AttrNotFound(move(k));
     }
     else {
          // Extra read just to check if the func returns null Reference.
          // If we're here, we're already on a fairly worst-case performance
-         //  scenario, so one more check isn't gonna make much difference.
+         // scenario, so one more check isn't gonna make much difference.
         read([&](const Mu& v){
             Reference ref = f(const_cast<Mu&>(v), k);
-            if (!ref) throw AttrNotFound(
-                reference_to_location(*this), type(), move(k)
-            );
+            if (!ref) throw AttrNotFound(move(k));
         });
         return Reference(host, new ChainAcr(acr, new AttrFuncAcr(f, move(k))));
     }
@@ -64,16 +60,12 @@ Reference Reference::chain_elem_func (
     if (auto a = address()) {
         auto r = f(*a, i);
         if (r) return r;
-        else throw ElemNotFound(
-            reference_to_location(*this), type(), i
-        );
+        else throw ElemNotFound(i);
     }
     else {
         read([&](const Mu& v){
             Reference ref = f(const_cast<Mu&>(v), i);
-            if (!ref) throw ElemNotFound(
-                reference_to_location(*this), type(), i
-            );
+            if (!ref) throw ElemNotFound(i);
         });
         return Reference(host, new ChainAcr(acr, new ElemFuncAcr(f, i)));
     }

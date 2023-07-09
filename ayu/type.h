@@ -32,7 +32,7 @@ struct Type {
      // Can throw UnknownType.  There is no way to extract information about
      // constness from a std::type_info, so it must be provided as a bool.
     Type (const std::type_info& t, bool readonly = false) :
-        Type(in::get_description_for_type_info(t), readonly)
+        Type(in::need_description_for_type_info(t), readonly)
     { }
      // Should never throw, and in fact compile to a single pointer return.
     template <class T>
