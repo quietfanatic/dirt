@@ -109,6 +109,8 @@ Mu* Type::upcast_to (Type to, Mu* p) const {
 
 Mu* Type::try_downcast_to (Type to, Mu* p) const {
     if (!to) return null;
+     // Downcasting is unsafe anyway, so allow downcasting from readonly to
+     // non-readonly.
     if (this->remove_readonly() == to.remove_readonly()) return p;
     auto desc = in::DescriptionPrivate::get(to);
 

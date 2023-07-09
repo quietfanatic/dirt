@@ -62,9 +62,7 @@ struct Reference {
      // The empty value will cause null derefs if you do anything with it.
     constexpr Reference (Null n = null) : host(n), acr(n) { }
      // Construct from internal data.
-    Reference (Pointer h, const in::Accessor* a) : host(h), acr(a) {
-        if (acr) acr->inc();
-    }
+    Reference (Pointer h, const in::Accessor* a) : host(h), acr(a) { }
      // Construct from a Pointer.
     constexpr Reference (Pointer p) : host(p), acr(null) { }
      // Construct from native pointer.
@@ -77,9 +75,11 @@ struct Reference {
     template <class From, class Acr> requires (
         std::is_same_v<typename Acr::AccessorFromType, From>
     )
-    Reference (From& h, Acr&& a) : Reference(&h, new Acr(a)) { }
+    Reference (From& h, Acr&& a) : Reference(&h, new Acr(move(a))) { }
      // Copy and move construction and assignment
-    Reference (const Reference& o) : Reference(o.host, o.acr) { }
+    Reference (const Reference& o) : Reference(o.host, o.acr) {
+        if (acr) acr->inc();
+    }
     Reference (Reference&& o) :
         host(o.host), acr(o.acr)
     {
