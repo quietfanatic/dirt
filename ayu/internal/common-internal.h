@@ -10,7 +10,7 @@ namespace ayu::in {
 struct DocumentData;
 struct Description;
 struct LocationData;
-void delete_LocationData (LocationData*);
+void delete_LocationData (LocationData*) noexcept;
 struct ResourceData;
 
  // Intrusive reference counting
@@ -25,12 +25,12 @@ template <class T, void(& deleter )(T*)>
 struct RCP {
     T* p;
 
-    constexpr void inc () {
+    ALWAYS_INLINE constexpr void inc () {
         if (p) {
             reinterpret_cast<RefCounted*>(p)->ref_count++;
         }
     }
-    constexpr void dec () {
+    ALWAYS_INLINE constexpr void dec () {
         if (p && !--reinterpret_cast<RefCounted*>(p)->ref_count) {
             deleter(p);
         }

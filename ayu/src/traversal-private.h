@@ -222,7 +222,7 @@ static inline void trav_elem_func (
     trav_ref(trav, parent, ref, mode, cb);
 }
 
-static Reference trav_reference (const Traversal& trav) {
+static Reference trav_reference (const Traversal& trav) noexcept {
     if (trav.addressable) {
         return Pointer(
             trav.readonly ? Type(trav.desc).add_readonly() : trav.desc,
@@ -246,7 +246,7 @@ static Reference trav_reference (const Traversal& trav) {
     }
 }
 
-static Location trav_location (const Traversal& trav) {
+static Location trav_location (const Traversal& trav) noexcept {
     if (trav.op == START) {
         return trav.location;
     }
@@ -261,14 +261,6 @@ static Location trav_location (const Traversal& trav) {
             default: never();
         }
     }
-}
-
-template <class T>
-static T trav_error (const Traversal& trav) {
-    T x;
-    x.location = trav_location(trav);
-    x.type = trav.desc;
-    return x;
 }
 
 } // namespace ayu::in

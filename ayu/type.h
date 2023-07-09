@@ -172,23 +172,28 @@ struct TypeError : Error { };
  // TODO: serializing this doesn't work?
 struct UnknownType : TypeError {
     const std::type_info* cpp_type;
+    UnknownType (const std::type_info& c) : cpp_type(&c) { }
 };
  // Tried to look up a type by name, but there is no type with that name.
 struct TypeNotFound : TypeError {
     AnyString name;
+    TypeNotFound (AnyString n) : name(move(n)) { }
 };
  // Tried to default construct a type that has no default constructor.
 struct CannotDefaultConstruct : TypeError {
     Type type;
+    CannotDefaultConstruct (Type t) : type(t) { }
 };
  // Tried to construct or destroy a type that has no destructor.
 struct CannotDestroy : TypeError {
     Type type;
+    CannotDestroy (Type t) : type(t) { }
 };
  // Tried to coerce between types that can't be coerced.
 struct CannotCoerce : TypeError {
     Type from;
     Type to;
+    CannotCoerce (Type f, Type t) : from(f), to(t) { }
 };
 
 } // namespace ayu

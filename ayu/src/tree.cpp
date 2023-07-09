@@ -6,7 +6,7 @@ namespace ayu {
 namespace in {
 
 NOINLINE
-void delete_Tree_data (TreeRef t) {
+void delete_Tree_data (TreeRef t) noexcept {
      // Delete by manifesting an array and letting its destructor run.
      // We're using Unique* instead of Shared* because we've already run down
      // the reference count.
@@ -43,25 +43,17 @@ void delete_Tree_data (TreeRef t) {
 void throw_WrongForm (TreeRef t, TreeForm form) {
     if (t->rep == REP_ERROR) std::rethrow_exception(std::exception_ptr(*t));
     else if (t->form == form) never();
-    else {
-        WrongForm x;
-        x.form = form;
-        x.tree = t;
-        throw x;
-    }
+    else throw WrongForm(form, t);
 }
 
 [[noreturn, gnu::cold]]
 void throw_CantRepresent (StaticString type_name, TreeRef t) {
-    CantRepresent x;
-    x.type_name = type_name;
-    x.tree = t;
-    throw x;
+    throw CantRepresent(type_name, t);
 }
 
 } using namespace in;
 
-bool operator == (TreeRef a, TreeRef b) {
+bool operator == (TreeRef a, TreeRef b) noexcept {
     if (a->rep != b->rep) {
          // Special case int/float comparisons
         if (a->rep == REP_INT64 && b->rep == REP_DOUBLE) {

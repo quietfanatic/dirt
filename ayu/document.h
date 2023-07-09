@@ -65,22 +65,26 @@ struct DocumentError : Error { };
  // Tried to create a document item with an illegal name.
 struct DocumentInvalidName : DocumentError {
     AnyString name;
+    DocumentInvalidName (AnyString n) : name(move(n)) { }
 };
  // Tried to create a document item with a name that's already in use in
  // this document.
 struct DocumentDuplicateName : DocumentError {
     AnyString name;
+    DocumentDuplicateName (AnyString n) : name(move(n)) { }
 };
  // Tried to delete a document item, but the wrong type was given during
  // deletion.
 struct DocumentDeleteWrongType : DocumentError {
     Type existing;
     Type deleted_as;
+    DocumentDeleteWrongType (Type e, Type d) : existing(e), deleted_as(d) { }
 };
  // Tried to delete a document item by name, but the given name isn't in
  // this document.
 struct DocumentDeleteMissing : DocumentError {
     AnyString name;
+    DocumentDeleteMissing (AnyString n) : name(move(n)) { }
 };
 
 } // namespace ayu

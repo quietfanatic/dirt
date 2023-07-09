@@ -19,6 +19,9 @@ struct ParseError : Error {
     AnyString filename;
     uint line;
     uint col;
+    ParseError (AnyString m, AnyString f, uint l, uint c) :
+        mess(move(m)), filename(move(f)), line(l), col(c)
+    { }
 };
 
 } // namespace ayu

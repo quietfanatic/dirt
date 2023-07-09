@@ -79,8 +79,10 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         });
         return r;
     }
-    if (trav.desc->values()) throw trav_error<NoNameForValue>(trav);
-    else throw trav_error<CannotToTree>(trav);
+    if (trav.desc->values()) {
+        throw NoNameForValue(trav_location(trav), trav.desc);
+    }
+    else throw CannotToTree(trav_location(trav), trav.desc);
 }
 catch (const Error& e) {
     if (diagnostic_serialization) {
@@ -164,28 +166,20 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) {
     if (tree->form == OBJECT &&
         (trav.desc->values() || trav.desc->accepts_array())
     ) {
-        auto x = trav_error<InvalidForm>(trav);
-        x.tree = tree;
-        throw x;
+        throw InvalidForm(trav_location(trav), trav.desc, tree);
     }
     else if (tree->form == ARRAY &&
         (trav.desc->values() || trav.desc->accepts_object())
     ) {
-        auto x = trav_error<InvalidForm>(trav);
-        x.tree = tree;
-        throw x;
+        throw InvalidForm(trav_location(trav), trav.desc, tree);
     }
     else if (trav.desc->accepts_array() || trav.desc->accepts_object()) {
-        auto x = trav_error<InvalidForm>(trav);
-        x.tree = tree;
-        throw x;
+        throw InvalidForm(trav_location(trav), trav.desc, tree);
     }
     else if (trav.desc->values()) {
-        auto x = trav_error<NoValueForName>(trav);
-        x.name = tree;
-        throw x;
+        throw NoValueForName(trav_location(trav), trav.desc, tree);
     }
-    else throw trav_error<CannotFromTree>(trav);
+    else throw CannotFromTree(trav_location(trav), trav.desc);
 
     done:
      // Now register swizzle and init ops.  We're doing it now instead of at the
@@ -300,11 +294,9 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
                     ser_collect_key(ks, AnyString(move(e)));
                 }
                 return;
-                bad: {
-                    auto x = trav_error<InvalidKeysType>(trav);
-                    x.keys_type = keys_type;
-                    throw x;
-                }
+                bad: throw InvalidKeysType(
+                    trav_location(trav), trav.desc, keys_type
+                );
             });
         }
     }
@@ -328,7 +320,7 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
             ser_collect_keys(child, ks);
         });
     }
-    else throw trav_error<NoAttrs>(trav);
+    else throw NoAttrs(trav_location(trav), trav.desc);
 }
 
 AnyArray<AnyString> item_get_keys (
@@ -396,11 +388,9 @@ void in::ser_claim_keys (
                      // longer optional.
                     optional = false;
                 }
-                else if (!optional) {
-                    auto x = trav_error<MissingAttr>(trav);
-                    x.key = k;
-                    throw x;
-                }
+                else if (!optional) throw MissingAttr(
+                    trav_location(trav), trav.desc, k
+                );
             }
             return;
         }
@@ -428,11 +418,7 @@ void in::ser_claim_keys (
             else if (optional || acr->attr_flags & (ATTR_OPTIONAL|ATTR_INCLUDE)) {
                  // Allow omitting optional or included attrs
             }
-            else {
-                auto x = trav_error<MissingAttr>(trav);
-                x.key = attr->key;
-                throw x;
-            }
+            else throw MissingAttr(trav_location(trav), trav.desc, attr->key);
         }
          // Then check included attrs
         for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -457,16 +443,12 @@ void in::ser_claim_keys (
             ser_claim_keys(child, ks, optional);
         });
     }
-    else throw trav_error<NoAttrs>(trav);
+    else throw NoAttrs(trav_location(trav), trav.desc);
 }
 
 void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) {
     ser_claim_keys(trav, ks, false);
-    if (!ks.empty()) {
-        auto x = trav_error<UnwantedAttr>(trav);
-        x.key = ks[0];
-        throw x;
-    }
+    if (ks) throw UnwantedAttr(trav_location(trav), trav.desc, ks[0]);
 }
 
 void item_set_keys (
@@ -536,15 +518,13 @@ bool in::ser_maybe_attr (
         });
         return r;
     }
-    else throw trav_error<NoAttrs>(trav);
+    else throw NoAttrs(trav_location(trav), trav.desc);
 }
 void in::ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, TravCallbackRef cb
 ) {
     if (!ser_maybe_attr(trav, key, mode, cb)) {
-        auto x = trav_error<AttrNotFound>(trav);
-        x.key = key;
-        throw x;
+        throw AttrNotFound(trav_location(trav), trav.desc, key);
     }
 }
 
@@ -565,13 +545,7 @@ Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     if (Reference r = item_maybe_attr(item, key)) {
         return r;
     }
-    else {
-        AttrNotFound x;
-        x.location = loc;
-        x.type = item.type();
-        x.key = move(key);
-        throw x;
-    }
+    else throw AttrNotFound(loc, item.type(), move(key));
 }
 
 ///// ELEM OPERATIONS
@@ -596,7 +570,7 @@ usize in::ser_get_length (const Traversal& trav) {
         });
         return len;
     }
-    else throw trav_error<NoElems>(trav);
+    else throw NoElems(trav_location(trav), trav.desc);
 }
 
 usize item_get_length (const Reference& item, LocationRef loc) {
@@ -621,11 +595,10 @@ void in::ser_set_length (const Traversal& trav, usize len) {
                 expected = reinterpret_cast<const usize&>(lv);
             });
             if (len != expected) {
-                auto x = trav_error<WrongLength>(trav);
-                x.min = expected;
-                x.max = expected;
-                x.got = len;
-                throw x;
+                throw WrongLength(
+                    trav_location(trav), trav.desc,
+                    expected, expected, len
+                );
             }
         }
     }
@@ -639,11 +612,10 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             else break;
         }
         if (len < min || len > elems->n_elems) {
-            auto x = trav_error<WrongLength>(trav);
-            x.min = min;
-            x.max = elems->n_elems;
-            x.got = len;
-            throw x;
+            throw WrongLength(
+                trav_location(trav), trav.desc,
+                min, elems->n_elems, len
+            );
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
@@ -651,7 +623,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             ser_set_length(child, len);
         });
     }
-    else throw trav_error<NoElems>(trav);
+    else throw NoElems(trav_location(trav), trav.desc);
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
@@ -688,15 +660,13 @@ bool in::ser_maybe_elem (
         });
         return found;
     }
-    else throw trav_error<NoElems>(trav);
+    else throw NoElems(trav_location(trav), trav.desc);
 }
 void in::ser_elem (
     const Traversal& trav, usize index, AccessMode mode, TravCallbackRef cb
 ) {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
-        auto x = trav_error<ElemNotFound>(trav);
-        x.index = index;
-        throw x;
+        throw ElemNotFound(trav_location(trav), trav.desc, index);
     }
 }
 Reference item_maybe_elem (
@@ -717,13 +687,7 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     if (Reference r = item_maybe_elem(item, index)) {
         return r;
     }
-    else {
-        ElemNotFound x;
-        x.location = loc;
-        x.type = item.type();
-        x.index = index;
-        throw x;
-    }
+    else throw ElemNotFound(loc, item.type(), index);
 }
 
 ///// MISC

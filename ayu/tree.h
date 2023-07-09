@@ -168,19 +168,22 @@ static_assert(sizeof(Tree) == sizeof(TreeRef));
  //  attributes don't have to be in the same order.  Note that comparing
  //  TreeObjects or TreeObjectSlices will NOT do an order-independent
  //  comparison, it'll just do ordinary array comparison.
-bool operator == (TreeRef a, TreeRef b);
+bool operator == (TreeRef a, TreeRef b) noexcept;
 
 struct TreeError : Error { };
  // Tried to treat a tree as though it's a form which it's not.
 struct WrongForm : TreeError {
     TreeForm form;
     Tree tree;
+    WrongForm (TreeForm f, Tree t) : form(f), tree(move(t)) { }
 };
  // Tried to extract a number from a tree, but the tree's number won't fit
  // into the requested type.
+ // TODO: Cannot
 struct CantRepresent : TreeError {
     StaticString type_name;
     Tree tree;
+    CantRepresent (StaticString n, Tree t) : type_name(n), tree(move(t)) { }
 };
 
 }  // namespace ayu

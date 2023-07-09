@@ -19,32 +19,19 @@
 namespace ayu {
 namespace in {
 
-static auto invalid_state (StaticString t, Resource r) {
-    InvalidResourceState x;
-    x.tried = t;
-    x.resource = r;
-    x.state = r.state();
-    return x;
-}
-
 static void verify_tree_for_scheme (
     Resource res,
     const ResourceScheme* scheme,
     const Tree& tree
 ) {
     if (tree.form == NULLFORM) {
-        EmptyResourceValue x;
-        x.name = res.name().spec();
-        throw x;
+        throw EmptyResourceValue(res.name().spec());
     }
     auto a = TreeArraySlice(tree);
     if (a.size() == 2) {
         Type type = Type(Str(a[0]));
         if (!scheme->accepts_type(type)) {
-            UnacceptableResourceType x;
-            x.name = res.name().spec();
-            x.type = type;
-            throw x;
+            throw UnacceptableResourceType(res.name().spec(), type);
         }
     }
     else {
@@ -81,15 +68,11 @@ Resource::Resource (const IRI& name) {
         return;
     }
     if (!name) {
-        InvalidResourceName x;
-        x.name = name.possibly_invalid_spec();
-        throw x;
+        throw InvalidResourceName(name.possibly_invalid_spec());
     }
     auto scheme = universe().require_scheme(name);
     if (!scheme->accepts_iri(name)) {
-        UnacceptableResourceName x;
-        x.name = name.spec();
-        throw x;
+        throw UnacceptableResourceName(name.spec());
     }
     auto& resources = universe().resources;
     auto iter = resources.find(name.spec());
@@ -115,13 +98,11 @@ Resource::Resource (const IRI& name, Dynamic&& value) :
     Resource(name)
 {
     if (!value.has_value()) {
-        EmptyResourceValue x;
-        x.name = name.spec();
-        throw x;
+        throw EmptyResourceValue(name.spec());
     }
     if (data->state == UNLOADED) set_value(move(value));
     else {
-        throw invalid_state("construct", *this);
+        throw InvalidResourceState("construct", *this);
     }
 }
 
@@ -139,17 +120,12 @@ Dynamic& Resource::get_value () const {
 }
 void Resource::set_value (Dynamic&& value) const {
     if (!value.has_value()) {
-        EmptyResourceValue x;
-        x.name = data->name.spec();
-        throw x;
+        throw EmptyResourceValue(data->name.spec());
     }
     if (data->name) {
         auto scheme = universe().require_scheme(data->name);
         if (!scheme->accepts_type(value.type)) {
-            UnacceptableResourceType x;
-            x.name = data->name.spec();
-            x.type = value.type;
-            throw x;
+            throw UnacceptableResourceType(data->name.spec(), value.type);
         }
     }
     switch (data->state) {
@@ -159,13 +135,7 @@ void Resource::set_value (Dynamic&& value) const {
         case LOAD_CONSTRUCTING:
         case LOADED:
             break;
-        default: {
-            InvalidResourceState x;
-            x.tried = "set_value";
-            x.resource = *this;
-            x.state = data->state;
-            throw x;
-        }
+        default: throw InvalidResourceState("set_value", *this);
     }
     data->value = move(value);
 }
@@ -190,7 +160,7 @@ void load (Slice<Resource> reses) {
         case UNLOADED: rs.push_back(res); break;
         case LOADED:
         case LOAD_CONSTRUCTING: continue;
-        default: throw invalid_state("load", res);
+        default: throw InvalidResourceState("load", res);
     }
     try {
         for (auto res : rs) res.data->state = LOAD_CONSTRUCTING;
@@ -224,10 +194,10 @@ void load (Slice<Resource> reses) {
 
 void rename (Resource old_res, Resource new_res) {
     if (old_res.data->state != LOADED) {
-        throw invalid_state("rename from", old_res);
+        throw InvalidResourceState("rename from", old_res);
     }
     if (new_res.data->state != UNLOADED) {
-        throw invalid_state("rename to", new_res);
+        throw InvalidResourceState("rename to", new_res);
     }
     new_res.data->value = move(old_res.data->value);
     new_res.data->state = LOADED;
@@ -239,7 +209,7 @@ void save (Resource res) {
 }
 void save (Slice<Resource> reses) {
     for (auto res : reses) {
-        if (res.data->state != LOADED) throw invalid_state("save", res);
+        if (res.data->state != LOADED) throw InvalidResourceState("save", res);
     }
     try {
         for (auto res : reses) res.data->state = SAVE_VERIFYING;
@@ -250,16 +220,14 @@ void save (Slice<Resource> reses) {
             for (usize i = 0; i < reses.size(); i++) {
                 Resource res = reses[i];
                 if (!res.data->value.has_value()) {
-                    EmptyResourceValue x;
-                    x.name = res.data->name.spec();
-                    throw x;
+                    throw EmptyResourceValue(res.data->name.spec());
                 }
                 auto scheme = universe().require_scheme(res.data->name);
                 if (!scheme->accepts_type(res.data->value.type)) {
-                    UnacceptableResourceType x;
-                    x.name = res.data->name.spec();
-                    x.type = res.data->value.type;
-                    throw x;
+                    throw UnacceptableResourceType(
+                        res.data->name.spec(),
+                        res.data->value.type
+                    );
                 }
                 auto filename = scheme->get_file(res.data->name);
                 auto contents = tree_to_string(
@@ -292,7 +260,7 @@ void unload (Slice<Resource> reses) {
     switch (res.data->state) {
         case UNLOADED: continue;
         case LOADED: rs.push_back(res); break;
-        default: throw invalid_state("unload", res);
+        default: throw InvalidResourceState("unload", res);
     }
      // Verify step
     try {
@@ -303,7 +271,7 @@ void unload (Slice<Resource> reses) {
                 case UNLOADED: continue;
                 case UNLOAD_VERIFYING: continue;
                 case LOADED: others.emplace_back(&*other); break;
-                default: throw invalid_state("scan for unload", &*other);
+                default: throw InvalidResourceState("scan for unload", &*other);
             }
         }
          // If we're unloading everything, no need to do any scanning.
@@ -329,10 +297,7 @@ void unload (Slice<Resource> reses) {
                         Reference ref = ref_ref.get_as<Reference>();
                         auto iter = ref_set.find(ref);
                         if (iter != ref_set.end()) {
-                            UnloadWouldBreak x;
-                            x.from = loc;
-                            x.to = iter->second;
-                            throw x;
+                            throw UnloadWouldBreak(loc, iter->second);
                         }
                         return false;
                     }
@@ -367,7 +332,7 @@ void force_unload (Slice<Resource> reses) {
     switch (res.data->state) {
         case UNLOADED: continue;
         case LOADED: rs.push_back(res); break;
-        default: throw invalid_state("force_unload", res);
+        default: throw InvalidResourceState("force_unload", res);
     }
      // Skip straight to destruct step
     for (auto res : rs) res.data->state = UNLOAD_COMMITTING;
@@ -388,7 +353,7 @@ void reload (Resource res) {
 void reload (Slice<Resource> reses) {
     for (auto res : reses)
     if (res.data->state != LOADED) {
-        throw invalid_state("reload", res);
+        throw InvalidResourceState("reload", res);
     }
      // Preparation (this won't throw)
     for (auto res : reses) {
@@ -417,7 +382,7 @@ void reload (Slice<Resource> reses) {
                 case UNLOADED: continue;
                 case RELOAD_VERIFYING: continue;
                 case LOADED: others.emplace_back(&*other); break;
-                default: throw invalid_state("scan for reload", &*other);
+                default: throw InvalidResourceState("scan for reload", &*other);
             }
         }
          // If we're reloading everything, no need to do any scanning.
@@ -451,10 +416,7 @@ void reload (Slice<Resource> reses) {
                         catch (Error&) {
                              // It's probably okay to throw away the error info
                              // TODO: wrap it instead
-                            ReloadWouldBreak x;
-                            x.from = loc;
-                            x.to = iter->second;
-                            throw x;
+                            throw ReloadWouldBreak(loc, iter->second);
                         }
                         return false;
                     }

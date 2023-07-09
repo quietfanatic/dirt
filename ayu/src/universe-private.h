@@ -25,11 +25,7 @@ struct Universe {
         Str scheme = name.scheme();
         auto iter = schemes.find(scheme);
         if (iter != schemes.end()) return iter->second;
-        else {
-            UnknownResourceScheme x;
-            x.name = name.spec();
-            throw x;
-        }
+        else throw UnknownResourceScheme(name.spec());
     }
 };
 

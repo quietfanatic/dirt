@@ -80,17 +80,21 @@ struct GenericError : Error {
 struct IOError : Error {
     AnyString filename;
     int errnum; // TODO: use std::errc
+    IOError (AnyString f, int e) : filename(move(f)), errnum(e) { }
 };
  // Failure to open a file.
 struct OpenFailed : IOError {
     AnyString mode;
+    OpenFailed (AnyString f, int e, AnyString m) :
+        IOError(move(f), e), mode(move(m))
+    { }
 };
  // Failure to read from an open file
-struct ReadFailed : IOError { };
+struct ReadFailed : IOError { using IOError::IOError; };
  // Failure to write to an open file
-struct WriteFailed : IOError { };
+struct WriteFailed : IOError { using IOError::IOError; };
  // Failure to close a file
-struct CloseFailed : IOError { };
+struct CloseFailed : IOError { using IOError::IOError; };
 
  // Called when an exception is thrown in a place where the library can't
  // properly clean up after itself, such as when a resource value throws

@@ -14,17 +14,9 @@ Image::~Image () { delete[](pixels); }
 
 void SubImage::validate () {
     if (bounds != GINF) {
-        if (!proper(bounds)) {
-            SubImageBoundsNotProper x;
-            x.bounds = bounds;
-            throw x;
-        }
+        if (!proper(bounds)) throw SubImageBoundsNotProper(bounds);
         if (image && !contains(image->bounds(), bounds)) {
-            SubImageOutOfBounds x;
-            x.image = image;
-            x.size = image->size;
-            x.bounds = bounds;
-            throw x;
+            throw SubImageOutOfBounds(image, image->size, bounds);
         }
     }
 }
@@ -123,9 +115,5 @@ AYU_DESCRIBE(glow::SubImageOutOfBounds,
         elem(&glow::SubImageOutOfBounds::size),
         elem(&glow::SubImageOutOfBounds::bounds)
     )
-)
-AYU_DESCRIBE(glow::ImageTextureIncompatibleTarget,
-    delegate(base<glow::GlowError>()),
-    elems( elem(&glow::ImageTextureIncompatibleTarget::target) )
 )
 

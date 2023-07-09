@@ -17,21 +17,18 @@ AYU_DESCRIBE(glow::RGBA8,
         else if (t.form == ayu::ARRAY) {
             auto a = ayu::TreeArraySlice(t);
             if (a.size() != 4) {
-                ayu::WrongLength x;
-                x.location = ayu::current_location();
-                x.type = ayu::Type::CppType<RGBA8>();
-                x.min = 4;
-                x.max = 4;
-                x.got = a.size();
-                throw x;
+                throw ayu::WrongLength(
+                    ayu::current_location(),
+                    ayu::Type::CppType<RGBA8>(),
+                    4, 4, a.size()
+                );
             }
             v = RGBA8(uint8(a[0]), uint8(a[1]), uint8(a[2]), uint8(a[3]));
         }
-        else {
-            ayu::InvalidForm x;
-            x.location = ayu::current_location();
-            x.type = ayu::Type::CppType<RGBA8>();
-            throw x;
-        }
+        else throw ayu::InvalidForm(
+            ayu::current_location(),
+            ayu::Type::CppType<RGBA8>(),
+            t
+        );
     })
 )

@@ -30,6 +30,7 @@ void tree_to_file (TreeRef, AnyString filename, PrintOptions opts = 0);
  // outside of VALID_PRINT_OPTION_BITS.
 struct InvalidPrintOptions : Error {
     PrintOptions options;
+    InvalidPrintOptions (PrintOptions o) : options(o) { }
 };
 
 } // namespace ayu

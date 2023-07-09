@@ -12,15 +12,11 @@ void ResourceScheme::activate () const {
     auto& schemes = universe().schemes;
      // Easiest way to validate is just try creating an IRI
     if (!IRI(cat(scheme_name, ":"))) {
-        InvalidResourceScheme x;
-        x.scheme = scheme_name;
-        throw x;
+        throw InvalidResourceScheme(scheme_name);
     }
     auto [iter, emplaced] = schemes.emplace(scheme_name, this);
     if (!emplaced) {
-        DuplicateResourceScheme x;
-        x.scheme = scheme_name;
-        throw x;
+        throw DuplicateResourceScheme(scheme_name);
     }
 }
 void ResourceScheme::deactivate () const {

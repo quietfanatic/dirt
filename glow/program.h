@@ -45,10 +45,16 @@ struct ShaderCompileFailed : GlowError {
     ayu::Location location;
      // TODO: replace with UniqueString
     std::string info_log;
+    ShaderCompileFailed (ayu::Location l, std::string i) :
+        location(move(l)), info_log(move(i))
+    { }
 };
 struct ProgramLinkFailed : GlowError {
     ayu::Location location;
     std::string info_log;
+    ProgramLinkFailed (ayu::Location l, std::string i) :
+        location(move(l)), info_log(move(i))
+    { }
 };
 
 } // namespace glow

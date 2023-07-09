@@ -20,7 +20,7 @@ enum : TreeRep {
 };
 
 NOINLINE
-void delete_Tree_data (TreeRef);
+void delete_Tree_data (TreeRef) noexcept;
 
 [[noreturn, gnu::cold]]
 void throw_WrongForm (TreeRef, TreeForm);

@@ -37,29 +37,15 @@ usize Type::cpp_align () const {
 
 void Type::default_construct (void* target) const {
     auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc->default_construct) {
-        CannotDefaultConstruct x;
-        x.type = *this;
-        throw x;
-    }
+    if (!desc->default_construct) throw CannotDefaultConstruct(*this);
      // Don't allow constructing objects that can't be destroyed
-    if (!desc->destroy) {
-        CannotDestroy x;
-        x.type = *this;
-        throw x;
-    }
+    if (!desc->destroy) throw CannotDestroy(*this);
     desc->default_construct(target);
 }
 
 void Type::destroy (Mu* p) const {
     auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc->destroy) {
-         // Likely shouldn't get here since we forbid constructing objects with
-         // no destructor.
-        CannotDestroy x;
-        x.type = *this;
-        throw x;
-    }
+    if (!desc->destroy) throw CannotDestroy(*this);
     desc->destroy(p);
 }
 
@@ -77,16 +63,8 @@ void Type::deallocate (void* p) const {
 Mu* Type::default_new () const {
     auto desc = in::DescriptionPrivate::get(*this);
      // Throw before allocating
-    if (!desc->default_construct) {
-        CannotDefaultConstruct x;
-        x.type = *this;
-        throw x;
-    }
-    if (!desc->destroy) {
-        CannotDestroy x;
-        x.type = *this;
-        throw x;
-    }
+    if (!desc->default_construct) throw CannotDefaultConstruct(*this);
+    if (!desc->destroy) throw CannotDestroy(*this);
     void* p = allocate();
     desc->default_construct(p);
     return (Mu*)p;
@@ -126,12 +104,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
 }
 Mu* Type::upcast_to (Type to, Mu* p) const {
     if (Mu* r = try_upcast_to(to, p)) return r;
-    else {
-        CannotCoerce x;
-        x.from = *this;
-        x.to = to;
-        throw x;
-    }
+    else throw CannotCoerce(*this, to);
 }
 
 Mu* Type::try_downcast_to (Type to, Mu* p) const {
@@ -169,12 +142,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
 Mu* Type::downcast_to (Type to, Mu* p) const {
     if (!p) return p;
     if (Mu* r = try_downcast_to(to, p)) return r;
-    else {
-        CannotCoerce x;
-        x.from = *this;
-        x.to = to;
-        throw x;
-    }
+    else throw CannotCoerce(*this, to);
 }
 
 Mu* Type::try_cast_to (Type to, Mu* p) const {
@@ -185,12 +153,7 @@ Mu* Type::try_cast_to (Type to, Mu* p) const {
 Mu* Type::cast_to (Type to, Mu* p) const {
     if (!p) return p;
     if (Mu* r = try_cast_to(to, p)) return r;
-    else {
-        CannotCoerce x;
-        x.from = *this;
-        x.to = to;
-        throw x;
-    }
+    else throw CannotCoerce(*this, to);
 }
 
 namespace in {
@@ -233,11 +196,7 @@ const Description* get_description_for_type_info (const std::type_info& t) {
 const Description* need_description_for_type_info (const std::type_info& t) {
     auto desc = get_description_for_type_info(t);
     if (desc) return desc;
-    else {
-        UnknownType x;
-        x.cpp_type = &t;
-        throw x;
-    }
+    else throw UnknownType(t);
 }
 
 const Description* get_description_for_name (Str name) {
@@ -250,11 +209,7 @@ const Description* get_description_for_name (Str name) {
 const Description* need_description_for_name (Str name) {
     auto desc = get_description_for_name(name);
     if (desc) return desc;
-    else {
-        TypeNotFound x;
-        x.name = name;
-        throw x;
-    }
+    else throw TypeNotFound(name);
 }
 
 StaticString get_description_name (const Description* desc) {

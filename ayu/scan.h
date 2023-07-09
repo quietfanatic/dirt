@@ -99,6 +99,7 @@ struct ReferenceNotFound : Error {
      // TODO: Is there any more information we can stuff in here?  Would a void*
      // be useful?
     Type type;
+    ReferenceNotFound (Type t) : type(t) { }
 };
 
 } // namespace ayu

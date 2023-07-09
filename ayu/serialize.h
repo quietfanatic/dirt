@@ -170,33 +170,46 @@ struct DiagnosticSerialization {
 struct SerError : Error {
     Location location;
     Type type;
+    SerError (Location l, Type t) : location(move(l)), type(t) { }
 };
  // Tried to call to_tree on a type that doesn't support to_tree
-struct CannotToTree : SerError { };
+struct CannotToTree : SerError { using SerError::SerError; };
  // Tried to call from_tree on a type that doesn't support from_tree
-struct CannotFromTree : SerError { };
+struct CannotFromTree : SerError { using SerError::SerError; };
  // Tried to deserialize an item from a tree, but the item didn't accept
  // the tree's form.
 struct InvalidForm : SerError {
     Tree tree;
+    InvalidForm (Location l, Type ty, Tree tr) :
+        SerError(move(l), ty), tree(tr)
+    { }
 };
  // Tried to serialize an item using a values() descriptor, but no value()
  // entry was found for the item's current value.
-struct NoNameForValue : SerError { };
+struct NoNameForValue : SerError { using SerError::SerError; };
  // Tried to deserialize an item using a values() descriptor, but no value()
  // entry was found that matched the provided name.
 struct NoValueForName : SerError {
     Tree name;
+    NoValueForName (Location l, Type t, Tree n) :
+        SerError(move(l), t), name(n)
+    { }
 };
  // Tried to deserialize an item from an object tree, but the tree lacks an
  // attribute that the item requires.
 struct MissingAttr : SerError {
     AnyString key;
+    MissingAttr (Location l, Type t, AnyString k) :
+        SerError(move(l), t), key(move(k))
+    { }
 };
  // Tried to deserialize an item from an object tree, but the item rejected
  // one of the attributes in the tree.
 struct UnwantedAttr : SerError {
     AnyString key;
+    UnwantedAttr (Location l, Type t, AnyString k) :
+        SerError(move(l), t), key(move(k))
+    { }
 };
  // Tried to deserialize an item from an array tree, but the array has too
  // few or too many elements for the item.
@@ -204,27 +217,39 @@ struct WrongLength : SerError {
     usize min;
     usize max;
     usize got;
+    WrongLength (Location l, Type t, usize mi, usize ma, usize g) :
+        SerError(move(l), t), min(mi), max(ma), got(g)
+    { }
 };
  // Tried to treat an item like it has attributes, but it does not support
  // behaving like an object.
-struct NoAttrs : SerError { };
+struct NoAttrs : SerError { using SerError::SerError; };
  // Tried to treat an item like it has elements, but it does not support
  // behaving like an array.
-struct NoElems : SerError { };
+struct NoElems : SerError { using SerError::SerError; };
  // Tried to get an attribute from an item, but it doesn't have an attribute
  // with the given key.
 struct AttrNotFound : SerError {
     AnyString key;
+    AttrNotFound (Location l, Type t, AnyString k) :
+        SerError(move(l), t), key(move(k))
+    { }
 };
  // Tried to get an element from an item, but it doesn't have an element
  // with the given index (the index is out of bounds).
 struct ElemNotFound : SerError {
     usize index;
+    ElemNotFound (Location l, Type t, usize i) :
+        SerError(move(l), t), index(i)
+    { }
 };
  // The accessor given to a keys() descriptor did not serialize to an array
  // of strings.
 struct InvalidKeysType : SerError {
     Type keys_type;
+    InvalidKeysType (Location l, Type t, Type k) :
+        SerError(move(l), t), keys_type(k)
+    { }
 };
 
 } // namespace ayu

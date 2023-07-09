@@ -49,7 +49,7 @@ struct ErrorLocation : LocationData {
         LocationData(ERROR_LOC), error(move(e)) { }
 };
 
-Location make_error_location (std::exception_ptr&& e) {
+Location make_error_location (std::exception_ptr&& e) noexcept {
     return Location(new ErrorLocation(move(e)));
 }
 
@@ -61,7 +61,7 @@ static void rethrow (LocationRef l) {
     );
 }
 
-void delete_LocationData (LocationData* p) {
+void delete_LocationData (LocationData* p) noexcept {
     switch (p->form) {
         case ROOT: delete static_cast<RootLocation*>(p); break;
         case KEY: delete static_cast<KeyLocation*>(p); break;
@@ -230,11 +230,9 @@ const Resource* Location::root_resource () const {
     }
 }
 
-bool operator == (LocationRef a, LocationRef b) {
+bool operator == (LocationRef a, LocationRef b) noexcept {
     if (a->data == b->data) return true;
     if (!a->data || !b->data) return false;
-    if (a->data->form == ERROR_LOC) rethrow(a);
-    if (b->data->form == ERROR_LOC) rethrow(b);
     if (a->data->form != b->data->form) return false;
     switch (a->data->form) {
         case ROOT: {
@@ -252,6 +250,7 @@ bool operator == (LocationRef a, LocationRef b) {
             auto bb = static_cast<IndexLocation*>(b->data.p);
             return aa->index == bb->index && aa->parent == bb->parent;
         }
+        case ERROR: return false;
         default: never();
     }
 }
@@ -286,7 +285,7 @@ AYU_DESCRIBE(ayu::Location,
     ))
 );
 
-// TODO: tests
+// TODO: more tests
 
 #ifndef TAP_DISABLE_TESTS
 #include "test-environment-private.h"
@@ -308,11 +307,11 @@ static tap::TestSet tests ("dirt/ayu/location", []{
     l = l->parent();
     is(*l->index(), 33u, "Index 33");
     l = l->parent();
-    is(*l->key(), "bu/p", "std::string key with /");
+    is(*l->key(), "bu/p", "String key with /");
     l = l->parent();
     is(*l->index(), 1u, "Index 1");
     l = l->parent();
-    is(*l->key(), "bar", "std::string key");
+    is(*l->key(), "bar", "String key");
     l = l->parent();
     is(*l->resource(), Resource("ayu-test:/"), "Resource root");
     ok(!l->parent());

@@ -286,12 +286,13 @@ inline bool operator != (const Reference& a, const Reference& b) {
 struct ReferenceError : Error {
     Location location;
     Type type;
+    ReferenceError (Location l, Type t) : location(move(l)), type(t) { }
 };
  // Tried to write to a readonly reference.
-struct WriteReadonlyReference : ReferenceError { };
+struct WriteReadonlyReference : ReferenceError { using ReferenceError::ReferenceError; };
  // Used the reference in a context where its address was required, but it
  // has no address.
-struct UnaddressableReference : ReferenceError { };
+struct UnaddressableReference : ReferenceError { using ReferenceError::ReferenceError; };
 
 } // namespace ayu
 

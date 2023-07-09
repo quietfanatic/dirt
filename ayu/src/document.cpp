@@ -97,17 +97,14 @@ void* Document::allocate (Type t) {
 }
 
 void* Document::allocate_named (Type t, AnyString name) {
+    if (!name) throw DocumentInvalidName(move(name));
     usize id = parse_numbered_name(name);
-    if (id == usize(-1) && (!name || name[0] == '_')) {
-        DocumentInvalidName x;
-        x.name = move(name);
-        throw x;
+    if (id == usize(-1) && name[0] == '_') {
+        throw DocumentInvalidName(move(name));
     }
     auto ref = DocumentItemRef(data, name);
     if (ref.header) {
-        DocumentDuplicateName x;
-        x.name = move(name);
-        throw x;
+        throw DocumentDuplicateName(move(name));
     }
 
     if (id == usize(-1)) {
@@ -138,10 +135,7 @@ void Document::delete_ (Type t, Mu* p) {
 #endif
     auto header = (DocumentItemHeader*)p - 1;
     if (header->type != t) {
-        DocumentDeleteWrongType x;
-        x.existing = header->type;
-        x.deleted_as = t;
-        throw x;
+        throw DocumentDeleteWrongType(header->type, t);
     }
     if (header->type) header->type.destroy(p);
     header->~DocumentItemHeader();
@@ -158,11 +152,7 @@ void Document::delete_named (Str name) {
         free(ref.header);
         return;
     }
-    else {
-        DocumentDeleteMissing x;
-        x.name = name;
-        throw x;
-    }
+    else throw DocumentDeleteMissing(name);
 }
 
 void Document::deallocate (void* p) {

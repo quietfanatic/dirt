@@ -343,9 +343,7 @@ static void validate_print_options (PrintOptions opts) {
     if (opts & ~VALID_PRINT_OPTION_BITS ||
         ((opts & PRETTY) && (opts & COMPACT))
     ) {
-        InvalidPrintOptions x;
-        x.options = opts;
-        throw x;
+        throw InvalidPrintOptions(opts);
     }
 }
 
@@ -363,25 +361,16 @@ UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
 void string_to_file (Str content, AnyString filename) {
     FILE* f = fopen_utf8(filename.c_str(), "wb");
     if (!f) {
-        OpenFailed x;
-        x.filename = move(filename);
-        x.errnum = errno;
-        x.mode = "wb";
-        throw x;
+        throw OpenFailed(move(filename), errno, "wb");
     }
     usize did_write = fwrite(content.data(), 1, content.size(), f);
     if (did_write != content.size()) {
-        WriteFailed x;
-        x.filename = move(filename);
-        x.errnum = errno;
+        int errnum = errno;
         fclose(f);
-        throw x;
+        throw WriteFailed(move(filename), errnum);
     }
     if (fclose(f) != 0) {
-        CloseFailed x;
-        x.filename = move(filename);
-        x.errnum = errno;
-        throw x;
+        throw CloseFailed(move(filename), errno);
     }
 }
 

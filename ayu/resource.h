@@ -234,27 +234,34 @@ struct InvalidResourceState : ResourceError {
     StaticString tried;
     Resource resource;
     ResourceState state;
+    InvalidResourceState (StaticString t, Resource r) :
+        tried(t), resource(r), state(r.state())
+    { }
 };
  // Tried to create a resource with an empty value.
 struct EmptyResourceValue : ResourceError {
     AnyString name;
+    EmptyResourceValue (AnyString n) : name(move(n)) { }
 };
  // Tried to unload a resource, but there's still a reference somewhere
  // referencing an item inside it.
 struct UnloadWouldBreak : ResourceError {
     Location from;
     Location to;
+    UnloadWouldBreak (Location f, Location t) : from(move(f)), to(move(t)) { }
 };
  // Tried to reload a resource, but was unable to update a reference
  // somewhere.
 struct ReloadWouldBreak : ResourceError {
     Location from;
     Location to;
+    ReloadWouldBreak (Location f, Location t) : from(move(f)), to(move(t)) { }
 };
  // Failed to delete a resource's source file.
 struct RemoveSourceFailed : ResourceError {
     Resource resource;
     int errnum; // errno
+    RemoveSourceFailed (Resource r, int e) : resource(r), errnum(e) { }
 };
 
 } // namespace ayu

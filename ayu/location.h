@@ -63,7 +63,7 @@ struct Location {
     const Resource* root_resource () const;
 };
 
-bool operator == (LocationRef a, LocationRef b);
+bool operator == (LocationRef a, LocationRef b) noexcept;
 
  // Convert a Location to a Reference.  This will not have to do any scanning,
  // so it should be fairly quick.  Well, quicker than reference_to_location.

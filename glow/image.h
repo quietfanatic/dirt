@@ -110,14 +110,15 @@ struct ImageTexture : Texture {
 
 struct SubImageBoundsNotProper : GlowError {
     IRect bounds;
+    SubImageBoundsNotProper (IRect b) : bounds(b) { }
 };
 struct SubImageOutOfBounds : GlowError {
     const Image* image;
     IVec size;
     IRect bounds;
-};
-struct ImageTextureIncompatibleTarget : GlowError {
-    uint target;
+    SubImageOutOfBounds (const Image* i, IVec s, IRect b) :
+        image(i), size(s), bounds(b)
+    { }
 };
 
 }

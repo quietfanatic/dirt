@@ -6,15 +6,19 @@ namespace glow {
     void register_gl_function (void*, const char*);
     void init_gl_functions ();
 
+     // TODO: warn instead of throwing
     void throw_on_glGetError (
-        const char* gl_function,
+        const char* function_name,
         std::source_location = std::source_location::current()
     );
 
     struct GLError : GlowError {
         uint error_code;
-        Str gl_function; // Can't serialize const char*
-        std::source_location loc;
+        Str function_name; // Can't serialize const char*
+        std::source_location srcloc;
+        GLError (uint e, Str g, std::source_location l) :
+            error_code(e), function_name(g), srcloc(l)
+        { }
     };
 }
 
@@ -48,17 +52,17 @@ namespace glow {
     auto checked_gl_function(
         Ret(APIENTRY* p )(Args...),
         const char* fname,
-        std::source_location loc = std::source_location::current()
+        std::source_location srcloc = std::source_location::current()
     ) {
          // Bad hack: Add 2 to fname to remove the p_
         return [=](Args... args) -> Ret {
             if constexpr (std::is_void_v<Ret>) {
                 p(args...);
-                throw_on_glGetError(fname + 2, loc);
+                throw_on_glGetError(fname + 2, srcloc);
             }
             else {
                 Ret r = p(args...);
-                throw_on_glGetError(fname + 2, loc);
+                throw_on_glGetError(fname + 2, srcloc);
                 return r;
             }
         };
