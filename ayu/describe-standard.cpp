@@ -7,36 +7,6 @@
 
 using namespace ayu;
 
-#define AYU_DESCRIBE_SCALAR(type) \
-AYU_DESCRIBE(type, \
-    to_tree([](const type& v){ return Tree(v); }), \
-    from_tree([](type& v, const Tree& t){ v = type(t); }) \
-)
-
-AYU_DESCRIBE_SCALAR(std::nullptr_t)
-AYU_DESCRIBE_SCALAR(bool)
-AYU_DESCRIBE_SCALAR(char)
- // Even though these are in ayu::, serialize them without the namespace.
-AYU_DESCRIBE_SCALAR(int8)
-AYU_DESCRIBE_SCALAR(uint8)
-AYU_DESCRIBE_SCALAR(int16)
-AYU_DESCRIBE_SCALAR(uint16)
-AYU_DESCRIBE_SCALAR(int32)
-AYU_DESCRIBE_SCALAR(uint32)
-AYU_DESCRIBE_SCALAR(int64)
-AYU_DESCRIBE_SCALAR(uint64)
-AYU_DESCRIBE_SCALAR(float)
-AYU_DESCRIBE_SCALAR(double)
-AYU_DESCRIBE_SCALAR(uni::AnyString)
-#undef AYU_DESCRIBE_SCALAR
-AYU_DESCRIBE(uni::UniqueString,
-    to_tree([](const UniqueString& v){ return Tree(AnyString(v)); }),
-    from_tree([](UniqueString& v, const Tree& t){ v = AnyString(t); })
-)
-AYU_DESCRIBE(uni::SharedString,
-    to_tree([](const SharedString& v){ return Tree(AnyString(v)); }),
-    from_tree([](SharedString& v, const Tree& t){ v = AnyString(t); })
-)
 AYU_DESCRIBE(std::string,
     to_tree([](const std::string& v){ return Tree(Str(v)); }),
     from_tree([](std::string& v, const Tree& t){ v = std::string(Str(t)); })
@@ -56,61 +26,9 @@ AYU_DESCRIBE(std::string_view,
         return Tree(Str(v));
     })
 )
-AYU_DESCRIBE(uni::Str,
-    to_tree([](const Str& v){
-        return Tree(v);
-    })
-)
-AYU_DESCRIBE(uni::StaticString,
-    to_tree([](const StaticString& v){
-        return Tree(v);
-    })
-)
- // We can't do the same for const char* because the full specialization would
- // conflict with the partial specialization for T*.  Normally this wouldn't be
- // a problem, but if the templates are in different compilation units, it'll
- // cause a duplicate definition error from the linker.
-
-AYU_DESCRIBE(iri::IRI,
-    to_tree([](const IRI& v){
-        return Tree(location_iri_to_relative_iri(v));
-    }),
-    from_tree([](IRI& v, const Tree& t){
-        v = location_iri_from_relative_iri(Str(t));
-    })
-)
-
-AYU_DESCRIBE(std::source_location,
-    elems(
-         // TODO: StaticString
-        elem(value_func<std::string>([](const std::source_location& v) -> std::string {
-            return v.file_name();
-        })),
-        elem(value_method<uint32, &std::source_location::line>()),
-        elem(value_method<uint32, &std::source_location::column>()),
-        elem(value_func<std::string>([](const std::source_location& v) -> std::string {
-            return v.function_name();
-        }))
-    )
-)
-
-AYU_DESCRIBE(std::exception_ptr,
-    to_tree([](const std::exception_ptr& v){
-        try { std::rethrow_exception(v); }
-        catch (Error& e) {
-            Type real_type = Type(typeid(e));
-            Pointer real = Pointer(&e).try_downcast_to(Type(typeid(e)));
-            return Tree(TreeArray{
-                Tree(real_type.name()),
-                item_to_tree(real)
-            });
-        }
-        catch (std::exception& e) {
-            return Tree(TreeArray{
-                Tree(Str(typeid(e).name())),
-                Tree(Str(e.what()))
-            });
-        }
+AYU_DESCRIBE(std::u16string_view,
+    to_tree([](const std::u16string_view& v){
+        return Tree(Str16(v));
     })
 )
 
