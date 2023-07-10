@@ -271,7 +271,7 @@ void unload (Slice<Resource> reses) {
             }
         }
          // If we're unloading everything, no need to do any scanning.
-        if (!others.empty()) {
+        if (others) {
              // First build set of references to things being unloaded
             std::unordered_map<Reference, Location> ref_set;
             for (auto res : rs) {
@@ -284,8 +284,8 @@ void unload (Slice<Resource> reses) {
                 );
             }
              // Then check if any other resources contain references in that set
+            UniqueArray<UnloadBreak> breaks;
             for (auto other : others) {
-                UniqueArray<std::pair<Location, Location>> breaks;
                 scan_resource_references(
                     other,
                     [&](Reference ref_ref, LocationRef loc) {
@@ -301,13 +301,9 @@ void unload (Slice<Resource> reses) {
                         return false;
                     }
                 );
-                 // TODO: Put an array in UnloadWouldBreak
-                if (breaks) {
-                    throw UnloadWouldBreak(breaks[0].first, breaks[0].second);
-                }
             }
+            if (breaks) throw UnloadWouldBreak(move(breaks));
         }
-         // If we got here, no references will be broken by the unload
     }
     catch (...) {
         for (auto res : rs) res.data->state = LOADED;
@@ -389,7 +385,7 @@ void reload (Slice<Resource> reses) {
             }
         }
          // If we're reloading everything, no need to do any scanning.
-        if (!others.empty()) {
+        if (others) {
              // First build mapping of old refs to locationss
             std::unordered_map<Reference, Location> old_refs;
             for (auto res : reses) {
@@ -402,6 +398,7 @@ void reload (Slice<Resource> reses) {
                 );
             }
              // Then build set of ref-refs to update.
+            UniqueArray<ReloadBreak> breaks;
             for (auto other : others) {
                 scan_resource_references(
                     other,
@@ -416,15 +413,14 @@ void reload (Slice<Resource> reses) {
                             Reference new_ref = reference_from_location(iter->second);
                             updates.emplace(ref_ref, new_ref);
                         }
-                        catch (Error&) {
-                             // It's probably okay to throw away the error info
-                             // TODO: wrap it instead
-                            throw ReloadWouldBreak(loc, iter->second);
+                        catch (std::exception&) {
+                             breaks.emplace_back(loc, iter->second, std::current_exception());
                         }
                         return false;
                     }
                 );
             }
+            if (breaks) throw ReloadWouldBreak(move(breaks));
         }
     }
     catch (...) {
@@ -544,18 +540,29 @@ AYU_DESCRIBE(ayu::EmptyResourceValue,
         elem(&EmptyResourceValue::name)
     )
 )
+AYU_DESCRIBE(ayu::UnloadBreak,
+    elems(
+        elem(&UnloadBreak::from),
+        elem(&UnloadBreak::to)
+    )
+)
 AYU_DESCRIBE(ayu::UnloadWouldBreak,
     elems(
         elem(base<ResourceError>(), include),
-        elem(&UnloadWouldBreak::from),
-        elem(&UnloadWouldBreak::to)
+        elem(&UnloadWouldBreak::breaks)
+    )
+)
+AYU_DESCRIBE(ayu::ReloadBreak,
+    elems(
+        elem(&ReloadBreak::from),
+        elem(&ReloadBreak::to),
+        elem(&ReloadBreak::inner)
     )
 )
 AYU_DESCRIBE(ayu::ReloadWouldBreak,
     elems(
         elem(base<ResourceError>(), include),
-        elem(&ReloadWouldBreak::from),
-        elem(&ReloadWouldBreak::to)
+        elem(&ReloadWouldBreak::breaks)
     )
 )
 AYU_DESCRIBE(ayu::RemoveSourceFailed,

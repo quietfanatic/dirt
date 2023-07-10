@@ -245,17 +245,24 @@ struct EmptyResourceValue : ResourceError {
 };
  // Tried to unload a resource, but there's still a reference somewhere
  // referencing an item inside it.
-struct UnloadWouldBreak : ResourceError {
+struct UnloadBreak {
     Location from;
     Location to;
-    UnloadWouldBreak (Location f, Location t) : from(move(f)), to(move(t)) { }
+};
+struct UnloadWouldBreak : ResourceError {
+    UniqueArray<UnloadBreak> breaks;
+    UnloadWouldBreak (UniqueArray<UnloadBreak>&& b) : breaks(b) { }
 };
  // Tried to reload a resource, but was unable to update a reference
  // somewhere.
-struct ReloadWouldBreak : ResourceError {
+struct ReloadBreak {
     Location from;
     Location to;
-    ReloadWouldBreak (Location f, Location t) : from(move(f)), to(move(t)) { }
+    std::exception_ptr inner;
+};
+struct ReloadWouldBreak : ResourceError {
+    UniqueArray<ReloadBreak> breaks;
+    ReloadWouldBreak (UniqueArray<ReloadBreak>&& b) : breaks(b) { }
 };
  // Failed to delete a resource's source file.
 struct RemoveSourceFailed : ResourceError {

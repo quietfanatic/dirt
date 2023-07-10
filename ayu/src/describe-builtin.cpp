@@ -37,6 +37,10 @@ AYU_DESCRIBE(uni::SharedString,
     to_tree([](const SharedString& v){ return Tree(AnyString(v)); }),
     from_tree([](SharedString& v, const Tree& t){ v = AnyString(t); })
 )
+
+ // Str is a reference-like type so it can't be deserialized because the data
+ // structure containing it would most likely outlive the tree it came from.
+ // However, allowing it to be serialized is useful for error messages.
 AYU_DESCRIBE(uni::Str,
     to_tree([](const Str& v){
         return Tree(v);
@@ -63,14 +67,13 @@ AYU_DESCRIBE(iri::IRI,
 
 AYU_DESCRIBE(std::source_location,
     elems(
-         // TODO: StaticString
-        elem(value_func<std::string>([](const std::source_location& v) -> std::string {
-            return v.file_name();
+        elem(value_func<StaticString>([](const std::source_location& v) {
+            return StaticString::Static(v.file_name());
         })),
         elem(value_method<uint32, &std::source_location::line>()),
         elem(value_method<uint32, &std::source_location::column>()),
-        elem(value_func<std::string>([](const std::source_location& v) -> std::string {
-            return v.function_name();
+        elem(value_func<StaticString>([](const std::source_location& v) {
+            return StaticString::Static(v.function_name());
         }))
     )
 )

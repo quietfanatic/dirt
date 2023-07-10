@@ -18,9 +18,6 @@ AYU_DESCRIBE(std::u16string,
     from_tree([](std::u16string& v, const Tree& t){ v = UniqueString16(t); })
 )
 
- // string_view is a reference-like type so it can't be deserialized because the
- // data structure containing it would most likely outlive the tree it came
- // from.  However, allowing it to be serialized is useful for error messages.
 AYU_DESCRIBE(std::string_view,
     to_tree([](const std::string_view& v){
         return Tree(Str(v));
