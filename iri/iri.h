@@ -136,7 +136,7 @@ struct IRI {
      // this IRI has nothing in common with base.  Returning relative paths is
      // not yet implemented, so if this IRI and base differ in their paths, an
      // absolute path starting with / will be returned.
-    UniqueString spec_relative_to (const IRI& base) const;
+    AnyString spec_relative_to (const IRI& base) const;
 
      // Check for existence of components.
     constexpr bool has_scheme () const;
@@ -201,9 +201,16 @@ struct IRI {
 #define IRI_FRIEND_OP(op) \
     friend constexpr auto operator op (const IRI& a, const IRI& b) { \
         return a.spec_ op b.spec_; \
+    } \
+    friend constexpr auto operator op (const IRI& a, Str b) { \
+        return a.spec_ op b; \
+    } \
+    friend constexpr auto operator op (Str a, const IRI& b) { \
+        return a op b.spec_; \
     }
 #if __cplusplus >= 202002L
     IRI_FRIEND_OP(<=>)
+    IRI_FRIEND_OP(==)
 #else
     IRI_FRIEND_OP(<)
     IRI_FRIEND_OP(<=)

@@ -80,6 +80,24 @@ Reference Reference::operator[] (usize i) const {
 
 } using namespace ayu;
 
+static Tree Reference_to_tree (const Reference& v) {
+    if (!v) return Tree(null);
+    Location loc = reference_to_location(v);
+    return Tree(location_iri_to_relative_iri(loc.as_iri()));
+}
+static void Reference_from_tree (Reference& v, const Tree& t) {
+    switch (t.form) {
+        case NULLFORM: case STRING: break;
+        default: throw InvalidForm(t.form);
+    }
+    v = Reference();
+}
+static void Reference_swizzle (Reference& v, const Tree& t) {
+    if (t.form == NULLFORM) return;
+    auto loc = Location(location_iri_from_relative_iri(Str(t)));
+    v = reference_from_location(loc);
+}
+
 AYU_DESCRIBE(ayu::Reference,
      // Can't use delegate with &reference_to_location, because the call to
      // reference_to_location will trigger a scan, which will try to follow the
@@ -87,24 +105,9 @@ AYU_DESCRIBE(ayu::Reference,
      // mean you can't have a Reference pointing to a Location that is actually
      // a Reference.  Which...well, if you get to the point where you're trying
      // to do that, you should probably refactor anyway, after seeing a doctor.
-    to_tree([](const Reference& ref){
-        if (ref) {
-            Location loc = reference_to_location(ref);
-            return item_to_tree(&loc, current_location());
-        }
-        else return Tree(null);
-    }),
-    from_tree([](Reference& v, const Tree&){
-        v = Reference();
-    }),
-    swizzle([](Reference& v, const Tree& t){
-        if (t.form != NULLFORM) {
-            Location loc;
-             // DELAY_SWIZZLE enables cyclic references.
-            item_from_tree(&loc, t, current_location(), DELAY_SWIZZLE);
-            v = reference_from_location(loc);
-        }
-    })
+    to_tree(&Reference_to_tree),
+    from_tree(&Reference_from_tree),
+    swizzle(&Reference_swizzle)
 )
 
 AYU_DESCRIBE(ayu::ReferenceError,

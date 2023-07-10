@@ -72,21 +72,12 @@ AYU_DESCRIBE(uni::StaticString,
  // cause a duplicate definition error from the linker.
 
 AYU_DESCRIBE(iri::IRI,
-    delegate(mixed_funcs<AnyString>(
-        [](const IRI& v) {
-            const IRI& base = current_resource().name();
-            return AnyString(v.spec_relative_to(base));
-        },
-        [](IRI& v, const AnyString& s){
-            if (s.empty()) {
-                v = IRI();
-            }
-            else {
-                v = IRI(s, current_resource().name());
-                if (!v) throw GenericError("Invalid IRI ", s);
-            }
-        }
-    ))
+    to_tree([](const IRI& v){
+        return Tree(location_iri_to_relative_iri(v));
+    }),
+    from_tree([](IRI& v, const Tree& t){
+        v = location_iri_from_relative_iri(Str(t));
+    })
 )
 
 AYU_DESCRIBE(std::source_location,

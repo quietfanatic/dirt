@@ -150,9 +150,13 @@ Reference item_elem (
 
 ///// MISC
 
- // If a serialization operation is active, get the Location of an item currently
- // being processed.
+ // If a serialization operation is active, get the Location of the item that's
+ // currently being processed.
 Location current_location ();
+
+ // Gets whatever the root of current_location() would be (either a Resource
+ // Location or a Reference Locaiton).
+Location current_root_location ();
 
 ///// DIAGNOSTICS HELP
 
@@ -178,11 +182,6 @@ struct SerializeFailed : Error {
         location(move(l)), type(t), inner(move(i))
     { }
 };
-
- // Failed in a call to item_to_tree or something related.
-struct ToTreeFailed : SerializeFailed { using SerializeFailed::SerializeFailed; };
- // Failed in a call to item_from_tree or something related.
-struct FromTreeFailed : SerializeFailed { using SerializeFailed::SerializeFailed; };
 
 ///// LOW-LEVEL SERIALIZATION ERRORS
 

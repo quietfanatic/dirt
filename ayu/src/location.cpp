@@ -10,7 +10,8 @@ namespace ayu {
 namespace in {
 
 enum LocationForm {
-    ROOT,
+    RESOURCE,
+    REFERENCE,
     KEY,
     INDEX,
      // Internal for lazy error throwing
@@ -22,10 +23,16 @@ struct LocationData : RefCounted {
     LocationData (uint8 f) : form(f) { }
 };
 
-struct RootLocation : LocationData {
+struct ResourceLocation : LocationData {
     Resource resource;
-    RootLocation (Resource res) :
-        LocationData(ROOT), resource(res)
+    ResourceLocation (Resource res) :
+        LocationData(RESOURCE), resource(res)
+    { }
+};
+struct ReferenceLocation : LocationData {
+    Reference reference;
+    ReferenceLocation (Reference ref) :
+        LocationData(REFERENCE), reference(move(ref))
     { }
 };
 
@@ -63,7 +70,8 @@ static void rethrow (LocationRef l) {
 
 void delete_LocationData (LocationData* p) noexcept {
     switch (p->form) {
-        case ROOT: delete static_cast<RootLocation*>(p); break;
+        case RESOURCE: delete static_cast<ResourceLocation*>(p); break;
+        case REFERENCE: delete static_cast<ReferenceLocation*>(p); break;
         case KEY: delete static_cast<KeyLocation*>(p); break;
         case INDEX: delete static_cast<IndexLocation*>(p); break;
          // Okay to delete without throwing
@@ -75,7 +83,10 @@ void delete_LocationData (LocationData* p) noexcept {
 } using namespace in;
 
 Location::Location (Resource res) :
-    data(new RootLocation(move(res)))
+    data(new ResourceLocation(move(res)))
+{ }
+Location::Location (Reference ref) :
+    data(new ReferenceLocation(move(ref)))
 { }
 Location::Location (Location p, AnyString k) :
     data(new KeyLocation(expect(move(p)), move(k)))
@@ -86,8 +97,12 @@ Location::Location (Location p, usize i) :
 
 Location::Location (const IRI& iri) {
     if (!iri) return;
-     // TODO: support anonymous-item:
-    Location self = Location(new RootLocation(iri.iri_without_fragment()));
+    auto root_iri = iri.iri_without_fragment();
+    Location self;
+    if (root_iri == "ayu-current-root:") {
+        self = current_root_location();
+    }
+    else self = Location(Resource(root_iri));
     Str fragment = iri.fragment();
     if (!fragment.empty()) {
         usize segment_start = 0;
@@ -139,15 +154,20 @@ IRI Location::as_iri () const {
     for (const Location* l = this;; l = l->parent()) {
         expect(l->data);
         switch (l->data->form) {
-            case ROOT: {
-                auto res = static_cast<RootLocation*>(l->data.p)->resource;
+            case RESOURCE: {
+                auto res = *l->resource();
                 if (!fragment) return res.name();
                 else return IRI(cat('#', fragment), res.name());
             }
+            case REFERENCE: {
+                 // TODO: This might be incorrect in some cases.  Check it
+                 // against current_root_location() maybe?
+                static const IRI anon ("ayu-current-root:");
+                if (!fragment) return anon;
+                else return IRI(cat('#', fragment), anon);
+            }
             case KEY: {
-                Str key = static_cast<KeyLocation*>(
-                    l->data.p
-                )->key;
+                Str key = *l->key();
                 UniqueString segment;
                 if (!key || key[0] == '\'' || std::isdigit(key[0])) {
                     segment = cat('\'', iri::encode(key));
@@ -158,9 +178,7 @@ IRI Location::as_iri () const {
                 break;
             }
             case INDEX: {
-                usize index = static_cast<IndexLocation*>(
-                    l->data.p
-                )->index;
+                usize index = *l->index();
                 if (!fragment) fragment = cat(index);
                 else fragment = cat(index, '/', move(fragment));
                 break;
@@ -171,21 +189,56 @@ IRI Location::as_iri () const {
     }
 }
 
+AnyString location_iri_to_relative_iri (const IRI& iri) {
+    const IRI& base = current_root_location().as_iri();
+    expect(!base.has_fragment());
+     // Serialize the top-level item as just "#".  This technically results in a
+     // different IRI, but within AYU, an empty fragment is always considered
+     // equivalent to no fragment.  TODO: Actually, we should probably serialize
+     // all references with a fragment no matter what.
+    if (iri == base) return AnyString::Static("#");
+    else return iri.spec_relative_to(base);
+}
+
+IRI location_iri_from_relative_iri (Str rel) {
+    if (!rel) return IRI();
+    const IRI& base = current_root_location().as_iri();
+    expect(!base.has_fragment());
+     // Faster to chop off empty fragment before parsing.  This may cause a
+     // different result if there are multiple #s in the string, which would
+     // result in an invalid IRI, but I don't think that's likely to matter.
+    if (rel == "#") return base;
+    else if (rel.back() == '#') rel = rel.slice(0, rel.size()-1);
+    auto r = IRI(rel, base);
+    if (!r) throw GenericError("Invalid IRI ", r.possibly_invalid_spec());
+    return r;
+}
+
 const Resource* Location::resource () const {
-    if (data && data->form == ROOT) {
-        return &static_cast<RootLocation*>(data.p)->resource;
+    if (!data) return null;
+    switch (data->form) {
+        case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
+        case ERROR_LOC: rethrow(*this);
+        default: return null;
     }
-    else return null;
+}
+
+const Reference* Location::reference () const {
+    if (!data) return null;
+    switch (data->form) {
+        case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
+        case ERROR_LOC: rethrow(*this);
+        default: return null;
+    }
 }
 
 const Location* Location::parent () const {
     if (!data) return null;
     switch (data->form) {
-        case ROOT: return null;
         case KEY: return &static_cast<KeyLocation*>(data.p)->parent;
         case INDEX: return &static_cast<IndexLocation*>(data.p)->parent;
         case ERROR_LOC: rethrow(*this);
-        default: never();
+        default: return null;
     }
 }
 const AnyString* Location::key () const {
@@ -214,15 +267,9 @@ usize Location::length () const {
     return r;
 }
 
-Resource Location::root_resource () const {
-    if (!data) return Resource();
-    switch (data->form) {
-        case ROOT: return static_cast<RootLocation*>(data.p)->resource;
-        case INDEX: return static_cast<IndexLocation*>(data.p)->parent.root_resource();
-        case KEY: return static_cast<KeyLocation*>(data.p)->parent.root_resource();
-        case ERROR_LOC: rethrow(*this);
-        default: never();
-    }
+Location Location::root () const {
+    if (auto p = parent()) return p->root();
+    else return *this;
 }
 
 bool operator == (LocationRef a, LocationRef b) noexcept {
@@ -230,21 +277,10 @@ bool operator == (LocationRef a, LocationRef b) noexcept {
     if (!a->data || !b->data) return false;
     if (a->data->form != b->data->form) return false;
     switch (a->data->form) {
-        case ROOT: {
-            auto aa = static_cast<RootLocation*>(a->data.p);
-            auto bb = static_cast<RootLocation*>(b->data.p);
-            return aa->resource == bb->resource;
-        }
-        case KEY: {
-            auto aa = static_cast<KeyLocation*>(a->data.p);
-            auto bb = static_cast<KeyLocation*>(b->data.p);
-            return aa->key == bb->key && aa->parent == bb->parent;
-        }
-        case INDEX: {
-            auto aa = static_cast<IndexLocation*>(a->data.p);
-            auto bb = static_cast<IndexLocation*>(b->data.p);
-            return aa->index == bb->index && aa->parent == bb->parent;
-        }
+        case RESOURCE: return *a->resource() == *b->resource();
+        case REFERENCE: return *a->reference() == *b->reference();
+        case KEY: return *a->key() == *b->key();
+        case INDEX: return *a->index() == *b->index();
         case ERROR: return false;
         default: never();
     }
@@ -252,32 +288,31 @@ bool operator == (LocationRef a, LocationRef b) noexcept {
 
 Reference reference_from_location (Location loc) {
     if (!loc) return Reference();
-    if (auto parent = loc.parent()) {
-        if (auto key = loc.key()) {
-            return reference_from_location(*parent)[*key];
-        }
-        else if (auto index = loc.index()) {
-            return reference_from_location(*parent)[*index];
-        }
-        else never();
+    switch (loc.data->form) {
+        case RESOURCE: return loc.resource()->ref();
+        case REFERENCE: return *loc.reference();
+        case KEY: return item_attr(
+            reference_from_location(*loc.parent()),
+            *loc.key(), *loc.parent()
+        );
+        case INDEX: return item_elem(
+            reference_from_location(*loc.parent()),
+            *loc.index(), *loc.parent()
+        );
+        case ERROR: rethrow(loc);
+        default: never();
     }
-    else if (auto res = loc.resource()) {
-        return res->ref();
-    }
-    else never();
 }
 
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::Location,
-    delegate(mixed_funcs<IRI>(
-        [](const Location& v){
-            return v.as_iri();
-        },
-        [](Location& v, const IRI& m){
-            v = Location(m);
-        }
-    ))
+    to_tree([](const Location& v){
+        return Tree(location_iri_to_relative_iri(v.as_iri()));
+    }),
+    from_tree([](Location& v, const Tree& t){
+        v = Location(location_iri_from_relative_iri(Str(t)));
+    })
 );
 
 // TODO: more tests

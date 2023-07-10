@@ -65,9 +65,10 @@ struct Reference {
     Reference (Pointer h, const in::Accessor* a) : host(h), acr(a) { }
      // Construct from a Pointer.
     constexpr Reference (Pointer p) : host(p), acr(null) { }
-     // Construct from native pointer.
-    template <class T>
-        requires (!std::is_same_v<T, Mu>)
+     // Construct from native pointer.  Watch out!  If you accidentally pass the
+     // address of a Reference instead of a Reference itself, you will take a
+     // Reference to the Reference instead of doing a copy construct!
+    template <class T> requires (!std::is_same_v<T, Mu>)
     Reference (T* p) : host(p), acr(null) { }
      // Construct from unknown pointer and type
     Reference (Type t, Mu* p) : host(t, p), acr(null) { }

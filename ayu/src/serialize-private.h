@@ -21,18 +21,12 @@ struct SwizzleOp {
      // nested from_tree is called with DELAY_SWIZZLE
     Tree tree;
     Location loc;
-    SwizzleOp (FP f, const Reference& r, TreeRef t) :
-        f(f), item(r), tree(t), loc(trav_location(*current_traversal))
-    { }
 };
 struct InitOp {
     using FP = void(*)(Mu&);
     FP f;
     Reference item;
     Location loc;
-    InitOp (FP f, const Reference& r) :
-        f(f), item(r), loc(trav_location(*current_traversal))
-    { }
 };
 struct IFTContext {
     static IFTContext* current;

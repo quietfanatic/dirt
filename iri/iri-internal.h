@@ -116,6 +116,7 @@ constexpr IRI IRI::iri_without_query () const {
 }
 constexpr IRI IRI::iri_without_fragment () const {
     if (!has_scheme()) return IRI();
+    if (!has_fragment()) return *this;
     return IRI(
         spec_.slice(0, hash_),
         colon_, path_, question_, hash_

@@ -1090,7 +1090,6 @@ struct ArrayInterface {
         }
         set_size(new_size);
     }
-     // Not all array classes can grow, but they can all shrink.
     constexpr
     void shrink (usize new_size) requires (supports_owned) {
         if (new_size >= size()) [[unlikely]] return;

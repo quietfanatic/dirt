@@ -285,7 +285,8 @@ AYU_DESCRIBE_TEMPLATE(
         return uni::StaticString::Static(r);
     }),
      // This will probably be faster if we skip the delegate chain, but let's
-     // save that until we know we need it.
+     // save that until we know we need it.  Note that when we do that we will
+     // have to adjust the breakage scanning in resource.cpp.
     desc::delegate(desc::template value_funcs<ayu::Reference>(
         [](T* const& v){
             return ayu::Reference(v);

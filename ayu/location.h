@@ -31,9 +31,12 @@ struct Location {
      // The empty location is treated as the location of an anonymous item, and
      // can't be transformed into a reference.
     explicit operator bool () const { return !!data; }
-     // Constructs a root location from a Resource.  The empty Resource
-     // represents an anonymous item.
+     // Constructs a root location from a Resource.
     explicit Location (Resource);
+     // Constructs a root location from an anonymous item.  as_iri() will return
+     // "anonymous-item:", and reference_from_location will return this
+     // Reference.
+    explicit Location (Reference);
      // Constructs a location based on another one with an added attribute key
      // or element index.
     Location (Location parent, AnyString key);
@@ -49,8 +52,10 @@ struct Location {
      // Returns this location in IRI form
     IRI as_iri () const;
 
-     // Returns null if this is not a root.
+     // Returns null if this is not a resource root.
     const Resource* resource () const;
+     // Returns null if this is not a reference root.
+    const Reference* reference () const;
      // Returns null if this is a root.
     const Location* parent () const;
      // Returns null if this location is a root or has an index.
@@ -60,8 +65,9 @@ struct Location {
      // Returns 1 for root, plus 1 for every key or index in the list.
     usize length () const;
 
-     // Walks down to the root and returns its Resource.
-    Resource root_resource () const;
+     // Walks down to the root Location (containing either a Resource or a
+     // Reference) and returns it.
+    Location root () const;
 };
 
 bool operator == (LocationRef a, LocationRef b) noexcept;
@@ -70,5 +76,14 @@ bool operator == (LocationRef a, LocationRef b) noexcept;
  // so it should be fairly quick.  Well, quicker than reference_to_location.
  // reference_to_location is in scan.h
 Reference reference_from_location (Location);
+
+ // Parse the given IRI reference relative to current_root_location().  An
+ // empty fragment will also be stripped off.
+IRI location_iri_from_relative_iri (Str);
+
+ // Convert the given IRI to an IRI reference relative to
+ // current_root_location().  If the given IRI is exactly
+ // current_root_location(), this will return "#".
+AnyString location_iri_to_relative_iri (const IRI&);
 
 } // namespace ayu

@@ -88,7 +88,7 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     }
     else throw ToTreeNotSupported();
 }
-catch (const ToTreeFailed& e) {
+catch (const SerializeFailed& e) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
@@ -98,7 +98,7 @@ catch (const Error& e) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
-    else throw ToTreeFailed(
+    else throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
 }
@@ -203,17 +203,19 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
         Reference ref = trav_reference(trav);
         if (swizzle) {
             IFTContext::current->swizzle_ops.emplace_back(
-                swizzle->f, ref, tree
+                swizzle->f, ref, tree, trav_location(trav)
             );
         }
         if (init) {
-            IFTContext::current->init_ops.emplace_back(init->f, ref);
+            IFTContext::current->init_ops.emplace_back(
+                init->f, ref, trav_location(trav)
+            );
         }
     }
 }
-catch (const FromTreeFailed&) { throw; }
+catch (const SerializeFailed&) { throw; }
 catch (const Error& e) {
-    throw FromTreeFailed(
+    throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
 }
@@ -221,7 +223,7 @@ catch (const Error& e) {
 void in::IFTContext::do_swizzles () {
      // Swizzling might add more swizzle ops; this will happen if we're
      // swizzling a pointer which points to a separate resource; that resource
-     // will be load()ed in op.f.
+     // will be load()ed in op.f().
     while (!swizzle_ops.empty()) {
          // Explicitly assign to clear swizzle_ops
         auto swizzles = move(swizzle_ops);
@@ -286,7 +288,9 @@ void in::ser_collect_key (UniqueArray<AnyString>& ks, AnyString&& k) {
     ks.emplace_back(move(k));
 }
 
-void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
+void in::ser_collect_keys (
+    const Traversal& trav, UniqueArray<AnyString>& ks
+) try {
     if (auto acr = trav.desc->keys_acr()) {
         Type keys_type = acr->type(trav.address);
          // Compare Type not std::type_info, since std::type_info can require a
@@ -335,6 +339,12 @@ void in::ser_collect_keys (const Traversal& trav, UniqueArray<AnyString>& ks) {
         });
     }
     else throw NoAttrs();
+}
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
 }
 
 AnyArray<AnyString> item_get_keys (
@@ -458,9 +468,15 @@ void in::ser_claim_keys (
     else throw NoAttrs();
 }
 
-void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) {
+void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) try {
     ser_claim_keys(trav, ks, false);
     if (ks) throw UnwantedAttr(ks[0]);
+}
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
 }
 
 void item_set_keys (
@@ -475,7 +491,7 @@ void item_set_keys (
 bool in::ser_maybe_attr (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, TravCallbackRef cb
-) {
+) try {
     if (auto attrs = trav.desc->attrs()) {
          // Note: This will likely be called once for each attr, making it
          // O(N^2) over the number of attrs.  If we want we could optimize for
@@ -532,12 +548,25 @@ bool in::ser_maybe_attr (
     }
     else throw NoAttrs();
 }
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
+
 void in::ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, TravCallbackRef cb
-) {
+) try {
     if (!ser_maybe_attr(trav, key, mode, cb)) {
         throw AttrNotFound(key);
     }
+}
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
 }
 
 Reference item_maybe_attr (
@@ -554,15 +583,18 @@ Reference item_maybe_attr (
     return r;
 }
 Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
-    if (Reference r = item_maybe_attr(item, key, loc)) {
-        return r;
-    }
-    else throw AttrNotFound(move(key));
+    Reference r;
+    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+        ser_attr(trav, key, ACR_READ, [&](const Traversal& child){
+            r = trav_reference(child);
+        });
+    });
+    return r;
 }
 
 ///// ELEM OPERATIONS
 
-usize in::ser_get_length (const Traversal& trav) {
+usize in::ser_get_length (const Traversal& trav) try {
     if (auto acr = trav.desc->length_acr()) {
         usize len;
          // Do we want to support other integral types besides usize?  Probably
@@ -584,6 +616,12 @@ usize in::ser_get_length (const Traversal& trav) {
     }
     else throw NoElems();
 }
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
 
 usize item_get_length (const Reference& item, LocationRef loc) {
     usize len;
@@ -593,7 +631,7 @@ usize item_get_length (const Reference& item, LocationRef loc) {
     return len;
 }
 
-void in::ser_set_length (const Traversal& trav, usize len) {
+void in::ser_set_length (const Traversal& trav, usize len) try {
     if (auto acr = trav.desc->length_acr()) {
         if (!(acr->accessor_flags & ACR_READONLY)) {
             acr->write(*trav.address, [&](Mu& lv){
@@ -631,6 +669,12 @@ void in::ser_set_length (const Traversal& trav, usize len) {
     }
     else throw NoElems();
 }
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
     trav_start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
@@ -640,7 +684,7 @@ void item_set_length (const Reference& item, usize len, LocationRef loc) {
 
 bool in::ser_maybe_elem (
     const Traversal& trav, usize index, AccessMode mode, TravCallbackRef cb
-) {
+) try {
     if (auto elems = trav.desc->elems()) {
         if (index < elems->n_elems) {
             auto acr = elems->elem(index)->acr();
@@ -668,13 +712,26 @@ bool in::ser_maybe_elem (
     }
     else throw NoElems();
 }
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
 void in::ser_elem (
     const Traversal& trav, usize index, AccessMode mode, TravCallbackRef cb
-) {
+) try {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
         throw ElemNotFound(index);
     }
 }
+catch (const SerializeFailed&) { throw; }
+catch (const Error& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
+
 Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
 ) {
@@ -690,10 +747,13 @@ Reference item_maybe_elem (
     return r;
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
-    if (Reference r = item_maybe_elem(item, index, loc)) {
-        return r;
-    }
-    else throw ElemNotFound(index);
+    Reference r;
+    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+        ser_elem(trav, index, ACR_READ, [&](const Traversal& child){
+            r = trav_reference(child);
+        });
+    });
+    return r;
 }
 
 ///// MISC
@@ -701,6 +761,12 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
 Location current_location () {
     if (current_traversal) {
         return trav_location(*current_traversal);
+    }
+    else return Location();
+}
+Location current_root_location () {
+    if (current_traversal) {
+        return trav_location(find_trav_start(*current_traversal)).root();
     }
     else return Location();
 }
@@ -714,12 +780,6 @@ AYU_DESCRIBE(ayu::SerializeFailed,
         attr("type", &SerializeFailed::type),
         attr("inner", &SerializeFailed::inner)
     )
-)
-AYU_DESCRIBE(ayu::ToTreeFailed,
-    delegate(base<SerializeFailed>())
-)
-AYU_DESCRIBE(ayu::FromTreeFailed,
-    delegate(base<SerializeFailed>())
 )
 
 AYU_DESCRIBE(ayu::ToTreeNotSupported,
@@ -1077,47 +1137,46 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     item_from_string(&mt, "{b:92 a:47}");
     is(mt.a, 47, "item_from_tree works with attrs out of order (a)");
     is(mt.b, 92, "item_from_tree works with attrs out of order (b)");
-     // TODO: location should be "anonymous-item:" not empty
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:16}"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#\" "
             "type:ayu::test::MemberTest "
             "inner:[ayu::MissingAttr [[] b]]"
         "}]",
         "item_from_tree throws on missing attr with attrs descriptor"
     );
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:foo}"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:#b\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#b\" "
             "type:int32 "
             "inner:[ayu::WrongForm [[] number foo]]"
         "}]",
         "item_from_tree throws when attr has wrong form"
     );
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:4.3}"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:#b\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#b\" "
             "type:int32 "
             "inner:[ayu::CantRepresent [[] int32 4.3]]"
         "}]",
         "item_from_tree throws when int attr isn't integer"
     );
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "[54 43]"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#\" "
             "type:ayu::test::MemberTest "
             "inner:[ayu::InvalidForm [[] array]]"
         "}]",
         "item_from_tree throws when trying to make attrs object from array"
     );
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:0 b:1 c:60}"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#\" "
             "type:ayu::test::MemberTest "
             "inner:[ayu::UnwantedAttr [[] c]]"
         "}]",
@@ -1130,10 +1189,10 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     Tree from_tree_bt1 = tree_from_string("{c:-4,MemberTest:{a:-5,b:-6}}");
     item_from_tree(&bt, from_tree_bt1);
     is(bt.b, -6, "item_from_tree with base attr");
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&bt, "{a:-7,b:-8,c:-9}"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#\" "
             "type:ayu::test::BaseTest "
             "inner:[ayu::MissingAttr [[] MemberTest]]"
         "}]",
@@ -1155,11 +1214,11 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     item_from_tree(&iot, from_tree_iot1);
     is(iot.d, 44, "Inherit optional works");
     is(iot.a, 23, "Didn't set attrs of optional included attrs");
-    throws<FromTreeFailed>([&]{
+    throws<SerializeFailed>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 MemberTest:{a:56 b:67}}"));
     }, "Optional included attrs need either all or no attrs");
     todo(1);
-    throws<FromTreeFailed>([&]{
+    throws<SerializeFailed>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 c:78}"));
     }, "Optional included attrs need either all or no attrs (2)");
 
@@ -1169,24 +1228,24 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     Tree from_tree_et1 = tree_from_string("[3.5 4.5 5.5]");
     item_from_tree(&et, from_tree_et1);
     is(et.y, 4.5, "item_from_tree with elems descriptor");
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5]"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#\" "
             "type:ayu::test::ElemTest "
             "inner:[ayu::WrongLength {min:3 max:3 got:2}]"
         "}]",
         "item_from_tree throws on too short array with elems descriptor"
     );
-    throws_what<FromTreeFailed>(
+    throws_what<SerializeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5 8.5 9.5]"); },
-        "[ayu::FromTreeFailed {"
-            "location:\"anonymous-item:\" "
+        "[ayu::SerializeFailed {"
+            "location:\"#\" "
             "type:ayu::test::ElemTest "
             "inner:[ayu::WrongLength {min:3 max:3 got:4}]"
         "}]",
         "item_from_tree throws on too long array with elems descriptor");
-    throws<FromTreeFailed>([&]{
+    throws<SerializeFailed>([&]{
         item_from_string(&et, "{x:1.1 y:2.2}");
     }, "item_from_tree throws when trying to make elems thing from object");
 
@@ -1312,15 +1371,14 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     });
     is(set, ScalarElemTest(0xcd), "Can use elems() on scalar type (from_tree)");
 
-    todo([&]{
-        InternalRefTest irt = {3, 4, null};
-        irt.p = &irt.a;
-        try_to_tree(&irt, "{a:3 b:4 p:#a}", "Can serialize item with internal refs");
-        doesnt_throw([&]{
-            item_from_string(&irt, "{a:5 b:6 p:#b}");
-        });
-        is(irt.p, &irt.b, "Can deserialize item with internal refs");
-    }, "internal references without resource system nyi");
+    InternalRefTest irt = {3, 4, null};
+    irt.p = &irt.a;
+    try_to_tree(&irt, "{a:3 b:4 p:#a}", "Can serialize item with internal refs");
+    doesnt_throw([&]{
+        item_from_string(&irt, "{a:5 b:6 p:#b}");
+    });
+    is(irt.p, &irt.b, "Can deserialize item with internal refs");
+
     done_testing();
 });
 #endif

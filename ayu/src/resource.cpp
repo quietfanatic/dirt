@@ -86,13 +86,9 @@ Resource::Resource (const IRI& name) {
         resources.emplace(data->name.spec(), move(ptr));
     }
 }
-Resource::Resource (Str ref) {
-    if (auto res = current_resource()) {
-        if (ref == "#") new (this) Resource(res.data->name);
-        else new (this) Resource (IRI(ref, res.data->name));
-    }
-    else new (this) Resource(IRI(ref));
-}
+Resource::Resource (Str ref) :
+    Resource(location_iri_from_relative_iri(ref))
+{ }
 
 Resource::Resource (const IRI& name, Dynamic&& value) :
     Resource(name)
@@ -106,13 +102,7 @@ Resource::Resource (const IRI& name, Dynamic&& value) :
     }
 }
 
-const IRI& Resource::name () const {
-    if (!data) {
-        static IRI anon ("anonymous-item:");
-        return anon;
-    }
-    return data->name;
-}
+const IRI& Resource::name () const { return data->name; }
 ResourceState Resource::state () const { return data->state; }
 
 Dynamic& Resource::value () const {
@@ -295,19 +285,26 @@ void unload (Slice<Resource> reses) {
             }
              // Then check if any other resources contain references in that set
             for (auto other : others) {
+                UniqueArray<std::pair<Location, Location>> breaks;
                 scan_resource_references(
                     other,
                     [&](Reference ref_ref, LocationRef loc) {
                          // TODO: Check for Pointer as well
-                        if (ref_ref.type() != Type::CppType<Reference>()) return false;
+                        if (ref_ref.type() != Type::CppType<Reference>()) {
+                            return false;
+                        }
                         Reference ref = ref_ref.get_as<Reference>();
                         auto iter = ref_set.find(ref);
                         if (iter != ref_set.end()) {
-                            throw UnloadWouldBreak(loc, iter->second);
+                            breaks.emplace_back(loc, iter->second);
                         }
                         return false;
                     }
                 );
+                 // TODO: Put an array in UnloadWouldBreak
+                if (breaks) {
+                    throw UnloadWouldBreak(breaks[0].first, breaks[0].second);
+                }
             }
         }
          // If we got here, no references will be broken by the unload
@@ -488,12 +485,6 @@ bool source_exists (Resource res) {
         return true;
     }
     else return false;
-}
-
- // TODO: Store this somewhere so we don't have to generate a Location to access
- // it.  Maybe with a PushCurrentResource RAII object
-Resource current_resource () {
-    return current_location().root_resource();
 }
 
 UniqueArray<Resource> loaded_resources () {

@@ -129,7 +129,7 @@ struct Resource {
     Reference get_ref () const;
 
      // Syntax sugar
-    explicit operator bool () { return data; }
+    explicit operator bool () const { return data; }
     Reference operator [] (Str key) {
         return ref()[key];
     }
@@ -140,8 +140,11 @@ struct Resource {
 
  // Resources are considered equal if their names are equal (Resources with the
  // same name will always have the same data pointer).
-inline bool operator == (Resource a, Resource b) { return a.data == b.data; }
-inline bool operator != (Resource a, Resource b) { return !(a == b); }
+ // Automatic coercion is disabled for these operators.
+template <class T> requires (std::is_same_v<T, Resource>)
+inline bool operator == (T a, T b) { return a.data == b.data; }
+template <class T> requires (std::is_same_v<T, Resource>)
+inline bool operator != (T a, T b) { return !(a == b); }
 
 ///// RESOURCE OPERATIONS
 
@@ -217,9 +220,6 @@ bool source_exists (Resource);
 
  // Get the filename of the file backing this resource, if it has one.
 AnyString resource_filename (Resource);
-
- // Returns the resource currently being processed, if any.
-Resource current_resource ();
 
  // Returns a list of all resources with state != UNLOADED.  This includes
  // resources that are in the process of being loaded, reloaded, or unloaded.

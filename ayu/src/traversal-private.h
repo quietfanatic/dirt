@@ -249,7 +249,8 @@ static Reference trav_reference (const Traversal& trav) noexcept {
 static Location trav_location (const Traversal& trav) noexcept {
     if (trav.op == START) {
         if (*trav.location) return trav.location;
-        else return Location(Resource());
+         // This * took a half a day of debugging to add. :(
+        else return Location(*trav.reference);
     }
     else {
         Location parent = trav_location(*trav.parent);
@@ -262,6 +263,11 @@ static Location trav_location (const Traversal& trav) noexcept {
             default: never();
         }
     }
+}
+
+static const Traversal& find_trav_start (const Traversal& trav) {
+    if (trav.op == START) return trav;
+    else return find_trav_start(*trav.parent);
 }
 
 } // namespace ayu::in

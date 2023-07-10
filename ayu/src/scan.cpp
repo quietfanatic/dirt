@@ -145,6 +145,18 @@ bool scan_universe_pointers (
 bool scan_universe_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
+     // To allow serializing self-referential data structures that aren't inside
+     // a Resource, first scan the currently-being-serialized item, but only if
+     // it's not in a Resource (so we don't duplicate work).
+     // TODO: Maybe don't do this if the traversal was started by a scan,
+     // instead of by a serialize.
+    if (Location loc = current_root_location()) {
+        if (auto ref = loc.reference()) {
+            if (scan_references(*ref, loc, cb)) {
+                return true;
+            }
+        }
+    }
     for (auto& [_, resdat] : universe().resources) {
         if (scan_resource_references(&*resdat, cb)) return true;
     }

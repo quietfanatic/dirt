@@ -491,30 +491,37 @@ IRI::IRI (Str input, const IRI& base) :
     }
 }
 
-UniqueString IRI::spec_relative_to (const IRI& base) const {
-    if (!*this || !base) {
-        return "";
+AnyString IRI::spec_relative_to (const IRI& base) const {
+    if (!*this) return "";
+    else if (!base) return spec_;
+    else if (scheme() != base.scheme()) return spec_;
+    else if (authority() != base.authority()) {
+        if (has_authority()) return spec_.substr(colon_ + 1);
+        else return spec_;
     }
-    else if (has_authority() != base.has_authority()
-          || !is_hierarchical() || !base.is_hierarchical()
-          || scheme() != base.scheme()
-    ) {
-        return spec();
-    }
-    else if (has_authority() && authority() != base.authority()) {
-        return UniqueString(&spec_[colon_ + 1], spec_.size() - (colon_ + 1));
-    }
-    else if ((!has_query() && !has_fragment())
-           || path() != base.path()
-    ) {
+    else if (path() != base.path()) {
          // Pulling apart path is NYI
-        return UniqueString(&spec_[path_], spec_.size() - path_);
+        return spec_.substr(path_);
     }
-    else if (has_query() && (!has_fragment() || query() != base.query())) {
-        return UniqueString(&spec_[question_], spec_.size() - question_);
+    else if (query() != base.query()) {
+        return spec_.substr(question_);
     }
     else {
-        return UniqueString(&spec_[hash_], spec_.size() - (hash_));
+         // Wait!  We're not allowed to return an empty string, so only chop off
+         // as much as we can.
+        if (hash_ != spec_.size()) {
+            return spec_.substr(hash_);
+        }
+        else if (question_ != spec_.size()) {
+            return spec_.substr(question_);
+        }
+        else if (path_ != spec_.size()) {
+            return spec_.substr(path_);
+        }
+        else if (colon_ + 1u != spec_.size()) {
+            return spec_.substr(colon_ + 1);
+        }
+        else return spec_;
     }
 }
 
