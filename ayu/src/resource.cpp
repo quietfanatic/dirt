@@ -179,8 +179,8 @@ void load (Slice<Resource> reses) {
             try {
                 res.data->value = Dynamic();
             }
-            catch (std::exception& e) {
-                unrecoverable_exception(e, "while rolling back load");
+            catch (...) {
+                unrecoverable_exception("while rolling back load");
             }
             res.data->state = UNLOADED;
         }
@@ -317,8 +317,8 @@ void unload (Slice<Resource> reses) {
             res.data->state = UNLOADED;
         }
     }
-    catch (std::exception& e) {
-        unrecoverable_exception(e, "while running destructor during unload");
+    catch (...) {
+        unrecoverable_exception("while running destructor during unload");
     }
 }
 
@@ -341,8 +341,8 @@ void force_unload (Slice<Resource> reses) {
             res.data->state = UNLOADED;
         }
     }
-    catch (std::exception& e) {
-        unrecoverable_exception(e, "while running destructor during force_unload");
+    catch (...) {
+        unrecoverable_exception("while running destructor during force_unload");
     }
 }
 
@@ -429,8 +429,8 @@ void reload (Slice<Resource> reses) {
             try {
                 res.data->value = Dynamic();
             }
-            catch (std::exception& e) {
-                unrecoverable_exception(e, "while rolling back reload");
+            catch (...) {
+                unrecoverable_exception("while rolling back reload");
             }
             res.data->value = move(res.data->old_value);
         }
@@ -448,16 +448,16 @@ void reload (Slice<Resource> reses) {
             });
         }
     }
-    catch (std::exception& e) {
-        unrecoverable_exception(e, "while updating references for reload");
+    catch (...) {
+        unrecoverable_exception("while updating references for reload");
     }
      // Destruct step
     for (auto res : reses) res.data->state = RELOAD_COMMITTING;
     try {
         for (auto res : reses) res.data->value = Dynamic();
     }
-    catch (std::exception& e) {
-        unrecoverable_exception(e, "while destructing old values for reload");
+    catch (...) {
+        unrecoverable_exception("while destructing old values for reload");
     }
     for (auto res : reses) res.data->state = LOADED;
 }

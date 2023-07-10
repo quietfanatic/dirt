@@ -33,19 +33,22 @@ const char* Error::what () const noexcept {
     auto derived = Pointer(this).try_downcast_to(Type(typeid(*this), true));
     if (derived) {
         DiagnosticSerialization _;
-        mess_cache = cat(
-            '[', derived.type.name(), ' ', item_to_string(derived), ']', '\0'
-        );
+        auto tree = Tree(TreeArray{
+            Tree(derived.type.name()),
+            item_to_tree(derived)
+        });
+        mess_cache = cat(tree_to_string(tree, PRETTY), '\0');
     }
     else mess_cache = "?(Couldn't downcast error data)\0";
     return mess_cache.data();
 }
 
 //[[gnu::cold]]
-void unrecoverable_exception (std::exception& e, Str when) {
+void unrecoverable_exception (Str when) {
+    auto e = std::current_exception();
     warn_utf8(cat(
-        "ERROR: Unrecoverable exception ", when,
-        ":\n       ", e.what(), '\n'
+        "ERROR: Unrecoverable exception ", when, ":\n",
+        item_to_string(&e, PRETTY)
     ));
     std::terminate();
 }

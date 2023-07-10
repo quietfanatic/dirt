@@ -1139,47 +1139,47 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     is(mt.b, 92, "item_from_tree works with attrs out of order (b)");
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:16}"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#\" "
-            "type:ayu::test::MemberTest "
-            "inner:[ayu::MissingAttr [[] b]]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#\"\n"
+        "    type: ayu::test::MemberTest\n"
+        "    inner: [ayu::MissingAttr [[] b]]\n"
+        "}]\n",
         "item_from_tree throws on missing attr with attrs descriptor"
     );
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:foo}"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#b\" "
-            "type:int32 "
-            "inner:[ayu::WrongForm [[] number foo]]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#b\"\n"
+        "    type: int32\n"
+        "    inner: [ayu::WrongForm [[] number foo]]\n"
+        "}]\n",
         "item_from_tree throws when attr has wrong form"
     );
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:4.3}"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#b\" "
-            "type:int32 "
-            "inner:[ayu::CantRepresent [[] int32 4.3]]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#b\"\n"
+        "    type: int32\n"
+        "    inner: [ayu::CantRepresent [[] int32 4.3]]\n"
+        "}]\n",
         "item_from_tree throws when int attr isn't integer"
     );
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "[54 43]"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#\" "
-            "type:ayu::test::MemberTest "
-            "inner:[ayu::InvalidForm [[] array]]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#\"\n"
+        "    type: ayu::test::MemberTest\n"
+        "    inner: [ayu::InvalidForm [[] array]]\n"
+        "}]\n",
         "item_from_tree throws when trying to make attrs object from array"
     );
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:0 b:1 c:60}"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#\" "
-            "type:ayu::test::MemberTest "
-            "inner:[ayu::UnwantedAttr [[] c]]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#\"\n"
+        "    type: ayu::test::MemberTest\n"
+        "    inner: [ayu::UnwantedAttr [[] c]]\n"
+        "}]\n",
         "item_from_tree throws on extra attr"
     );
 
@@ -1191,11 +1191,11 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     is(bt.b, -6, "item_from_tree with base attr");
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&bt, "{a:-7,b:-8,c:-9}"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#\" "
-            "type:ayu::test::BaseTest "
-            "inner:[ayu::MissingAttr [[] MemberTest]]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#\"\n"
+        "    type: ayu::test::BaseTest\n"
+        "    inner: [ayu::MissingAttr [[] MemberTest]]\n"
+        "}]\n",
         "item_from_tree with base attr throws when collapsed but include is not specified"
     );
 
@@ -1230,20 +1230,20 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     is(et.y, 4.5, "item_from_tree with elems descriptor");
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5]"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#\" "
-            "type:ayu::test::ElemTest "
-            "inner:[ayu::WrongLength {min:3 max:3 got:2}]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#\"\n"
+        "    type: ayu::test::ElemTest\n"
+        "    inner: [ayu::WrongLength {min:3 max:3 got:2}]\n"
+        "}]\n",
         "item_from_tree throws on too short array with elems descriptor"
     );
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5 8.5 9.5]"); },
-        "[ayu::SerializeFailed {"
-            "location:\"#\" "
-            "type:ayu::test::ElemTest "
-            "inner:[ayu::WrongLength {min:3 max:3 got:4}]"
-        "}]",
+        "[ayu::SerializeFailed {\n"
+        "    location: \"#\"\n"
+        "    type: ayu::test::ElemTest\n"
+        "    inner: [ayu::WrongLength {min:3 max:3 got:4}]\n"
+        "}]\n",
         "item_from_tree throws on too long array with elems descriptor");
     throws<SerializeFailed>([&]{
         item_from_string(&et, "{x:1.1 y:2.2}");
