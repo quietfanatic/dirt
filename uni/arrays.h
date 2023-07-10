@@ -42,6 +42,7 @@
 #include "array-implementations.h"
 #include "assertions.h"
 #include "common.h"
+#include "copy-ref.h"
 
 namespace uni {
 inline namespace arrays {
@@ -251,6 +252,9 @@ struct ArrayInterface {
         impl = o.impl;
         o.impl = {};
     }
+     // We need to default the move constructor too, not just the copy
+     // constructor, or the Itanium C++ ABI won't pass this in registers.
+    ArrayInterface (ArrayInterface&& o) requires (trivially_copyable) = default;
      // Move conversion.  Tries to make the moved-to array have the same
      // ownership mode as the moved-from array, and if that isn't supported,
      // copies the buffer.  Although move conversion will never fail for
@@ -287,7 +291,6 @@ struct ArrayInterface {
     }
      // Copy constructor is defaulted for StaticArray and Slice so that they can
      // have the is_trivially_copy_constructible trait.
-    constexpr
     ArrayInterface (const ArrayInterface&) requires (trivially_copyable)
         = default;
 
@@ -716,7 +719,6 @@ struct ArrayInterface {
     ///// DESTRUCTOR
     constexpr
     ~ArrayInterface () requires (!trivially_copyable) { remove_ref(); }
-    constexpr
     ~ArrayInterface () requires (trivially_copyable) = default;
 
     ///// BYPASSING REFERENCE COUNTING

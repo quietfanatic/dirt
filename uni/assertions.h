@@ -21,7 +21,9 @@ static constexpr T&& expect (
 );
 
 [[noreturn]]
-void abort_requirement_failed (std::source_location = std::source_location::current());
+void abort_requirement_failed (
+    std::source_location = std::source_location::current()
+) noexcept;
 
  // Equivalent to expect(false) but doesn't warn about lack of return
 [[noreturn]]

@@ -100,7 +100,7 @@ struct IRI {
      // Construct an already-parsed IRI.  This will not do any validation.  If
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr IRI (
-        AnyString&& spec,
+        AnyString spec,
         uint16 colon_position, uint16 path_position,
         uint16 question_position, uint16 hash_position
     );

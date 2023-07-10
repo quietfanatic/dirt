@@ -2,7 +2,7 @@
 
 namespace iri {
 
-constexpr IRI::IRI (AnyString&& spec, uint16 c, uint16 p, uint16 q, uint16 h) :
+constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
     spec_(move(spec)), colon_(c), path_(p), question_(q), hash_(h)
 { }
 
