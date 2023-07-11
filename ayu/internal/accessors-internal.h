@@ -64,15 +64,15 @@ enum AccessMode {
      // Provides a const ref containing the value of the object.  It may refer
      // to the object itself or to a temporary that will go out of scope when
      // read() returns.
-    ACR_READ = 1,
+    ACR_READ,
      // Provides a ref to which a new value can be written.  It may refer to the
      // object itself, or it may be a reference to a default-constructed
      // temporary.  Neglecting to write to the reference in the callback may
      // clear the object.
-    ACR_WRITE = 2,
+    ACR_WRITE,
      // Provides a ref containing the value of the object, to which a new value
      // can be written.  May be implemented as a read followed by a write.
-    ACR_MODIFY = 3
+    ACR_MODIFY
 };
 
 struct Accessor;
@@ -317,6 +317,7 @@ void RefFuncsAcr1<To>::_access (
             cb.reinterpret<void(To&)>()(tmp);
             return self->setter(from, tmp);
         }
+        default: never();
     }
 }
 
@@ -388,6 +389,7 @@ void ValueFuncsAcr1<To>::_access (
             cb.reinterpret<void(To&)>()(tmp);
             return self->setter(from, move(tmp));
         }
+        default: never();
     }
 }
 
@@ -433,6 +435,7 @@ void MixedFuncsAcr1<To>::_access (
             cb.reinterpret<void(To&)>()(tmp);
             return self->setter(from, move(tmp));
         }
+        default: never();
     }
 }
 
@@ -447,26 +450,11 @@ struct AssignableAcr2 : Accessor {
     ) {
         From& from = reinterpret_cast<From&>(from_mu);
         auto cb = cb_mu.reinterpret<void(To&)>();
-        switch (mode) {
-            case ACR_READ: {
-                To tmp;
-                tmp = from;
-                return cb_mu.reinterpret<void(const To&)>()(tmp);
-            }
-            case ACR_WRITE: {
-                To tmp;
-                cb(tmp);
-                from = tmp;
-                return;
-            }
-            case ACR_MODIFY: {
-                To tmp;
-                tmp = from;
-                cb(tmp);
-                from = tmp;
-                return;
-            }
-        }
+        To tmp;
+        if (mode != ACR_WRITE) tmp = from;
+        cb(tmp);
+        if (mode != ACR_READ) from = tmp;
+        return;
     }
     static constexpr AccessorVT _vt = {&AccessorVT::const_type<To>, &_access};
     explicit constexpr AssignableAcr2 (uint8 flags = 0) :

@@ -287,7 +287,7 @@ AYU_DESCRIBE_TEMPLATE(
      // This will probably be faster if we skip the delegate chain, but let's
      // save that until we know we need it.  Note that when we do that we will
      // have to adjust the breakage scanning in resource.cpp.
-    desc::delegate(desc::template assignable<ayu::Reference>())
+    desc::delegate(desc::template assignable<ayu::Pointer>())
 )
 
  // Raw arrays T[n] - I can't believe this works

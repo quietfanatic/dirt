@@ -126,8 +126,8 @@ struct Reference {
         }
         return (T*)address_as(Type::CppType<T>());
     }
-     // Will throw UnaddressableReference if this Reference is not empty but
-     // the return of address() is null.
+     // Will throw UnaddressableReference if this Reference has an acr, but
+     // the acr is not addressable.
     Mu* require_address () const;
      // Can throw either CannotCoerce or UnaddressableReference
     Mu* require_address_as (Type t) const {
@@ -237,6 +237,11 @@ struct Reference {
         return Pointer(type(), require_address());
     }
 
+    template <class T>
+    operator T* () const {
+        return require_address_as<T>();
+    }
+
      // These are used by serialize.  They will be most efficient if this
      // Reference has an address().
     Reference chain (const in::Accessor*) const;
@@ -256,11 +261,6 @@ struct Reference {
      // Syntax sugar for item_attr and item_elem
     Reference operator [] (AnyString key) const;
     Reference operator [] (usize index) const;
-
-    template <class T>
-    operator T* () const {
-        return require_address_as<T>();
-    }
 
     ~Reference () { if (acr) acr->dec(); }
 };

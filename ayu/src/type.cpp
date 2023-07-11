@@ -76,7 +76,7 @@ void Type::delete_ (Mu* p) const {
 }
 
 Mu* Type::try_upcast_to (Type to, Mu* p) const {
-    if (!to) return null;
+    if (!to || !p) return null;
     if (*this == to.remove_readonly()) return p;
     auto desc = in::DescriptionPrivate::get(*this);
 
@@ -103,19 +103,20 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     return null;
 }
 Mu* Type::upcast_to (Type to, Mu* p) const {
+    if (!p) return null;
     if (Mu* r = try_upcast_to(to, p)) return r;
     else throw CannotCoerce(*this, to);
 }
 
 Mu* Type::try_downcast_to (Type to, Mu* p) const {
-    if (!to) return null;
+    if (!to || !p) return null;
      // Downcasting is unsafe anyway, so allow downcasting from readonly to
      // non-readonly.
     if (this->remove_readonly() == to.remove_readonly()) return p;
     auto desc = in::DescriptionPrivate::get(to);
 
-     // It's okay to pass null to ->type() because the only accessors that have
-     // an inverse_address are statically typed and so ignore that argument.
+     // It's okay to pass null to ->type() because the only accessor that
+     // actually checks it doesn't have an inverse_address.
     if (auto delegate = desc->delegate_acr())
     if (delegate->vt->inverse_address)
     if (Mu* a = try_downcast_to(delegate->type(null), p))
