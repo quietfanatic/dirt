@@ -11,6 +11,7 @@
 // representation of a Reference, explaining how to reach the referend from the
 // root Resource by a chain of item_attr() and item_elem() calls. In ADT syntax,
 //     data Location = RootLocation Resource
+//                   | ReferenceLocation Reference
 //                   | KeyLocation Location AnyString
 //                   | IndexLocation Location usize
 //
@@ -41,16 +42,6 @@ struct Location {
      // or element index.
     Location (Location parent, AnyString key);
     Location (Location parent, usize index);
-     // Parses an IRI into a location.  All of the IRI up to the fragment will
-     // be used as the resource name for the root, and the fragment will be
-     // split on / and each segment used as either a key or index.  To force a
-     // string of digits to be used as a key instead of an index, precede it
-     // with ' (apostrophe).  To start a key with a literal ', start it
-     // with two 's.  To put a literal / in a key, use %2F.
-    explicit Location (const IRI& iri);
-
-     // Returns this location in IRI form
-    IRI as_iri () const;
 
      // Returns null if this is not a resource root.
     const Resource* resource () const;
@@ -75,7 +66,7 @@ bool operator == (LocationRef a, LocationRef b) noexcept;
  // Convert a Location to a Reference.  This will not have to do any scanning,
  // so it should be fairly quick.  Well, quicker than reference_to_location.
  // reference_to_location is in scan.h
-Reference reference_from_location (Location);
+Reference reference_from_location (LocationRef);
 
  // Parse the given IRI reference relative to current_root_location().  An
  // empty fragment will also be stripped off.
@@ -85,5 +76,16 @@ IRI location_iri_from_relative_iri (Str);
  // current_root_location().  If the given IRI is exactly
  // current_root_location(), this will return "#".
 AnyString location_iri_to_relative_iri (const IRI&);
+
+ // Gets an IRI corresponding to the given Location.
+IRI location_to_iri (LocationRef);
+
+ // Parses an IRI into a location.  All of the IRI up to the fragment will
+ // be used as the resource name for the root, and the fragment will be
+ // split on / and each segment used as either a key or index.  To force a
+ // string of digits to be used as a key instead of an index, precede it
+ // with ' (apostrophe).  To start a key with a literal ', start it
+ // with two 's.  To put a literal / in a key, use %2F.
+Location location_from_iri (const IRI& iri);
 
 } // namespace ayu

@@ -82,8 +82,9 @@ Reference Reference::operator[] (usize i) const {
 
 static Tree Reference_to_tree (const Reference& v) {
     if (!v) return Tree(null);
-    Location loc = reference_to_location(v);
-    return Tree(location_iri_to_relative_iri(loc.as_iri()));
+    auto loc = reference_to_location(v);
+    auto iri = location_to_iri(loc);
+    return Tree(location_iri_to_relative_iri(iri));
 }
 static void Reference_from_tree (Reference& v, const Tree& t) {
     switch (t.form) {
@@ -94,7 +95,8 @@ static void Reference_from_tree (Reference& v, const Tree& t) {
 }
 static void Reference_swizzle (Reference& v, const Tree& t) {
     if (t.form == NULLFORM) return;
-    auto loc = Location(location_iri_from_relative_iri(Str(t)));
+    auto iri = location_iri_from_relative_iri(Str(t));
+    auto loc = location_from_iri(iri);
     v = reference_from_location(loc);
 }
 
