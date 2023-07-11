@@ -4,7 +4,6 @@
 #include "../reference.h"
 #include "../resource.h"
 #include "descriptors-private.h"
-#include "location-private.h"
 #include "traversal-private.h"
 
 namespace ayu::in {

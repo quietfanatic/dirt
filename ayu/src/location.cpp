@@ -1,4 +1,4 @@
-#include "location-private.h"
+#include "../location.h"
 
 #include <charconv>
 #include "../describe.h"
@@ -14,8 +14,6 @@ enum LocationForm {
     REFERENCE,
     KEY,
     INDEX,
-     // Internal for lazy error throwing
-    ERROR_LOC,
 };
 
 struct LocationData : RefCounted {
@@ -50,32 +48,14 @@ struct IndexLocation : LocationData {
         LocationData(INDEX), parent(move(p)), index(i)
     { }
 };
-struct ErrorLocation : LocationData {
-    std::exception_ptr error;
-    ErrorLocation (std::exception_ptr&& e) :
-        LocationData(ERROR_LOC), error(move(e)) { }
-};
 
-Location make_error_location (std::exception_ptr&& e) noexcept {
-    return Location(new ErrorLocation(move(e)));
-}
-
-[[noreturn]]
-static void rethrow (LocationRef l) {
-    expect(l->data->form == ERROR_LOC);
-    std::rethrow_exception(
-        static_cast<ErrorLocation*>(l->data.p)->error
-    );
-}
-
+NOINLINE
 void delete_LocationData (LocationData* p) noexcept {
     switch (p->form) {
         case RESOURCE: delete static_cast<ResourceLocation*>(p); break;
         case REFERENCE: delete static_cast<ReferenceLocation*>(p); break;
         case KEY: delete static_cast<KeyLocation*>(p); break;
         case INDEX: delete static_cast<IndexLocation*>(p); break;
-         // Okay to delete without throwing
-        case ERROR_LOC: delete static_cast<ErrorLocation*>(p); break;
         default: never();
     }
 }
@@ -99,7 +79,6 @@ const Resource* Location::resource () const {
     if (!data) return null;
     switch (data->form) {
         case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
-        case ERROR_LOC: rethrow(*this);
         default: return null;
     }
 }
@@ -108,7 +87,6 @@ const Reference* Location::reference () const {
     if (!data) return null;
     switch (data->form) {
         case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
-        case ERROR_LOC: rethrow(*this);
         default: return null;
     }
 }
@@ -118,7 +96,6 @@ const Location* Location::parent () const {
     switch (data->form) {
         case KEY: return &static_cast<KeyLocation*>(data.p)->parent;
         case INDEX: return &static_cast<IndexLocation*>(data.p)->parent;
-        case ERROR_LOC: rethrow(*this);
         default: return null;
     }
 }
@@ -126,7 +103,6 @@ const AnyString* Location::key () const {
     if (!data) return null;
     switch (data->form) {
         case KEY: return &static_cast<KeyLocation*>(data.p)->key;
-        case ERROR_LOC: rethrow(*this);
         default: return null;
     }
 }
@@ -134,23 +110,14 @@ const usize* Location::index () const {
     if (!data) return null;
     switch (data->form) {
         case INDEX: return &static_cast<IndexLocation*>(data.p)->index;
-        case ERROR_LOC: rethrow(*this);
         default: return null;
     }
 }
 
-usize Location::length () const {
-    if (!data) return 0;
-    usize r = 0;
-    for (const Location* l = this; l; l = l->parent()) {
-        r += 1;
-    }
-    return r;
-}
-
 Location Location::root () const {
-    if (auto p = parent()) return p->root();
-    else return *this;
+    const Location* l = this;
+    while (l->parent()) l = l->parent();
+    return *l;
 }
 
 bool operator == (LocationRef a, LocationRef b) noexcept {
@@ -162,7 +129,6 @@ bool operator == (LocationRef a, LocationRef b) noexcept {
         case REFERENCE: return *a->reference() == *b->reference();
         case KEY: return *a->key() == *b->key();
         case INDEX: return *a->index() == *b->index();
-        case ERROR: return false;
         default: never();
     }
 }
@@ -180,7 +146,6 @@ Reference reference_from_location (LocationRef loc) {
             reference_from_location(*loc->parent()),
             *loc->index(), *loc->parent()
         );
-        case ERROR: rethrow(loc);
         default: never();
     }
 }
@@ -245,7 +210,6 @@ IRI location_to_iri (LocationRef loc) {
                 else fragment = cat(index, '/', move(fragment));
                 break;
             }
-            case ERROR_LOC: rethrow(*loc);
             default: never();
         }
     }

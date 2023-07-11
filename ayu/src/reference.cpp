@@ -11,18 +11,12 @@
 namespace ayu {
 using namespace in;
 
-void Reference::require_writeable () const {
-    if (readonly()) {
-        throw WriteReadonlyReference(reference_to_location(*this), type());
-    }
+void Reference::throw_WriteReadonly () const {
+    throw WriteReadonlyReference(reference_to_location(*this), type());
 }
 
-Mu* Reference::require_address () const {
-    if (!*this) return null;
-    if (auto a = address()) return a;
-    else {
-        throw UnaddressableReference(reference_to_location(*this), type());
-    }
+void Reference::throw_Unaddressable () const {
+    throw UnaddressableReference(reference_to_location(*this), type());
 }
 
 Reference Reference::chain (const Accessor* o_acr) const {

@@ -108,8 +108,11 @@ struct Reference {
         else if (acr) return acr->accessor_flags & in::ACR_READONLY;
         else return false;
     }
-     // Throws WriteReadonlyReference if readonly()
-    void require_writeable () const;
+
+    [[noreturn]] void throw_WriteReadonly () const;
+    void require_writeable () const {
+        if (readonly()) throw_WriteReadonly();
+    }
 
      // Returns null if this reference is not addressable.
     Mu* address () const {
@@ -126,9 +129,13 @@ struct Reference {
         }
         return (T*)address_as(Type::CppType<T>());
     }
-     // Will throw UnaddressableReference if this Reference has an acr, but
-     // the acr is not addressable.
-    Mu* require_address () const;
+
+    [[noreturn]] void throw_Unaddressable () const;
+    Mu* require_address () const {
+        if (!*this) return null;
+        if (auto a = address()) return a;
+        else throw_Unaddressable();
+    }
      // Can throw either CannotCoerce or UnaddressableReference
     Mu* require_address_as (Type t) const {
         return type().cast_to(t, require_address());

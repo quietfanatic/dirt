@@ -53,8 +53,6 @@ struct Location {
     const AnyString* key () const;
      // Returns null if this location is a root or has a key.
     const usize* index () const;
-     // Returns 1 for root, plus 1 for every key or index in the list.
-    usize length () const;
 
      // Walks down to the root Location (containing either a Resource or a
      // Reference) and returns it.
