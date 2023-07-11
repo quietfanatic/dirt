@@ -37,13 +37,9 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         TreeObject o; o.reserve(ks.size());
         for (auto& k : ks) {
             ser_attr(trav, k, ACR_READ, [&](const Traversal& child){
-                 // Don't serialize readonly attributes, because they can't
-                 // be deserialized.
-                 // Except if the parent is readonly, in which case we're
-                 // probably serializing an exception?  TODO: Figure out how to
-                 // make this actually make any sort of sense.  Probably with
-                 // another attr_flag called invisible.
-                if (child.readonly && !trav.readonly) return;
+                if (child.op == ATTR && child.acr->attr_flags & ATTR_INVISIBLE) {
+                    return;
+                }
                 Tree t = ser_to_tree(child);
                  // Get flags from acr
                 if (child.op == ATTR) {
@@ -62,12 +58,11 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         TreeArray a; a.reserve(l);
         for (usize i = 0; i < l; i++) {
             ser_elem(trav, i, ACR_READ, [&](const Traversal& child){
-                 // Readonly elems are problematic, because they can't just
-                 // be skipped without changing the order of other elems.
-                 // We should probably just forbid them.  TODO: do that?  Or
-                 // will that interfere with exception printing?
+                if (child.op == ELEM && child.acr->attr_flags & ATTR_INVISIBLE) {
+                    return;
+                }
                 Tree t = ser_to_tree(child);
-                if (child.op == ATTR) {
+                if (child.op == ELEM) {
                     t.flags |= child.acr->tree_flags();
                 }
                 a.emplace_back_expect_capacity(move(t));

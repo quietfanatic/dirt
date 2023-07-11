@@ -189,18 +189,23 @@ struct _AYU_DescribeBase {
      // ACCESSORS section below), or a pointer-to-data-member as a shortcut for
      // the member() accessor.  `flags` can be any |ed combination of:
      //   - optional: This attribute does not need to be provided when
-     //   deserializing.  If it is not provided, `accessor`'s write operation
-     //   will not be called (normally MissingAttr would be thrown).
+     //     deserializing.  If it is not provided, `accessor`'s write operation
+     //     will not be called (normally MissingAttr would be thrown).
      //   - include: When serializing, `key` will be ignored and this
-     //   attribute's attributes will be merged with this item's attributes (and
-     //   if any of those attributes have include specified, their attributes
-     //   will also be merged in).  When deserializing, the Tree may either
-     //   ignore inheritance and provide this attribute with `key`, or it may
-     //   provide all of this attribute's attributes directly without `key`.  If
-     //   both optional and include are specified, then it's acceptable if none
-     //   of the child item's attributes are given, but if any of the child
-     //   item's attributes are given, then all of its other non-optional
-     //   attributes must also be given.
+     //     attribute's attributes will be merged with this item's attributes
+     //     (and if any of those attributes have include specified, their
+     //     attributes will also be merged in).  When deserializing, the Tree
+     //     may either ignore inheritance and provide this attribute with `key`,
+     //     or it may provide all of this attribute's attributes directly
+     //     without `key`.  If both optional and include are specified, then
+     //     it's acceptable if none of the child item's attributes are given,
+     //     but if any of the child item's attributes are given, then all of its
+     //     other non-optional attributes must also be given.
+     //   - invisible: This attribute will not be read when serializing, but it
+     //     will still be written when deserializing (unless it's also optional,
+     //     which it probably should be).  If your attribute has a readonly
+     //     accessor, you probably want to make it invisible; otherwise your
+     //     object will not be able to deserialize properly.
     template <class Acr>
     static constexpr auto attr (
         StaticString key,
@@ -280,16 +285,20 @@ struct _AYU_DescribeBase {
      // shortcut for the member() accessor.  `flags` can be 0 or any |ed
      // combination of:
      //   - optional: This element does not need to be provided when
-     //   deserializing.  If it is not provided, `accessor`'s write operation
-     //   will not be called (normally WrongLength will be thrown).  This
-     //   flag is ignored if there are any elements after this one which are not
-     //   optional (this might be a compile-time error later).
+     //     deserializing.  If it is not provided, `accessor`'s write operation
+     //     will not be called (normally WrongLength will be thrown).  This flag
+     //     is ignored if there are any elements after this one which are not
+     //     optional (this might be a compile-time error later).
      //   - include: Unlike with attrs, this doesn't do much; all it does is
-     //   allow casting between this item and the element.  Earlier prototypes
-     //   of this library allowed included elements to be flattened into the
-     //   array representation of the parent item, but the behavior and
-     //   implementation were unbelievably complicated, all just to save a few
-     //   square brackets.
+     //     allow casting between this item and the element.  Earlier prototypes
+     //     of this library allowed included elements to be flattened into the
+     //     array representation of the parent item, but the behavior and
+     //     implementation were unbelievably complicated, all just to save a few
+     //     square brackets.
+     //   - invisible: This elem will not be serialized during the to_tree
+     //     operation.  This will likely break your serialization round-trip
+     //     unless the invisible elem is on the end, because it will reorder
+     //     later attrs.  You probably want this elem to be optional too.
     template <class Acr>
     static constexpr auto elem (
         const Acr& accessor,
@@ -332,52 +341,55 @@ struct _AYU_DescribeBase {
      // Accessors are internal types that are the output of the functions below.
      // They each have two associated types:
      //   - Parent type: The type of the item that the accessor is applied to
-     //   (that's the type of the AYU_DESCRIBE block that you're currently in).
+     //     (that's the type of the AYU_DESCRIBE block you're currently in).
      //   - Child type: The type of the item that this accessor points to.
      // Accessors have up to four operations that they support (internally there
      // are more, but these are the ones you might care about):
      //   - read: Read the value of the child item from the parent item.  All
-     //   accessors support this operation.
+     //     accessors support this operation.
      //   - write: Write a value to the child item through the parent item.  If
-     //   an accessor is readonly, it does not support this operation.
+     //     an accessor is readonly, it does not support this operation.
      //   - address: Get the memory address of a child item from the parent
-     //   item.  If an accessor supports this operation, various serialization
-     //   operations will be much more efficient, and pointers can be serialized
-     //   and deserialized which point to the child item.
+     //     item.  If an accessor supports this operation, various serialization
+     //     operations will be much more efficient, and pointers can be
+     //     serialized and deserialized which point to the child item.
      //   - reverse_address: Get the memory address of a parent item from a
-     //   child item.  This operation is only used for downcasting, and very few
-     //   accessors support it.
+     //     child item.  This operation is only used for downcasting, and very
+     //     few accessors support it.
      // In addition, accessors can take these flags:
      //   - readonly: Make this accessor readonly and disable its write
-     //   operation.  If an accessor doesn't support the write operation, it is
-     //   readonly by default and this flag is ignored.  Attrs with readonly
-     //   accessors will not be serialized, because they can't be deserialized
-     //   anyway, so there's no point.  Elems with readonly accessors are
-     //   currently problematic, and will likely make your type unable to be
-     //   deserialized.
+     //     operation.  If an accessor doesn't support the write operation, it
+     //     is readonly by default and this flag is ignored.  If you have an
+     //     attr or elem with a readonly accessor, the attr or elem should be
+     //     marked with invisible|optional, otherwise the parent item will not
+     //     survive a round-trip serialize-deserialize.  If the parent item is
+     //     only ever going to be serialized and never deserialized (e.g.
+     //     exception objects), it doesn't matter.
      //   - prefer_hex: The item this accessor points to prefers to be
-     //   serialized in hexadecimal format if it's a number.
+     //     serialized in hexadecimal format if it's a number.
      //   - prefer_compact: The item this accessor points to prefers to be
-     //   serialized compactly (for arrays and objects).
+     //     serialized compactly (for arrays, objects, and strings).
      //   - prefer_expanded: The item this accessor points to prefers to be
-     //   serialized in expanded multi-line form (for arrays and objects).  The
-     //   behavior is unspecified if both prefer_compact and prefer_expanded are
-     //   given, and if multiple accessors are followed to reach an item, which
-     //   accessor's prefer_* flags are used is unspecified.
+     //     serialized in expanded multi-line form (for arrays, objects, and
+     //     strings).  The behavior is unspecified if both prefer_compact and
+     //     prefer_expanded are given, and if multiple accessors are followed to
+     //     reach an item, which accessor's prefer_* flags are used is
+     //     unspecified.
      //   - pass_through_addressable: Normally you can only take the address of
-     //   a child item if its parent is also addressable, but if the parent
-     //   item's accessor has pass_through_addressable, then instead you can
-     //   take its address if the parent's parent is addressable (or if the
-     //   parent's parent also has pass_through_addressable, it's parent's
-     //   parent's parent).  If you misuse this, you can potentially leave
-     //   dangling pointers around, risking memory corruption, so be careful.
-     //   This is intended to be used for reference-like proxy items, which are
-     //   generated temporarily but refer to non-temporary items.
+     //     a child item if its parent is also addressable, but if the parent
+     //     item's accessor has pass_through_addressable, then instead you can
+     //     take its address if the parent's parent is addressable (or if the
+     //     parent's parent also has pass_through_addressable, it's parent's
+     //     parent's parent).  If you misuse this, you can potentially leave
+     //     dangling pointers around, risking memory corruption, so be careful.
+     //     This is intended to be used for reference-like proxy items, which
+     //     are generated temporarily but refer to non-temporary items.
      //   - unaddressable: Consider items accessed through this accessor to be
-     //   unaddressable, even if they look like they should be addressable.  You
-     //   shouldn't need to use this unless the parent has
-     //   pass_through_addressable, or for some reason you're returning
-     //   References to items with unstable addresses in attr_func or elem_func.
+     //     unaddressable, even if they look like they should be addressable.
+     //     You shouldn't need to use this unless the parent has
+     //     pass_through_addressable, or for some reason you're returning
+     //     References to items with unstable addresses in attr_func or
+     //     elem_func.
 
      // This accessor gives access to a non-static data member of a class by
      // means of a pointer-to-member.  This accessor will be addressable and
@@ -637,6 +649,7 @@ struct _AYU_DescribeBase {
 
     static constexpr in::AttrFlags optional = in::ATTR_OPTIONAL;
     static constexpr in::AttrFlags include = in::ATTR_INCLUDE;
+    static constexpr in::AttrFlags invisible = in::ATTR_INVISIBLE;
     static constexpr in::AccessorFlags readonly = in::ACR_READONLY;
     static constexpr in::AccessorFlags prefer_hex = in::ACR_PREFER_HEX;
     static constexpr in::AccessorFlags prefer_compact = in::ACR_PREFER_COMPACT;
