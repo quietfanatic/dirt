@@ -48,11 +48,10 @@ and all integers between -2^63 and 2^63-1.
 
 ##### String
 
-A UTF-8 string.  Double quotes (`"`) delimit a string.  Strings that don't
-contain any whitespace or syntactic characters do not require quotes, except for
-the words `null`, `true`, and `false`.  Quoted strings may contain multiple
-lines and any UTF-8 characters except for `"` and `\\`.  The following escape
-sequences are supported in quoted strings.
+A UTF-8 string.  Double quotes (`"`) delimit a string, though in many cases, the
+quotes are optional.  Quoted strings may contain multiple lines and any UTF-8
+characters except for unescaped `"` and `\\`.  The following escape sequences
+are supported in quoted strings.
 - `\\b` = Backspace
 - `\\f` = Form Feed (nobody uses this)
 - `\\n` = Newline (LF)
@@ -71,13 +70,14 @@ sequences are supported in quoted strings.
 Some of these escape sequences may be obscure or useless, but they're included
 for compatibility with JSON.
 
-A string does not have to be quoted if it starts with a letter or underscore
-(`_`) or slash (`/`) or hash (`#`), is not one of the words `null`, `true`, or
-`false`, and only contains the following:
-- letters, numbers, or underscores
-- Any of these symbols: `!`, `$`, `%`, `+`, `-`, `.`, `/`, `<`, `>`, `?`, `@`,
-  `^`, `_`, `~`, `#`, `&`, `*`, `=`, `;`
-- The sequence `::` (for C++ namespaces)
+A string does not have to be quoted if it:
+- is not `null`, `true`, `false`, or `//`
+- starts with a letter or one of `_`, `/`, `?`, or `#`
+- only contains the following:
+    - letters, numbers, or underscores
+    - any of these symbols: `!`, `$`, `%`, `+`, `-`, `.`, `/`, `<`, `>`, `?`, `@`,
+      `^`, `_`, `~`, `#`, `&`, `*`, `=`, `;`
+    - the sequence `::` (for C++ namespaces)
 
 The following characters are reserved and are not valid for either syntax or
 unquoted strings
@@ -103,9 +103,12 @@ pairs instead.
 
 ##### Comments
 
-Comments start with `//` and continue to the end of the line.  There are no
+Comments start with `--` and continue to the end of the line.  There are no
 multi-line comments, but you can fake them with a string in an unused shortcut.
 Readers must not allow comments to change the sematics of the document.
+
+Comments cannot start in the middle of an unquoted string, because `-` is a
+valid character for unquoted strings.
 
 ##### Shortcuts
 
@@ -158,9 +161,9 @@ example,
         foo: 1
         bar: 2
     }]
-     // The following makes some_pointer point to some_object.bar
-    some_pointer: [int* #some_object/1/bar]
-     // The following points to an item in another file.
+     -- The following makes some_pointer point to some_object.bar
+    some_pointer: [int32* #some_object/1/bar]
+     -- The following points to an item in another file.
     another_pointer: [AnotherObject* /folder/file.ayu#target/1]
 ]]
 ```
@@ -169,3 +172,9 @@ AYU does not have a form for binary data.  To represent binary data, you can use
 an array of integers, or a string of hexadecimal digits, or a filename pointing
 to a separate binary file.
 
+The unquoted string rules were chosen so that most relative URLs do not have to
+be quoted.  Unfortunately full URLs with a scheme still have to be quoted
+because they contain a colon.
+
+I chose `--` for comments because `//` and `#` can start URLs and `;` looks too
+similar to `:`.  `--` also stands out more than the other alternatives.

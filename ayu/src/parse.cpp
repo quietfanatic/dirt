@@ -81,7 +81,7 @@ struct Parser {
     }
 
     void skip_comment () {
-        p += 2;  // for two /s
+        p += 2;  // for two -s
         for (;;) switch (look()) {
             case EOF: return;
             case '\n': p++; return;
@@ -91,11 +91,12 @@ struct Parser {
     void skip_ws () {
         for (;;) switch (look()) {
             case ANY_WS: p++; break;
-            case '/': {
-                if (look(1) == '/') {
+            case '-': {
+                if (look(1) == '-') {
                     skip_comment();
+                    break;
                 }
-                break;
+                else return;
             }
             default: return;
         }
@@ -104,8 +105,8 @@ struct Parser {
         for (;;) switch (look()) {
             case ANY_WS:
             case ',': p++; break;
-            case '/': {
-                if (look(1) == '/') {
+            case '-': {
+                if (look(1) == '-') {
                     skip_comment();
                     break;
                 }
@@ -157,7 +158,7 @@ struct Parser {
                     p += 2;
                     break;
                 }
-                else return Str(start, p);
+                else goto done;
             }
             case '"': {
                 error("\" cannot occur inside a word (are you missing the first \"?)");
@@ -165,8 +166,13 @@ struct Parser {
             case ANY_RESERVED_SYMBOL: {
                 error(*p, " is a reserved symbol and can't be used outside of strings.");
             }
-            default: return Str(start, p);
+            default: goto done;
         }
+        done:
+        if (p - start == 2 && start[0] == '/' && start[1] == '/') {
+            error("// by itself is not a valid unquoted string (comments are --, not //).");
+        }
+        return Str(start, p);
     }
 
     Tree got_number () {
@@ -385,6 +391,8 @@ struct Parser {
 
             case ANY_DECIMAL_DIGIT:
             case '+':
+             // Comments starting with -- should already have been skipped by a
+             // previous skip_ws().
             case '-': return got_number();
 
             case '"': return got_string();
@@ -457,12 +465,12 @@ Tree tree_from_file (AnyString filename) {
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::ParseError,
-    elems(
-        elem(base<Error>(), include),
-        elem(&ParseError::mess),
-        elem(&ParseError::filename),
-        elem(&ParseError::line),
-        elem(&ParseError::col)
+    attrs(
+        attr("Error", base<Error>(), include),
+        attr("mess", &ParseError::mess),
+        attr("filename", &ParseError::filename),
+        attr("line", &ParseError::line),
+        attr("col", &ParseError::col)
     )
 )
 
@@ -497,7 +505,9 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
     y("+0xdead.beefP30", Tree(0xdead.beefP30));
     y("-0xdead.beefP30", Tree(-0xdead.beefP30));
     n("++0");
-    n("--0");
+    n("-+0");
+    n("+-0");
+    n("--0"); // String contains nothing but a comment
     y("+nan", Tree(0.0/0.0));
     y("+inf", Tree(1.0/0.0));
     y("-inf", Tree(-1.0/0.0));
@@ -537,7 +547,7 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
     y("[&foo:1 *foo]", Tree(TreeArray{Tree(1)}));
     y("{&key asdf:*key}", Tree(TreeObject{TreePair{"asdf", Tree("asdf")}}));
     y("{&borp:\"bump\" *borp:*borp}", Tree(TreeObject{TreePair{"bump", Tree("bump")}}));
-    y("3 //4", Tree(3));
+    y("3 --4", Tree(3));
     y("#", Tree("#"));
     y("#foo", Tree("#foo"));
     n("{&borp:44 *borp:*borp}");

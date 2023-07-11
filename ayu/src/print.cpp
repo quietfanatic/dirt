@@ -134,6 +134,7 @@ struct Printer {
             return print_quoted(p, s, false);
         }
         if (s == "") return pstr(p, "\"\"");
+        if (s == "//") return pstr(p, "\"//\"");
         if (s == "null") return pstr(p, "\"null\"");
         if (s == "true") return pstr(p, "\"true\"");
         if (s == "false") return pstr(p, "\"false\"");
@@ -268,7 +269,7 @@ struct Printer {
                     }
                     p = print_subtree(p, elem, ind + expand);
                     if (show_indices) {
-                        p = pstr(p, "  // ");
+                        p = pstr(p, "  -- ");
                         p = print_uint64(p, &elem - &a.front(), false);
                     }
                 }
