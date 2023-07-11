@@ -46,7 +46,7 @@ strings.  There is only one +nan, which is the canonical NaN for the platform.
 The reference implementation supports floating-point numbers of double precision
 and all integers between -2^63 and 2^63-1.
 
-##### std::string
+##### String
 
 A UTF-8 string.  Double quotes (`"`) delimit a string.  Strings that don't
 contain any whitespace or syntactic characters do not require quotes, except for
@@ -72,12 +72,12 @@ Some of these escape sequences may be obscure or useless, but they're included
 for compatibility with JSON.
 
 A string does not have to be quoted if it starts with a letter or underscore
-(`_`) or hash (`#`), is not one of the words `null`, `true`, or `false`, and
-only contains the following:
+(`_`) or slash (`/`) or hash (`#`), is not one of the words `null`, `true`, or
+`false`, and only contains the following:
 - letters, numbers, or underscores
 - Any of these symbols: `!`, `$`, `%`, `+`, `-`, `.`, `/`, `<`, `>`, `?`, `@`,
   `^`, `_`, `~`, `#`, `&`, `*`, `=`, `;`
-- The sequences `::` (for C++ namespaces) and `:/` (for URLs)
+- The sequence `::` (for C++ namespaces)
 
 The following characters are reserved and are not valid for either syntax or
 unquoted strings
@@ -159,7 +159,9 @@ example,
         bar: 2
     }]
      // The following makes some_pointer point to some_object.bar
-    some_pointer: ["int*" #some_object/1/bar]
+    some_pointer: [int* #some_object/1/bar]
+     // The following points to an item in another file.
+    another_pointer: [AnotherObject* /folder/file.ayu#target/1]
 ]]
 ```
 

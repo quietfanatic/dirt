@@ -1135,7 +1135,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:16}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#\"\n"
+        "    location: #\n"
         "    type: ayu::test::MemberTest\n"
         "    inner: [ayu::MissingAttr [[] b]]\n"
         "}]\n",
@@ -1144,7 +1144,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:foo}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#b\"\n"
+        "    location: #b\n"
         "    type: int32\n"
         "    inner: [ayu::WrongForm [[] number foo]]\n"
         "}]\n",
@@ -1153,7 +1153,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:4.3}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#b\"\n"
+        "    location: #b\n"
         "    type: int32\n"
         "    inner: [ayu::CantRepresent [[] int32 4.3]]\n"
         "}]\n",
@@ -1162,7 +1162,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "[54 43]"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#\"\n"
+        "    location: #\n"
         "    type: ayu::test::MemberTest\n"
         "    inner: [ayu::InvalidForm [[] array]]\n"
         "}]\n",
@@ -1171,7 +1171,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:0 b:1 c:60}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#\"\n"
+        "    location: #\n"
         "    type: ayu::test::MemberTest\n"
         "    inner: [ayu::UnwantedAttr [[] c]]\n"
         "}]\n",
@@ -1187,7 +1187,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&bt, "{a:-7,b:-8,c:-9}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#\"\n"
+        "    location: #\n"
         "    type: ayu::test::BaseTest\n"
         "    inner: [ayu::MissingAttr [[] MemberTest]]\n"
         "}]\n",
@@ -1226,7 +1226,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5]"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#\"\n"
+        "    location: #\n"
         "    type: ayu::test::ElemTest\n"
         "    inner: [ayu::WrongLength {min:3 max:3 got:2}]\n"
         "}]\n",
@@ -1235,7 +1235,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&et, "[6.5 7.5 8.5 9.5]"); },
         "[ayu::SerializeFailed {\n"
-        "    location: \"#\"\n"
+        "    location: #\n"
         "    type: ayu::test::ElemTest\n"
         "    inner: [ayu::WrongLength {min:3 max:3 got:4}]\n"
         "}]\n",

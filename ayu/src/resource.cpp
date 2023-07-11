@@ -642,7 +642,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     doesnt_throw([&]{ remove_source(output); }, "Can call remove_source twice");
     Location loc;
     doesnt_throw([&]{
-        item_from_string(&loc, cat(input.name().spec(), "#bar/1"));
+        item_from_string(&loc, cat('"', input.name().spec(), "#bar/1\""));
     }, "Can read location from tree");
     Reference ref;
     doesnt_throw([&]{
@@ -656,7 +656,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     doesnt_throw([&]{
         loc = reference_to_location(ref);
     });
-    is(item_to_tree(&loc), tree_from_string("ayu-test:/test-output.ayu#asdf/1"), "reference_to_location works");
+    is(item_to_tree(&loc), tree_from_string("\"ayu-test:/test-output.ayu#asdf/1\""), "reference_to_location works");
     doc->new_<Reference>(output["bar"][1]);
     doesnt_throw([&]{ save(output); }, "save with reference");
     doc->new_<int32*>(output["asdf"][1]);

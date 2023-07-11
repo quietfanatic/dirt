@@ -139,22 +139,21 @@ struct Printer {
         if (s == "false") return pstr(p, "\"false\"");
 
         switch (s[0]) {
-            case ANY_LETTER:
-            case '_': break;
+            case ANY_WORD_STARTER: break;
             default: return print_quoted(p, s, expand);
         }
 
         for (auto sp = s.begin(); sp != s.end(); sp++)
         switch (sp[0]) {
             case ':': {
-                if (sp + 1 != s.end() && (sp[1] == ':' || sp[1] == '/')) {
+                if (sp + 1 != s.end() && sp[1] == ':') {
                     sp++;
                     continue;
                 }
                 else return print_quoted(p, s, expand);
             }
             case ANY_LETTER: case ANY_DECIMAL_DIGIT:
-            case '-': case '.': case '/': case '_': continue;
+            case ANY_WORD_SYMBOL: continue;
             default: return print_quoted(p, s, expand);
         }
          // No need to quote

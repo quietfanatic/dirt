@@ -152,8 +152,8 @@ struct Parser {
             case ANY_LETTER: case ANY_DECIMAL_DIGIT: case ANY_WORD_SYMBOL:
                 p++; break;
             case ':': {
-                 // Allow :: (for c++ types) or :/ (for urls)
-                if (look(1) == ':' || look(1) == '/') {
+                 // Allow :: for c++ types
+                if (look(1) == ':') {
                     p += 2;
                     break;
                 }
