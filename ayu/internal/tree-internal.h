@@ -173,7 +173,7 @@ constexpr Tree::operator Str () const {
 constexpr Tree::operator AnyString () const& {
     switch (rep) {
         case in::REP_STATICSTRING:
-            return StaticString::Static(data.as_char_ptr, length);
+            return StaticString(data.as_char_ptr, length);
         case in::REP_SHAREDSTRING: {
             if (data.as_char_ptr) {
                 ++ArrayOwnedHeader::get(data.as_char_ptr)->ref_count;
@@ -188,7 +188,7 @@ constexpr Tree::operator AnyString () const& {
 inline Tree::operator AnyString () && {
     switch (rep) {
         case in::REP_STATICSTRING:
-            return StaticString::Static(data.as_char_ptr, length);
+            return StaticString(data.as_char_ptr, length);
         case in::REP_SHAREDSTRING: {
             auto r = SharedString::Materialize(
                 const_cast<char*>(data.as_char_ptr), length

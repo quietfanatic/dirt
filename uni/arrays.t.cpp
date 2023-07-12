@@ -36,7 +36,7 @@ AnyArray<int> t6 (const UniqueArray<int>& a) {
     return a;
 }
 AnyArray<int> t7 (const UniqueArray<int>& a) {
-    return AnyArray<int>::Copy(a);
+    return AnyArray<int>(a);
 }
 
 AnyArray<int> t8 (const std::vector<int>& v) {
@@ -61,11 +61,11 @@ AnyArray<char> t11 () {
 }
 
 AnyArray<std::pair<usize, usize>> t12 (const std::unordered_map<int, int>& m) {
-    auto r = AnyArray<std::pair<usize, usize>>::Copy(m.begin(), m.end());
+    auto r = AnyArray<std::pair<usize, usize>>(m.begin(), m.end());
     return r;
 }
 AnyArray<std::pair<usize, usize>> t13 (const std::unordered_map<int, int>& m) {
-    auto r = AnyArray<std::pair<usize, usize>>::Copy(m.begin(), m.size());
+    auto r = AnyArray<std::pair<usize, usize>>(m.begin(), m.size());
     return r;
 }
 

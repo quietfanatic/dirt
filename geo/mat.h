@@ -387,7 +387,7 @@ AYU_DESCRIBE_TEMPLATE(
             std::to_string(cols), ", ",
             std::to_string(rows), '>'
         );
-        return uni::StaticString::Static(r);
+        return uni::StaticString(r);
     }),
     []{
         using namespace geo;

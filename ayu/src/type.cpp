@@ -219,7 +219,7 @@ StaticString get_description_name (const Description* desc) {
     return desc->name_offset
         ? ((NameDcr<Mu>*)((char*)desc + desc->name_offset))->f()
         : !desc->name.empty() ? desc->name
-        : StaticString::Static(desc->cpp_type->name());
+        : StaticString(desc->cpp_type->name());
 }
 bool is_valid_type (const Description* desc) {
     for (auto& p : registry().by_cpp_type) {
@@ -233,7 +233,7 @@ UniqueString get_demangled_name (const std::type_info& t) {
     int status;
     char* demangled = abi::__cxa_demangle(t.name(), nullptr, nullptr, &status);
     if (status != 0) return cat("?(Failed to demangle ", t.name(), ')');
-    UniqueString r = demangled;
+    auto r = UniqueString(demangled);
     free(demangled);
     return r;
 #else

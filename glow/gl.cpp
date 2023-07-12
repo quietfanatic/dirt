@@ -42,7 +42,7 @@ void throw_on_glGetError (
     std::source_location srcloc
 ) {
     GLenum err = p_glGetError<>();
-    if (err) throw GLError(err, function_name, srcloc);
+    if (err) throw GLError(err, StaticString(function_name), srcloc);
 }
 
 } using namespace glow;

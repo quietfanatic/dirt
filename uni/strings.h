@@ -10,7 +10,7 @@ inline namespace strings {
  // passing a string literal to a templated function and get an error message
  // like "args#0 is not a constant expression", this may help.
 consteval StaticString operator""_s (const char* p, usize s) {
-    return StaticString::Static(p, s);
+    return StaticString(p, s);
 }
 
 template <class T>

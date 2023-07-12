@@ -68,12 +68,12 @@ AYU_DESCRIBE(iri::IRI,
 AYU_DESCRIBE(std::source_location,
     elems(
         elem(value_func<StaticString>([](const std::source_location& v) {
-            return StaticString::Static(v.file_name());
+            return StaticString(v.file_name());
         })),
         elem(value_method<uint32, &std::source_location::line>()),
         elem(value_method<uint32, &std::source_location::column>()),
         elem(value_func<StaticString>([](const std::source_location& v) {
-            return StaticString::Static(v.function_name());
+            return StaticString(v.function_name());
         }))
     )
 )

@@ -57,10 +57,10 @@ constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
      // through the non-constexpr SharedString path.
     if constexpr (
         !requires { Null(n); } &&
-        requires { StaticString::Static(n); }
+        requires { StaticString(n); }
     ) {
         return in::ValueDcrWithValue<T>{
-            {{}, Tree(StaticString::Static(n)), null}, move(v)
+            {{}, Tree(StaticString(n)), null}, move(v)
         };
     }
     else return in::ValueDcrWithValue<T>{{{}, Tree(n), null}, move(v)};
@@ -72,10 +72,10 @@ template <class N>
 constexpr auto _AYU_DescribeBase<T>::value (const N& n, const T& v) {
     if constexpr (
         !requires { Null(n); } &&
-        requires { StaticString::Static(n); }
+        requires { StaticString(n); }
     ) {
         return in::ValueDcrWithValue<T>{
-            {{}, Tree(StaticString::Static(n)), null}, move(v)
+            {{}, Tree(StaticString(n)), null}, move(v)
         };
     }
     else return {in::ValueDcrWithValue<T>{{}, Tree(n), null}, move(v)};
@@ -85,9 +85,9 @@ template <class N>
 constexpr auto _AYU_DescribeBase<T>::value_pointer (const N& n, const T* p) {
     if constexpr (
         !requires { Null(n); } &&
-        requires { StaticString::Static(n); }
+        requires { StaticString(n); }
     ) {
-        return in::ValueDcr<T>{{}, Tree(StaticString::Static(n)), p};
+        return in::ValueDcr<T>{{}, Tree(StaticString(n)), p};
     }
     else return in::ValueDcr<T>{{}, Tree(n), p};
 }

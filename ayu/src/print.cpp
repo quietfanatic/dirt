@@ -196,7 +196,7 @@ struct Printer {
         switch (t->rep) {
             case REP_NULL: return pstr(p, "null");
             case REP_BOOL: {
-                Str s = t->data.as_bool ? "true" : "false";
+                auto s = t->data.as_bool ? Str("true") : Str("false");
                 return pstr(p, s);
             }
             case REP_INT64: {
@@ -209,10 +209,10 @@ struct Printer {
                     return pstr(p, opts & JSON ? "null" : "+nan");
                 }
                 else if (v == +inf) {
-                    return pstr(p, opts & JSON ? "1e999" : "+inf");
+                    return pstr(p, opts & JSON ? Str("1e999") : Str("+inf"));
                 }
                 else if (v == -inf) {
-                    return pstr(p, opts & JSON ? "-1e999" : "-inf");
+                    return pstr(p, opts & JSON ? Str("-1e999") : Str("-inf"));
                 }
                 else if (v == 0) {
                     if (1.0/v == -inf) {
@@ -323,7 +323,7 @@ struct Printer {
                         name = Type(typeid(e)).name();
                     }
                     catch (const UnknownType&) {
-                        name = typeid(e).name();
+                        name = Str(typeid(e).name());
                     }
                     return pchar(pstr(pstr(p, "?("), name), ')');
                 }

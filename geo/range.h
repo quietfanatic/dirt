@@ -250,7 +250,7 @@ AYU_DESCRIBE_TEMPLATE(
             static uni::UniqueString r = uni::cat(
                 "geo::GRange<", ayu::Type::CppType<T>().name(), '>'
             );
-            return uni::StaticString::Static(r);
+            return uni::StaticString(r);
         }
     }),
     desc::elems(

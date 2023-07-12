@@ -17,7 +17,12 @@
  // Not to be confused with Small String Optimization.  AnyArray and AnyString
  // can refer to a static string (a string which will stay alive for the
  // duration of the program, or at least the foreseeable future).  This allows
- // them to be created and passed around with no allocation cost.
+ // them to be created and passed around with no allocation cost.  For
+ // optimization, both StaticString and AnyString expect that fixed-size const
+ // char[] (but not non-const char[]) is a string literal.  If you use
+ // dynamically-allocated fixed-size raw char arrays, you might run into some
+ // use-after-free surprises.  I think this should be rare to nonexistent in
+ // practice.
  //
  // THREAD-SAFETY
  // AnyArray and AnyString use reference counting which is not threadsafe.  To
@@ -297,88 +302,51 @@ struct ArrayInterface {
 
      // Copy convert.  Tries to make this array have the same ownership mode as
      // the passed array, and if that isn't supported, tries to copy, and if
-     // that isn't supported, fails (usually at compile-time).
-     //   - Explicit for converting from AnyArray to StaticArray, since that can
-     //     fail at run time if the passed array isn't static.
-     //   - You are not allowed to convert from a Slice to a StaticArray at
-     //     runtime, because there's no guarantee that the data actually is
-     //     static.
+     // that isn't supported, borrows.  This is explicit for converting to
+     // StaticArray, because it's not guaranteed that the data is actually
+     // static.
     template <ArrayClass ac2> constexpr
-    explicit(is_Static && ArrayInterface<ac2, T>::is_Any)
-    ArrayInterface (const ArrayInterface<ac2, T>& o) requires (
-        supports_owned || !o.is_Slice
-    ) {
-        if constexpr (o.is_Slice) {
-             // Always copy from Slice because we don't know where it came from
-             // or where it's going.
-            set_as_copy(o.impl.data, o.size());
-        }
-        else if constexpr (is_Slice) {
-            set_as_unowned(o.impl.data, o.size());
-        }
-        else if constexpr (is_Unique || o.is_Unique) {
-            set_as_copy(o.impl.data, o.size());
-        }
-        else if (o.owned()) {
-            if constexpr (supports_share && o.supports_share) {
+    explicit(is_Static && !ArrayInterface<ac2, T>::is_Static)
+    ArrayInterface (const ArrayInterface<ac2, T>& o) {
+        if constexpr (supports_share && o.supports_share) {
+            if (o.owned()) {
                 set_as_owned(o.impl.data, o.size());
                 add_ref();
-            }
-            else {
-                 // We're a StaticArray but we've been given non-static data.
-                 // There's nothing we can do.
-                require(false);
+                return;
             }
         }
-        else if constexpr (supports_static) {
+        if constexpr (supports_static && o.supports_static) {
             set_as_unowned(o.impl.data, o.size());
         }
-        else {
+        else if constexpr (supports_owned) {
             set_as_copy(o.impl.data, o.size());
         }
-    }
-
-     // However, at compile-time you can implicity construct a StaticArray from
-     // a Slice, since it's nearly guaranteed to be static data (and if it
-     // isn't, you'll get a compile error).
-    template <ArrayClass ac2> consteval
-    ArrayInterface (const ArrayInterface<ac2, T>& o) requires (
-        is_Static && o.is_Slice
-    ) {
-        set_as_unowned(o.impl.data, o.size());
+        else {
+            set_as_unowned(o.impl.data, o.size());
+        }
     }
 
      // Copy construction from other array-like types.  Explicit except for
      // Slice/Str.
     template <OtherArrayLike O> constexpr
-    explicit(!(is_Slice && ArrayLikeFor<O, T>))
+    explicit(is_Static || !(is_Slice && ArrayLikeFor<O, T>))
     ArrayInterface (const O& o) requires (!is_Static) {
-        if constexpr (is_Slice) {
+        if constexpr (supports_owned) {
+            set_as_copy(o.data(), o.size());
+        }
+        else {
             static_assert(ArrayLikeFor<O, T>,
-                "Cannot construct Slice from array-like type if its element "
-                "type does not match exactly."
+                "Cannot construct borrowed array from array-like type if its "
+                "element type does not match exactly."
             );
             static_assert(ArrayContiguousIterator<decltype(o.data())>,
-                "Cannot construct Slice from array-like type if its data() "
+                "Cannot construct borrowed from array-like type if its data() "
                 "returns a non-contiguous iterator."
             );
             set_as_unowned(o.data(), o.size());
         }
-        else {
-            set_as_copy(o.data(), o.size());
-        }
     }
-     // Actually, allow implicit construction of StaticArray from foreign
-     // array-like types, but only at compile-time.  If the data isn't actually
-     // static, a well-defined compile-time error will occur.
-    template <OtherArrayLikeFor<T> O> consteval
-    ArrayInterface (const O& o) requires (is_Static) {
-        static_assert(ArrayContiguousIterator<decltype(o.data())>,
-            "Cannot construct static array from array-like type if its data() "
-            "returns a non-contiguous iterator."
-        );
-        set_as_unowned(o.data(), o.size());
-    }
+
      // SPECIAL CASE allow construcing a Str from a char8 OtherArrayLike
     template <OtherArrayLikeFor<char8_t> O> constexpr explicit
     ArrayInterface (const O& o) requires (
@@ -392,135 +360,119 @@ struct ArrayInterface {
     }
 
      // Constructing from const T* is only allowed for String classes.  It will
-     // take elements until the first one that boolifies to false.
-    constexpr
-    ArrayInterface (const T* p) requires (!is_Static && is_String) {
+     // take elements until the first one that boolifies to false.  This is
+     // explicit so it doesn't take priority over the fixed-size array
+     // overloads.
+    constexpr explicit
+    ArrayInterface (const T* p) requires (is_String) {
         expect(p);
         usize s = 0;
         while (p[s]) ++s;
-        if constexpr (is_Slice) {
-            set_as_unowned(p, s);
-        }
-        else {
+        if constexpr (supports_owned) {
             set_as_copy(p, s);
         }
-    }
-     // As usual, StaticString can only be implicitly constructed at
-     // compile-time.
-    consteval
-    ArrayInterface (const T* p) requires (is_Static && is_String) {
-        expect(p);
-        usize s = 0;
-        while (p[s]) ++s;
-        set_as_unowned(p, s);
+        else {
+            set_as_unowned(p, s);
+        }
     }
 
-     // Constructing from C array is different for Array and String classes.
-     // Array classes take the whole array, but String classes only take up to
-     // (and not including) the first element that's equal to 0.
-     //
-     // In addition, for constructing from a C array, AnyString (and AnyArray)
-     // behaves like StaticString, not like SharedString, in that it borrows
-     // data at compile-time and isn't allowed at run-time.  This is a bit of a
-     // compromise to allow string literals to be assigned to AnyStrings without
-     // any runtime performance cost.  If you really need to assign a character
-     // array to an AnyString at runtime, you must explicitly choose between the
-     // Copy and Static named constructors.
+     // Construction from a raw C array.  For *Array, this always copies if
+     // possible and borrows otherwise.
     template <class T2, usize len> constexpr
-    explicit(!std::is_same_v<T2, T> || !is_Slice)
-    ArrayInterface (const T2(& o )[len]) requires (!supports_static) {
-        usize s;
-        if constexpr (is_String) {
-            usize s = 0;
-            while (s < len && o[s]) ++s;
-        }
-        else s = len;
-        if constexpr (is_Slice) {
-            static_assert(std::is_same_v<T2, T>,
-                "Cannot construct Slice from C array if its element type does"
-                "not match exactly."
-            );
-            set_as_unowned(o, s);
+    explicit(!std::is_same_v<T2, T>)
+    ArrayInterface (const T2(& o )[len]) requires (!is_String) {
+        if constexpr (supports_owned) {
+            set_as_copy(o, len);
         }
         else {
-            set_as_copy(o, s);
+            static_assert(std::is_same_v<T2, T>,
+                "Cannot construct borrowed array from raw C array if its "
+                "element type does not match exactly."
+            );
+            set_as_unowned(o, len);
         }
     }
-    template <usize len> consteval
-    ArrayInterface (const T(& o )[len]) requires (supports_static) {
-        usize s;
-        if constexpr (is_String) {
-            usize s = 0;
-            while (s < len && o[s]) ++s;
+     // For *String, the behavior differs based on whether the C array is const
+     // or not.  A const array is assumed to be a string literal, which should
+     // be safe to borrow from.
+    template <class T2, usize len> constexpr
+    explicit(!std::is_same_v<T2, T>)
+    ArrayInterface (const T2(& o )[len]) requires (is_String) {
+         // String literals should always be NUL-terminated (and the NUL is
+         // included in len).
+        expect(!o[len-1]);
+        if constexpr (supports_static && std::is_same_v<T2, T>) {
+            set_as_unowned(o, len-1);
         }
-        else s = len;
-        set_as_unowned(o, s);
+        else if constexpr (supports_owned) {
+            set_as_copy(o, len-1);
+        }
+        else {
+            static_assert(std::is_same_v<T2, T>,
+                "Cannot construct borrowed string from raw C array if its "
+                "element type does not match exactly."
+            );
+            set_as_unowned(o, len-1);
+        }
+    }
+     // A non-const C array behaves like the array version, and does NOT check
+     // for NULs.
+    template <class T2, usize len> constexpr
+    explicit(!std::is_same_v<T2, T>)
+    ArrayInterface (T2(& o )[len]) requires (
+        is_String && !std::is_const_v<T2>
+    ) {
+        if constexpr (supports_owned) {
+            set_as_copy(o, len);
+        }
+        else {
+            static_assert(std::is_same_v<T2, T>,
+                "Cannot construct borrowed string from raw C array if its "
+                "element type does not match exactly."
+            );
+            set_as_unowned(o, len);
+        }
     }
 
      // Construct from a pointer(-like iterator) and a size
     template <ArrayIterator Ptr> explicit constexpr
-    ArrayInterface (Ptr p, usize s) requires (!is_Static) {
-        if constexpr (is_Slice) {
+    ArrayInterface (Ptr p, usize s) {
+        if constexpr (supports_owned) {
+            set_as_copy(move(p), s);
+        }
+        else {
             static_assert(ArrayIteratorFor<Ptr, T>,
-                "Cannot borrow Slice from iterator with non-exact element type."
+                "Cannot construct borrowed array from iterator with non-exact "
+                "element type."
             );
             static_assert(ArrayContiguousIterator<Ptr>,
-                "Cannot borrow Slice from non-contiguous iterator."
+                "Cannot construct borrowed array from non-contiguous iterator."
             );
             set_as_unowned(std::to_address(move(p)), s);
         }
-        else {
-            set_as_copy(move(p), s);
-        }
-    }
-    template <ArrayIterator Ptr> explicit consteval
-    ArrayInterface (Ptr p, usize s) requires (is_Static) {
-        static_assert(ArrayIteratorFor<Ptr, T>,
-            "Cannot construct static array from iterator with non-exact "
-            "element type."
-        );
-        static_assert(ArrayContiguousIterator<Ptr>,
-            "Cannot construct static array from non-contiguous iterator."
-        );
-        set_as_unowned(std::to_address(move(p)), s);
     }
 
      // Construct from a pair of iterators.
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     explicit constexpr
-    ArrayInterface (Begin b, End e) requires (!is_Static) {
-        if constexpr (is_Slice) {
+    ArrayInterface (Begin b, End e) {
+        if constexpr (supports_owned) {
+            set_as_copy(move(b), move(e));
+        }
+        else {
             static_assert(ArrayIteratorFor<Begin, T>,
-                "Cannot borrow Slice from iterator with non-exact element type."
+                "Cannot construct borrowed array from iterator with non-exact "
+                "element type."
             );
             static_assert(ArrayContiguousIterator<Begin>,
-                "Cannot borrow Slice from non-contiguous iterator."
+                "Cannot construct borrowed array from non-contiguous iterator."
             );
             static_assert(requires { usize(e - b); },
-                "Cannot borrow Slice from iterator pair that doesn't support "
-                "subtraction to get size."
+                "Cannot construct borrowed array from iterator pair that "
+                "doesn't support subtraction to get size."
             );
             set_as_unowned(std::to_address(move(b)), usize(e - b));
         }
-        else {
-            set_as_copy(move(b), move(e));
-        }
-    }
-    template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
-    explicit consteval
-    ArrayInterface (Begin b, End e) requires (is_Static) {
-        static_assert(ArrayIteratorFor<Begin, T>,
-            "Cannot construct static array from iterator with non-exact "
-            "element type."
-        );
-        static_assert(ArrayContiguousIterator<Begin>,
-            "Cannot construct static array from non-contiguous iterator."
-        );
-        static_assert(requires { usize(e - b); },
-            "Cannot construct static array from iterator pair that doesn't "
-            "support subtraction to get size."
-        );
-        set_as_unowned(std::to_address(b), usize(e - b));
     }
 
      // Construct an array with a number of default-constructed elements.
@@ -580,90 +532,6 @@ struct ArrayInterface {
             set_as_unowned(std::data(l), std::size(l));
         }
         else set_as_copy(std::data(l), std::size(l));
-    }
-
-    ///// NAMED CONSTRUCTORS
-    // These allow you to explicitly specify a construction method.  DEPRECATED!
-    // TODO: remove these
-
-     // Explicitly share a shared array.  Will fail at runtime if given an AnyArray
-     // with static data.
-    static
-    Self Share (const AnyArray<T>& o) requires (supports_share) {
-        require(o.owned() || o.empty());
-        return SharedArray<T>(o);
-    }
-    static
-    Self Share (const SharedArray<T>& o) requires (supports_share) {
-        return SharedArray<T>(o);
-    }
-
-     // Explicitly copy the passed data.
-    static
-    Self Copy (SelfSlice o) requires (supports_owned) {
-        return UniqueArray<T>(o);
-    }
-    template <ArrayIterator Ptr> static
-    Self Copy (Ptr p, usize s) requires (supports_owned) {
-        return UniqueArray<T>(move(p), s);
-    }
-    template <ArrayIterator Begin, ArraySentinelFor<Begin> End> static
-    Self Copy (Begin b, End e) requires (supports_owned) {
-        return UniqueArray<T>(move(b), move(e));
-    }
-
-     // Explicitly reference static data.  Unlike the consteval constructors,
-     // these are allowed at run time.  It's the caller's responsibility to make
-     // sure that the referenced data outlives both the returned StaticArray AND
-     // all AnyArrays and StaticArrays that may be constructed from it.
-    static constexpr
-    Self Static (SelfSlice o) requires (supports_static) {
-        StaticArray<T> r;
-        r.set_as_unowned(o.impl.data, o.size());
-        return r;
-    }
-    template <ArrayIterator Ptr> static constexpr
-    Self Static (Ptr p, usize s) requires (supports_static) {
-        static_assert(ArrayIteratorFor<Ptr, T>,
-            "Cannot construct static array from iterator with non-exact "
-            "element type."
-        );
-        static_assert(ArrayContiguousIterator<Ptr>,
-            "Cannot construct static array from non-contiguous iterator."
-        );
-        StaticArray<T> r;
-        r.set_as_unowned(std::to_address(move(p)), s);
-        return r;
-    }
-    template <ArrayIterator Begin, ArraySentinelFor<Begin> End> static constexpr
-    Self Static (Begin b, End e) requires (supports_static) {
-        static_assert(ArrayIteratorFor<Begin, T>,
-            "Cannot construct static array from iterator with non-exact "
-            "element type."
-        );
-        static_assert(ArrayContiguousIterator<Begin>,
-            "Cannot construct static array from non-contiguous iterator."
-        );
-        static_assert(requires { usize(e - b); },
-            "Cannot construct static array from iterator pair that doesn't "
-            "support subtraction to get size."
-        );
-        StaticArray<T> r;
-        r.set_as_unowned(std::to_address(b), usize(e - b));
-        return r;
-    }
-
-     // Create an array with a given size but uninitialized data.  This is only
-     // allowed for element types that are allowed to be uninitialized.
-    static
-    Self Uninitialized (usize s) requires (is_Unique) {
-        static_assert(std::is_trivially_default_constructible_v<T>,
-            "Cannot create Uninitialized array with type that isn't trivially "
-            "default constructible."
-        );
-        Self r;
-        r.set_as_unique(allocate_owned(s), s);
-        return r;
     }
 
     ///// ASSIGNMENT OPERATORS
@@ -1230,6 +1098,13 @@ struct ArrayInterface {
                 push_back_expect_capacity(*b);
             }
         }
+    }
+
+     // Append uninitialized elements.  Only valid if the elements are allowed
+     // to be uninitialized (they have a trivial default constructor).
+    void append_uninitialized (usize s) {
+        reserve_plenty(size() + s);
+        add_size(s);
     }
 
      // Construct an element into a specific place in the array, moving the rest

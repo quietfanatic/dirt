@@ -443,7 +443,8 @@ UniqueString string_from_file (AnyString filename) {
     usize size = ftell(f);
     rewind(f);
 
-    UniqueString r = UniqueString::Uninitialized(size);
+    UniqueString r;
+    r.append_uninitialized(size);
     usize did_read = fread(r.data(), 1, size, f);
     if (did_read != size) {
         int errnum = errno;
@@ -478,10 +479,10 @@ AYU_DESCRIBE(ayu::ParseError,
 #include "../../tap/tap.h"
 static tap::TestSet tests ("dirt/ayu/parse", []{
     using namespace tap;
-    auto y = [](const char* s, const Tree& t){
+    auto y = [](StaticString s, const Tree& t){
         try_is<Tree>([&]{return tree_from_string(s);}, t, cat("yes: ", s));
     };
-    auto n = [](const char* s){
+    auto n = [](StaticString s){
         throws<ParseError>([&]{
             tree_from_string(s);
         }, cat("no: ", s));

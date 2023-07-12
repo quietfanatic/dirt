@@ -473,7 +473,7 @@ AYU_DESCRIBE_TEMPLATE(
             static uni::UniqueString r = uni::cat(
                 "geo::GVec<", ayu::Type::CppType<T>().name(), ", ", n, '>'
             );
-            return uni::StaticString::Static(r);
+            return uni::StaticString(r);
         }
     }),
     desc::length(desc::template constant<uni::usize>(n)),

@@ -42,7 +42,7 @@ struct Command {
             return ayu::Type::CppType<StatementStorage<Args...>>();
         }),
         arg_types([]{
-            static auto r = StaticArray<ayu::Type>::Static({ayu::Type::CppType<Args>()...});
+            static auto r = StaticArray<ayu::Type>({ayu::Type::CppType<Args>()...});
             return r;
         })
     {
