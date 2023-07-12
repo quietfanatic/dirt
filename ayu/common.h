@@ -73,7 +73,7 @@ struct Error : std::exception {
 struct GenericError : Error {
     AnyString mess;
     GenericError (StaticString s) : mess(s) { }
-    template <class... Args> requires (sizeof...(Args) > 1)
+    template <class... Args> requires (sizeof...(Args) > 1) [[gnu::cold]]
     GenericError (Args&&... args) : mess(cat(std::forward<Args>(args)...)) { }
 };
  // General IO-related problem

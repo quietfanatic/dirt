@@ -59,15 +59,12 @@ struct Location {
     Location root () const;
 };
 
-bool operator == (LocationRef a, LocationRef b) noexcept;
-
  // Convert a Location to a Reference.  This will not have to do any scanning,
  // so it should be fairly quick.  Well, quicker than reference_to_location.
  // reference_to_location is in scan.h
 Reference reference_from_location (LocationRef);
 
- // Parse the given IRI reference relative to current_root_location().  An
- // empty fragment will also be stripped off.
+ // Parse the given IRI reference relative to current_root_location().
 IRI location_iri_from_relative_iri (Str);
 
  // Convert the given IRI to an IRI reference relative to
@@ -75,15 +72,39 @@ IRI location_iri_from_relative_iri (Str);
  // current_root_location(), this will return "#".
 AnyString location_iri_to_relative_iri (const IRI&);
 
- // Gets an IRI corresponding to the given Location.
+ // Gets an IRI corresponding to the given Location.  If the root is a Resource,
+ // the IRI up to the fragment will be the resource's name.  If the root is a
+ // Reference, the root will be "ayu-current-root:".  TODO: That will only
+ // produce good results during a serialization operation.
+ // A key location will have /key appended to the fragment, and an index
+ // location will have +index appended to the fragment.
 IRI location_to_iri (LocationRef);
 
  // Parses an IRI into a location.  All of the IRI up to the fragment will
  // be used as the resource name for the root, and the fragment will be
- // split on / and each segment used as either a key or index.  To force a
- // string of digits to be used as a key instead of an index, precede it
- // with ' (apostrophe).  To start a key with a literal ', start it
- // with two 's.  To put a literal / in a key, use %2F.
+ // processed as follows:
+ //   - The empty fragment corresponds to the root
+ //   - Appending /<string> will create a location with an attr key
+ //   - Appending +<number> will create a location with an elem index
+ //   - Literal / and + must be percent-encoded
+ // So
+ //     location_from_iri("foo#/bar+3/qux")
+ // is equivalent to
+ //     Location(Location(Location(Location(Resource("foo")), "bar"), 3), "qux")
+ // and calling reference_from_location on that is equivalent to
+ //     Resource("foo")["bar"][3]["qux"]
+ //
+ // Throws InvalidLocationIRI if there is anything between the # and the first /
+ // or +, or if a + is followed by something that isn't a positive integer, or
+ // if the IRI is just plain invalid.
 Location location_from_iri (const IRI& iri);
+
+struct InvalidLocationIRI {
+    AnyString spec;
+    StaticString mess;
+    InvalidLocationIRI (AnyString s, StaticString m) :
+        spec(move(s)), mess(m)
+    { }
+};
 
 } // namespace ayu

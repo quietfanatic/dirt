@@ -1144,7 +1144,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:foo}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: #b\n"
+        "    location: #/b\n"
         "    type: int32\n"
         "    inner: [ayu::WrongForm [[] number foo]]\n"
         "}]\n",
@@ -1153,7 +1153,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     throws_what<SerializeFailed>(
         [&]{ item_from_string(&mt, "{a:41 b:4.3}"); },
         "[ayu::SerializeFailed {\n"
-        "    location: #b\n"
+        "    location: #/b\n"
         "    type: int32\n"
         "    inner: [ayu::CantRepresent [[] int32 4.3]]\n"
         "}]\n",
@@ -1368,9 +1368,9 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
 
     InternalRefTest irt = {3, 4, null};
     irt.p = &irt.a;
-    try_to_tree(&irt, "{a:3 b:4 p:#a}", "Can serialize item with internal refs");
+    try_to_tree(&irt, "{a:3 b:4 p:#/a}", "Can serialize item with internal refs");
     doesnt_throw([&]{
-        item_from_string(&irt, "{a:5 b:6 p:#b}");
+        item_from_string(&irt, "{a:5 b:6 p:#/b}");
     });
     is(irt.p, &irt.b, "Can deserialize item with internal refs");
 

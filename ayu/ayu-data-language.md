@@ -158,13 +158,13 @@ example,
 ```
 [ayu::Document {
     some_object: [MyObject {
-        foo: 1
-        bar: 2
+        foo: 50
+        bar: 60
     }]
      -- The following makes some_pointer point to some_object.bar
-    some_pointer: [int32* #some_object/1/bar]
+    some_pointer: [int32* #/some_object+1/bar]
      -- The following points to an item in another file.
-    another_pointer: [AnotherObject* /folder/file.ayu#target/1]
+    another_pointer: [AnotherObject* /folder/file.ayu#/target+1]
 ]]
 ```
 
