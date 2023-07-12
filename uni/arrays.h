@@ -15,13 +15,14 @@
  //
  // STATIC STRING OPTIMIZATION
  // Not to be confused with Small String Optimization.  AnyArray and AnyString
- // can be refer to a static string (a string which will stay alive for the
+ // can refer to a static string (a string which will stay alive for the
  // duration of the program, or at least the foreseeable future).  This allows
  // them to be created and passed around with no allocation cost.
  //
  // THREAD-SAFETY
- // SharedArray and AnyArray use reference counting which is not threadsafe.
- // To pass arrays between threads you should use UniqueArray.
+ // AnyArray and AnyString use reference counting which is not threadsafe.  To
+ // pass arrays and strings between threads you should use UniqueArray and
+ // UniqueString.
  //
  // EXCEPTION-SAFETY
  // None of these classes generate their own exceptions.  If an out-of-bounds
@@ -781,6 +782,7 @@ struct ArrayInterface {
      // a NUL element after the end.  Does not change the size of the array, but
      // may change its capacity.  For StaticArray and Slice, since they can't be
      // mutated, this require()s that the array is explicitly NUL-terminated.
+     // TODO: actually require() instead of never()ing.
     constexpr
     const T* c_str () requires (requires (T v) { !v; v = T(); }) {
         if (size() > 0 && !impl.data[size()-1]) {
@@ -792,6 +794,9 @@ struct ArrayInterface {
              // end of a shared buffer without triggering a copy-on-write.  I
              // think it makes sense to do the former for arrays and the latter
              // for strings.
+             // TODO: Do the former for strings too, turns out IRIs like to
+             // shrink a lot and .c_str() is probably usually used on
+             // UniqueStrings anyway.
             if (!is_String || capacity() < size() + 1) {
                  // Using just reserve here instead of reserve_plenty, because
                  // it's unlikely that you're going to add more onto the end
@@ -1051,6 +1056,7 @@ struct ArrayInterface {
      // If this array is not uniquely owned, copy its buffer so it is uniquely
      // owned.  This is equivalent to casting to a UniqueArray/UniqueString and
      // assigning it back to self.
+     // TODO: Add make_not_shared () for passing between threads
     void make_unique () requires (supports_owned) {
         if (!unique()) {
             set_as_unique(reallocate(impl, size()), size());
