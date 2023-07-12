@@ -52,7 +52,7 @@ struct Location {
      // Returns null if this location is a root or has an index.
     const AnyString* key () const;
      // Returns null if this location is a root or has a key.
-    const usize* index () const;
+    const uint32* index () const;
 
      // Walks down to the root Location (containing either a Resource or a
      // Reference) and returns it.

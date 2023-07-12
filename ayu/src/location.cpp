@@ -43,10 +43,10 @@ struct KeyLocation : LocationData {
 };
 struct IndexLocation : LocationData {
     Location parent;
-    usize index;
+    uint32 index;
     IndexLocation (Location p, usize i) :
         LocationData(INDEX), parent(move(p)), index(i)
-    { }
+    { expect(index == i); }
 };
 
 NOINLINE
@@ -102,7 +102,7 @@ const AnyString* Location::key () const {
         default: return null;
     }
 }
-const usize* Location::index () const {
+const uint32* Location::index () const {
     switch (data->form) {
         case INDEX: return &static_cast<IndexLocation*>(data.p)->index;
         default: return null;

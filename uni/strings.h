@@ -36,23 +36,23 @@ struct StringConversion<bool> {
     }
 };
 
-template <class T> constexpr usize max_digits;
-template <> constexpr usize max_digits<uint8> = 3;
-template <> constexpr usize max_digits<int8> = 4;
-template <> constexpr usize max_digits<uint16> = 5;
-template <> constexpr usize max_digits<int16> = 6;
-template <> constexpr usize max_digits<uint32> = 10;
-template <> constexpr usize max_digits<int32> = 11;
-template <> constexpr usize max_digits<uint64> = 19;
-template <> constexpr usize max_digits<int64> = 20;
-template <> constexpr usize max_digits<float> = 16;
-template <> constexpr usize max_digits<double> = 24;
-template <> constexpr usize max_digits<long double> = 48; // dunno, seems safe
+template <class T> constexpr uint32 max_digits;
+template <> constexpr uint32 max_digits<uint8> = 3;
+template <> constexpr uint32 max_digits<int8> = 4;
+template <> constexpr uint32 max_digits<uint16> = 5;
+template <> constexpr uint32 max_digits<int16> = 6;
+template <> constexpr uint32 max_digits<uint32> = 10;
+template <> constexpr uint32 max_digits<int32> = 11;
+template <> constexpr uint32 max_digits<uint64> = 19;
+template <> constexpr uint32 max_digits<int64> = 20;
+template <> constexpr uint32 max_digits<float> = 16;
+template <> constexpr uint32 max_digits<double> = 24;
+template <> constexpr uint32 max_digits<long double> = 48; // dunno, seems safe
 
 template <class T> requires (std::is_arithmetic_v<T>)
 struct StringConversion<T> {
-    usize len;
     char digits [max_digits<T>];
+    uint32 len;
     constexpr StringConversion (T v) {
         if constexpr (std::is_floating_point_v<T>) {
             if (v != v) {
@@ -74,7 +74,11 @@ struct StringConversion<T> {
     }
     constexpr usize length () const { return len; }
     constexpr usize write (char* p) const {
-        for (usize i = 0; i < len; ++i) {
+        expect(len > 0);
+         // Awkward incantation to keep the compiler from overkilling the loop
+         // with a memcpy
+        usize end = len <= max_digits<T> ? len : max_digits<T>;
+        for (usize i = 0; i < end; ++i) {
             p[i] = digits[i];
         }
         return len;
