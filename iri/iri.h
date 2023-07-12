@@ -114,11 +114,11 @@ struct IRI {
      // Returns whether this IRI is valid or not.  If the IRI is invalid, all
      // bool accessors will return false and all string and IRI accessors will
      // return empty.
-    constexpr bool is_valid () const;
+    constexpr bool valid () const;
      // Returns whether this IRI is empty.  The empty IRI is also invalid, but
      // not all invalid IRIs are empty.
-    constexpr bool is_empty () const;
-     // Equivalent to is_valid
+    constexpr bool empty () const;
+     // Equivalent to valid()
     explicit constexpr operator bool () const;
 
      // Gets the full text of the IRI only if this IRI is valid.
@@ -146,7 +146,7 @@ struct IRI {
     constexpr bool has_fragment () const;
 
      // If there is a path and the path starts with /
-    constexpr bool is_hierarchical () const;
+    constexpr bool hierarchical () const;
 
      // Get the scheme of the IRI.  Doesn't include the :.
      // This will always return something for a valid IRI.
@@ -171,23 +171,23 @@ struct IRI {
     constexpr Str fragment () const;
 
      // Returns a new IRI with just the scheme (and the colon).
-    constexpr IRI iri_with_scheme () const;
+    constexpr IRI with_scheme_only () const;
      // Get the origin (scheme plus authority if it exists).  Never ends with
      // a /.
-    constexpr IRI iri_with_origin () const;
+    constexpr IRI with_origin_only () const;
      // Get everything up to and including the last / in the path.  If this is
      // not a hierarchical scheme (path doesn't start with /), returns empty.
-    constexpr IRI iri_without_filename () const;
+    constexpr IRI without_filename () const;
      // Get the scheme, authority, and path but not the query or fragment.
-    constexpr IRI iri_without_query () const;
+    constexpr IRI without_query () const;
      // Get everything but the fragment
-    constexpr IRI iri_without_fragment () const;
+    constexpr IRI without_fragment () const;
 
      // The following are the same as above, but return a raw Str instead of a
      // new IRI.  This saves a string copy, but can cost an extra parse if you
      // turn the Str back into an IRI.
-    constexpr Str spec_with_scheme () const;
-    constexpr Str spec_with_origin () const;
+    constexpr Str spec_with_scheme_only () const;
+    constexpr Str spec_with_origin_only () const;
     constexpr Str spec_without_filename () const;
     constexpr Str spec_without_query () const;
     constexpr Str spec_without_fragment () const;
@@ -224,9 +224,11 @@ struct IRI {
   private:
      // Full text of the IRI
     AnyString spec_;
-     // All the following markers are 0 for an invalid IRI.
      // Offset of the : after the scheme.
-    uint16 colon_ = 0;
+    union {
+        uint16 colon_ = 0;
+        uint16 valid_;
+    };
      // Offset of the start of the path.  path_ > colon_.
     uint16 path_ = 0;
      // Offset of the ? for the query, or the end of the path if there is no ?.

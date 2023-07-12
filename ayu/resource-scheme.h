@@ -75,7 +75,7 @@ struct FileResourceScheme : ResourceScheme {
 
     bool accepts_iri (const IRI& iri) const override {
         return iri && !iri.has_authority() && !iri.has_query()
-            && iri.is_hierarchical();
+            && iri.hierarchical();
     }
 
     AnyString get_file (const IRI& iri) const override {

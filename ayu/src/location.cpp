@@ -177,18 +177,14 @@ IRI location_to_iri (LocationRef loc) {
 }
 
 Location location_from_iri (const IRI& iri) {
-    if (!iri) {
-        if (iri.is_empty()) return Location();
-        else throw InvalidLocationIRI(
-            iri.possibly_invalid_spec(), "iri is an invalid iri by itself"
-        );
-    }
-    if (!iri.has_fragment()) {
-        throw InvalidLocationIRI(
-            iri.possibly_invalid_spec(), "iri does not have a #fragment"
-        );
-    }
-    auto root_iri = iri.iri_without_fragment();
+    if (iri.empty()) return Location();
+    if (!iri) throw InvalidLocationIRI(
+        iri.possibly_invalid_spec(), "iri is an invalid iri by itself"
+    );
+    if (!iri.has_fragment()) throw InvalidLocationIRI(
+        iri.possibly_invalid_spec(), "iri does not have a #fragment"
+    );
+    auto root_iri = iri.without_fragment();
     Location r;
     if (root_iri == ayu_current_root) {
         r = current_root_location();
@@ -199,11 +195,9 @@ Location location_from_iri (const IRI& iri) {
     while (i < fragment.size()) {
         if (fragment[i] == '/') {
             usize start = ++i;
-            for (; i < fragment.size(); ++i) {
-                if (fragment[i] == '/' || fragment[i] == '+') {
-                    break;
-                }
-            }
+            while (
+                i < fragment.size() && fragment[i] != '/' && fragment[i] != '+'
+            ) ++i;
             r = Location(move(r), iri::decode(fragment.slice(start, i)));
         }
         else if (fragment[i] == '+') {
@@ -212,20 +206,18 @@ Location location_from_iri (const IRI& iri) {
             auto [ptr, ec] = std::from_chars(
                 start, fragment.end(), index
             );
-            if (ptr == start) {
-                throw InvalidLocationIRI(iri.spec(), "invalid +index in #fragment");
-            }
+            if (ptr == start) throw InvalidLocationIRI(
+                iri.spec(), "invalid +index in #fragment"
+            );
             i += ptr - start;
             r = Location(move(r), index);
         }
-        else {
-            if (i == 0) throw InvalidLocationIRI(
-                iri.spec(), "#fragment doesn't start with / or +"
-            );
-            else throw InvalidLocationIRI(
-                iri.spec(), "invalid +index in #fragment"
-            );
-        }
+        else if (i == 0) throw InvalidLocationIRI(
+            iri.spec(), "#fragment doesn't start with / or +"
+        );
+        else throw InvalidLocationIRI(
+            iri.spec(), "invalid +index in #fragment"
+        );
     }
     return r;
 }

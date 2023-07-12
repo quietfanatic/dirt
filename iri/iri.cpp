@@ -195,7 +195,7 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_scheme;
         }
         case AUTHORITY: {
-            Str prefix = base.spec_with_scheme();
+            Str prefix = base.spec_with_scheme_only();
             if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
             spec.append(prefix);
@@ -204,8 +204,8 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_authority;
         }
         case PATHABSOLUTE: {
-            if (!base.is_hierarchical()) goto fail;
-            Str prefix = base.spec_with_origin();
+            if (!base.hierarchical()) goto fail;
+            Str prefix = base.spec_with_origin_only();
             expect(prefix.size());
             spec.reserve(prefix.size() + input.size());
             spec.append(prefix);
@@ -215,7 +215,7 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_path;
         }
         case PATHRELATIVE: {
-            if (!base.is_hierarchical()) goto fail;
+            if (!base.hierarchical()) goto fail;
             Str prefix = base.spec_without_filename();
             expect(prefix.size());
             spec.reserve(prefix.size() + input.size());
@@ -586,8 +586,8 @@ static tap::TestSet tests ("dirt/uni/iri", []{
     using namespace tap;
     using namespace iri::test;
     IRI empty;
-    ok(!empty.is_valid(), "!empty.is_valid()");
-    ok(empty.is_empty(), "empty.is_empty()");
+    ok(!empty.valid(), "!empty.valid()");
+    ok(empty.empty(), "empty.empty()");
     ok(!empty, "!empty");
     for (uint32 i = 0; i < n_cases; i++) {
         IRI iri (cases[i].i, IRI(cases[i].b));

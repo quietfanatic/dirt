@@ -27,22 +27,22 @@ constexpr IRI& IRI::operator = (IRI&& o) {
     return *this;
 }
 
-constexpr bool IRI::is_valid () const { return colon_; }
-constexpr bool IRI::is_empty () const { return spec_.empty(); }
-constexpr IRI::operator bool () const { return colon_; }
+constexpr bool IRI::valid () const { return valid_; }
+constexpr bool IRI::empty () const { return spec_.empty(); }
+constexpr IRI::operator bool () const { return valid_; }
 
-static constexpr const AnyString empty = StaticString();
+static constexpr const AnyString empty_string = StaticString();
 
 constexpr const AnyString& IRI::spec () const {
     if (colon_) return spec_;
-    else return empty;
+    else return empty_string;
 }
 constexpr const AnyString& IRI::possibly_invalid_spec () const {
     return spec_;
 }
 
 constexpr AnyString IRI::move_spec () {
-    if (!colon_) return empty;
+    if (!valid_) return "";
     AnyString r = move(spec_);
     *this = IRI();
     return r;
@@ -59,7 +59,7 @@ constexpr bool IRI::has_path () const { return question_ > path_; }
 constexpr bool IRI::has_query () const { return hash_ > question_; }
 constexpr bool IRI::has_fragment () const { return hash_ && spec_.size() > hash_; }
 
-constexpr bool IRI::is_hierarchical () const {
+constexpr bool IRI::hierarchical () const {
     return has_path() && spec_[path_] == '/';
 }
 
@@ -84,84 +84,72 @@ constexpr Str IRI::fragment () const {
     return spec_.slice(hash_ + 1, spec_.size());
 }
 
-constexpr IRI IRI::iri_with_scheme () const {
-    if (!has_scheme()) return IRI();
+constexpr IRI IRI::with_scheme_only () const {
+    if (!valid_) return IRI();
     return IRI(
         spec_.slice(0, colon_+1),
         colon_, colon_+1, colon_+1, colon_+1
     );
 }
-constexpr IRI IRI::iri_with_origin () const {
-    if (!has_scheme()) return IRI();
+constexpr IRI IRI::with_origin_only () const {
+    if (!valid_) return IRI();
     return IRI(
-        spec_with_origin(),
+        spec_.slice(0, path_),
         colon_, path_, path_, path_
     );
 }
-constexpr IRI IRI::iri_without_filename () const {
-    if (!is_hierarchical()) return IRI();
+constexpr IRI IRI::without_filename () const {
+    if (!hierarchical()) return IRI();
     uint32 i = question_;
-    while (spec_[i] != '/') i--;
+    while (spec_[i-1] != '/') --i;
     return IRI(
-        spec_.slice(0, i+1),
-        colon_, path_, i+1, i+1
+        spec_.slice(0, i),
+        colon_, path_, i, i
     );
 }
-constexpr IRI IRI::iri_without_query () const {
-    if (!has_scheme()) return IRI();
+constexpr IRI IRI::without_query () const {
+    if (!valid_) return IRI();
     return IRI(
         spec_.slice(0, question_),
         colon_, path_, question_, question_
     );
 }
-constexpr IRI IRI::iri_without_fragment () const {
-    if (!has_scheme()) return IRI();
-    if (!has_fragment()) return *this;
+constexpr IRI IRI::without_fragment () const {
+    if (!valid_) return IRI();
     return IRI(
         spec_.slice(0, hash_),
         colon_, path_, question_, hash_
     );
 }
 
-constexpr Str IRI::spec_with_scheme () const {
-    if (!has_scheme()) return "";
+constexpr Str IRI::spec_with_scheme_only () const {
+    if (!valid_) return "";
     return spec_.slice(0, colon_ + 1);
 }
-constexpr Str IRI::spec_with_origin () const {
-    return has_authority()
-        ? spec_.slice(0, path_)
-        : colon_
-            ? spec_.slice(0, colon_ + 1)
-            : "";
+constexpr Str IRI::spec_with_origin_only () const {
+    if (!valid_) return "";
+    return spec_.slice(0, path_);
 }
 constexpr Str IRI::spec_without_filename () const {
-    if (is_hierarchical()) {
-        uint32 i = question_;
-        while (spec_[i-1] != '/') --i;
-        return spec_.slice(0, i);
-    }
-    else {
-        return spec_.slice(0, question_);
-    }
+    if (!hierarchical()) return "";
+    uint32 i = question_;
+    while (spec_[i-1] != '/') --i;
+    return spec_.slice(0, i);
 }
 constexpr Str IRI::spec_without_query () const {
-    if (!has_scheme()) return "";
+    if (!valid_) return "";
     return spec_.slice(0, question_);
 }
 constexpr Str IRI::spec_without_fragment () const {
-    if (!has_scheme()) return "";
+    if (!valid_) return "";
     return spec_.slice(0, hash_);
 }
 
 constexpr Str IRI::path_without_filename () const {
-    if (is_hierarchical()) {
-        uint32 i = question_;
-        while (spec_[i-1] != '/') --i;
-        return spec_.slice(path_, i);
-    }
-    else {
-        return path();
-    }
+    if (!hierarchical()) return "";
+    uint32 i = question_;
+    while (spec_[i-1] != '/') --i;
+    return spec_.slice(path_, i);
 }
 
 constexpr IRI::~IRI () { }
