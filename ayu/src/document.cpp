@@ -174,7 +174,7 @@ AYU_DESCRIBE(ayu::Document,
                     : header->name
                 );
             }
-            r.emplace_back("_next_id"_s);
+            r.emplace_back("_next_id");
             return AnyArray(r);
         },
         [](ayu::Document& v, const AnyArray<AnyString>& ks){

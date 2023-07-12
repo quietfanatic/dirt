@@ -44,8 +44,8 @@ struct Parser {
     }
     AnyString show_char (int c) {
         switch (c) {
-            case EOF: return "<EOF>"_s;
-            case ' ': return "<space>"_s;
+            case EOF: return "<EOF>";
+            case ' ': return "<space>";
             default: {
                 if (c > 0x20 && c < 0x7e) {
                     return AnyString(1, c);

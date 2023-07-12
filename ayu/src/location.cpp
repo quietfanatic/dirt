@@ -147,7 +147,9 @@ IRI location_iri_from_relative_iri (Str rel) {
 }
 
 namespace in {
+
 static const IRI ayu_current_root ("ayu-current-root:");
+
 static UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
     switch (loc->data->form) {
         case RESOURCE: base = &loc->resource()->name(); return "#";
@@ -181,6 +183,11 @@ Location location_from_iri (const IRI& iri) {
             iri.possibly_invalid_spec(), "iri is an invalid iri by itself"
         );
     }
+    if (!iri.has_fragment()) {
+        throw InvalidLocationIRI(
+            iri.possibly_invalid_spec(), "iri does not have a #fragment"
+        );
+    }
     auto root_iri = iri.iri_without_fragment();
     Location r;
     if (root_iri == ayu_current_root) {
@@ -206,17 +213,17 @@ Location location_from_iri (const IRI& iri) {
                 start, fragment.end(), index
             );
             if (ptr == start) {
-                throw InvalidLocationIRI(iri.spec(), "invalid +index in fragment");
+                throw InvalidLocationIRI(iri.spec(), "invalid +index in #fragment");
             }
             i += ptr - start;
             r = Location(move(r), index);
         }
         else {
             if (i == 0) throw InvalidLocationIRI(
-                iri.spec(), "fragment doesn't start with / or +"
+                iri.spec(), "#fragment doesn't start with / or +"
             );
             else throw InvalidLocationIRI(
-                iri.spec(), "invalid +index in fragment"
+                iri.spec(), "invalid +index in #fragment"
             );
         }
     }

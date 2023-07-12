@@ -89,11 +89,11 @@ using StaticArray = ArrayInterface<ArrayClass::StaticA, T>;
 template <class T>
 using Slice = ArrayInterface<ArrayClass::SliceA, T>;
 
- // The string types are almost exactly the same as the equivalent array types.
- // The only differences are that they can be constructed from a const T*, which
- // is taken to be a C-style NUL-terminated string, and when constructing from a
- // C array they will stop at a NUL terminator (the first element that boolifies
- // to false).  Note that by default these strings are not NUL-terminated.  To
+ // The string types are almost exactly the same as the equivalent array types,
+ // but they have slightly different rules for array construction; they can be
+ // constructed from a const T*, which is taken to be a C-style NUL-terminated
+ // string, and when constructing from a C array, they will chop off the final
+ // NUL element.  Note that by default these strings are not NUL-terminated.  To
  // get a NUL-terminated string out, either explicitly NUL-terminate them or use
  // c_str().
 template <class T>
@@ -360,11 +360,14 @@ struct ArrayInterface {
     }
 
      // Constructing from const T* is only allowed for String classes.  It will
-     // take elements until the first one that boolifies to false.  This is
-     // explicit so it doesn't take priority over the fixed-size array
-     // overloads.
-    constexpr explicit
-    ArrayInterface (const T* p) requires (is_String) {
+     // take elements until the first one that boolifies to false.
+    template <class O> constexpr
+    ArrayInterface (O o) requires (
+         // Some awkward requiresing to avoid decaying raw arrays.
+        is_String && std::is_pointer_v<std::remove_cvref_t<O>> &&
+        std::is_same_v<std::remove_cvref_t<std::remove_pointer_t<O>>, T>
+    ) {
+        const T* p = o;
         expect(p);
         usize s = 0;
         while (p[s]) ++s;
@@ -382,7 +385,12 @@ struct ArrayInterface {
     explicit(!std::is_same_v<T2, T>)
     ArrayInterface (const T2(& o )[len]) requires (!is_String) {
         if constexpr (supports_owned) {
-            set_as_copy(o, len);
+            if constexpr (len == 0) impl = {};
+            else if constexpr (len <= min_capacity) {
+                 // Inline copy for small fixed-length arrays
+                set_as_owned(allocate_copy(o, len), len);
+            }
+            else set_as_copy(o, len);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
@@ -400,12 +408,22 @@ struct ArrayInterface {
     ArrayInterface (const T2(& o )[len]) requires (is_String) {
          // String literals should always be NUL-terminated (and the NUL is
          // included in len).
+        static_assert(len > 0,
+            "Cannot construct borrowed string from raw C array of length 0 "
+            "(it's assumed to be a NUL-terminated string literal, but there "
+            "isn't room for a NUL terminator"
+        );
         expect(!o[len-1]);
         if constexpr (supports_static && std::is_same_v<T2, T>) {
             set_as_unowned(o, len-1);
         }
         else if constexpr (supports_owned) {
-            set_as_copy(o, len-1);
+            if constexpr (len-1 == 0) impl = {};
+            else if constexpr (len-1 <= min_capacity) {
+                 // Inline copy for small fixed-length arrays
+                set_as_owned(allocate_copy(o, len-1), len-1);
+            }
+            else set_as_copy(o, len-1);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
@@ -423,7 +441,12 @@ struct ArrayInterface {
         is_String && !std::is_const_v<T2>
     ) {
         if constexpr (supports_owned) {
-            set_as_copy(o, len);
+            if constexpr (len == 0) impl = {};
+            else if constexpr (len <= min_capacity) {
+                 // Inline copy for small fixed-length arrays
+                set_as_owned(allocate_copy(o, len), len);
+            }
+            else set_as_copy(o, len);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
@@ -1267,13 +1290,15 @@ struct ArrayInterface {
         }
     }
     template <ArrayIterator Ptr>
-    void set_as_copy (Ptr ptr, usize s) requires (std::is_copy_constructible_v<T>) {
+    void set_as_copy (Ptr ptr, usize s) requires (
+        std::is_copy_constructible_v<T>
+    ) {
         if (s == 0) {
             impl = {}; return;
         }
         T* dat;
         if constexpr (ArrayContiguousIteratorFor<Ptr, T>) {
-            dat = allocate_copy(std::to_address(move(ptr)), s);
+            dat = allocate_copy_noinline(std::to_address(move(ptr)), s);
         }
         else {
              // don't noinline if we can't depolymorph ptr
@@ -1290,7 +1315,9 @@ struct ArrayInterface {
         expect(!header().ref_count);
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
-    void set_as_copy (Begin b, End e) requires (std::is_copy_constructible_v<T>) {
+    void set_as_copy (Begin b, End e) requires (
+        std::is_copy_constructible_v<T>
+    ) {
         if constexpr (requires { usize(e - b); }) {
             set_as_copy(move(b), usize(e - b));
         }
@@ -1438,11 +1465,9 @@ struct ArrayInterface {
         }
     }
 
-     // This is frequently referenced on non-fast-paths, so it's worth
-     // noinlining it.
-    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
+    [[gnu::malloc, gnu::returns_nonnull]] static
     T* allocate_copy (const T* d, usize s)
-        noexcept(std::is_nothrow_copy_constructible_v<T>) requires (std::is_copy_constructible_v<T>)
+        requires (std::is_copy_constructible_v<T>)
     {
         expect(s > 0);
         T* dat = allocate_owned(s);
@@ -1453,6 +1478,15 @@ struct ArrayInterface {
             deallocate_owned(dat);
             throw;
         }
+    }
+     // This is frequently referenced on non-fast-paths, so it's worth
+     // noinlining it in many cases.
+    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
+    T* allocate_copy_noinline (const T* d, usize s)
+        noexcept(std::is_nothrow_copy_constructible_v<T>)
+        requires (std::is_copy_constructible_v<T>)
+    {
+        return allocate_copy(d, s);
     }
 
      // Used by reserve and related functions
@@ -1659,21 +1693,24 @@ constexpr bool operator== (
     }
     return true;
 }
- // Allow comparing to NUL-terminated pointer for string types only.
-template <ArrayClass ac, class T>
-constexpr bool operator== (
-    const ArrayInterface<ac, T>& a, const T* b
+ // Allow comparing to raw char arrays for string types only.
+template <ArrayClass ac, class T, usize len>
+ALWAYS_INLINE constexpr
+bool operator== (
+    const ArrayInterface<ac, T>& a, const T(& b )[len]
 ) requires (ArrayInterface<ac, T>::is_String) {
+    expect(!b[len-1]);
     usize as = a.size();
+    usize bs = len - 1;
     const T* ad = a.data();
-     // Can't short-circuit if ad == b because b might be NUL-terminated early.
-    usize i;
-    for (i = 0; i < as; ++i) {
-        if (!b[i] || !(ad[i] == b[i])) {
+    const auto& bd = b;
+    if (as != bs) return false;
+    for (usize i = 0; i < as; ++i) {
+        if (!(ad[i] == bd[i])) {
             return false;
         }
     }
-    return !b[i];
+    return true;
 }
 
  // I can't be bothered to learn what <=> is supposed to return.  They should
@@ -1697,18 +1734,21 @@ constexpr auto operator<=> (
     }
     return as <=> bs;
 }
-template <ArrayClass ac, class T>
-constexpr auto operator<=> (
-    const ArrayInterface<ac, T>& a, const T* b
+template <ArrayClass ac, class T, usize len>
+ALWAYS_INLINE constexpr
+auto operator<=> (
+    const ArrayInterface<ac, T>& a, const T(& b )[len]
 ) requires (ArrayInterface<ac, T>::is_String) {
-    const T* ad = a.data();
-    if (ad == b) return 0 <=> 0;
+    expect(!b[len-1]);
     usize as = a.size();
-    for (usize i = 0; i < as && b[i]; ++i) {
-        auto res = ad[i] <=> b[i];
+    usize bs = len - 1;
+    const T* ad = a.data();
+    const auto& bd = b;
+    for (usize i = 0; i < as && i < bs; ++i) {
+        auto res = ad[i] <=> bd[i];
         if (res != (0 <=> 0)) return res;
     }
-    return 0 <=> 0;
+    return as <=> bs;
 }
 
 } // arrays

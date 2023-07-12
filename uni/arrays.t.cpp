@@ -176,7 +176,7 @@ UniqueString b29 (const UniqueString& s) {
 }
 
 UniqueString t28 (UniqueString&& s) {
-    return cat(move(s), "foo"_s, "bar"_s);
+    return cat(move(s), "foo", "bar");
 }
 
 UniqueString t27 (const char* a, const char* b) {
@@ -184,15 +184,15 @@ UniqueString t27 (const char* a, const char* b) {
 }
 
 UniqueString t30 () {
-    return cat("foo"_s, 4, "bar"_s);
+    return cat("foo", 4, "bar");
 }
 
 UniqueString t31 () {
-    return cat("foo"_s, 5.0, "bar"_s);
+    return cat("foo", 5.0, "bar");
 }
 
 UniqueString t32 (double d) {
-    return cat("foo"_s, d, "bar"_s);
+    return cat("foo", d, "bar");
 }
 
 NOINLINE

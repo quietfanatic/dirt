@@ -25,7 +25,6 @@ struct Printer {
     ~Printer () { free(start); }
 
     [[gnu::noinline]]
-    [[nodiscard]]
     char* extend (char* p, usize more) {
         usize new_size = end - start;
         while (new_size < p - start + more) {
@@ -37,7 +36,6 @@ struct Printer {
         return p - old_start + start;
     }
     [[gnu::noinline]]
-    [[nodiscard]]
     char* extend_1 (char* p) {
         usize new_size = (end - start) * 2;
         char* old_start = start;
@@ -46,20 +44,17 @@ struct Printer {
         return p - old_start + start;
     }
 
-    [[nodiscard]]
     char* pchar (char* p, char c) {
         if (p == end) [[unlikely]] p = extend_1(p);
         *p = c;
         return p+1;
     }
-    [[nodiscard]]
     char* pstr (char* p, Str s) {
         if (p + s.size() > end) [[unlikely]] p = extend(p, s.size());
         std::memcpy(p, s.data(), s.size());
         return p + s.size();
     }
 
-    [[nodiscard]]
     char* print_uint64 (char* p, uint64 v, bool hex) {
         if (v == 0) {
             return pchar(p, '0');
@@ -72,7 +67,6 @@ struct Printer {
         return ptr;
     }
 
-    [[nodiscard]]
     char* print_int64 (char* p, int64 v, bool hex) {
         if (v == 0) {
             return pchar(p, '0');
@@ -86,7 +80,6 @@ struct Printer {
         return print_uint64(p, v < 0 ? -v : v, hex);
     }
 
-    [[nodiscard]]
     char* print_double (char* p, double v, bool hex) {
         if (hex) {
             if (v < 0) {
@@ -105,7 +98,6 @@ struct Printer {
         return ptr;
     }
 
-    [[nodiscard]]
     char* print_quoted (char* p, Str s, bool expand) {
         p = pchar(p, '"');
         for (auto c : s)
@@ -128,7 +120,6 @@ struct Printer {
         return pchar(p, '"');
     }
 
-    [[nodiscard]]
     char* print_string (char* p, Str s, bool expand) {
         if (opts & JSON) {
             return print_quoted(p, s, false);
@@ -161,7 +152,6 @@ struct Printer {
         return pstr(p, s);
     }
 
-    [[nodiscard]]
     char* print_newline (char* p, uint n) {
         p = pchar(p, '\n');
         for (; n; n--) p = pstr(p, "    ");
@@ -191,7 +181,6 @@ struct Printer {
         }
     }
 
-    [[nodiscard]]
     char* print_subtree (char* p, TreeRef t, uint ind) {
         switch (t->rep) {
             case REP_NULL: return pstr(p, "null");
@@ -331,7 +320,6 @@ struct Printer {
             default: never();
         }
     }
-    [[nodiscard]]
     char* print_tree (char* p, TreeRef t) {
         p = print_subtree(p, t, 0);
         if (opts & PRETTY) p = pchar(p, '\n');
