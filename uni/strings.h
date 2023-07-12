@@ -36,15 +36,23 @@ struct StringConversion<bool> {
     }
 };
 
+template <class T> constexpr usize max_digits;
+template <> constexpr usize max_digits<uint8> = 3;
+template <> constexpr usize max_digits<int8> = 4;
+template <> constexpr usize max_digits<uint16> = 5;
+template <> constexpr usize max_digits<int16> = 6;
+template <> constexpr usize max_digits<uint32> = 10;
+template <> constexpr usize max_digits<int32> = 11;
+template <> constexpr usize max_digits<uint64> = 19;
+template <> constexpr usize max_digits<int64> = 20;
+template <> constexpr usize max_digits<float> = 16;
+template <> constexpr usize max_digits<double> = 24;
+template <> constexpr usize max_digits<long double> = 48; // dunno, seems safe
+
 template <class T> requires (std::is_arithmetic_v<T>)
 struct StringConversion<T> {
-    static constexpr usize max_len =
-        std::is_same_v<T, float> ? 16 :
-        std::is_same_v<T, double> ? 24 :
-        std::is_integral_v<T> ? 2 + sizeof(T) * 2.5 :
-        56;  // dunno, probably shouldn't get here
     usize len;
-    char digits [max_len];
+    char digits [max_digits<T>];
     constexpr StringConversion (T v) {
         if constexpr (std::is_floating_point_v<T>) {
             if (v != v) {
@@ -60,7 +68,7 @@ struct StringConversion<T> {
                 return;
             }
         }
-        auto [ptr, ec] = std::to_chars(digits, digits + max_len, v);
+        auto [ptr, ec] = std::to_chars(digits, digits + max_digits<T>, v);
         expect(ec == std::errc());
         len = ptr - digits;
     }
