@@ -198,25 +198,6 @@ void cat_append (
         (cat_add_no_overflow(total_size, StringConversion<
             std::remove_cvref_t<Tail>
         >::min_capacity(t)), ...);
-        s.reserve(total_size);
-         // write
-        ((h.size += StringConversion<
-            std::remove_cvref_t<Tail>
-        >::write(h.data + h.size, t)), ...);
-    }
-}
-
-template <class... Tail> inline
-void cat_append_plenty (
-    ArrayImplementation<ArrayClass::UniqueS, char>& h, Tail&&... t
-) {
-    if constexpr (sizeof...(Tail) > 0) {
-        UniqueString& s = reinterpret_cast<UniqueString&>(h);
-         // reserve
-        usize total_size = h.size;
-        (cat_add_no_overflow(total_size, StringConversion<
-            std::remove_cvref_t<Tail>
-        >::min_capacity(t)), ...);
         s.reserve_plenty(total_size);
          // write
         ((h.size += StringConversion<
@@ -259,26 +240,6 @@ UniqueString cat (Head&& h, Tail&&... t) {
     return UniqueString::Materialize(impl.data, impl.size);
 }
 
- // Same as above, but uses reserve_plenty() instead of reserve().
-template <class Head, class... Tail> inline
-UniqueString cat_plenty (Head&& h, Tail&&... t) {
-    if constexpr (
-        std::is_same_v<Head&&, UniqueString&&> ||
-        std::is_same_v<Head&&, SharedString&&> ||
-        std::is_same_v<Head&&, AnyString&&>
-    ) {
-        if (h.unique()) {
-            ArrayImplementation<ArrayClass::UniqueS, char> impl;
-            impl.size = h.size(); impl.data = h.mut_data();
-            h.dematerialize();
-            in::cat_append_plenty(impl, in::cat_convert(t)...);
-            return UniqueString::Materialize(impl.data, impl.size);
-        }
-    }
-    ArrayImplementation<ArrayClass::UniqueS, char> impl = {};
-    in::cat_append_plenty(impl, in::cat_convert(h), in::cat_convert(t)...);
-    return UniqueString::Materialize(impl.data, impl.size);
-}
 
 } // strings
 } // uni

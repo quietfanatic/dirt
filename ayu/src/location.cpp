@@ -154,11 +154,11 @@ static UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef lo
          // TODO: This might be incorrect in some cases.  Check it
          // against current_root_location() maybe?
         case REFERENCE: base = &ayu_current_root; return "#";
-        case KEY: return cat_plenty(
+        case KEY: return cat(
             location_to_iri_accumulate(base, *loc->parent()),
             '/', *loc->key()
         );
-        case INDEX: return cat_plenty(
+        case INDEX: return cat(
             location_to_iri_accumulate(base, *loc->parent()),
             '+', *loc->index()
         );
