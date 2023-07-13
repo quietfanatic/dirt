@@ -76,6 +76,39 @@ namespace iri {
          IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT: \
     case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH
 
+static UniqueString write_percent (UniqueString s, uint8 c) {
+    uint8 high = uint8(c) >> 4;
+    uint8 low = uint8(c) & 0xf;
+    return cat(move(s), '%',
+        char(high >= 10 ? high - 10 + 'A' : high + '0'),
+        char(low >= 10 ? low - 10 + 'A' : low + '0')
+    );
+}
+static int read_percent (Str input) {
+    if (input.size() < 3) [[unlikely]] return -1;
+    uint8 byte = 0;
+    for (int i = 1; i <= 2; i++) {
+        byte <<= 4;
+        switch (input[i]) {
+            case IRI_DIGIT: byte |= input[i] - '0'; break;
+            case IRI_UPPERHEX: byte |= input[i] - 'A' + 10; break;
+            case IRI_LOWERHEX: byte |= input[i] - 'a' + 10; break;
+            default: [[unlikely]] return -1;
+        }
+    }
+    return byte;
+}
+static UniqueString parse_percent (UniqueString s, Str input) {
+    int byte = read_percent(input);
+    switch (byte) {
+        case -1: [[unlikely]] return "";
+        case IRI_GENDELIM: case IRI_SUBDELIM:
+        case IRI_FORBIDDEN: case IRI_IFFY:
+            return write_percent(move(s), byte);
+        default: s.push_back(byte); return s;
+    }
+}
+
 UniqueString encode (Str input) {
     UniqueString r;
     r.reserve(input.size());
@@ -83,15 +116,7 @@ UniqueString encode (Str input) {
         switch (input[i]) {
             case IRI_GENDELIM: case IRI_SUBDELIM:
             case IRI_FORBIDDEN: case IRI_IFFY:
-            case '%': {
-                uint8 high = uint8(input[i]) >> 4;
-                uint8 low = uint8(input[i]) & 0xf;
-                r = cat(move(r), '%',
-                    char(high >= 10 ? high - 10 + 'A' : high + '0'),
-                    char(low >= 10 ? low - 10 + 'A' : low + '0')
-                );
-                break;
-            }
+            case '%': r = write_percent(move(r), input[i]); break;
             default: r.push_back(input[i]); break;
         }
     }
@@ -104,17 +129,9 @@ UniqueString decode (Str input) {
     for (size_t i = 0; i < input.size(); i++) {
         uint8 byte;
         if (input[i] == '%') {
-            if (i + 2 >= input.size()) [[unlikely]] return "";
-            byte = 0;
-            for (int j = 1; j <= 2; j++) {
-                byte <<= 4;
-                switch (input[i+j]) {
-                    case IRI_DIGIT: byte |= input[i+j] - '0'; break;
-                    case IRI_UPPERHEX: byte |= input[i+j] - 'A' + 10; break;
-                    case IRI_LOWERHEX: byte |= input[i+j] - 'a' + 10; break;
-                    default: [[unlikely]] return "";
-                }
-            }
+            int result = read_percent(input.substr(i));
+            if (result < 0) return "";
+            byte = result;
             i += 2;
         }
         else byte = input[i];
@@ -154,36 +171,6 @@ IRI::IRI (Str input, const IRI& base) {
     uint32 path = 0;
     uint32 question = 0;
     uint32 hash = 0;
-
-     // Decode (maybe) a % sequence
-    auto write_percent = [&](char c){
-        uint8 high = uint8(c) >> 4;
-        uint8 low = c & 0xf;
-        spec = cat(move(spec), '%',
-            char(high >= 10 ? high - 10 + 'A' : high + '0'),
-            char(low >= 10 ? low - 10 + 'A' : low + '0')
-        );
-    };
-    auto read_percent = [&]{
-        if (i + 3 >= input.size()) [[unlikely]] return false;
-        uint8 byte = 0;
-        for (int j = 1; j < 3; j++) {
-            byte <<= 4;
-            switch (input[i+j]) {
-                case IRI_DIGIT: byte |= input[i+j] - '0'; break;
-                case IRI_UPPERHEX: byte |= input[i+j] - 'A' + 10; break;
-                case IRI_LOWERHEX: byte |= input[i+j] - 'a' + 10; break;
-                default: [[unlikely]] return false;
-            }
-        }
-        switch (byte) {
-            case IRI_GENDELIM: case IRI_SUBDELIM:
-            case IRI_FORBIDDEN: case IRI_IFFY:
-                write_percent(byte); break;
-            default: spec.push_back(byte); break;
-        }
-        i += 3; return true;
-    };
 
      // Reject absurdly large input
     if (input.size() > maximum_length) {
@@ -335,13 +322,15 @@ IRI::IRI (Str input, const IRI& base) {
                     spec.push_back(input[i++]);
                     goto parse_fragment;
                 case '%':
-                    if (!read_percent()) {
+                    spec = parse_percent(move(spec), input.substr(i));
+                    if (!spec) {
                         hash_ = uint16(Error::InvalidPercentSequence);
                         goto fail;
                     }
+                    i += 3;
                     break;
                 case IRI_IFFY:
-                    write_percent(input[i++]);
+                    spec = write_percent(move(spec), input[i++]);
                     break;
                 default: {
                     hash_ = uint16(Error::InvalidAuthority);
@@ -423,13 +412,15 @@ IRI::IRI (Str input, const IRI& base) {
                     spec.push_back(input[i++]);
                     goto parse_fragment;
                 case '%':
-                    if (!read_percent()) {
+                    spec = parse_percent(move(spec), input.substr(i));
+                    if (!spec) {
                         hash_ = uint16(Error::InvalidPercentSequence);
                         goto fail;
                     }
+                    i += 3;
                     break;
                 case IRI_IFFY:
-                    write_percent(input[i++]);
+                    spec = write_percent(move(spec), input[i++]);
                     break;
                 default: {
                     hash_ = uint16(Error::InvalidPath);
@@ -460,14 +451,16 @@ IRI::IRI (Str input, const IRI& base) {
                     spec.push_back(input[i++]);
                     goto parse_fragment;
                 case '%':
-                    if (!read_percent()) {
+                    spec = parse_percent(move(spec), input.substr(i));
+                    if (!spec) {
                         hash_ = uint16(Error::InvalidPercentSequence);
                         goto fail;
                     }
+                    i += 3;
                     break;
                 case IRI_IFFY:
-                    write_percent(input[i]);
-                    i++; break;
+                    spec = write_percent(move(spec), input[i++]);
+                    break;
                 default: {
                     hash_ = uint16(Error::InvalidPath);
                     goto fail;
@@ -488,13 +481,15 @@ IRI::IRI (Str input, const IRI& base) {
                 spec.push_back(input[i++]);
                 goto parse_fragment;
             case '%':
-                if (!read_percent()) {
+                spec = parse_percent(move(spec), input.substr(i));
+                if (!spec) {
                     hash_ = uint16(Error::InvalidPercentSequence);
                     goto fail;
                 }
+                i += 3;
                 break;
             case IRI_IFFY:
-                write_percent(input[i++]);
+                spec = write_percent(move(spec), input[i++]);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidQuery);
@@ -515,13 +510,15 @@ IRI::IRI (Str input, const IRI& base) {
                 spec.push_back(input[i++]);
                 break;
             case '%':
-                if (!read_percent()) {
+                spec = parse_percent(move(spec), input.substr(i));
+                if (!spec) {
                     hash_ = uint16(Error::InvalidPercentSequence);
                     goto fail;
                 }
+                i += 3;
                 break;
             case IRI_IFFY:
-                write_percent(input[i++]);
+                spec = write_percent(move(spec), input[i++]);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidFragment);
