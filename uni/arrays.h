@@ -673,31 +673,25 @@ struct ArrayInterface {
      // a NUL element after the end.  Does not change the size of the array, but
      // may change its capacity.  For StaticArray and Slice, since they can't be
      // mutated, this require()s that the array is explicitly NUL-terminated.
-     // TODO: actually require() instead of never()ing.
-    constexpr
+     // (noinlining this because it shouldn't be on a hot path.)
+    NOINLINE constexpr
     const T* c_str () requires (requires (T v) { !v; v = T(); }) {
         if (size() > 0 && !impl.data[size()-1]) {
-            return impl.data;
         }
         else if constexpr (supports_owned) {
-             // We are allowed to use one of two cheats: either allow shared
-             // buffers to have different lengths, or allow writing a NUL to the
-             // end of a shared buffer without triggering a copy-on-write.  I
-             // think it makes sense to do the former for arrays and the latter
-             // for strings.
-             // TODO: Do the former for strings too, turns out IRIs like to
-             // shrink a lot and .c_str() is probably usually used on
-             // UniqueStrings anyway.
-            if (!is_String || capacity() < size() + 1) {
-                 // Using just reserve here instead of reserve_plenty, because
-                 // it's unlikely that you're going to add more onto the end
-                 // after requesting a NUL-terminated string.
-                reserve(size() + 1);
-            }
+             // Using just reserve here instead of reserve_plenty, because
+             // it's unlikely that you're going to add more onto the end
+             // after requesting a NUL-terminated string.
+             // Theoretically, for shared strings we could tack on a NUL byte
+             // even if the shared string isn't unique, as long as that's the
+             // only shared modification we do.  However, this would disallow
+             // having shared strings with the same buffer and different
+             // lengths, which isn't worth it.
+            reserve(size() + 1);
             impl.data[size()] = T();
-            return impl.data;
         }
-        else never();
+        else require(false);
+        return impl.data;
     }
 
      // Access individual elements.  at() and mut_at() will terminate if the
@@ -990,26 +984,27 @@ struct ArrayInterface {
         set_size(new_size);
     }
     constexpr
-    void shrink (usize new_size) requires (supports_owned) {
-        if (new_size >= size()) [[unlikely]] return;
-        if ((!is_String && std::is_trivially_destructible_v<T>) || !owned()) {
+    void shrink (usize new_size) {
+        usize old_size = size();
+        if (new_size >= old_size) [[unlikely]] return;
+        if (std::is_trivially_destructible_v<T> || !owned()) {
              // Decrease length directly without reallocating.  This can be done
-             // even on shared arrays!  But we won't do it for shared strings.
-             // See c_str() for why.
+             // even on shared arrays!  But only if the element type is
+             // trivially destructible, because if we don't have a canonical
+             // size, we can't keep track of which elements need to be
+             // destroyed.
             set_size(new_size);
         }
         else if (unique()) {
-            for (usize i = size(); i > new_size;) {
+            for (usize i = old_size; i > new_size;) {
                 impl.data[--i].~T();
             }
             set_size(new_size);
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
-            UniqueArray<T> temp;
-            temp.set_as_copy(impl.data, new_size);
-            *this = move(temp);
+            *this = UniqueArray<T>(impl.data, new_size);
         }
-        else never();
+        else require(false);
     }
 
      // Construct an element on the end of the array, increasing its size by 1.
