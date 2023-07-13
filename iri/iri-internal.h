@@ -87,14 +87,14 @@ constexpr Str IRI::fragment () const {
 constexpr IRI IRI::with_scheme_only () const {
     if (!valid_) return IRI();
     return IRI(
-        spec_.slice(0, colon_+1),
+        spec_.shrunk(colon_+1),
         colon_, colon_+1, colon_+1, colon_+1
     );
 }
 constexpr IRI IRI::with_origin_only () const {
     if (!valid_) return IRI();
     return IRI(
-        spec_.slice(0, path_),
+        spec_.shrunk(path_),
         colon_, path_, path_, path_
     );
 }
@@ -103,21 +103,21 @@ constexpr IRI IRI::without_filename () const {
     uint32 i = question_;
     while (spec_[i-1] != '/') --i;
     return IRI(
-        spec_.slice(0, i),
+        spec_.shrunk(i),
         colon_, path_, i, i
     );
 }
 constexpr IRI IRI::without_query () const {
     if (!valid_) return IRI();
     return IRI(
-        spec_.slice(0, question_),
+        spec_.shrunk(question_),
         colon_, path_, question_, question_
     );
 }
 constexpr IRI IRI::without_fragment () const {
     if (!valid_) return IRI();
     return IRI(
-        spec_.slice(0, hash_),
+        spec_.shrunk(hash_),
         colon_, path_, question_, hash_
     );
 }

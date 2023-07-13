@@ -1006,6 +1006,23 @@ struct ArrayInterface {
         }
         else require(false);
     }
+     // Nonmutating version of shrink.  Semantically equivalent to
+     // slice(0, new_size), but avoids an allocate_copy for shared arrays.
+    constexpr Self shrunk (usize new_size) const& {
+        if (new_size >= size()) [[unlikely]] return *this;
+        if constexpr (is_Unique) {
+             // Copying then shrinking UniqueArray wastes a lot of work.
+            return Self(data(), new_size);
+        }
+        Self r = *this;
+        r.shrink(new_size);
+        return r;
+    }
+    constexpr Self shrunk (usize new_size) && {
+        Self r = move(*this);
+        r.shrink(new_size);
+        return r;
+    }
 
      // Construct an element on the end of the array, increasing its size by 1.
     template <class... Args>
