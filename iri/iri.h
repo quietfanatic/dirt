@@ -70,7 +70,7 @@ constexpr uint32 maximum_length = uint16(-1);
  // Replace reserved characters with % sequences
 UniqueString encode (Str);
  // Replace % sequences with their characters.  If there's an invalid escape
- // sequence, leaves it as is.
+ // sequence, returns the empty string.
 UniqueString decode (Str);
 
  // The first component that the given IRI reference has

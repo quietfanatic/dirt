@@ -86,9 +86,10 @@ UniqueString encode (Str input) {
             case '%': {
                 uint8 high = uint8(input[i]) >> 4;
                 uint8 low = uint8(input[i]) & 0xf;
-                r.push_back('%');
-                r.push_back(high >= 10 ? high - 10 + 'A' : high + '0');
-                r.push_back(low >= 10 ? low - 10 + 'A' : low + '0');
+                r = cat(move(r), '%',
+                    char(high >= 10 ? high - 10 + 'A' : high + '0'),
+                    char(low >= 10 ? low - 10 + 'A' : low + '0')
+                );
                 break;
             }
             default: r.push_back(input[i]); break;
@@ -101,21 +102,23 @@ UniqueString decode (Str input) {
     UniqueString r;
     r.reserve(input.size());
     for (size_t i = 0; i < input.size(); i++) {
-        if (input[i] == '%' && i + 2 < input.size()) {
-            uint8 byte = 0;
+        uint8 byte;
+        if (input[i] == '%') {
+            if (i + 2 >= input.size()) [[unlikely]] return "";
+            byte = 0;
             for (int j = 1; j <= 2; j++) {
                 byte <<= 4;
                 switch (input[i+j]) {
                     case IRI_DIGIT: byte |= input[i+j] - '0'; break;
                     case IRI_UPPERHEX: byte |= input[i+j] - 'A' + 10; break;
                     case IRI_LOWERHEX: byte |= input[i+j] - 'a' + 10; break;
-                    default: return ""; // Invalid
+                    default: [[unlikely]] return "";
                 }
             }
-            r.push_back(byte);
             i += 2;
         }
-        else r.push_back(input[i]);
+        else byte = input[i];
+        r.push_back_expect_capacity(byte);
     }
     return r;
 }
@@ -156,12 +159,13 @@ IRI::IRI (Str input, const IRI& base) {
     auto write_percent = [&](char c){
         uint8 high = uint8(c) >> 4;
         uint8 low = c & 0xf;
-        spec.push_back('%');
-        spec.push_back(high >= 10 ? high - 10 + 'A' : high + '0');
-        spec.push_back(low >= 10 ? low - 10 + 'A' : low + '0');
+        spec = cat(move(spec), '%',
+            char(high >= 10 ? high - 10 + 'A' : high + '0'),
+            char(low >= 10 ? low - 10 + 'A' : low + '0')
+        );
     };
     auto read_percent = [&]{
-        if (i + 3 >= input.size()) return false;
+        if (i + 3 >= input.size()) [[unlikely]] return false;
         uint8 byte = 0;
         for (int j = 1; j < 3; j++) {
             byte <<= 4;
@@ -169,7 +173,7 @@ IRI::IRI (Str input, const IRI& base) {
                 case IRI_DIGIT: byte |= input[i+j] - '0'; break;
                 case IRI_UPPERHEX: byte |= input[i+j] - 'A' + 10; break;
                 case IRI_LOWERHEX: byte |= input[i+j] - 'a' + 10; break;
-                default: return false;
+                default: [[unlikely]] return false;
             }
         }
         switch (byte) {
@@ -544,7 +548,7 @@ IRI::IRI (Str input, const IRI& base) {
         hash_ = hash;
         return;
     }
-    fail: {
+    fail: [[unlikely]] {
         spec_ = input;
         return;
     }
@@ -641,7 +645,7 @@ constexpr auto n_cases = sizeof(cases) / sizeof(cases[0]);
 
 } // namespace iri::test
 
-static tap::TestSet tests ("dirt/uni/iri", []{
+static tap::TestSet tests ("dirt/iri/iri", []{
     using namespace tap;
     using namespace iri::test;
     IRI empty;
