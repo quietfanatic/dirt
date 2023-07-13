@@ -93,7 +93,7 @@ enum class Error : uint16 {
      // This IRI is not actually invalid.
     NoError,
      // This IRI is empty.
-    EmptyIRI,
+    Empty,
      // This IRI is longer than 64k.
     TooLong,
      // Was unable to resolve a relative IRI reference, because the base was

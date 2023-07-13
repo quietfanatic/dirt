@@ -32,7 +32,7 @@ constexpr bool IRI::empty () const { return spec_.empty(); }
 constexpr IRI::operator bool () const { return colon_; }
 constexpr Error IRI::error () const {
     if (colon_) return Error::NoError;
-    else if (spec_.empty()) return Error::EmptyIRI;
+    else if (spec_.empty()) return Error::Empty;
     else return Error(hash_);
 }
 
