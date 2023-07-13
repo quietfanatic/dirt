@@ -641,6 +641,7 @@ struct ArrayInterface {
             expect(s <= ArrayOwnedHeader::get(d)->capacity);
             expect(ArrayOwnedHeader::get(d)->capacity >= min_capacity);
             expect(ArrayOwnedHeader::get(d)->capacity <= max_capacity);
+        }
         else expect(!s);
 #endif
         set_owned(d, s);

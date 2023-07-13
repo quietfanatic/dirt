@@ -84,15 +84,15 @@ static void write_percent (UniqueString& s, uint8 c) {
         char(low >= 10 ? low - 10 + 'A' : low + '0')
     );
 }
-static int read_percent (const char* p, const char* end) {
-    if (p + 2 > end) [[unlikely]] return -1;
+static int read_percent (const char* in, const char* end) {
+    if (in + 2 > end) [[unlikely]] return -1;
     uint8 byte = 0;
-    for (int i = 0; i <= 1; i++) {
+    for (int i = 0; i < 2; i++) {
         byte <<= 4;
-        switch (p[i]) {
-            case IRI_DIGIT: byte |= p[i] - '0'; break;
-            case IRI_UPPERHEX: byte |= p[i] - 'A' + 10; break;
-            case IRI_LOWERHEX: byte |= p[i] - 'a' + 10; break;
+        switch (in[i]) {
+            case IRI_DIGIT: byte |= in[i] - '0'; break;
+            case IRI_UPPERHEX: byte |= in[i] - 'A' + 10; break;
+            case IRI_LOWERHEX: byte |= in[i] - 'a' + 10; break;
             default: [[unlikely]] return -1;
         }
     }
@@ -109,17 +109,51 @@ static bool parse_percent (UniqueString& s, const char* p, const char* end) {
     }
 }
 
+static char* write_percent_p (char* out, uint8 c) {
+    uint8 high = uint8(c) >> 4;
+    uint8 low = uint8(c) & 0xf;
+    *out++ = '%';
+    *out++ = high >= 10 ? high - 10 + 'A' : high + '0';
+    *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
+    return out;
+}
+static char* parse_percent_p (char* out, const char* in, const char* end) {
+    int byte = read_percent(in, end);
+    switch (byte) {
+        case -1: [[unlikely]] return null;
+        case IRI_GENDELIM: case IRI_SUBDELIM:
+        case IRI_FORBIDDEN: case IRI_IFFY:
+            return write_percent_p(out, byte);
+        default: *out++ = byte; return out;
+    }
+}
+
 UniqueString encode (Str input) {
-    UniqueString r;
-    r.reserve(input.size());
-    for (size_t i = 0; i < input.size(); i++) {
-        switch (input[i]) {
+    usize cap = input.size();
+    for (auto c : input) {
+        switch (c) {
             case IRI_GENDELIM: case IRI_SUBDELIM:
             case IRI_FORBIDDEN: case IRI_IFFY:
-            case '%': write_percent(r, input[i]); break;
-            default: r.push_back(input[i]); break;
+            case '%': cap += 2;
+            default: break;
         }
     }
+    UniqueString r;
+    r.reserve(cap);
+    char* out = r.data();
+    for (auto c : input) {
+        switch (c) {
+            case IRI_GENDELIM: case IRI_SUBDELIM:
+            case IRI_FORBIDDEN: case IRI_IFFY:
+            case '%': {
+                out = write_percent_p(out, c); break;
+            }
+            default: {
+                *out++ = c; break;
+            }
+        }
+    }
+    r.unsafe_set_size(out - r.data());
     return r;
 }
 
@@ -163,6 +197,17 @@ Relativity relativity (Str ref) {
         }
     }
     return Relativity::RelativePath;
+}
+
+usize capacity_upper_bound (Str ref) {
+    usize r = ref.size();
+    for (auto c : ref) {
+        switch (c) {
+            case IRI_IFFY: r += 2; break;
+            default: break;
+        }
+    }
+    return r;
 }
 
 IRI::IRI (Str input, const IRI& base) {
@@ -261,16 +306,18 @@ IRI::IRI (Str input, const IRI& base) {
         default: never();
     }
      // Okay NOW start parsing.
+     // (Note: until we encounter a %, we are guaranteed to have enough
+     // capacity).
 
     parse_scheme:
     {
         char c = *p++;
         switch (c) {
             case IRI_UPPERCASE:
-                spec.push_back(c - 'A' + 'a');
+                spec.push_back_expect_capacity(c - 'A' + 'a');
                 break;
             case IRI_LOWERCASE:
-                spec.push_back(c);
+                spec.push_back_expect_capacity(c);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidScheme);
@@ -283,14 +330,14 @@ IRI::IRI (Str input, const IRI& base) {
         switch (c) {
             case IRI_UPPERCASE:
                  // Canonicalize to lowercase
-                spec.push_back(c - 'A' + 'a');
+                spec.push_back_expect_capacity(c - 'A' + 'a');
                 break;
             case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
-                spec.push_back(c);
+                spec.push_back_expect_capacity(c);
                 break;
             case ':':
                 colon_ = spec.size();
-                spec.push_back(':');
+                spec.push_back_expect_capacity(':');
                 goto parse_authority;
             default: {
                 hash_ = uint16(Error::InvalidScheme);
@@ -304,7 +351,8 @@ IRI::IRI (Str input, const IRI& base) {
 
     parse_authority: expect(spec.back() == ':');
     if (p + 2 <= end && p[0] == '/' && p[1] == '/') {
-        spec = cat(move(spec), '/', '/');
+        spec.push_back_expect_capacity('/');
+        spec.push_back_expect_capacity('/');
         p += 2;
         while (p != end) {
             char c = *p++;
@@ -567,7 +615,7 @@ AnyString IRI::spec_relative_to (const IRI& base) const {
         else return spec_;
     }
     else if (path() != base.path()) {
-         // Pulling apart path is NYI
+         // Pulling apart path is NYI. TODO: make it YYI
         return spec_.substr(path_);
     }
     else if (query() != base.query()) {
