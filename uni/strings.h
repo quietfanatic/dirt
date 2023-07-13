@@ -131,11 +131,11 @@ UniqueString cat (Head&& h, Tail&&... t) {
         if (h.unique()) {
             ArrayImplementation<ArrayClass::UniqueS, char> impl;
             impl.size = h.size(); impl.data = h.mut_data();
-            h.dematerialize();
+            h.unsafe_set_empty();
             in::cat_append(
                 impl, in::StringConversion<std::remove_cvref_t<Tail>>(t)...
             );
-            return UniqueString::Materialize(impl.data, impl.size);
+            return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
         }
     }
     ArrayImplementation<ArrayClass::UniqueS, char> impl = {};
@@ -143,7 +143,7 @@ UniqueString cat (Head&& h, Tail&&... t) {
         impl, in::StringConversion<std::remove_cvref_t<Head>>(h),
         in::StringConversion<std::remove_cvref_t<Tail>>(t)...
     );
-    return UniqueString::Materialize(impl.data, impl.size);
+    return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
 }
 
 

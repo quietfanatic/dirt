@@ -57,7 +57,7 @@ constexpr Tree::Tree (AnyString v) :
     flags(0), length(v.size()), data{.as_char_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
-    v.dematerialize();
+    v.unsafe_set_empty();
 }
 inline Tree::Tree (Str16 v) : Tree(from_utf16(v)) { }
 constexpr Tree::Tree (TreeArray v) :
@@ -65,21 +65,21 @@ constexpr Tree::Tree (TreeArray v) :
     length(v.size()), data{.as_array_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
-    v.dematerialize();
+    v.unsafe_set_empty();
 }
 constexpr Tree::Tree (TreeObject v) :
     form(OBJECT), rep(in::REP_OBJECT), flags(0),
     length(v.size()), data{.as_object_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
-    v.dematerialize();
+    v.unsafe_set_empty();
 }
 inline Tree::Tree (std::exception_ptr v) :
     form(ERROR), rep(in::REP_ERROR), flags(0), length(1), data{}
 {
     auto e = SharedArray<std::exception_ptr>(1, move(v));
     const_cast<const std::exception_ptr*&>(data.as_error_ptr) = e.data();
-    e.dematerialize();
+    e.unsafe_set_empty();
 }
 constexpr Tree::Tree (Tree&& o) :
     form(o.form), rep(o.rep), flags(o.flags), length(o.length), data(o.data)
@@ -178,7 +178,7 @@ constexpr Tree::operator AnyString () const& {
             if (data.as_char_ptr) {
                 ++ArrayOwnedHeader::get(data.as_char_ptr)->ref_count;
             }
-            return SharedString::Materialize(
+            return SharedString::UnsafeConstructOwned(
                 const_cast<char*>(data.as_char_ptr), length
             );
         }
@@ -190,7 +190,7 @@ inline Tree::operator AnyString () && {
         case in::REP_STATICSTRING:
             return StaticString(data.as_char_ptr, length);
         case in::REP_SHAREDSTRING: {
-            auto r = SharedString::Materialize(
+            auto r = SharedString::UnsafeConstructOwned(
                 const_cast<char*>(data.as_char_ptr), length
             );
             new (this) Tree();
@@ -211,13 +211,13 @@ constexpr Tree::operator TreeArray () const& {
     if (data.as_array_ptr) {
         ++ArrayOwnedHeader::get(data.as_array_ptr)->ref_count;
     }
-    return TreeArray::Materialize(
+    return TreeArray::UnsafeConstructOwned(
         const_cast<Tree*>(data.as_array_ptr), length
     );
 }
 inline Tree::operator TreeArray () && {
     if (rep != in::REP_ARRAY) in::throw_WrongForm(*this, ARRAY);
-    auto r = TreeArray::Materialize(
+    auto r = TreeArray::UnsafeConstructOwned(
         const_cast<Tree*>(data.as_array_ptr), length
     );
     new (this) Tree();
@@ -232,13 +232,13 @@ constexpr Tree::operator TreeObject () const& {
     if (data.as_object_ptr) {
         ++ArrayOwnedHeader::get(data.as_object_ptr)->ref_count;
     }
-    return TreeObject::Materialize(
+    return TreeObject::UnsafeConstructOwned(
         const_cast<TreePair*>(data.as_object_ptr), length
     );
 }
 inline Tree::operator TreeObject () && {
     if (rep != in::REP_OBJECT) in::throw_WrongForm(*this, OBJECT);
-    auto r = TreeObject::Materialize(
+    auto r = TreeObject::UnsafeConstructOwned(
         const_cast<TreePair*>(data.as_object_ptr), length
     );
     new (this) Tree();

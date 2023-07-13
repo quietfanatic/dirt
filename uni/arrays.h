@@ -274,11 +274,11 @@ struct ArrayInterface {
         !trivially_copyable && !o.trivially_copyable
     ) {
         if (supports_share || o.unique()) {
-            set_as_owned(o.impl.data, o.size());
+            set_owned(o.impl.data, o.size());
             o.impl = {};
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
-            set_as_copy(o.impl.data, o.size());
+            set_copy(o.impl.data, o.size());
         }
         else never();
     }
@@ -288,14 +288,14 @@ struct ArrayInterface {
     constexpr
     ArrayInterface (const ArrayInterface& o) requires (!trivially_copyable) {
         if constexpr (is_Unique) {
-            set_as_copy(o.impl.data, o.size());
+            set_copy(o.impl.data, o.size());
         }
         else if constexpr (supports_share) {
             impl = o.impl;
             add_ref();
         }
         else {
-            set_as_unowned(o.impl.data, o.size());
+            set_unowned(o.impl.data, o.size());
         }
     }
      // Copy constructor is defaulted for StaticArray and Slice so that they can
@@ -313,19 +313,19 @@ struct ArrayInterface {
     ArrayInterface (const ArrayInterface<ac2, T>& o) {
         if constexpr (supports_share && o.supports_share) {
             if (o.owned()) {
-                set_as_owned(o.impl.data, o.size());
+                set_owned(o.impl.data, o.size());
                 add_ref();
                 return;
             }
         }
         if constexpr (supports_static && o.supports_static) {
-            set_as_unowned(o.impl.data, o.size());
+            set_unowned(o.impl.data, o.size());
         }
         else if constexpr (supports_owned) {
-            set_as_copy(o.impl.data, o.size());
+            set_copy(o.impl.data, o.size());
         }
         else {
-            set_as_unowned(o.impl.data, o.size());
+            set_unowned(o.impl.data, o.size());
         }
     }
 
@@ -335,7 +335,7 @@ struct ArrayInterface {
     explicit(is_Static || !(is_Slice && ArrayLikeFor<O, T>))
     ArrayInterface (const O& o) requires (!is_Static) {
         if constexpr (supports_owned) {
-            set_as_copy(o.data(), o.size());
+            set_copy(o.data(), o.size());
         }
         else {
             static_assert(ArrayLikeFor<O, T>,
@@ -346,7 +346,7 @@ struct ArrayInterface {
                 "Cannot construct borrowed from array-like type if its data() "
                 "returns a non-contiguous iterator."
             );
-            set_as_unowned(o.data(), o.size());
+            set_unowned(o.data(), o.size());
         }
     }
 
@@ -359,7 +359,7 @@ struct ArrayInterface {
             "Cannot construct Slice from array-like type if its data() "
             "returns a non-contiguous iterator."
         );
-        set_as_unowned(reinterpret_cast<const char*>(o.data()), o.size());
+        set_unowned(reinterpret_cast<const char*>(o.data()), o.size());
     }
 
      // Constructing from const T* is only allowed for String classes.  It will
@@ -375,10 +375,10 @@ struct ArrayInterface {
         usize s = 0;
         while (p[s]) ++s;
         if constexpr (supports_owned) {
-            set_as_copy(p, s);
+            set_copy(p, s);
         }
         else {
-            set_as_unowned(p, s);
+            set_unowned(p, s);
         }
     }
 
@@ -391,16 +391,16 @@ struct ArrayInterface {
             if constexpr (len == 0) impl = {};
             else if constexpr (len <= min_capacity) {
                  // Inline copy for small fixed-length arrays
-                set_as_owned(allocate_copy(o, len), len);
+                set_owned(allocate_copy(o, len), len);
             }
-            else set_as_copy(o, len);
+            else set_copy(o, len);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
                 "Cannot construct borrowed array from raw C array if its "
                 "element type does not match exactly."
             );
-            set_as_unowned(o, len);
+            set_unowned(o, len);
         }
     }
      // For *String, the behavior differs based on whether the C array is const
@@ -418,22 +418,22 @@ struct ArrayInterface {
         );
         expect(!o[len-1]);
         if constexpr (supports_static && std::is_same_v<T2, T>) {
-            set_as_unowned(o, len-1);
+            set_unowned(o, len-1);
         }
         else if constexpr (supports_owned) {
             if constexpr (len-1 == 0) impl = {};
             else if constexpr (len-1 <= min_capacity) {
                  // Inline copy for small fixed-length arrays
-                set_as_owned(allocate_copy(o, len-1), len-1);
+                set_owned(allocate_copy(o, len-1), len-1);
             }
-            else set_as_copy(o, len-1);
+            else set_copy(o, len-1);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
                 "Cannot construct borrowed string from raw C array if its "
                 "element type does not match exactly."
             );
-            set_as_unowned(o, len-1);
+            set_unowned(o, len-1);
         }
     }
      // A non-const C array behaves like the array version, and does NOT check
@@ -447,16 +447,16 @@ struct ArrayInterface {
             if constexpr (len == 0) impl = {};
             else if constexpr (len <= min_capacity) {
                  // Inline copy for small fixed-length arrays
-                set_as_owned(allocate_copy(o, len), len);
+                set_owned(allocate_copy(o, len), len);
             }
-            else set_as_copy(o, len);
+            else set_copy(o, len);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
                 "Cannot construct borrowed string from raw C array if its "
                 "element type does not match exactly."
             );
-            set_as_unowned(o, len);
+            set_unowned(o, len);
         }
     }
 
@@ -464,7 +464,7 @@ struct ArrayInterface {
     template <ArrayIterator Ptr> explicit constexpr
     ArrayInterface (Ptr p, usize s) {
         if constexpr (supports_owned) {
-            set_as_copy(move(p), s);
+            set_copy(move(p), s);
         }
         else {
             static_assert(ArrayIteratorFor<Ptr, T>,
@@ -474,7 +474,7 @@ struct ArrayInterface {
             static_assert(ArrayContiguousIterator<Ptr>,
                 "Cannot construct borrowed array from non-contiguous iterator."
             );
-            set_as_unowned(std::to_address(move(p)), s);
+            set_unowned(std::to_address(move(p)), s);
         }
     }
 
@@ -483,7 +483,7 @@ struct ArrayInterface {
     explicit constexpr
     ArrayInterface (Begin b, End e) {
         if constexpr (supports_owned) {
-            set_as_copy(move(b), move(e));
+            set_copy(move(b), move(e));
         }
         else {
             static_assert(ArrayIteratorFor<Begin, T>,
@@ -497,7 +497,7 @@ struct ArrayInterface {
                 "Cannot construct borrowed array from iterator pair that "
                 "doesn't support subtraction to get size."
             );
-            set_as_unowned(std::to_address(move(b)), usize(e - b));
+            set_unowned(std::to_address(move(b)), usize(e - b));
         }
     }
 
@@ -523,7 +523,7 @@ struct ArrayInterface {
             deallocate_owned(dat);
             throw;
         }
-        set_as_unique(dat, s);
+        set_unique(dat, s);
     }
 
      // This constructor constructs a repeating sequence of one element.  It's
@@ -547,7 +547,7 @@ struct ArrayInterface {
             deallocate_owned(dat);
             throw;
         }
-        set_as_unique(dat, s);
+        set_unique(dat, s);
     }
 
      // Construct with uninitialized data if the elements support that
@@ -556,15 +556,15 @@ struct ArrayInterface {
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         if (!s) { impl = {}; return; }
-        set_as_unique(allocate_owned(s), s);
+        set_unique(allocate_owned(s), s);
     }
 
      // Finally, std::initializer_list
     ArrayInterface (std::initializer_list<T> l) requires (supports_owned || is_Slice) {
         if constexpr (is_Slice) {
-            set_as_unowned(std::data(l), std::size(l));
+            set_unowned(std::data(l), std::size(l));
         }
-        else set_as_copy(std::data(l), std::size(l));
+        else set_copy(std::data(l), std::size(l));
     }
 
     ///// ASSIGNMENT OPERATORS
@@ -624,21 +624,43 @@ struct ArrayInterface {
     ~ArrayInterface () requires (trivially_copyable) = default;
 
     ///// BYPASSING REFERENCE COUNTING
-     // These functions construct or destroy an array without touching the
-     // reference counting mechanism, so only use them if you want to manage the
-     // reference counts yourself.
+     // These manipulate the array without touching any reference counts,
+     // constructors, or destructors, so obviously only do it if you know what
+     // you're doing.
     static constexpr
-    Self Materialize (T* d, usize s)
-        requires (is_Shared || is_Unique)
-    {
+    Self UnsafeConstructOwned (T* d, usize s) {
         Self r;
-        r.set_as_owned(d, s);
+        r.set_owned(d, s);
         return r;
     }
     constexpr
-    void dematerialize () { impl = {}; }
+    void unsafe_set_owned (T* d, usize s) {
+#ifndef NDEBUG
+        if (d) {
+            expect(s <= max_size_);
+            expect(s <= ArrayOwnedHeader::get(d)->capacity);
+            expect(ArrayOwnedHeader::get(d)->capacity >= min_capacity);
+            expect(ArrayOwnedHeader::get(d)->capacity <= max_capacity);
+        else expect(!s);
+#endif
+        set_owned(d, s);
+    }
     constexpr
-    void materialize_size (usize s) { set_size(s); }
+    void unsafe_set_unowned (T* d, usize s) {
+#ifndef NDEBUG
+        if (d) expect(s <= max_size_);
+        else expect(!s);
+#endif
+        set_unowned(d, s);
+    }
+    ALWAYS_INLINE constexpr
+    void unsafe_set_empty () {
+        impl = {};
+    }
+    ALWAYS_INLINE constexpr
+    void unsafe_set_size (usize s) {
+        set_size(s);
+    }
 
     ///// ACCESSORS
 
@@ -661,7 +683,7 @@ struct ArrayInterface {
      // Maximum size differs depending on whether this array can be owned or
      // not.  The maximum size for owned arrays is the same on both 32-bit and
      // 64-bit platforms.  If you need to process arrays larger than 2 billion
-     // eleents, you're probably already managing your own memory anyway.
+     // elements, you're probably already managing your own memory anyway.
     static constexpr usize max_size_ =
         supports_owned ? uint32(-1) >> 1 : usize(-1) >> 1;
     ALWAYS_INLINE constexpr
@@ -805,6 +827,7 @@ struct ArrayInterface {
      // The minimum capacity of a shared buffer (enough elements to fill 24 (on
      // 64-bit) or 16 (on 32-bit) bytes).
     static constexpr usize min_capacity = Self::capacity_for_size(1);
+    static constexpr usize max_capacity = Self::capacity_for_size(max_size_);
 
      // Returns if this string is owned (has a shared or unique buffer).  If
      // this returns true, then there is an ArrayOwnedHeader right behind the
@@ -920,7 +943,7 @@ struct ArrayInterface {
     void reserve (usize cap) requires (supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) {
-            set_as_unique(reallocate(impl, cap), size());
+            set_unique(reallocate(impl, cap), size());
         }
     }
 
@@ -931,7 +954,7 @@ struct ArrayInterface {
         if (!unique() || cap > capacity())
             [[unlikely]]
         {
-            set_as_unique(reallocate(impl, cap, capacity() * 2), size());
+            set_unique(reallocate(impl, cap, capacity() * 2), size());
         }
     }
 
@@ -941,7 +964,7 @@ struct ArrayInterface {
     constexpr
     void shrink_to_fit () requires (supports_owned) {
         if (!unique() || capacity_for_size(size()) < capacity()) {
-            set_as_unique(reallocate(impl, size()), size());
+            set_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -951,7 +974,7 @@ struct ArrayInterface {
      // TODO: Add make_not_shared () for passing between threads
     void make_unique () requires (supports_owned) {
         if (!unique()) {
-            set_as_unique(reallocate(impl, size()), size());
+            set_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -1164,7 +1187,7 @@ struct ArrayInterface {
         if constexpr (noexcept(T(std::forward<Args>(args)...))) {
             T* dat = do_split(impl, offset, 1);
             T* r = new ((void*)&dat[offset]) T(std::forward<Args>(args)...);
-            set_as_unique(dat, size() + 1);
+            set_unique(dat, size() + 1);
             return *r;
         }
         else {
@@ -1175,7 +1198,7 @@ struct ArrayInterface {
                 r = new ((void*)&dat[offset]) T(move(v));
             }
             catch (...) { never(); }
-            set_as_unique(dat, size() + 1);
+            set_unique(dat, size() + 1);
             return *r;
         }
     }
@@ -1214,7 +1237,7 @@ struct ArrayInterface {
                 copy_fill(dat + offset, move(p), s);
             }
             catch (...) { require(false); }
-            set_as_unique(dat, size() + s);
+            set_unique(dat, size() + s);
         }
     }
     template <ArrayIterator Ptr>
@@ -1254,7 +1277,7 @@ struct ArrayInterface {
         }
         else {
             T* dat = do_split(impl, offset, s);
-            set_as_unique(dat, size() + s);
+            set_unique(dat, size() + s);
         }
     }
     void insert (const T* pos, usize s, Uninitialized) requires (
@@ -1271,7 +1294,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_as_unique(do_erase(impl, offset, count), size() - count);
+            set_unique(do_erase(impl, offset, count), size() - count);
         }
     }
     void erase (const T* pos, usize count = 1) requires (supports_owned) {
@@ -1279,7 +1302,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_as_unique(do_erase(impl, pos - impl.data, count), size() - count);
+            set_unique(do_erase(impl, pos - impl.data, count), size() - count);
         }
     }
     void erase (const T* b, const T* e) requires (supports_owned) {
@@ -1288,7 +1311,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_as_unique(do_erase(impl, b - impl.data, e - b), size() - (e - b));
+            set_unique(do_erase(impl, b - impl.data, e - b), size() - (e - b));
         }
     }
 
@@ -1302,7 +1325,7 @@ struct ArrayInterface {
     }
 
     ALWAYS_INLINE constexpr
-    void set_as_owned (T* d, usize s) {
+    void set_owned (T* d, usize s) {
         static_assert(supports_owned);
         expect(s <= max_size_);
         if constexpr (is_Any) {
@@ -1314,12 +1337,12 @@ struct ArrayInterface {
         impl.data = d;
     }
     ALWAYS_INLINE constexpr
-    void set_as_unique (T* d, usize s) {
-        set_as_owned(d, s);
+    void set_unique (T* d, usize s) {
+        set_owned(d, s);
         expect(unique());
     }
     ALWAYS_INLINE constexpr
-    void set_as_unowned (const T* d, usize s) {
+    void set_unowned (const T* d, usize s) {
         static_assert(supports_static || is_Slice);
         if constexpr (is_Any) {
             impl.sizex2_with_owned = s << 1;
@@ -1331,7 +1354,7 @@ struct ArrayInterface {
         }
     }
     template <ArrayIterator Ptr>
-    void set_as_copy (Ptr ptr, usize s) requires (
+    void set_copy (Ptr ptr, usize s) requires (
         std::is_copy_constructible_v<T>
     ) {
         if (s == 0) {
@@ -1352,22 +1375,22 @@ struct ArrayInterface {
                 throw;
             }
         }
-        set_as_unique(dat, s);
+        set_unique(dat, s);
         expect(!header().ref_count);
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
-    void set_as_copy (Begin b, End e) requires (
+    void set_copy (Begin b, End e) requires (
         std::is_copy_constructible_v<T>
     ) {
         if constexpr (requires { usize(e - b); }) {
-            set_as_copy(move(b), usize(e - b));
+            set_copy(move(b), usize(e - b));
         }
         else if constexpr (requires { b = b; }) {
              // If the iterator is copy-assignable that means it probably allows
              // determining its length in a separate pass.
             usize s = 0;
             for (auto p = b; p != e; ++p) ++s;
-            set_as_copy(move(b), s);
+            set_copy(move(b), s);
         }
         else {
              // You gave us an iterator pair that can't be subtracted and can't

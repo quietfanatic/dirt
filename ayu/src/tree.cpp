@@ -12,25 +12,25 @@ void delete_Tree_data (TreeRef t) noexcept {
      // the reference count.
     switch (t->rep) {
         case REP_SHAREDSTRING: {
-            UniqueString::Materialize(
+            UniqueString::UnsafeConstructOwned(
                 (char*)t->data.as_char_ptr, t->length
             );
             break;
         }
         case REP_ARRAY: {
-            UniqueArray<Tree>::Materialize(
+            UniqueArray<Tree>::UnsafeConstructOwned(
                 (Tree*)t->data.as_array_ptr, t->length
             );
             break;
         }
         case REP_OBJECT: {
-            UniqueArray<TreePair>::Materialize(
+            UniqueArray<TreePair>::UnsafeConstructOwned(
                 (TreePair*)t->data.as_object_ptr, t->length
             );
             break;
         }
         case REP_ERROR: {
-            UniqueArray<std::exception_ptr>::Materialize(
+            UniqueArray<std::exception_ptr>::UnsafeConstructOwned(
                 (std::exception_ptr*)t->data.as_error_ptr, t->length
             );
             break;
