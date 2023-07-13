@@ -74,20 +74,19 @@ UniqueString encode (Str);
 UniqueString decode (Str);
 
  // The first component that the given IRI reference has
-enum IRIRelativity : uint8 {
-    SCHEME,       // scheme://auth/path?query#fragment
-    AUTHORITY,    // //auth/path?query#fragment
-    PATHABSOLUTE, // /path?query#fragment
-    PATHRELATIVE, // path?query#fragment
-    QUERY,        // ?query#fragment
-    FRAGMENT,     // #fragment
-    N_CLASSES
+enum class Relativity {
+    Scheme,       // scheme://auth/path?query#fragment
+    Authority,    // //auth/path?query#fragment
+    AbsolutePath, // /path?query#fragment
+    RelativePath, // path?query#fragment
+    Query,        // ?query#fragment
+    Fragment      // #fragment
 };
 
  // Return what kind of relative reference this is.  This only does basic
  // detection, and when given an invalid reference, may return anything.  To be
  // sure that the reference is valid, resolve it into a full IRI.
-IRIRelativity classify_reference (Str);
+Relativity classify_reference (Str);
 
 struct IRI {
      // Construct the empty IRI.  This is not a valid IRI.

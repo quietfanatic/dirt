@@ -120,28 +120,28 @@ UniqueString decode (Str input) {
     return r;
 }
 
-IRIRelativity classify_reference (Str ref) {
-    if (ref.size() == 0) return SCHEME;
+Relativity classify_reference (Str ref) {
+    if (ref.size() == 0) return Relativity::Scheme;
     switch (ref[0]) {
-        case ':': return SCHEME;
+        case ':': return Relativity::Scheme;
         case '/':
             if (ref.size() > 1 && ref[1] == '/') {
-                return AUTHORITY;
+                return Relativity::Authority;
             }
-            else return PATHABSOLUTE;
-        case '?': return QUERY;
-        case '#': return FRAGMENT;
+            else return Relativity::AbsolutePath;
+        case '?': return Relativity::Query;
+        case '#': return Relativity::Fragment;
         default: break;
     }
     for (size_t i = 1; i < ref.size(); i++) {
         switch (ref[i]) {
-            case ':': return SCHEME;
+            case ':': return Relativity::Scheme;
             case '/': case '?': case '#':
-                return PATHRELATIVE;
+                return Relativity::RelativePath;
             default: break;
         }
     }
-    return PATHRELATIVE;
+    return Relativity::RelativePath;
 }
 
 IRI::IRI (Str input, const IRI& base) :
@@ -189,12 +189,12 @@ IRI::IRI (Str input, const IRI& base) :
      // Now start parsing...wait stop.
      // If we've been given a relative reference, we can skip some parsing
     switch (classify_reference(input)) {
-        case SCHEME: {
+        case Relativity::Scheme: {
              // Optimize for the case that the input won't be altered
             spec.reserve(input.size());
             goto parse_scheme;
         }
-        case AUTHORITY: {
+        case Relativity::Authority: {
             Str prefix = base.spec_with_scheme_only();
             if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
@@ -203,7 +203,7 @@ IRI::IRI (Str input, const IRI& base) :
             expect(colon + 1 == spec.size());
             goto parse_authority;
         }
-        case PATHABSOLUTE: {
+        case Relativity::AbsolutePath: {
             if (!base.hierarchical()) goto fail;
             Str prefix = base.spec_with_origin_only();
             expect(prefix.size());
@@ -214,7 +214,7 @@ IRI::IRI (Str input, const IRI& base) :
             expect(path == spec.size());
             goto parse_path;
         }
-        case PATHRELATIVE: {
+        case Relativity::RelativePath: {
             if (!base.hierarchical()) goto fail;
             Str prefix = base.spec_without_filename();
             expect(prefix.size());
@@ -225,7 +225,7 @@ IRI::IRI (Str input, const IRI& base) :
             expect(path < spec.size());
             goto parse_path;
         }
-        case QUERY: {
+        case Relativity::Query: {
             Str prefix = base.spec_without_query();
             if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
@@ -238,7 +238,7 @@ IRI::IRI (Str input, const IRI& base) :
             expect(question + 1 == spec.size());
             goto parse_query;
         }
-        case FRAGMENT: {
+        case Relativity::Fragment: {
             Str prefix = base.spec_without_fragment();
             if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
@@ -592,19 +592,19 @@ static tap::TestSet tests ("dirt/uni/iri", []{
     for (uint32 i = 0; i < n_cases; i++) {
         IRI iri (cases[i].i, IRI(cases[i].b));
         is(iri.scheme(), cases[i].s, cat(
-            cases[i].i, " (", cases[i].b, ") SCHEME = ", cases[i].s
+            cases[i].i, " (", cases[i].b, ") scheme = ", cases[i].s
         ));
         is(iri.authority(), cases[i].a, cat(
-            cases[i].i, " (", cases[i].b, ") AUTHORITY = ", cases[i].a
+            cases[i].i, " (", cases[i].b, ") authority = ", cases[i].a
         ));
         is(iri.path(), cases[i].p, cat(
-            cases[i].i, " (", cases[i].b, ") PATH = ", cases[i].p
+            cases[i].i, " (", cases[i].b, ") path = ", cases[i].p
         ));
         is(iri.query(), cases[i].q, cat(
-            cases[i].i, " (", cases[i].b, ") QUERY = ", cases[i].q
+            cases[i].i, " (", cases[i].b, ") query = ", cases[i].q
         ));
         is(iri.fragment(), cases[i].f, cat(
-            cases[i].i, " (", cases[i].b, ") FRAGMENT = ", cases[i].f
+            cases[i].i, " (", cases[i].b, ") fragment = ", cases[i].f
         ));
     }
     done_testing();
