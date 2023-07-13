@@ -185,6 +185,9 @@ concept ArrayContiguousIteratorFor =
 template <class I>
 concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<I>;
 
+ // A tag type indicating a desire for uninitialized data.
+struct Uninitialized { };
+
 ///// ARRAY INTERFACE
 // The shared interface for all the array classes
 
@@ -529,9 +532,7 @@ struct ArrayInterface {
     ArrayInterface (usize s, const T& v) requires (
         supports_owned && std::is_copy_constructible_v<T>
     ) {
-        if (!s) {
-            impl = {}; return;
-        }
+        if (!s) { impl = {}; return; }
         T* dat = allocate_owned(s);
         usize i = 0;
         try {
@@ -547,6 +548,15 @@ struct ArrayInterface {
             throw;
         }
         set_as_unique(dat, s);
+    }
+
+     // Construct with uninitialized data if the elements support that
+    explicit
+    ArrayInterface (usize s, Uninitialized) requires (
+        supports_owned && std::is_trivially_default_constructible_v<T>
+    ) {
+        if (!s) { impl = {}; return; }
+        set_as_unique(allocate_owned(s), s);
     }
 
      // Finally, std::initializer_list
@@ -1097,6 +1107,13 @@ struct ArrayInterface {
             }
         }
     }
+     // Append uninitialized data
+    void append (usize s, Uninitialized) requires (
+        supports_owned && std::is_trivially_default_constructible_v<T>
+    ) {
+        reserve_plenty(size() + s);
+        add_size(s);
+    }
 
      // Append but skip the capacity check
     template <ArrayIterator Ptr>
@@ -1131,11 +1148,9 @@ struct ArrayInterface {
             }
         }
     }
-
-     // Append uninitialized elements.  Only valid if the elements are allowed
-     // to be uninitialized (they have a trivial default constructor).
-    void append_uninitialized (usize s) {
-        reserve_plenty(size() + s);
+    void append_expect_capacity (usize s, Uninitialized) requires (
+        supports_owned && std::is_trivially_default_constructible_v<T>
+    ) {
         add_size(s);
     }
 
@@ -1229,6 +1244,23 @@ struct ArrayInterface {
         supports_owned && std::is_copy_constructible_v<T>
     ) {
         insert(pos - impl.data, move(b), move(e));
+    }
+    void insert (usize offset, usize s, Uninitialized) requires (
+        supports_owned && std::is_trivially_default_constructible_v<T>
+    ) {
+        expect(offset < size());
+        if (s == 0) {
+            make_unique();
+        }
+        else {
+            T* dat = do_split(impl, offset, s);
+            set_as_unique(dat, size() + s);
+        }
+    }
+    void insert (const T* pos, usize s, Uninitialized) requires (
+        supports_owned && std::is_trivially_default_constructible_v<T>
+    ) {
+        insert(pos - impl.data, s, Uninitialized());
     }
 
      // Removes element(s) from the array.  If there are elements after the
