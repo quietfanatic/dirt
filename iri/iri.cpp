@@ -120,7 +120,7 @@ UniqueString decode (Str input) {
     return r;
 }
 
-Relativity classify_reference (Str ref) {
+Relativity relativity (Str ref) {
     if (ref.size() == 0) return Relativity::Scheme;
     switch (ref[0]) {
         case ':': return Relativity::Scheme;
@@ -144,20 +144,14 @@ Relativity classify_reference (Str ref) {
     return Relativity::RelativePath;
 }
 
-IRI::IRI (Str input, const IRI& base) :
-    colon_(0),
-    path_(0),
-    question_(0),
-    hash_(0)
-{
-     // Reject absurdly large input
-    if (input.size() > maximum_length) return;
+IRI::IRI (Str input, const IRI& base) {
     uint32 i = 0;
     UniqueString spec;
     uint32 colon = 0;
     uint32 path = 0;
     uint32 question = 0;
     uint32 hash = 0;
+
      // Decode (maybe) a % sequence
     auto write_percent = [&](char c){
         uint8 high = uint8(c) >> 4;
@@ -186,17 +180,26 @@ IRI::IRI (Str input, const IRI& base) :
         }
         i += 3; return true;
     };
+
+     // Reject absurdly large input
+    if (input.size() > maximum_length) {
+        hash_ = uint16(Error::TooLong);
+        goto fail;
+    }
      // Now start parsing...wait stop.
      // If we've been given a relative reference, we can skip some parsing
-    switch (classify_reference(input)) {
+    switch (relativity(input)) {
         case Relativity::Scheme: {
              // Optimize for the case that the input won't be altered
             spec.reserve(input.size());
             goto parse_scheme;
         }
         case Relativity::Authority: {
+            if (!base) {
+                hash_ = uint16(Error::CouldNotResolve);
+                goto fail;
+            }
             Str prefix = base.spec_with_scheme_only();
-            if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
             spec.append(prefix);
             colon = base.colon_;
@@ -204,7 +207,10 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_authority;
         }
         case Relativity::AbsolutePath: {
-            if (!base.hierarchical()) goto fail;
+            if (!base.hierarchical()) {
+                hash_ = uint16(Error::CouldNotResolve);
+                goto fail;
+            }
             Str prefix = base.spec_with_origin_only();
             expect(prefix.size());
             spec.reserve(prefix.size() + input.size());
@@ -215,7 +221,10 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_path;
         }
         case Relativity::RelativePath: {
-            if (!base.hierarchical()) goto fail;
+            if (!base.hierarchical()) {
+                hash_ = uint16(Error::CouldNotResolve);
+                goto fail;
+            }
             Str prefix = base.spec_without_filename();
             expect(prefix.size());
             spec.reserve(prefix.size() + input.size());
@@ -226,8 +235,11 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_path;
         }
         case Relativity::Query: {
+            if (!base) {
+                hash_ = uint16(Error::CouldNotResolve);
+                goto fail;
+            }
             Str prefix = base.spec_without_query();
-            if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
             spec.append(prefix);
             expect(input[i] == '?');
@@ -239,8 +251,11 @@ IRI::IRI (Str input, const IRI& base) :
             goto parse_query;
         }
         case Relativity::Fragment: {
+            if (!base) {
+                hash_ = uint16(Error::CouldNotResolve);
+                goto fail;
+            }
             Str prefix = base.spec_without_fragment();
-            if (!prefix.size()) goto fail;
             spec.reserve(prefix.size() + input.size());
             spec.append(prefix);
             expect(input[i] == '#');
@@ -266,15 +281,24 @@ IRI::IRI (Str input, const IRI& base) :
                 spec.push_back(input[i++]);
                 break;
             case IRI_DIGIT: case '+': case '-': case '.':
-                if (i == 0) goto fail;
+                if (i == 0) {
+                    hash_ = uint16(Error::InvalidScheme);
+                    goto fail;
+                }
                 else spec.push_back(input[i++]);
                 break;
             case ':':
-                if (i == 0) goto fail;
+                if (i == 0) {
+                    hash_ = uint16(Error::InvalidScheme);
+                    goto fail;
+                }
                 colon = spec.size();
                 spec.push_back(input[i++]);
                 goto parse_authority;
-            default: goto fail;
+            default: {
+                hash_ = uint16(Error::InvalidScheme);
+                goto fail;
+            }
         }
     }
     goto fail;
@@ -307,12 +331,18 @@ IRI::IRI (Str input, const IRI& base) :
                     spec.push_back(input[i++]);
                     goto parse_fragment;
                 case '%':
-                    if (!read_percent()) goto fail;
+                    if (!read_percent()) {
+                        hash_ = uint16(Error::InvalidPercentSequence);
+                        goto fail;
+                    }
                     break;
                 case IRI_IFFY:
                     write_percent(input[i++]);
                     break;
-                default: goto fail;
+                default: {
+                    hash_ = uint16(Error::InvalidAuthority);
+                    goto fail;
+                }
             }
         }
         path = question = hash = spec.size();
@@ -362,7 +392,10 @@ IRI::IRI (Str input, const IRI& base) :
                                     }
                                     i += 2; break;
                                 }
-                                else goto fail;
+                                else {
+                                    hash_ = uint16(Error::InvalidPath);
+                                    goto fail;
+                                }
                             }
                         }
                         else if (i+1 == input.size()
@@ -386,12 +419,18 @@ IRI::IRI (Str input, const IRI& base) :
                     spec.push_back(input[i++]);
                     goto parse_fragment;
                 case '%':
-                    if (!read_percent()) goto fail;
+                    if (!read_percent()) {
+                        hash_ = uint16(Error::InvalidPercentSequence);
+                        goto fail;
+                    }
                     break;
                 case IRI_IFFY:
                     write_percent(input[i++]);
                     break;
-                default: goto fail;
+                default: {
+                    hash_ = uint16(Error::InvalidPath);
+                    goto fail;
+                }
             }
         }
         question = hash = spec.size();
@@ -417,12 +456,18 @@ IRI::IRI (Str input, const IRI& base) :
                     spec.push_back(input[i++]);
                     goto parse_fragment;
                 case '%':
-                    if (!read_percent()) goto fail;
+                    if (!read_percent()) {
+                        hash_ = uint16(Error::InvalidPercentSequence);
+                        goto fail;
+                    }
                     break;
                 case IRI_IFFY:
                     write_percent(input[i]);
                     i++; break;
-                default: goto fail;
+                default: {
+                    hash_ = uint16(Error::InvalidPath);
+                    goto fail;
+                }
             }
         }
         question = hash = spec.size();
@@ -439,12 +484,18 @@ IRI::IRI (Str input, const IRI& base) :
                 spec.push_back(input[i++]);
                 goto parse_fragment;
             case '%':
-                if (!read_percent()) goto fail;
+                if (!read_percent()) {
+                    hash_ = uint16(Error::InvalidPercentSequence);
+                    goto fail;
+                }
                 break;
             case IRI_IFFY:
                 write_percent(input[i++]);
                 break;
-            default: goto fail;
+            default: {
+                hash_ = uint16(Error::InvalidQuery);
+                goto fail;
+            }
         }
     }
     hash = spec.size();
@@ -460,18 +511,27 @@ IRI::IRI (Str input, const IRI& base) :
                 spec.push_back(input[i++]);
                 break;
             case '%':
-                if (!read_percent()) goto fail;
+                if (!read_percent()) {
+                    hash_ = uint16(Error::InvalidPercentSequence);
+                    goto fail;
+                }
                 break;
             case IRI_IFFY:
                 write_percent(input[i++]);
                 break;
-            default: goto fail;
+            default: {
+                hash_ = uint16(Error::InvalidFragment);
+                goto fail;
+            }
         }
     }
     goto done;
 
     done: {
-        if (spec.size() > maximum_length) goto fail;
+        if (spec.size() > maximum_length) {
+            hash_ = uint16(Error::TooLong);
+            goto fail;
+        }
         expect(colon < path);
         expect(colon + 2 != path);
         expect(path <= question);
@@ -485,8 +545,7 @@ IRI::IRI (Str input, const IRI& base) :
         return;
     }
     fail: {
-        spec.append(input.substr(i));
-        spec_ = move(spec);
+        spec_ = input;
         return;
     }
 }

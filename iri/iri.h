@@ -86,7 +86,30 @@ enum class Relativity {
  // Return what kind of relative reference this is.  This only does basic
  // detection, and when given an invalid reference, may return anything.  To be
  // sure that the reference is valid, resolve it into a full IRI.
-Relativity classify_reference (Str);
+Relativity relativity (Str);
+
+ // What went wrong when parsing an IRI
+enum class Error : uint16 {
+     // This IRI is not actually invalid.
+    NoError,
+     // This IRI is empty.
+    EmptyIRI,
+     // This IRI is longer than 64k.
+    TooLong,
+     // Was unable to resolve a relative IRI reference, because the base was
+     // empty or invalid, or because the IRI reference was AbsolutePath or
+     // RelativePath, but the base was not hierarchical.
+    CouldNotResolve,
+     // The given component is invalid (contains invalid characters or ends in
+     // whitespace).
+    InvalidScheme,
+    InvalidAuthority,
+    InvalidPath,
+    InvalidQuery,
+    InvalidFragment,
+     // There's a % that isn't followed by two hexadecimal digits.
+    InvalidPercentSequence,
+};
 
 struct IRI {
      // Construct the empty IRI.  This is not a valid IRI.
@@ -119,6 +142,9 @@ struct IRI {
     constexpr bool empty () const;
      // Equivalent to valid()
     explicit constexpr operator bool () const;
+
+     // Check what's wrong with this IRI
+    constexpr Error error () const;
 
      // Gets the full text of the IRI only if this IRI is valid.
     constexpr const AnyString& spec () const;
@@ -224,17 +250,14 @@ struct IRI {
      // Full text of the IRI
     AnyString spec_;
      // Offset of the : after the scheme.
-    union {
-        uint16 colon_ = 0;
-        uint16 valid_;
-    };
+    uint16 colon_ = 0;
      // Offset of the start of the path.  path_ > colon_.
     uint16 path_ = 0;
      // Offset of the ? for the query, or the end of the path if there is no ?.
      // question_ >= path_.
     uint16 question_ = 0;
-     // Offset of the # for the fragment, or the end of the query (or path) if
-     // there is no #.  hash_ >= question_.
+     // Offset of the # for the fragment, or the end of the query (or path)
+     // if there is no #.  hash_ >= question_.
     uint16 hash_ = 0;
 };
 

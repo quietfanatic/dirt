@@ -27,9 +27,14 @@ constexpr IRI& IRI::operator = (IRI&& o) {
     return *this;
 }
 
-constexpr bool IRI::valid () const { return valid_; }
+constexpr bool IRI::valid () const { return colon_; }
 constexpr bool IRI::empty () const { return spec_.empty(); }
-constexpr IRI::operator bool () const { return valid_; }
+constexpr IRI::operator bool () const { return colon_; }
+constexpr Error IRI::error () const {
+    if (colon_) return Error::NoError;
+    else if (spec_.empty()) return Error::EmptyIRI;
+    else return Error(hash_);
+}
 
 static constexpr const AnyString empty_string = StaticString();
 
@@ -42,7 +47,7 @@ constexpr const AnyString& IRI::possibly_invalid_spec () const {
 }
 
 constexpr AnyString IRI::move_spec () {
-    if (!valid_) return "";
+    if (!colon_) return "";
     AnyString r = move(spec_);
     *this = IRI();
     return r;
@@ -56,8 +61,8 @@ constexpr AnyString IRI::move_possibly_invalid_spec () {
 constexpr bool IRI::has_scheme () const { return colon_; }
 constexpr bool IRI::has_authority () const { return path_ >= colon_ + 3; }
 constexpr bool IRI::has_path () const { return question_ > path_; }
-constexpr bool IRI::has_query () const { return hash_ > question_; }
-constexpr bool IRI::has_fragment () const { return hash_ && spec_.size() > hash_; }
+constexpr bool IRI::has_query () const { return colon_ && hash_ > question_; }
+constexpr bool IRI::has_fragment () const { return colon_ && spec_.size() > hash_; }
 
 constexpr bool IRI::hierarchical () const {
     return has_path() && spec_[path_] == '/';
@@ -85,14 +90,14 @@ constexpr Str IRI::fragment () const {
 }
 
 constexpr IRI IRI::with_scheme_only () const {
-    if (!valid_) return IRI();
+    if (!colon_) return IRI();
     return IRI(
         spec_.shrunk(colon_+1),
         colon_, colon_+1, colon_+1, colon_+1
     );
 }
 constexpr IRI IRI::with_origin_only () const {
-    if (!valid_) return IRI();
+    if (!colon_) return IRI();
     return IRI(
         spec_.shrunk(path_),
         colon_, path_, path_, path_
@@ -108,14 +113,14 @@ constexpr IRI IRI::without_filename () const {
     );
 }
 constexpr IRI IRI::without_query () const {
-    if (!valid_) return IRI();
+    if (!colon_) return IRI();
     return IRI(
         spec_.shrunk(question_),
         colon_, path_, question_, question_
     );
 }
 constexpr IRI IRI::without_fragment () const {
-    if (!valid_) return IRI();
+    if (!colon_) return IRI();
     return IRI(
         spec_.shrunk(hash_),
         colon_, path_, question_, hash_
@@ -123,11 +128,11 @@ constexpr IRI IRI::without_fragment () const {
 }
 
 constexpr Str IRI::spec_with_scheme_only () const {
-    if (!valid_) return "";
+    if (!colon_) return "";
     return spec_.slice(0, colon_ + 1);
 }
 constexpr Str IRI::spec_with_origin_only () const {
-    if (!valid_) return "";
+    if (!colon_) return "";
     return spec_.slice(0, path_);
 }
 constexpr Str IRI::spec_without_filename () const {
@@ -137,11 +142,11 @@ constexpr Str IRI::spec_without_filename () const {
     return spec_.slice(0, i);
 }
 constexpr Str IRI::spec_without_query () const {
-    if (!valid_) return "";
+    if (!colon_) return "";
     return spec_.slice(0, question_);
 }
 constexpr Str IRI::spec_without_fragment () const {
-    if (!valid_) return "";
+    if (!colon_) return "";
     return spec_.slice(0, hash_);
 }
 

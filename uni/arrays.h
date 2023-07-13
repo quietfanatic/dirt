@@ -931,10 +931,7 @@ struct ArrayInterface {
     constexpr
     void shrink_to_fit () requires (supports_owned) {
         if (!unique() || capacity_for_size(size()) < capacity()) {
-            if constexpr (std::is_copy_constructible_v<T>) {
-                set_as_unique(reallocate(impl, size()), size());
-            }
-            else never();
+            set_as_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -1418,6 +1415,7 @@ struct ArrayInterface {
 
     static constexpr
     usize capacity_for_size (usize s) {
+        if (s == 0) return 0;
         usize min_bytes = sizeof(usize) == 8 ? 24 : 16;
         usize min_cap = min_bytes / sizeof(T);
         if (!min_cap) min_cap = 1;
@@ -1431,6 +1429,7 @@ struct ArrayInterface {
 
     [[gnu::malloc, gnu::returns_nonnull]] static
     T* allocate_owned (usize s) {
+        if (s == 0) return null;
         require(s <= max_size_);
         usize cap = capacity_for_size(s);
          // On 32-bit platforms we need to make sure we don't overflow usize
@@ -1512,6 +1511,8 @@ struct ArrayInterface {
             if (cap > max_size_) [[unlikely]] cap = max_size_;
         }
         Self& self = reinterpret_cast<Self&>(impl);
+        usize s = self.size();
+        expect(cap >= s);
         T* dat = allocate_owned(cap);
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
@@ -1519,7 +1520,7 @@ struct ArrayInterface {
              // Assume that the move constructor and destructor never throw
              // even if they aren't marked noexcept.
             try {
-                for (usize i = 0; i < self.size(); ++i) {
+                for (usize i = 0; i < s; ++i) {
                     new ((void*)&dat[i]) T(move(self.impl.data[i]));
                     self.impl.data[i].~T();
                 }
@@ -1531,7 +1532,7 @@ struct ArrayInterface {
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
             try {
-                copy_fill(dat, self.impl.data, self.size());
+                copy_fill(dat, self.impl.data, s);
             }
             catch (...) {
                 deallocate_owned(dat);
@@ -1539,7 +1540,7 @@ struct ArrayInterface {
             }
             --self.header().ref_count;
         }
-        else never();
+        else require(std::is_copy_constructible_v<T>);
         return dat;
     }
 
