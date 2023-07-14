@@ -107,6 +107,10 @@ enum class Error : uint16 {
     InvalidPath,
     InvalidQuery,
     InvalidFragment,
+     // The path had too many .. segments.  Note: most URI libraries will
+     // silently turn http://example.com/../foo into http://example.com/foo.
+     // This library errors instead.
+    PathOutsideRoot,
      // There's a % that isn't followed by two hexadecimal digits.
     InvalidPercentSequence,
 };

@@ -384,7 +384,7 @@ struct IRIParser {
                 if (out[-3] == '/') {
                     out -= 3;
                     if (out - output.begin() == path) {
-                        return fail(Error::InvalidPath);
+                        return fail(Error::PathOutsideRoot);
                     }
                     while (out[-1] != '/') out--;
                 }
@@ -595,6 +595,9 @@ constexpr TestCase cases [] = {
     {.i = "foo://bar", .s = "foo", .a = "bar"},
     {.i = "foo://bar/", .s = "foo", .a = "bar", .p = "/"},
     {.i = "foo://bar/baz", .s = "foo", .a = "bar", .p = "/baz"},
+    {.i = "foo://bar/baz/", .s = "foo", .a = "bar", .p = "/baz/"},
+    {.i = "foo:///bar", .s = "foo", .a = "", .p = "/bar"},
+    {.i = "foo:////bar", .s = "foo", .a = "", .p = "/bar"},
     {.i = "foo:?bar", .s = "foo", .q = "bar"},
     {.i = "foo:#bar", .s = "foo", .f = "bar"},
     {.i = "foo", .e = Error::CouldNotResolve},
@@ -608,9 +611,9 @@ constexpr TestCase cases [] = {
     {.i = "..", .b = "foo:/bar/baz", .s = "foo", .p = "/"},
     {.i = ".", .b = "foo:/bar/baz", .s = "foo", .p = "/bar/"},
     {.i = ".", .b = "foo:/bar/baz/", .s = "foo", .p = "/bar/baz/"},
-    {.i = "..", .b = "foo:/bar", .e = Error::InvalidPath},
+    {.i = "..", .b = "foo:/bar", .e = Error::PathOutsideRoot},
     {.i = "../..", .b = "foo:/bar/baz/qux/bap", .s = "foo", .p = "/bar/"},
-    {.i = "foo://bar/..", .e = Error::InvalidPath},
+    {.i = "foo://bar/..", .e = Error::PathOutsideRoot},
     {.i = "foo:/bar/baz/..", .s = "foo", .p = "/bar/"},
     {.i = "?bar", .b = "foo:", .s = "foo", .q = "bar"},
     {.i = "#bar", .b = "foo:", .s = "foo", .f = "bar"},
