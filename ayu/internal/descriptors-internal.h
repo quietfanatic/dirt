@@ -26,13 +26,6 @@ namespace ayu::in {
 
 ///// MEMORY LAYOUT
 
- // To compare addresses of disparate types, we need to cast them to a common
- // type.  reinterpret_cast is not allowed in constexprs (and in recent gcc
- // versions, neither are C-style casts), but static_cast to a common base
- // type is.
-struct ComparableAddress { };
-static_assert(sizeof(ComparableAddress) == 1);
-
  // We could use [[no_unique_address]] but this is more aggressive at optimizing
  // out empty structs.  The size_t parameter is to prevent multiple CatHeads
  // with the same type from conflicting with one another.
@@ -125,38 +118,6 @@ constexpr void(* assign_p )(T&, const T&) =
     [](T& a, const T& b) { a = b; };
 
 ///// DESCRIPTION HEADER
-
-struct Description : ComparableAddress {
-    const std::type_info* cpp_type = null;
-    uint32 cpp_size = 0;
-    uint32 cpp_align = 0;
-     // TODO: Store generated names here
-    StaticString name;
-
-     // Do some property calculations ahead of time
-    enum Flags {
-        PREFER_ARRAY = 1 << 0,
-        PREFER_OBJECT = 1 << 1,
-        PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
-//        NO_INHERIT_ATTRS = 1 << 2,
-//        NO_INHERIT_ELEMS = 1 << 3,
-    };
-    uint16 flags = 0;
-
-    uint16 name_offset = 0;
-    uint16 to_tree_offset = 0;
-    uint16 from_tree_offset = 0;
-    uint16 swizzle_offset = 0;
-    uint16 init_offset = 0;
-    uint16 values_offset = 0;
-    uint16 attrs_offset = 0;
-    uint16 elems_offset = 0;
-    uint16 keys_offset = 0;
-    uint16 attr_func_offset = 0;
-    uint16 length_offset = 0;
-    uint16 elem_func_offset = 0;
-    uint16 delegate_offset = 0;
-};
 
 template <class T>
 struct DescriptionFor : Description {

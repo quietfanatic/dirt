@@ -4,7 +4,7 @@
 #include <typeinfo>
 
 #include "internal/common-internal.h"
-#include "internal/type-internal.h"
+#include "internal/description-internal.h"
 
 namespace ayu {
 
@@ -56,10 +56,10 @@ struct Type {
     bool readonly () const { return data & 1; }
      // Add or remove readonly bit
     Type add_readonly () const {
-        return Type(reinterpret_cast<const in::Description*>(data & ~1), true);
+        return Type(get_description(), true);
     }
     Type remove_readonly () const {
-        return Type(reinterpret_cast<const in::Description*>(data & ~1), false);
+        return Type(get_description(), false);
     }
 
      // Get human-readable type name (whatever name was registered with
@@ -155,6 +155,11 @@ struct Type {
     template <class T>
     T* cast_to (Mu* p) const {
         return (T*)cast_to(Type::CppType<T>(), p);
+    }
+
+     // Internal
+    in::Description* get_description () const {
+        return reinterpret_cast<in::Description*>(data & ~1);
     }
 };
 
