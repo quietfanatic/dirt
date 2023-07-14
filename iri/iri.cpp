@@ -77,9 +77,9 @@ namespace iri {
     case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH
 
 static int read_percent (const char* in, const char* end) {
-    if (in + 2 > end) [[unlikely]] return -1;
+    if (in + 3 > end) [[unlikely]] return -1;
     uint8 byte = 0;
-    for (int i = 0; i < 2; i++) {
+    for (int i = 1; i < 3; i++) {
         byte <<= 4;
         switch (in[i]) {
             case IRI_DIGIT: byte |= in[i] - '0'; break;
@@ -143,14 +143,13 @@ UniqueString decode (Str input) {
     UniqueString r (input.size(), Uninitialized());
     char* out = r.data();
     while (in != end) {
-        char c = *in++;
-        if (c == '%') {
+        if (*in == '%') {
             int result = read_percent(in, end);
             if (result < 0) return "";
-            c = result;
-            in += 2;
+            *out++ = result;
+            in += 3;
         }
-        *out++ = c;
+        else *out++ = *in++;
     }
     r.shrink(out - r.data());
     return r;
@@ -243,12 +242,11 @@ struct IRIParser {
                 Str prefix = base.spec_without_query();
                 output.reserve(prefix.size() + cap);
                 output.append_expect_capacity(prefix);
-                output.push_back_expect_capacity('?');
                 colon = base.colon_;
                 path = base.path_;
                 question = base.question_;
                 return parse_query(
-                    output.end(), input.begin()+1, input.end()
+                    output.end(), input.begin(), input.end()
                 );
             }
             case Relativity::Fragment: {
@@ -256,13 +254,12 @@ struct IRIParser {
                 Str prefix = base.spec_without_fragment();
                 output.reserve(prefix.size() + cap);
                 output.append_expect_capacity(prefix);
-                output.push_back_expect_capacity('#');
                 colon = base.colon_;
                 path = base.path_;
                 question = base.question_;
                 hash = base.hash_;
                 return parse_fragment(
-                    output.end(), input.begin()+1, input.end()
+                    output.end(), input.begin(), input.end()
                 );
             }
             default: never();
@@ -270,34 +267,30 @@ struct IRIParser {
     }
 
     void parse_scheme (char* out, const char* in, const char* in_end) {
-        char c = *in++;
          // Must start with a letter.
-        switch (c) {
-            case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
-            case IRI_LOWERCASE: *out++ = c; break;
+        switch (*in) {
+            case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
+            case IRI_LOWERCASE: *out++ = *in++; break;
             default: return fail(Error::InvalidScheme);
         }
-        while (in != in_end) {
-            char c = *in++;
-            switch (c) {
-                case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
-                case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
-                    *out++ = c; break;
-                case ':':
-                    colon = out - output.begin();
-                    *out++ = ':';
-                    if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
-                        return parse_authority(out, in, in_end);
+        while (in < in_end) switch (*in) {
+            case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
+            case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
+                *out++ = *in++; break;
+            case ':':
+                colon = out - output.begin();
+                *out++ = *in++;
+                if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
+                    return parse_authority(out, in, in_end);
+                }
+                else {
+                    path = out - output.begin();
+                    if (in + 1 <= in_end && in[0] == '/') {
+                        return parse_absolute_path(out, in, in_end);
                     }
-                    else {
-                        path = out - output.begin();
-                        if (in + 1 <= in_end && in[0] == '/') {
-                            return parse_absolute_path(out, in, in_end);
-                        }
-                        else return parse_nonhierarchical_path(out, in, in_end);
-                    }
-                default: return fail(Error::InvalidScheme);
-            }
+                    else return parse_nonhierarchical_path(out, in, in_end);
+                }
+            default: return fail(Error::InvalidScheme);
         }
          // We should not have been called if the input doesn't have a :
         never();
@@ -308,69 +301,59 @@ struct IRIParser {
         expect(in + 2 <= in_end && in[0] == '/' && in[1] == '/');
         *out++ = '/'; *out++ = '/';
         in += 2;
-        while (in != in_end) {
-            char c = *in++;
-            switch (c) {
-                case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
-                case IRI_LOWERCASE: case IRI_DIGIT:
-                case IRI_UNRESERVED_SYMBOL:
-                case IRI_UTF8_HIGH:
-                case IRI_SUBDELIM:
-                case ':': case '[': case ']': case '@':
-                    *out++ = c; break;
-                case '/':
-                    path = out - output.begin();
-                    in--;
-                    return parse_absolute_path(out, in, in_end);
-                case '?':
-                    path = question = out - output.begin();
-                    *out++ = '?';
-                    return parse_query(out, in, in_end);
-                case '#':
-                    path = question = hash = out - output.begin();
-                    *out++ = '#';
-                    return parse_fragment(out, in, in_end);
-                case '%':
-                    if (!(out = parse_percent(out, in, in_end))) {
-                        return fail(Error::InvalidPercentSequence);
-                    }
-                    in += 2; break;
-                case IRI_IFFY:
-                    out = write_percent(out, c); break;
-                default: return fail(Error::InvalidAuthority);
-            }
+        while (in < in_end) switch (*in) {
+            case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
+            case IRI_LOWERCASE: case IRI_DIGIT:
+            case IRI_UNRESERVED_SYMBOL:
+            case IRI_UTF8_HIGH:
+            case IRI_SUBDELIM:
+            case ':': case '[': case ']': case '@':
+                *out++ = *in++; break;
+            case '/':
+                path = out - output.begin();
+                return parse_absolute_path(out, in, in_end);
+            case '?':
+                path = question = out - output.begin();
+                return parse_query(out, in, in_end);
+            case '#':
+                path = question = hash = out - output.begin();
+                return parse_fragment(out, in, in_end);
+            case '%':
+                if (!(out = parse_percent(out, in, in_end))) {
+                    return fail(Error::InvalidPercentSequence);
+                }
+                in += 3; break;
+            case IRI_IFFY:
+                out = write_percent(out, *in++); break;
+            default: return fail(Error::InvalidAuthority);
         }
         path = question = hash = out - output.begin();
-        return done(out);
+        return done(out, in, in_end);
     }
 
     void parse_absolute_path (char* out, const char* in, const char* in_end) {
         expect(*in == '/');
-        *out++ = '/'; in++;
+        *out++ = *in++;
         return parse_relative_path(out, in, in_end);
     }
 
     void parse_relative_path (char* out, const char* in, const char* in_end) {
-        while (in != in_end) {
-            char c = *in++;
-            switch (c) {
-                case IRI_UPPERCASE: case IRI_LOWERCASE:
-                case IRI_DIGIT: case IRI_SUBDELIM:
-                case IRI_UTF8_HIGH:
-                case '-': case '_': case '~': case ':': case '@': case '.':
-                    *out++ = c; break;
-                case '/': case '?': case '#':
-                    in--;
-                    return finish_segment(out, in, in_end);
-                case '%':
-                    if (!(out = parse_percent(out, in, in_end))) {
-                        return fail(Error::InvalidPercentSequence);
-                    }
-                    in += 2; break;
-                case IRI_IFFY:
-                    out = write_percent(out, c); break;
-                default: return fail(Error::InvalidPath);
-            }
+        while (in < in_end) switch (*in) {
+            case IRI_UPPERCASE: case IRI_LOWERCASE:
+            case IRI_DIGIT: case IRI_SUBDELIM:
+            case IRI_UTF8_HIGH:
+            case '-': case '_': case '~': case ':': case '@': case '.':
+                *out++ = *in++; break;
+            case '/': case '?': case '#':
+                return finish_segment(out, in, in_end);
+            case '%':
+                if (!(out = parse_percent(out, in, in_end))) {
+                    return fail(Error::InvalidPercentSequence);
+                }
+                in += 3; break;
+            case IRI_IFFY:
+                out = write_percent(out, *in++); break;
+            default: return fail(Error::InvalidPath);
         }
         return finish_segment(out, in, in_end);
     }
@@ -380,132 +363,116 @@ struct IRIParser {
             if (out[-2] == '/') {
                 out--;
             }
-            else if (out[-2] == '.') {
-                if (out[-3] == '/') {
-                    out -= 3;
-                    if (out - output.begin() == path) {
-                        return fail(Error::PathOutsideRoot);
-                    }
-                    while (out[-1] != '/') out--;
+            else if (out[-2] == '.' && out[-3] == '/') {
+                out -= 3;
+                if (out - output.begin() == path) {
+                    return fail(Error::PathOutsideRoot);
                 }
+                while (out[-1] != '/') out--;
             }
         }
-        if (in != in_end) {
-            char c = *in++;
-            switch (c) {
-                case '/':
-                    if (out[-1] != '/') *out++ = '/';
-                    return parse_relative_path(out, in, in_end);
-                case '?':
-                    question = out - output.begin();
-                    *out++ = '?';
-                    return parse_query(out, in, in_end);
-                case '#':
-                    question = hash = out - output.begin();
-                    *out++ = '#';
-                    return parse_fragment(out, in, in_end);
-                default: never();
-            }
+        if (in < in_end) switch (*in) {
+            case '/':
+                if (out[-1] == '/') in++;
+                else *out++ = *in++;
+                return parse_relative_path(out, in, in_end);
+            case '?':
+                question = out - output.begin();
+                return parse_query(out, in, in_end);
+            case '#':
+                question = hash = out - output.begin();
+                return parse_fragment(out, in, in_end);
+            default: never();
         }
         question = hash = out - output.begin();
-        return done(out);
+        return done(out, in, in_end);
     }
 
     void parse_nonhierarchical_path (
         char* out, const char* in, const char* in_end
     ) {
         expect(out[-1] == ':');
-        while (in != in_end) {
-            char c = *in++;
-            switch (c) {
-                case IRI_UPPERCASE: case IRI_LOWERCASE:
-                case IRI_DIGIT: case IRI_SUBDELIM:
-                case IRI_UTF8_HIGH:
-                case '-': case '_': case '~':
-                case ':': case '@': case '/':
-                    *out++ = c; break;
-                case '?':
-                    question = out - output.begin();
-                    *out++ = '?';
-                    return parse_query(out, in, in_end);
-                case '#':
-                    question = hash = out - output.begin();
-                    *out++ = '#';
-                    return parse_fragment(out, in, in_end);
-                case '%':
-                    if (!(out = parse_percent(out, in, in_end))) {
-                        return fail(Error::InvalidPercentSequence);
-                    }
-                    in += 2;
-                    break;
-                case IRI_IFFY:
-                    out = write_percent(out, c);
-                    break;
-                default: return fail(Error::InvalidPath);
-            }
+        while (in < in_end) switch (*in) {
+            case IRI_UPPERCASE: case IRI_LOWERCASE:
+            case IRI_DIGIT: case IRI_SUBDELIM:
+            case IRI_UTF8_HIGH:
+            case '-': case '_': case '~':
+            case ':': case '@': case '/':
+                *out++ = *in++; break;
+            case '?':
+                question = out - output.begin();
+                return parse_query(out, in, in_end);
+            case '#':
+                question = hash = out - output.begin();
+                return parse_fragment(out, in, in_end);
+            case '%':
+                if (!(out = parse_percent(out, in, in_end))) {
+                    return fail(Error::InvalidPercentSequence);
+                }
+                in += 3;
+                break;
+            case IRI_IFFY:
+                out = write_percent(out, *in++);
+                break;
+            default: return fail(Error::InvalidPath);
         }
         question = hash = out - output.begin();
-        return done(out);
+        return done(out, in, in_end);
     }
 
     void parse_query (char* out, const char* in, const char* in_end) {
-        expect(out[-1] == '?');
-        while (in != in_end) {
-            char c = *in++;
-            switch (c) {
-                case IRI_UNRESERVED: case IRI_SUBDELIM:
-                case ':': case '@': case '/': case '?':
-                    *out++ = c; break;
-                case '#':
-                    hash = out - output.begin();
-                    *out++ = '#';
-                    return parse_fragment(out, in, in_end);
-                case '%':
-                    if (!(out = parse_percent(out, in, in_end))) {
-                        return fail(Error::InvalidPercentSequence);
-                    }
-                    in += 2; break;
-                case IRI_IFFY:
-                    out = write_percent(out, c); break;
-                default: return fail(Error::InvalidQuery);
-            }
+        expect(*in == '?');
+        *out++ = *in++;
+        while (in < in_end) switch (*in) {
+            case IRI_UNRESERVED: case IRI_SUBDELIM:
+            case ':': case '@': case '/': case '?':
+                *out++ = *in++; break;
+            case '#':
+                hash = out - output.begin();
+                return parse_fragment(out, in, in_end);
+            case '%':
+                if (!(out = parse_percent(out, in, in_end))) {
+                    return fail(Error::InvalidPercentSequence);
+                }
+                in += 3; break;
+            case IRI_IFFY:
+                out = write_percent(out, *in++); break;
+            default: return fail(Error::InvalidQuery);
         }
         hash = out - output.begin();
-        return done(out);
+        return done(out, in, in_end);
     }
 
     void parse_fragment (char* out, const char* in, const char* in_end) {
-        expect(out[-1] == '#');
-        while (in != in_end) {
-             // Note that a second # is not allowed.  If that happens, it's likely
-             // that there is a nested URL with an unescaped fragment, and in that
-             // case it's ambiguous how to parse it, so we won't try.
-            char c = *in++;
-            switch (c) {
-                case IRI_UNRESERVED: case IRI_SUBDELIM:
-                case ':': case '@': case '/': case '?':
-                    *out++ = c;
-                    break;
-                case '%':
-                    if (!(out = parse_percent(out, in, in_end))) {
-                        return fail(Error::InvalidPercentSequence);
-                    }
-                    in += 2;
-                    break;
-                case IRI_IFFY:
-                    out = write_percent(out, c);
-                    break;
-                default: {
-                    return fail(Error::InvalidFragment);
+        expect(*in == '#');
+        *out++ = *in++;
+         // Note that a second # is not allowed.  If that happens, it's likely
+         // that there is a nested URL with an unescaped fragment, and in that
+         // case it's ambiguous how to parse it, so we won't try.
+        while (in < in_end) switch (*in) {
+            case IRI_UNRESERVED: case IRI_SUBDELIM:
+            case ':': case '@': case '/': case '?':
+                *out++ = *in++;
+                break;
+            case '%':
+                if (!(out = parse_percent(out, in, in_end))) {
+                    return fail(Error::InvalidPercentSequence);
                 }
+                in += 3;
+                break;
+            case IRI_IFFY:
+                out = write_percent(out, *in++);
+                break;
+            default: {
+                return fail(Error::InvalidFragment);
             }
         }
-        return done(out);
+        return done(out, in, in_end);
     }
 
-    void done (char* out) {
+    void done (char* out, const char* in, const char* in_end) {
         if (out - output.begin() > maximum_length) return fail(Error::TooLong);
-    //        expect(in == end);
+        expect(in == in_end);
         expect(colon < path);
         expect(colon + 2 != path);
         expect(path <= question);
