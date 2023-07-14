@@ -272,5 +272,4 @@ struct IRI {
 // unordered_map would likely be a mistake, since you can just use Strings or
 // Strs instead with the same behavior but less weight.
 
-// Inline implementations
-#include "iri-internal.h"
+#include "iri-inline.h"
