@@ -5,26 +5,6 @@
 
 namespace ayu {
 
-StaticString Type::name () const noexcept {
-    auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc) return "";
-    return in::get_description_name(desc);
-}
-
-const std::type_info& Type::cpp_type () const noexcept {
-    auto desc = in::DescriptionPrivate::get(*this);
-    return *desc->cpp_type;
-}
-
-usize Type::cpp_size () const noexcept {
-    auto desc = in::DescriptionPrivate::get(*this);
-    return desc->cpp_size;
-}
-usize Type::cpp_align () const noexcept {
-    auto desc = in::DescriptionPrivate::get(*this);
-    return desc->cpp_align;
-}
-
 void Type::default_construct (void* target) const {
     auto desc = in::DescriptionPrivate::get(*this);
     if (!desc->default_construct) throw CannotDefaultConstruct(*this);

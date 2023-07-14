@@ -1,6 +1,5 @@
-// This module implements the central registry of all described types in the
-// program.  This is kind of a nexus of dependency, so we're keeping it in its
-// own module.
+ // a Description contains all the information that's necessary for all types.
+ // Per-type information is in descriptors-internal.h.
 
 #pragma once
 

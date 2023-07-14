@@ -64,14 +64,22 @@ struct Type {
 
      // Get human-readable type name (whatever name was registered with
      // AYU_DESCRIBE).  This ignores the readonly bit.
-    StaticString name () const noexcept;
+    StaticString name () const {
+        return in::get_description_name(get_description());
+    }
      // Get the std::type_info& for this type.  NOTE: CONSTNESS INFO IS
      // CURRENTLY NYI
-    const std::type_info& cpp_type () const noexcept;
+    const std::type_info& cpp_type () const {
+        return *get_description()->cpp_type;
+    }
      // Get the sizeof() of this type
-    usize cpp_size () const noexcept;
+    usize cpp_size () const {
+        return get_description()->cpp_size;
+    }
      // Get the alignof() of this type
-    usize cpp_align () const noexcept;
+    usize cpp_align () const {
+        return get_description()->cpp_align;
+    }
      // Construct an instance of this type in-place.  The target must have at
      // least the required size and alignment.  May throw CannotDefaultConstruct 
      // or CannotDestroy.
