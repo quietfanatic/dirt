@@ -168,7 +168,7 @@ Relativity relativity (Str ref) {
         case '#': return Relativity::Fragment;
         default: break;
     }
-    for (char c : ref) {
+    for (char c : ref.substr(1)) {
         switch (c) {
             case ':': return Relativity::Scheme;
             case '/': case '?': case '#': return Relativity::RelativePath;
@@ -189,7 +189,7 @@ struct IRIParser {
     void parse (const IRI& base) {
         if (!input) return fail(Error::Empty);
         if (input.size() > maximum_length) return fail(Error::TooLong);
-         // Get capacity upper bound
+         // Figure out how much to allocate
         usize cap = input.size();
         for (auto c : input) {
             switch (c) {
@@ -198,8 +198,11 @@ struct IRIParser {
             }
         }
          // Now figure out how much we actually need to parse.
+        Str prefix;
+        decltype(&IRIParser::parse_authority) next;
         switch (relativity(input)) {
             case Relativity::Scheme: {
+                expect(!output.owned());
                 output = UniqueString(Uninitialized(cap));
                 return parse_scheme(
                     output.begin(), input.begin(), input.end()
@@ -207,63 +210,55 @@ struct IRIParser {
             }
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
-                Str prefix = base.spec_with_scheme_only();
-                output = UniqueString(Uninitialized(prefix.size() + cap));
-                std::memcpy(output.begin(), prefix.begin(), prefix.size());
+                prefix = base.spec_with_scheme_only();
                 colon = base.colon_;
-                return parse_authority(
-                    output.begin() + prefix.size(), input.begin(), input.end()
-                );
+                next = &IRIParser::parse_authority;
+                break;
             }
             case Relativity::AbsolutePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
-                Str prefix = base.spec_with_origin_only();
-                output = UniqueString(Uninitialized(prefix.size() + cap));
-                std::memcpy(output.begin(), prefix.begin(), prefix.size());
+                prefix = base.spec_with_origin_only();
                 colon = base.colon_;
                 path = base.path_;
-                return parse_absolute_path(
-                    output.begin() + prefix.size(), input.begin(), input.end()
-                );
+                next = &IRIParser::parse_absolute_path;
+                break;
             }
             case Relativity::RelativePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
-                Str prefix = base.spec_without_filename();
-                output = UniqueString(Uninitialized(prefix.size() + cap));
-                std::memcpy(output.begin(), prefix.begin(), prefix.size());
+                prefix = base.spec_without_filename();
                 colon = base.colon_;
                 path = base.path_;
-                return parse_relative_path(
-                    output.begin() + prefix.size(), input.begin(), input.end()
-                );
+                next = &IRIParser::parse_relative_path;
+                break;
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
-                Str prefix = base.spec_without_query();
-                output = UniqueString(Uninitialized(prefix.size() + cap));
-                std::memcpy(output.begin(), prefix.begin(), prefix.size());
+                prefix = base.spec_without_query();
                 colon = base.colon_;
                 path = base.path_;
                 question = base.question_;
-                return parse_query(
-                    output.begin() + prefix.size(), input.begin(), input.end()
-                );
+                next = &IRIParser::parse_query;
+                break;
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
-                Str prefix = base.spec_without_fragment();
-                output = UniqueString(Uninitialized(prefix.size() + cap));
-                std::memcpy(output.begin(), prefix.begin(), prefix.size());
+                prefix = base.spec_without_fragment();
                 colon = base.colon_;
                 path = base.path_;
                 question = base.question_;
                 hash = base.hash_;
-                return parse_fragment(
-                    output.begin() + prefix.size(), input.begin(), input.end()
-                );
+                next = &IRIParser::parse_fragment;
+                break;
             }
             default: never();
         }
+         // Allocate and start
+        expect(prefix);
+        expect(!output.owned());
+        output = cat(prefix, Uninitialized(cap));
+        return (this->*next)(
+            output.begin() + prefix.size(), input.begin(), input.end()
+        );
     }
 
     void parse_scheme (char* out, const char* in, const char* in_end) {
@@ -296,6 +291,7 @@ struct IRIParser {
         never();
     }
 
+    NOINLINE
     void parse_authority (char* out, const char* in, const char* in_end) {
         expect(out[-1] == ':');
         expect(in + 2 <= in_end && in[0] == '/' && in[1] == '/');
@@ -331,12 +327,14 @@ struct IRIParser {
         return done(out, in, in_end);
     }
 
+    NOINLINE
     void parse_absolute_path (char* out, const char* in, const char* in_end) {
         expect(*in == '/');
         *out++ = *in++;
         return parse_relative_path(out, in, in_end);
     }
 
+    NOINLINE
     void parse_relative_path (char* out, const char* in, const char* in_end) {
         while (in < in_end) switch (*in) {
             case IRI_UPPERCASE: case IRI_LOWERCASE:
@@ -388,6 +386,7 @@ struct IRIParser {
         return done(out, in, in_end);
     }
 
+    NOINLINE
     void parse_nonhierarchical_path (
         char* out, const char* in, const char* in_end
     ) {
@@ -420,6 +419,7 @@ struct IRIParser {
         return done(out, in, in_end);
     }
 
+    NOINLINE
     void parse_query (char* out, const char* in, const char* in_end) {
         expect(*in == '?');
         *out++ = *in++;
@@ -443,6 +443,7 @@ struct IRIParser {
         return done(out, in, in_end);
     }
 
+    NOINLINE
     void parse_fragment (char* out, const char* in, const char* in_end) {
         expect(*in == '#');
         *out++ = *in++;
