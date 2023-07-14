@@ -106,41 +106,40 @@ struct StringConversion<Uninitialized> {
     constexpr usize write (char*) const { return len; }
 };
 
- // If we don't add this expect(), the compiler emits extra branches for when
- // the total size overflows to 0, but those branches just crash anyway.
-constexpr
-void cat_add_no_overflow (usize& a, usize b) {
-    expect(a + b <= UniqueString::max_size_);
-    a += b;
-}
+struct Cats {
 
-template <class... Tail> inline
-void cat_append (
-    UniqueString::Impl& h, Tail&&... t
-) {
-    if constexpr (sizeof...(Tail) > 0) {
-        usize total_size = h.size;
-        (cat_add_no_overflow(total_size, t.capacity_upper_bound()), ...);
-        reinterpret_cast<UniqueString&>(h).reserve_plenty(total_size);
-        ((h.size += t.write(h.data + h.size)), ...);
+     // If we don't add this expect(), the compiler emits extra branches for
+     // when the total size overflows to 0, but those branches just crash
+     // anyway.
+    static constexpr
+    void add_no_overflow (usize& a, usize b) {
+        expect(a + b <= UniqueString::max_size_);
+        a += b;
     }
-}
 
-template <class... Tail> inline
-UniqueString cat_construct (
-    Tail&&... t
-) {
-    if constexpr (sizeof...(Tail) > 0) {
-        usize total_size = 0;
-        (cat_add_no_overflow(total_size, t.capacity_upper_bound()), ...);
-        auto r = UniqueString(Uninitialized(total_size));
-        usize s = 0;
-        ((s += t.write(r.data() + s)), ...);
-        r.unsafe_set_size(s);
-        return r;
+    template <class... Tail> static inline
+    void append (UniqueString::Impl& h, Tail&&... t) {
+        if constexpr (sizeof...(Tail) > 0) {
+            usize cap = h.size;
+            (add_no_overflow(cap, t.capacity_upper_bound()), ...);
+            reinterpret_cast<UniqueString&>(h).reserve_plenty(cap);
+            ((h.size += t.write(h.data + h.size)), ...);
+        }
     }
-    else return "";
-}
+
+    template <class... Tail> static inline
+    UniqueString construct (Tail&&... t) {
+        if constexpr (sizeof...(Tail) > 0) {
+            usize cap = 0;
+            (add_no_overflow(cap, t.capacity_upper_bound()), ...);
+            char* p = UniqueString::allocate_owned(cap);
+            usize s = 0;
+            ((s += t.write(p + s)), ...);
+            return UniqueString::UnsafeConstructOwned(p, s);
+        }
+        else return "";
+    }
+};
 
 } // in
 
@@ -151,12 +150,12 @@ UniqueString cat (Head&& h, Tail&&... t) {
     if constexpr (std::is_same_v<Head&&, UniqueString&&>) {
         UniqueString::Impl impl (h.size(), h.mut_data());
         h.unsafe_set_empty();
-        in::cat_append(
+        in::Cats::append(
             impl, in::StringConversion<std::remove_cvref_t<Tail>>(t)...
         );
         return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
     }
-    else return in::cat_construct(
+    else return in::Cats::construct(
         in::StringConversion<std::remove_cvref_t<Head>>(h),
         in::StringConversion<std::remove_cvref_t<Tail>>(t)...
     );

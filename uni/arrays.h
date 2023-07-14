@@ -51,6 +51,7 @@
 #include "copy-ref.h"
 
 namespace uni {
+inline namespace strings { namespace in { struct Cats; } }
 inline namespace arrays {
 
 ///// THIS HEADER PROVIDES
@@ -1734,6 +1735,8 @@ struct ArrayInterface {
         }
         else never();
     }
+
+    friend struct uni::strings::in::Cats;
 };
 
 ///// OPERATORS
