@@ -6,6 +6,7 @@
 #include "../dynamic.h"
 #include "../describe.h"
 #include "../describe-standard.h"
+#include "../errors.h"
 #include "../parse.h"
 #include "../print.h"
 #include "../reference.h"
@@ -501,76 +502,6 @@ AYU_DESCRIBE(ayu::Resource,
             v = Resource(m);
         }
     ))
-)
-AYU_DESCRIBE(ayu::ResourceState,
-    values(
-        value("UNLOADED", UNLOADED),
-        value("LOADED", LOADED),
-        value("LOAD_CONSTRUCTING", LOAD_CONSTRUCTING),
-        value("LOAD_ROLLBACK", LOAD_ROLLBACK),
-        value("SAVE_VERIFYING", SAVE_VERIFYING),
-        value("SAVE_COMMITTING", SAVE_COMMITTING),
-        value("UNLOAD_VERIFYING", UNLOAD_VERIFYING),
-        value("UNLOAD_COMMITTING", UNLOAD_COMMITTING),
-        value("RELOAD_CONSTRUCTING", RELOAD_CONSTRUCTING),
-        value("RELOAD_VERIFYING", RELOAD_VERIFYING),
-        value("RELOAD_ROLLBACK", RELOAD_ROLLBACK),
-        value("RELOAD_COMMITTING", RELOAD_COMMITTING)
-    )
-)
-
-AYU_DESCRIBE(ayu::ResourceError,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::InvalidResourceState,
-    elems(
-        elem(base<ResourceError>(), include),
-        elem(&InvalidResourceState::tried),
-        elem(&InvalidResourceState::state),
-        elem(&InvalidResourceState::resource)
-    )
-)
-AYU_DESCRIBE(ayu::EmptyResourceValue,
-    elems(
-        elem(base<ResourceError>(), include),
-        elem(&EmptyResourceValue::name)
-    )
-)
-AYU_DESCRIBE(ayu::UnloadBreak,
-    elems(
-        elem(&UnloadBreak::from),
-        elem(&UnloadBreak::to)
-    )
-)
-AYU_DESCRIBE(ayu::UnloadWouldBreak,
-    elems(
-        elem(base<ResourceError>(), include),
-        elem(&UnloadWouldBreak::breaks)
-    )
-)
-AYU_DESCRIBE(ayu::ReloadBreak,
-    elems(
-        elem(&ReloadBreak::from),
-        elem(&ReloadBreak::to),
-        elem(&ReloadBreak::inner)
-    )
-)
-AYU_DESCRIBE(ayu::ReloadWouldBreak,
-    elems(
-        elem(base<ResourceError>(), include),
-        elem(&ReloadWouldBreak::breaks)
-    )
-)
-AYU_DESCRIBE(ayu::RemoveSourceFailed,
-    elems(
-        elem(base<ResourceError>(), include),
-        elem(&RemoveSourceFailed::resource),
-        elem(value_func<Str>(
-            [](const RemoveSourceFailed& v){
-                return Str(std::strerror(v.errnum));
-            }
-        ))
-    )
 )
 
 ///// TESTS

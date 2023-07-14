@@ -4,7 +4,7 @@
 #include <charconv>
 
 #include "../../uni/utf.h"
-#include "../describe-base.h"
+#include "../errors.h"
 #include "../type.h"
 #include "char-cases-private.h"
 
@@ -314,6 +314,7 @@ struct Printer {
                     catch (const UnknownType&) {
                         name = Str(typeid(e).name());
                     }
+                     // TODO: change these to !
                     return pchar(pstr(pstr(p, "?("), name), ')');
                 }
             }
@@ -371,13 +372,6 @@ void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
 }
 
 } using namespace ayu;
-
-AYU_DESCRIBE(ayu::InvalidPrintOptions,
-    elems(
-        elem(base<Error>(), include),
-        elem(&InvalidPrintOptions::options)
-    )
-)
 
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"

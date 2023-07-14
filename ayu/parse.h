@@ -1,8 +1,8 @@
-// This module implements transforming strings to trees.
+// This module has the tree <- string <- file pipeline.
 
 #pragma once
 
-#include "tree.h"
+#include "common.h"
 
 namespace ayu {
 
@@ -13,15 +13,5 @@ Tree tree_from_string (Str, AnyString filename = "");
 UniqueString string_from_file (AnyString filename);
 
 Tree tree_from_file (AnyString filename);
-
-struct ParseError : Error {
-    AnyString mess;
-    AnyString filename;
-    uint line;
-    uint col;
-    ParseError (AnyString m, AnyString f, uint l, uint c) :
-        mess(move(m)), filename(move(f)), line(l), col(c)
-    { }
-};
 
 } // namespace ayu

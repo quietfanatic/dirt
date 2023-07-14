@@ -1,12 +1,11 @@
 #include "../internal/description-internal.h"
 
 #include <typeindex>
-
 #if __has_include(<cxxabi.h>)
 #include <cxxabi.h>
 #endif
 
-#include "../internal/descriptors-internal.h"
+#include "../errors.h"
 
 namespace ayu {
 namespace in {

@@ -1,8 +1,6 @@
 #include "../resource-scheme.h"
 
-#include <cassert>
-#include "../describe.h"
-#include "char-cases-private.h"
+#include "../errors.h"
 #include "universe-private.h"
 
 namespace ayu {
@@ -25,47 +23,4 @@ void ResourceScheme::deactivate () const {
 }
 
 } using namespace ayu;
-
-///// AYU DESCRIPTIONS
-
-AYU_DESCRIBE(ayu::ResourceNameError,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::InvalidResourceName,
-    elems(
-        elem(base<ResourceNameError>(), include),
-        elem(&InvalidResourceName::name)
-    )
-)
-AYU_DESCRIBE(ayu::UnknownResourceScheme,
-    elems(
-        elem(base<ResourceNameError>(), include),
-        elem(&UnknownResourceScheme::name)
-    )
-)
-AYU_DESCRIBE(ayu::UnacceptableResourceName,
-    elems(
-        elem(base<ResourceNameError>(), include),
-        elem(&UnacceptableResourceName::name)
-    )
-)
-AYU_DESCRIBE(ayu::UnacceptableResourceType,
-    elems(
-        elem(base<ResourceNameError>(), include),
-        elem(&UnacceptableResourceType::name),
-        elem(&UnacceptableResourceType::type)
-    )
-)
-AYU_DESCRIBE(ayu::InvalidResourceScheme,
-    elems(
-        elem(base<ResourceNameError>(), include),
-        elem(&InvalidResourceScheme::scheme)
-    )
-)
-AYU_DESCRIBE(ayu::DuplicateResourceScheme,
-    elems(
-        elem(base<ResourceNameError>(), include),
-        elem(&DuplicateResourceScheme::scheme)
-    )
-)
 

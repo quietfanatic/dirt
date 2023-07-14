@@ -1,10 +1,8 @@
 #include "../internal/common-internal.h"
 
 #include <cstdlib>
-#include <iostream>
 
 #include "../../uni/utf.h"
-#include "../describe.h"
 #include "../serialize.h"
 
 namespace ayu {
@@ -55,33 +53,3 @@ void unrecoverable_exception (Str when) noexcept {
 
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::Error, elems(), attrs())
-
-AYU_DESCRIBE(ayu::GenericError,
-    elems(
-        elem(base<Error>(), include),
-        elem(&GenericError::mess)
-    )
-)
-AYU_DESCRIBE(ayu::IOError,
-    elems(
-        elem(base<Error>(), include),
-        elem(&IOError::filename),
-        elem(&IOError::errnum)
-    )
-)
-AYU_DESCRIBE(ayu::OpenFailed,
-    elems(
-        elem(base<IOError>(), include),
-        elem(&OpenFailed::mode)
-    )
-)
-AYU_DESCRIBE(ayu::ReadFailed,
-    delegate(base<IOError>())
-)
-AYU_DESCRIBE(ayu::WriteFailed,
-    delegate(base<IOError>())
-)
-AYU_DESCRIBE(ayu::CloseFailed,
-    delegate(base<IOError>())
-)

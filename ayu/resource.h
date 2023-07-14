@@ -25,10 +25,7 @@
 
 #pragma once
 
-#include "../iri/iri.h"
 #include "internal/common-internal.h"
-#include "location.h"
-#include "reference.h"
 
 namespace ayu {
 
@@ -130,12 +127,8 @@ struct Resource {
 
      // Syntax sugar
     explicit operator bool () const { return data; }
-    Reference operator [] (Str key) {
-        return ref()[key];
-    }
-    Reference operator [] (usize index) {
-        return ref()[index];
-    }
+    Reference operator [] (Str key);
+    Reference operator [] (usize index);
 };
 
  // Resources are considered equal if their names are equal (Resources with the
@@ -225,50 +218,12 @@ AnyString resource_filename (Resource);
  // resources that are in the process of being loaded, reloaded, or unloaded.
 UniqueArray<Resource> loaded_resources ();
 
-///// ERRORS
+} // ayu
+ // cyclic dependencies
+#include "reference.h"
+namespace ayu {
 
-struct ResourceError : Error { };
- // Tried an an operation on a resource when its state wasn't appropriate
- // for that operation.
-struct InvalidResourceState : ResourceError {
-    StaticString tried;
-    Resource resource;
-    ResourceState state;
-    InvalidResourceState (StaticString t, Resource r) :
-        tried(t), resource(r), state(r.state())
-    { }
-};
- // Tried to create a resource with an empty value.
-struct EmptyResourceValue : ResourceError {
-    AnyString name;
-    EmptyResourceValue (AnyString n) : name(move(n)) { }
-};
- // Tried to unload a resource, but there's still a reference somewhere
- // referencing an item inside it.
-struct UnloadBreak {
-    Location from;
-    Location to;
-};
-struct UnloadWouldBreak : ResourceError {
-    UniqueArray<UnloadBreak> breaks;
-    UnloadWouldBreak (UniqueArray<UnloadBreak>&& b) : breaks(b) { }
-};
- // Tried to reload a resource, but was unable to update a reference
- // somewhere.
-struct ReloadBreak {
-    Location from;
-    Location to;
-    std::exception_ptr inner;
-};
-struct ReloadWouldBreak : ResourceError {
-    UniqueArray<ReloadBreak> breaks;
-    ReloadWouldBreak (UniqueArray<ReloadBreak>&& b) : breaks(b) { }
-};
- // Failed to delete a resource's source file.
-struct RemoveSourceFailed : ResourceError {
-    Resource resource;
-    int errnum; // errno
-    RemoveSourceFailed (Resource r, int e) : resource(r), errnum(e) { }
-};
+inline Reference Resource::operator [] (Str key) { return ref()[key]; }
+inline Reference Resource::operator [] (usize index) { return ref()[index]; }
 
 } // namespace ayu

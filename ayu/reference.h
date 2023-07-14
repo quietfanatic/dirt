@@ -49,9 +49,7 @@
 #include "internal/accessors-internal.h"
 #include "internal/descriptors-internal.h"
 #include "dynamic.h"
-#include "location.h"
 #include "pointer.h"
-#include "serialize.h"
 
 namespace ayu {
 
@@ -291,18 +289,7 @@ inline bool operator != (const Reference& a, const Reference& b) {
     return !(a == b);
 }
 
-struct ReferenceError : Error {
-    Location location;
-    Type type;
-    ReferenceError (Location l, Type t) : location(move(l)), type(t) { }
-};
- // Tried to write to a readonly reference.
-struct WriteReadonlyReference : ReferenceError { using ReferenceError::ReferenceError; };
- // Used the reference in a context where its address was required, but it
- // has no address.
-struct UnaddressableReference : ReferenceError { using ReferenceError::ReferenceError; };
-
-} // namespace ayu
+} // ayu
 
  // Allow Reference to be a key in unordered_map
 template <>

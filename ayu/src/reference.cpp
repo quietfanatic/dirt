@@ -1,12 +1,14 @@
 #include "../reference.h"
 
-#include "accessors-private.h"
-#include "descriptors-private.h"
+#include "../../iri/iri.h"
 #include "../describe.h"
 #include "../dynamic.h"
+#include "../errors.h"
 #include "../resource.h"
 #include "../scan.h"
 #include "../serialize.h"
+#include "accessors-private.h"
+#include "descriptors-private.h"
 
 namespace ayu {
 using namespace in;
@@ -65,6 +67,7 @@ Reference Reference::chain_elem_func (
     }
 }
 
+ // TODO: figure out how to inline these without cyclic dependency hell
 Reference Reference::operator[] (AnyString key) const {
     return item_attr(*this, move(key));
 }
@@ -106,16 +109,3 @@ AYU_DESCRIBE(ayu::Reference,
     swizzle(&Reference_swizzle)
 )
 
-AYU_DESCRIBE(ayu::ReferenceError,
-    elems(
-        elem(base<Error>(), include),
-        elem(&ReferenceError::location),
-        elem(&ReferenceError::type)
-    )
-)
-AYU_DESCRIBE(ayu::WriteReadonlyReference,
-    elems(elem(base<ReferenceError>(), include))
-)
-AYU_DESCRIBE(ayu::UnaddressableReference,
-    elems(elem(base<ReferenceError>(), include))
-)

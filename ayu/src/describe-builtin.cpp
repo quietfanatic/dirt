@@ -4,6 +4,7 @@
 #include "../../iri/iri.h"
 #include "../describe-base.h"
 #include "../location.h"
+#include "../serialize.h"
 
 using namespace ayu;
 

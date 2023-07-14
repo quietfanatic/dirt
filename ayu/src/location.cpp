@@ -1,53 +1,13 @@
 #include "../location.h"
 
 #include <charconv>
+#include "../../iri/iri.h"
 #include "../describe.h"
-#include "../reference.h"
-#include "../resource.h"
-#include "char-cases-private.h"
+#include "../errors.h"
+#include "../serialize.h"
 
 namespace ayu {
 namespace in {
-
-enum LocationForm {
-    RESOURCE,
-    REFERENCE,
-    KEY,
-    INDEX,
-};
-
-struct LocationData : RefCounted {
-    uint8 form;
-    LocationData (uint8 f) : form(f) { }
-};
-
-struct ResourceLocation : LocationData {
-    Resource resource;
-    ResourceLocation (Resource res) :
-        LocationData(RESOURCE), resource(res)
-    { }
-};
-struct ReferenceLocation : LocationData {
-    Reference reference;
-    ReferenceLocation (Reference ref) :
-        LocationData(REFERENCE), reference(move(ref))
-    { }
-};
-
-struct KeyLocation : LocationData {
-    Location parent;
-    AnyString key;
-    KeyLocation (Location p, AnyString k) :
-        LocationData(KEY), parent(move(p)), key(move(k))
-    { }
-};
-struct IndexLocation : LocationData {
-    Location parent;
-    uint32 index;
-    IndexLocation (Location p, usize i) :
-        LocationData(INDEX), parent(move(p)), index(i)
-    { expect(index == i); }
-};
 
 NOINLINE
 void delete_LocationData (LocationData* p) noexcept {
@@ -61,59 +21,6 @@ void delete_LocationData (LocationData* p) noexcept {
 }
 
 } using namespace in;
-
-Location::Location (Resource res) noexcept :
-    data(new ResourceLocation(move(res)))
-{ }
-Location::Location (Reference ref) noexcept :
-    data(new ReferenceLocation(move(ref)))
-{ }
-Location::Location (Location p, AnyString k) noexcept :
-    data(new KeyLocation(expect(move(p)), move(k)))
-{ }
-Location::Location (Location p, usize i) noexcept :
-    data(new IndexLocation(expect(move(p)), i))
-{ }
-
-const Resource* Location::resource () const noexcept {
-    switch (data->form) {
-        case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
-        default: return null;
-    }
-}
-
-const Reference* Location::reference () const noexcept {
-    switch (data->form) {
-        case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
-        default: return null;
-    }
-}
-
-const Location* Location::parent () const noexcept {
-    switch (data->form) {
-        case KEY: return &static_cast<KeyLocation*>(data.p)->parent;
-        case INDEX: return &static_cast<IndexLocation*>(data.p)->parent;
-        default: return null;
-    }
-}
-const AnyString* Location::key () const noexcept {
-    switch (data->form) {
-        case KEY: return &static_cast<KeyLocation*>(data.p)->key;
-        default: return null;
-    }
-}
-const uint32* Location::index () const noexcept {
-    switch (data->form) {
-        case INDEX: return &static_cast<IndexLocation*>(data.p)->index;
-        default: return null;
-    }
-}
-
-Location Location::root () const noexcept {
-    const Location* l = this;
-    while (l->parent()) l = l->parent();
-    return *l;
-}
 
  // TODO: Use traversals for this
 Reference reference_from_location (LocationRef loc) {
@@ -150,7 +57,8 @@ namespace in {
 
 static const IRI ayu_current_root ("ayu-current-root:");
 
-static UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
+NOINLINE static
+UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
     switch (loc->data->form) {
         case RESOURCE: base = &loc->resource()->name(); return "#";
          // TODO: This might be incorrect in some cases.  Check it
@@ -167,7 +75,8 @@ static UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef lo
         default: never();
     }
 }
-}
+
+} // in
 
 IRI location_to_iri (LocationRef loc) noexcept {
     if (!*loc) return IRI();

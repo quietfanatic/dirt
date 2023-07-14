@@ -5,6 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include "../common.h"
+#include "../errors.h"
 #include "../resource.h"
 #include "../resource-scheme.h"
 

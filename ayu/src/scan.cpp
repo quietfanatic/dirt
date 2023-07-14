@@ -1,6 +1,6 @@
 #include "../scan.h"
 
-#include "../describe.h"
+#include "../errors.h"
 #include "../location.h"
 #include "../pointer.h"
 #include "../reference.h"
@@ -247,10 +247,3 @@ Location reference_to_location (const Reference& item) {
 }
 
 } using namespace ayu;
-
-AYU_DESCRIBE(ayu::ReferenceNotFound,
-    elems(
-        elem(base<Error>(), include),
-        elem(&ReferenceNotFound::type)
-    )
-)

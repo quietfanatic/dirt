@@ -16,8 +16,10 @@
 #include <vector>
 
 #include "common.h"
+#include "errors.h"
 #include "describe-base.h"
 #include "reference.h"
+#include "serialize.h"
 
  // std::optional serializes to null for nullopt and whatever it contains
  // otherwise.  Yes, that means that this won't serialize properly if the

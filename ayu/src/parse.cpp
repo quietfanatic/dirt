@@ -5,8 +5,8 @@
 #include <limits>
 
 #include "../../uni/utf.h"
-#include "../describe.h"
-#include "../print.h"
+#include "../errors.h"
+#include "../print.h" // for error reporting
 #include "char-cases-private.h"
 
 namespace ayu {
@@ -463,16 +463,6 @@ Tree tree_from_file (AnyString filename) {
 }
 
 } using namespace ayu;
-
-AYU_DESCRIBE(ayu::ParseError,
-    attrs(
-        attr("Error", base<Error>(), include),
-        attr("mess", &ParseError::mess),
-        attr("filename", &ParseError::filename),
-        attr("line", &ParseError::line),
-        attr("col", &ParseError::col)
-    )
-)
 
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"

@@ -1,6 +1,7 @@
 #include "../tree.h"
 
 #include "../describe.h"
+#include "../errors.h"
 
 namespace ayu {
 namespace in {
@@ -127,26 +128,6 @@ AYU_DESCRIBE(ayu::TreeForm,
 AYU_DESCRIBE(ayu::Tree,
     to_tree([](const Tree& v){ return v; }),
     from_tree([](Tree& v, const Tree& t){ v = t; })
-)
-
-AYU_DESCRIBE(ayu::TreeError,
-    delegate(base<Error>())
-)
-
-AYU_DESCRIBE(ayu::WrongForm,
-    elems(
-        elem(base<TreeError>(), include),
-        elem(&WrongForm::form),
-        elem(&WrongForm::tree)
-    )
-)
-
-AYU_DESCRIBE(ayu::CantRepresent,
-    elems(
-        elem(base<TreeError>(), include),
-        elem(&CantRepresent::type_name),
-        elem(&CantRepresent::tree)
-    )
 )
 
 #ifndef TAP_DISABLE_TESTS

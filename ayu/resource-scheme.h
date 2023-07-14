@@ -90,38 +90,4 @@ struct FileResourceScheme : ResourceScheme {
     { }
 };
 
-struct ResourceNameError : Error { };
- // An invalid IRI was given as a resource name.
-struct InvalidResourceName : ResourceNameError {
-    AnyString name;
-    InvalidResourceName (AnyString n) : name(move(n)) { }
-};
- // Tried to use an IRI as a resource name but its scheme was not registered
-struct UnknownResourceScheme : ResourceNameError {
-    AnyString name;
-    UnknownResourceScheme (AnyString n) : name(move(n)) { }
-};
- // A valid IRI was given but its ResourceScheme didn't like it.
-struct UnacceptableResourceName : ResourceNameError {
-    AnyString name;
-    UnacceptableResourceName (AnyString n) : name(move(n)) { }
-};
- // Tried to load or set_value a resource with a type that the
- // ResourceScheme didn't accept.
-struct UnacceptableResourceType : ResourceNameError {
-    AnyString name;
-    Type type;
-    UnacceptableResourceType (AnyString n, Type t) : name(move(n)), type(t) { }
-};
- // Tried to register a ResourceScheme with an invalid name.
-struct InvalidResourceScheme : ResourceNameError {
-    AnyString scheme;
-    InvalidResourceScheme (AnyString n) : scheme(move(n)) { }
-};
- // Tried to register multiple ResourceSchemes with the same name.
-struct DuplicateResourceScheme : ResourceNameError {
-    AnyString scheme;
-    DuplicateResourceScheme (AnyString n) : scheme(move(n)) { }
-};
-
 } // namespace ayu

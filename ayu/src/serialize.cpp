@@ -1,7 +1,6 @@
 #include "serialize-private.h"
 
-#include <cassert>
-#include "../describe.h"
+#include "../errors.h"
 
 namespace ayu {
 using namespace in;
@@ -768,87 +767,12 @@ Location current_root_location () noexcept {
 
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::SerializeFailed,
-    attrs(
-        attr("Error", base<Error>(), include),
-        attr("location", &SerializeFailed::location),
-        attr("type", &SerializeFailed::type),
-        attr("inner", &SerializeFailed::inner)
-    )
-)
-
-AYU_DESCRIBE(ayu::ToTreeNotSupported,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::FromTreeNotSupported,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::InvalidForm,
-    elems(
-        elem(base<Error>(), include),
-        elem(&InvalidForm::form)
-    )
-)
-AYU_DESCRIBE(ayu::NoNameForValue,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::NoValueForName,
-    elems(
-        elem(base<Error>(), include),
-        elem(&NoValueForName::name)
-    )
-)
-AYU_DESCRIBE(ayu::MissingAttr,
-    elems(
-        elem(base<Error>(), include),
-        elem(&MissingAttr::key)
-    )
-)
-AYU_DESCRIBE(ayu::UnwantedAttr,
-    elems(
-        elem(base<Error>(), include),
-        elem(&UnwantedAttr::key)
-    )
-)
-AYU_DESCRIBE(ayu::WrongLength,
-    attrs(
-        attr("ayu::Error", base<Error>(), include),
-        attr("min", &WrongLength::min),
-        attr("max", &WrongLength::max),
-        attr("got", &WrongLength::got)
-    )
-)
-AYU_DESCRIBE(ayu::NoAttrs,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::NoElems,
-    delegate(base<Error>())
-)
-AYU_DESCRIBE(ayu::AttrNotFound,
-    elems(
-        elem(base<Error>(), include),
-        elem(&AttrNotFound::key)
-    )
-)
-AYU_DESCRIBE(ayu::ElemNotFound,
-    elems(
-        elem(base<Error>(), include),
-        elem(&ElemNotFound::index)
-    )
-)
-AYU_DESCRIBE(ayu::InvalidKeysType,
-    elems(
-        elem(base<Error>(), include),
-        elem(&InvalidKeysType::keys_type)
-    )
-)
-
 ///// TESTS
 
 #ifndef TAP_DISABLE_TESTS
 #include <unordered_map>
 #include "../../tap/tap.h"
-#include "../describe-standard.h"
+#include "../describe.h"
 
  // Putting these in a test namespace so their described names don't conflict
 namespace ayu::test {
