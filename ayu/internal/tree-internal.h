@@ -99,13 +99,13 @@ constexpr Tree::Tree (const Tree& o) :
     form(o.form), rep(o.rep), flags(o.flags), length(o.length), data(o.data)
 {
     if (rep < 0 && data.as_char_ptr) {
-        ++ArrayOwnedHeader::get(data.as_char_ptr)->ref_count;
+        ++SharedBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
 }
 
 constexpr Tree::~Tree () {
     if (rep < 0 && data.as_char_ptr) {
-        auto header = ArrayOwnedHeader::get(data.as_char_ptr);
+        auto header = SharedBuffer<char>::header(data.as_char_ptr);
         if (header->ref_count) --header->ref_count;
         else in::delete_Tree_data(*this);
     }
@@ -176,7 +176,7 @@ constexpr Tree::operator AnyString () const& {
             return StaticString(data.as_char_ptr, length);
         case in::REP_SHAREDSTRING: {
             if (data.as_char_ptr) {
-                ++ArrayOwnedHeader::get(data.as_char_ptr)->ref_count;
+                ++SharedBuffer<char>::header(data.as_char_ptr)->ref_count;
             }
             return SharedString::UnsafeConstructOwned(
                 const_cast<char*>(data.as_char_ptr), length
@@ -209,7 +209,7 @@ constexpr Tree::operator TreeArraySlice () const {
 constexpr Tree::operator TreeArray () const& {
     if (rep != in::REP_ARRAY) in::throw_WrongForm(*this, ARRAY);
     if (data.as_array_ptr) {
-        ++ArrayOwnedHeader::get(data.as_array_ptr)->ref_count;
+        ++SharedBuffer<Tree>::header(data.as_array_ptr)->ref_count;
     }
     return TreeArray::UnsafeConstructOwned(
         const_cast<Tree*>(data.as_array_ptr), length
@@ -230,7 +230,7 @@ constexpr Tree::operator TreeObjectSlice () const {
 constexpr Tree::operator TreeObject () const& {
     if (rep != in::REP_OBJECT) in::throw_WrongForm(*this, OBJECT);
     if (data.as_object_ptr) {
-        ++ArrayOwnedHeader::get(data.as_object_ptr)->ref_count;
+        ++SharedBuffer<TreePair>::header(data.as_object_ptr)->ref_count;
     }
     return TreeObject::UnsafeConstructOwned(
         const_cast<TreePair*>(data.as_object_ptr), length

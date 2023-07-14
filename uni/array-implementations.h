@@ -21,20 +21,6 @@ enum class ArrayClass {
     SliceS
 };
 
-///// SHARED HEADER
- // If an array is shared or unique (owned() == true), then this struct is right
- // behind the buffer in memory.  The total allocated size is
- // sizeof(ArrayOwnedHeader) + capacity.
-
- // Note: Objects with align > 8 are not currently supported.
-struct alignas(8) ArrayOwnedHeader {
-    const uint32 capacity; // Number of elements this buffer can hold.
-    mutable uint32 ref_count; // zero-based (= 0 for unique arrays)
-    static ArrayOwnedHeader* get (const void* data) {
-        return (ArrayOwnedHeader*)data - 1;
-    }
-};
-
 ///// ARRAY IMPLEMENTATIONS
 
 template <ArrayClass, class>
