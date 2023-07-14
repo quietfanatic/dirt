@@ -286,122 +286,82 @@ struct IRIParser {
                 case ':':
                     colon = out - output.begin();
                     *out++ = ':';
-                    return parse_authority(out, in, in_end);
+                    if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
+                        return parse_authority(out, in, in_end);
+                    }
+                    else {
+                        path = out - output.begin();
+                        if (in + 1 <= in_end && in[0] == '/') {
+                            return parse_absolute_path(out, in, in_end);
+                        }
+                        else return parse_nonhierarchical_path(out, in, in_end);
+                    }
                 default: return fail(Error::InvalidScheme);
             }
         }
          // We should not have been called if the input doesn't have a :
         never();
     }
+
     void parse_authority (char* out, const char* in, const char* in_end) {
         expect(out[-1] == ':');
-         // TODO: move this check out
-        if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
-            *out++ = '/'; *out++ = '/';
-            in += 2;
-            while (in != in_end) {
-                char c = *in++;
-                switch (c) {
-                    case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
-                    case IRI_LOWERCASE: case IRI_DIGIT:
-                    case IRI_UNRESERVED_SYMBOL:
-                    case IRI_UTF8_HIGH:
-                    case IRI_SUBDELIM:
-                    case ':': case '[': case ']': case '@':
-                        *out++ = c; break;
-                    case '/':
-                        path = out - output.begin();
-                        in--;
-                        return parse_absolute_path(out, in, in_end);
-                    case '?':
-                        path = question = out - output.begin();
-                        *out++ = '?';
-                        return parse_query(out, in, in_end);
-                    case '#':
-                        path = question = hash = out - output.begin();
-                        *out++ = '#';
-                        return parse_fragment(out, in, in_end);
-                    case '%':
-                        if (!(out = parse_percent(out, in, in_end))) {
-                            return fail(Error::InvalidPercentSequence);
-                        }
-                        in += 2; break;
-                    case IRI_IFFY:
-                        out = write_percent(out, c); break;
-                    default: return fail(Error::InvalidAuthority);
-                }
+        expect(in + 2 <= in_end && in[0] == '/' && in[1] == '/');
+        *out++ = '/'; *out++ = '/';
+        in += 2;
+        while (in != in_end) {
+            char c = *in++;
+            switch (c) {
+                case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
+                case IRI_LOWERCASE: case IRI_DIGIT:
+                case IRI_UNRESERVED_SYMBOL:
+                case IRI_UTF8_HIGH:
+                case IRI_SUBDELIM:
+                case ':': case '[': case ']': case '@':
+                    *out++ = c; break;
+                case '/':
+                    path = out - output.begin();
+                    in--;
+                    return parse_absolute_path(out, in, in_end);
+                case '?':
+                    path = question = out - output.begin();
+                    *out++ = '?';
+                    return parse_query(out, in, in_end);
+                case '#':
+                    path = question = hash = out - output.begin();
+                    *out++ = '#';
+                    return parse_fragment(out, in, in_end);
+                case '%':
+                    if (!(out = parse_percent(out, in, in_end))) {
+                        return fail(Error::InvalidPercentSequence);
+                    }
+                    in += 2; break;
+                case IRI_IFFY:
+                    out = write_percent(out, c); break;
+                default: return fail(Error::InvalidAuthority);
             }
-            path = question = hash = out - output.begin();
-            return done(out);
         }
-        else {
-             // Doesn't start with //, so no authority
-            path = out - output.begin();
-            if (in != in_end && *in == '/') {
-                return parse_absolute_path(out, in, in_end);
-            }
-            else return parse_nonhierarchical_path(out, in, in_end);
-        }
+        path = question = hash = out - output.begin();
+        return done(out);
     }
+
     void parse_absolute_path (char* out, const char* in, const char* in_end) {
         expect(*in == '/');
         *out++ = '/'; in++;
         return parse_relative_path(out, in, in_end);
     }
+
     void parse_relative_path (char* out, const char* in, const char* in_end) {
-         // TODO: This breaks if it's != so something ain't quite right here
-        while (in < in_end) {
+        while (in != in_end) {
             char c = *in++;
             switch (c) {
                 case IRI_UPPERCASE: case IRI_LOWERCASE:
                 case IRI_DIGIT: case IRI_SUBDELIM:
                 case IRI_UTF8_HIGH:
-                case '-': case '_': case '~': case ':': case '@':
+                case '-': case '_': case '~': case ':': case '@': case '.':
                     *out++ = c; break;
-                case '/':
-                     // Eliminate duplicate /
-                     // TODO flip this
-                    if (out[-1] != '/') {
-                        *out++ = c;
-                    }
-                    else in++;
-                    break;
-                case '.':
-                    if (out[-1] == '/') {
-                        if (in < in_end && *in == '.') {
-                            if (in+1 == in_end ||
-                                in[1] == '/' || in[1] == '?' || in[1] == '#'
-                            ) {
-                                 // Got a .. so pop off last segment
-                                if (out - output.begin() - 1 > path) {
-                                    out--; // last slash
-                                    while (out[-1] != '/') {
-                                        out--;
-                                    }
-                                    in += 2;
-                                    break;
-                                }
-                                else return fail(Error::InvalidPath);
-                            }
-                        }
-                        else if (
-                            in == in_end ||
-                            *in == '/' || *in == '?' || *in == '#'
-                        ) {
-                             // Go a . so ignore it
-                            in++;
-                            break;
-                        }
-                    }
-                    *out++ = c; break;
-                case '?':
-                    question = out - output.begin();
-                    *out++ = '?';
-                    return parse_query(out, in, in_end);
-                case '#':
-                    question = hash = out - output.begin();
-                    *out++ = '#';
-                    return parse_fragment(out, in, in_end);
+                case '/': case '?': case '#':
+                    in--;
+                    return finish_segment(out, in, in_end);
                 case '%':
                     if (!(out = parse_percent(out, in, in_end))) {
                         return fail(Error::InvalidPercentSequence);
@@ -412,9 +372,45 @@ struct IRIParser {
                 default: return fail(Error::InvalidPath);
             }
         }
+        return finish_segment(out, in, in_end);
+    }
+
+    void finish_segment (char* out, const char* in, const char* in_end) {
+        if (out[-1] == '.') {
+            if (out[-2] == '/') {
+                out--;
+            }
+            else if (out[-2] == '.') {
+                if (out[-3] == '/') {
+                    out -= 3;
+                    if (out - output.begin() == path) {
+                        return fail(Error::InvalidPath);
+                    }
+                    while (out[-1] != '/') out--;
+                }
+            }
+        }
+        if (in != in_end) {
+            char c = *in++;
+            switch (c) {
+                case '/':
+                    if (out[-1] != '/') *out++ = '/';
+                    return parse_relative_path(out, in, in_end);
+                case '?':
+                    question = out - output.begin();
+                    *out++ = '?';
+                    return parse_query(out, in, in_end);
+                case '#':
+                    question = hash = out - output.begin();
+                    *out++ = '#';
+                    return parse_fragment(out, in, in_end);
+                default: never();
+            }
+        }
         question = hash = out - output.begin();
         return done(out);
     }
+
     void parse_nonhierarchical_path (
         char* out, const char* in, const char* in_end
     ) {
@@ -451,6 +447,7 @@ struct IRIParser {
         question = hash = out - output.begin();
         return done(out);
     }
+
     void parse_query (char* out, const char* in, const char* in_end) {
         expect(out[-1] == '?');
         while (in != in_end) {
@@ -476,6 +473,7 @@ struct IRIParser {
         hash = out - output.begin();
         return done(out);
     }
+
     void parse_fragment (char* out, const char* in, const char* in_end) {
         expect(out[-1] == '#');
         while (in != in_end) {
@@ -504,6 +502,7 @@ struct IRIParser {
         }
         return done(out);
     }
+
     void done (char* out) {
         if (out - output.begin() > maximum_length) return fail(Error::TooLong);
     //        expect(in == end);
@@ -514,6 +513,7 @@ struct IRIParser {
         expect(hash <= out - output.begin());
         output.unsafe_set_size(out - output.begin());
     }
+
     [[gnu::cold]] void fail (Error err) {
         output = input;
         colon = path = question = 0;
