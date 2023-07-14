@@ -43,8 +43,8 @@ const char* Error::what () const noexcept {
     return mess_cache.data();
 }
 
-//[[gnu::cold]]
-void unrecoverable_exception (Str when) {
+[[gnu::cold]]
+void unrecoverable_exception (Str when) noexcept {
     auto e = std::current_exception();
     warn_utf8(cat(
         "ERROR: Unrecoverable exception ", when, ":\n",

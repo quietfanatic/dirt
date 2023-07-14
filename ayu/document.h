@@ -13,7 +13,7 @@ namespace ayu {
 struct Document {
     in::DocumentData* data;
 
-    Document ();
+    Document () noexcept;
      // Deletes all items
     ~Document ();
     Document (const Document&) = delete;
@@ -43,20 +43,19 @@ struct Document {
         }
     }
 
-     // Throws DocumentDeleteWrongType if T is not the type of *p.
      // In debug mode, verifies that the given object actually belongs to this
-     // Document.
+     // Document and that its type is actually T.
     template <class T>
     void delete_ (T* p) {
         delete_(Type::CppType<T>(), (Mu*)p);
     }
 
-    void* allocate (Type);
+    void* allocate (Type) noexcept;
     void* allocate_named (Type, AnyString);
-    void delete_ (Type, Mu*);
+    void delete_ (Type, Mu*) noexcept;
     void delete_named (Str);
 
-    void deallocate (void* p);
+    void deallocate (void* p) noexcept;
 };
 
  // General category of errors coming from ayu::Document

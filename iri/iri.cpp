@@ -111,7 +111,7 @@ static char* parse_percent (char* out, const char* in, const char* end) {
     }
 }
 
-UniqueString encode (Str input) {
+UniqueString encode (Str input) noexcept {
     if (!input) return "";
     usize cap = input.size();
     for (auto c : input) {
@@ -136,7 +136,7 @@ UniqueString encode (Str input) {
     return r;
 }
 
-UniqueString decode (Str input) {
+UniqueString decode (Str input) noexcept {
     if (!input) return "";
     const char* in = input.begin();
     const char* end = input.end();
@@ -155,7 +155,7 @@ UniqueString decode (Str input) {
     return r;
 }
 
-Relativity relativity (Str ref) {
+Relativity relativity (Str ref) noexcept {
     if (ref.size() == 0) return Relativity::Scheme;
     switch (ref[0]) {
         case ':': return Relativity::Scheme;
@@ -489,7 +489,7 @@ struct IRIParser {
     }
 };
 
-IRI::IRI (Str spec, const IRI& base) {
+IRI::IRI (Str spec, const IRI& base) noexcept {
     IRIParser parser;
     parser.input = spec;
     parser.parse(base);
@@ -500,7 +500,7 @@ IRI::IRI (Str spec, const IRI& base) {
     hash_ = parser.hash;
 }
 
-AnyString IRI::spec_relative_to (const IRI& base) const {
+AnyString IRI::spec_relative_to (const IRI& base) const noexcept {
     if (!*this) return "";
     else if (!base) return spec_;
     else if (scheme() != base.scheme()) return spec_;

@@ -77,10 +77,10 @@ std::unordered_map<Pointer, Location>* get_location_cache () {
 
 } using namespace in;
 
-KeepLocationCache::KeepLocationCache () {
+KeepLocationCache::KeepLocationCache () noexcept {
     keep_location_cache_count++;
 }
-KeepLocationCache::~KeepLocationCache () {
+KeepLocationCache::~KeepLocationCache () noexcept {
     if (!--keep_location_cache_count) {
         have_location_cache = false;
         location_cache.clear();

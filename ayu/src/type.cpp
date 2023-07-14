@@ -15,22 +15,22 @@
 
 namespace ayu {
 
-StaticString Type::name () const {
+StaticString Type::name () const noexcept {
     auto desc = in::DescriptionPrivate::get(*this);
     if (!desc) return "";
     return in::get_description_name(desc);
 }
 
-const std::type_info& Type::cpp_type () const {
+const std::type_info& Type::cpp_type () const noexcept {
     auto desc = in::DescriptionPrivate::get(*this);
     return *desc->cpp_type;
 }
 
-usize Type::cpp_size () const {
+usize Type::cpp_size () const noexcept {
     auto desc = in::DescriptionPrivate::get(*this);
     return desc->cpp_size;
 }
-usize Type::cpp_align () const {
+usize Type::cpp_align () const noexcept {
     auto desc = in::DescriptionPrivate::get(*this);
     return desc->cpp_align;
 }
@@ -49,14 +49,12 @@ void Type::destroy (Mu* p) const {
     desc->destroy(p);
 }
 
-void* Type::allocate () const {
+void* Type::allocate () const noexcept {
     auto desc = in::DescriptionPrivate::get(*this);
-    void* p = std::aligned_alloc(desc->cpp_align, desc->cpp_size);
-    if (!p) throw std::bad_alloc();
-    return p;
+    return expect(std::aligned_alloc(desc->cpp_align, desc->cpp_size));
 }
 
-void Type::deallocate (void* p) const {
+void Type::deallocate (void* p) const noexcept {
     std::free(p);
 }
 

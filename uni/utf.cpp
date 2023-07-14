@@ -67,7 +67,7 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
     return p - buffer;
 }
 
-UniqueString16 to_utf16 (Str s) {
+UniqueString16 to_utf16 (Str s) noexcept {
      // Buffer is not null-terminated
      // Worst-case inflation is 1 code unit (2 bytes) per byte
     usize buffer_size = s.size();
@@ -129,7 +129,7 @@ static usize from_utf16_buffer (char* buffer, Str16 s) {
     return p - buffer;
 }
 
-UniqueString from_utf16 (Str16 s) {
+UniqueString from_utf16 (Str16 s) noexcept {
      // Buffer is not null-terminated
      // Worst-case inflation is 3 bytes per code unit (1.5x)
     usize buffer_size = s.size() * 3;
@@ -151,7 +151,7 @@ UniqueString from_utf16 (Str16 s) {
     }
 }
 
-std::FILE* fopen_utf8 (const char* filename, const char* mode) {
+std::FILE* fopen_utf8 (const char* filename, const char* mode) noexcept {
 #ifdef _WIN32
     static_assert(sizeof(wchar_t) == sizeof(char16));
     return _wfopen(
@@ -163,7 +163,7 @@ std::FILE* fopen_utf8 (const char* filename, const char* mode) {
 #endif
 }
 
-void print_utf8 (Str s) {
+void print_utf8 (Str s) noexcept {
 #ifdef _WIN32
     [[maybe_unused]] static auto set = _setmode(_fileno(stdout), _O_WTEXT);
     auto s16 = to_utf16(s);
@@ -175,7 +175,7 @@ void print_utf8 (Str s) {
 #endif
     fflush(stdout);
 }
-void warn_utf8 (Str s) {
+void warn_utf8 (Str s) noexcept {
 #ifdef _WIN32
     [[maybe_unused]] static auto set = _setmode(_fileno(stderr), _O_WTEXT);
     auto s16 = to_utf16(s);
@@ -188,7 +188,7 @@ void warn_utf8 (Str s) {
     fflush(stderr);
 }
 
-int remove_utf8 (const char* filename) {
+int remove_utf8 (const char* filename) noexcept {
 #ifdef _WIN32
     return _wremove(
         reinterpret_cast<const wchar_t*>(to_utf16(filename).c_str())

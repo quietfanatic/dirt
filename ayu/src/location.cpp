@@ -62,54 +62,54 @@ void delete_LocationData (LocationData* p) noexcept {
 
 } using namespace in;
 
-Location::Location (Resource res) :
+Location::Location (Resource res) noexcept :
     data(new ResourceLocation(move(res)))
 { }
-Location::Location (Reference ref) :
+Location::Location (Reference ref) noexcept :
     data(new ReferenceLocation(move(ref)))
 { }
-Location::Location (Location p, AnyString k) :
+Location::Location (Location p, AnyString k) noexcept :
     data(new KeyLocation(expect(move(p)), move(k)))
 { }
-Location::Location (Location p, usize i) :
+Location::Location (Location p, usize i) noexcept :
     data(new IndexLocation(expect(move(p)), i))
 { }
 
-const Resource* Location::resource () const {
+const Resource* Location::resource () const noexcept {
     switch (data->form) {
         case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
         default: return null;
     }
 }
 
-const Reference* Location::reference () const {
+const Reference* Location::reference () const noexcept {
     switch (data->form) {
         case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
         default: return null;
     }
 }
 
-const Location* Location::parent () const {
+const Location* Location::parent () const noexcept {
     switch (data->form) {
         case KEY: return &static_cast<KeyLocation*>(data.p)->parent;
         case INDEX: return &static_cast<IndexLocation*>(data.p)->parent;
         default: return null;
     }
 }
-const AnyString* Location::key () const {
+const AnyString* Location::key () const noexcept {
     switch (data->form) {
         case KEY: return &static_cast<KeyLocation*>(data.p)->key;
         default: return null;
     }
 }
-const uint32* Location::index () const {
+const uint32* Location::index () const noexcept {
     switch (data->form) {
         case INDEX: return &static_cast<IndexLocation*>(data.p)->index;
         default: return null;
     }
 }
 
-Location Location::root () const {
+Location Location::root () const noexcept {
     const Location* l = this;
     while (l->parent()) l = l->parent();
     return *l;
@@ -133,13 +133,13 @@ Reference reference_from_location (LocationRef loc) {
     }
 }
 
-AnyString location_iri_to_relative_iri (const IRI& iri) {
+AnyString location_iri_to_relative_iri (const IRI& iri) noexcept {
     auto base = location_to_iri(current_root_location());
     expect(base.fragment().empty());
     return iri.spec_relative_to(base);
 }
 
-IRI location_iri_from_relative_iri (Str rel) {
+IRI location_iri_from_relative_iri (Str rel) noexcept {
     if (!rel) return IRI();
     auto base = location_to_iri(current_root_location());
     expect(base.fragment().empty());
@@ -169,7 +169,7 @@ static UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef lo
 }
 }
 
-IRI location_to_iri (LocationRef loc) {
+IRI location_to_iri (LocationRef loc) noexcept {
     if (!*loc) return IRI();
     const IRI* base;
     UniqueString fragment = location_to_iri_accumulate(base, loc);

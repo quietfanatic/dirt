@@ -753,13 +753,13 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
 
 ///// MISC
 
-Location current_location () {
+Location current_location () noexcept {
     if (current_traversal) {
         return trav_location(*current_traversal);
     }
     else return Location();
 }
-Location current_root_location () {
+Location current_root_location () noexcept {
     if (current_traversal) {
         return trav_location(find_trav_start(*current_traversal)).root();
     }

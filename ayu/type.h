@@ -64,14 +64,14 @@ struct Type {
 
      // Get human-readable type name (whatever name was registered with
      // AYU_DESCRIBE).  This ignores the readonly bit.
-    StaticString name () const;
+    StaticString name () const noexcept;
      // Get the std::type_info& for this type.  NOTE: CONSTNESS INFO IS
      // CURRENTLY NYI
-    const std::type_info& cpp_type () const;
+    const std::type_info& cpp_type () const noexcept;
      // Get the sizeof() of this type
-    usize cpp_size () const;
+    usize cpp_size () const noexcept;
      // Get the alignof() of this type
-    usize cpp_align () const;
+    usize cpp_align () const noexcept;
      // Construct an instance of this type in-place.  The target must have at
      // least the required size and alignment.  May throw CannotDefaultConstruct 
      // or CannotDestroy.
@@ -83,9 +83,9 @@ struct Type {
      // It is not specified whether this uses new or malloc, so if you use this
      // to allocate space for an object, you must use deallocate() to deallocate
      // it.
-    void* allocate () const;
+    void* allocate () const noexcept;
      // Deallocate a buffer previously allocated with allocate()
-    void deallocate (void*) const;
+    void deallocate (void*) const noexcept;
      // Allocate and construct an instance of this type.
     Mu* default_new () const;
      // Destruct and deallocate and instance of this type.

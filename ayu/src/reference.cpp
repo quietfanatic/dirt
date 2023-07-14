@@ -19,7 +19,7 @@ void Reference::throw_Unaddressable () const {
     throw UnaddressableReference(reference_to_location(*this), type());
 }
 
-Reference Reference::chain (const Accessor* o_acr) const {
+Reference Reference::chain (const Accessor* o_acr) const noexcept {
     if (auto a = address()) {
         return Reference(Pointer(type(), a), o_acr);
     }

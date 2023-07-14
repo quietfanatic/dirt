@@ -99,7 +99,7 @@ struct CloseFailed : IOError { using IOError::IOError; };
  // Called when an exception is thrown in a place where the library can't
  // properly clean up after itself, such as when a resource value throws
  // from its destructor.
-[[noreturn]] void unrecoverable_exception (Str when);
+[[noreturn]] void unrecoverable_exception (Str when) noexcept;
 
 } // namespace ayu
 

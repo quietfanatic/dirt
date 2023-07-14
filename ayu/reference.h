@@ -251,7 +251,7 @@ struct Reference {
 
      // These are used by serialize.  They will be most efficient if this
      // Reference has an address().
-    Reference chain (const in::Accessor*) const;
+    Reference chain (const in::Accessor*) const noexcept;
     Reference chain_attr_func (Reference(*)(Mu&, AnyString), AnyString) const;
     Reference chain_elem_func (Reference(*)(Mu&, usize), usize) const;
      // Kinda internal, TODO move to internal namespace

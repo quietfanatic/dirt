@@ -33,30 +33,30 @@ struct Location {
      // can't be transformed into a reference.
     explicit operator bool () const { return !!data; }
      // Constructs a root location from a Resource.
-    explicit Location (Resource);
+    explicit Location (Resource) noexcept;
      // Constructs a root location from an anonymous item.  as_iri() will return
      // "anonymous-item:", and reference_from_location will return this
      // Reference.
-    explicit Location (Reference);
+    explicit Location (Reference) noexcept;
      // Constructs a location based on another one with an added attribute key
      // or element index.
-    Location (Location parent, AnyString key);
-    Location (Location parent, usize index);
+    Location (Location parent, AnyString key) noexcept;
+    Location (Location parent, usize index) noexcept;
 
      // Returns null if this is not a resource root.
-    const Resource* resource () const;
+    const Resource* resource () const noexcept;
      // Returns null if this is not a reference root.
-    const Reference* reference () const;
+    const Reference* reference () const noexcept;
      // Returns null if this is a root.
-    const Location* parent () const;
+    const Location* parent () const noexcept;
      // Returns null if this location is a root or has an index.
-    const AnyString* key () const;
+    const AnyString* key () const noexcept;
      // Returns null if this location is a root or has a key.
-    const uint32* index () const;
+    const uint32* index () const noexcept;
 
      // Walks down to the root Location (containing either a Resource or a
      // Reference) and returns it.
-    Location root () const;
+    Location root () const noexcept;
 };
 
  // Convert a Location to a Reference.  This will not have to do any scanning,
@@ -65,12 +65,12 @@ struct Location {
 Reference reference_from_location (LocationRef);
 
  // Parse the given IRI reference relative to current_root_location().
-IRI location_iri_from_relative_iri (Str);
+IRI location_iri_from_relative_iri (Str) noexcept;
 
  // Convert the given IRI to an IRI reference relative to
  // current_root_location().  If the given IRI is exactly
  // current_root_location(), this will return "#".
-AnyString location_iri_to_relative_iri (const IRI&);
+AnyString location_iri_to_relative_iri (const IRI&) noexcept;
 
  // Gets an IRI corresponding to the given Location.  If the root is a Resource,
  // the IRI up to the fragment will be the resource's name.  If the root is a
@@ -78,7 +78,7 @@ AnyString location_iri_to_relative_iri (const IRI&);
  // produce good results during a serialization operation.
  // A key location will have /key appended to the fragment, and an index
  // location will have +index appended to the fragment.
-IRI location_to_iri (LocationRef);
+IRI location_to_iri (LocationRef) noexcept;
 
  // Parses an IRI into a location.  All of the IRI up to the fragment will
  // be used as the resource name for the root, and the fragment will be

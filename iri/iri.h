@@ -68,10 +68,10 @@ using namespace uni;
 constexpr uint32 maximum_length = uint16(-1);
 
  // Replace reserved characters with % sequences
-UniqueString encode (Str);
+UniqueString encode (Str) noexcept;
  // Replace % sequences with their characters.  If there's an invalid escape
  // sequence, returns the empty string.
-UniqueString decode (Str);
+UniqueString decode (Str) noexcept;
 
  // The first component that the given IRI reference has
 enum class Relativity {
@@ -86,7 +86,7 @@ enum class Relativity {
  // Return what kind of relative reference this is.  This only does basic
  // detection, and when given an invalid reference, may return anything.  To be
  // sure that the reference is valid, resolve it into a full IRI.
-Relativity relativity (Str);
+Relativity relativity (Str) noexcept;
 
  // What went wrong when parsing an IRI
 enum class Error : uint16 {
@@ -122,7 +122,7 @@ struct IRI {
      // base is provided, resolved ref as a IRI reference (AKA a relative IRI)
      // with base as its base. If base is not provided, ref must be an absolute
      // IRI with scheme included.
-    explicit IRI (Str ref, const IRI& base = IRI());
+    explicit IRI (Str ref, const IRI& base = IRI()) noexcept;
      // Construct an already-parsed IRI.  This will not do any validation.  If
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr IRI (
@@ -165,7 +165,7 @@ struct IRI {
      // this IRI has nothing in common with base.  Returning relative paths is
      // not yet implemented, so if this IRI and base differ in their paths, an
      // absolute path starting with / will be returned.
-    AnyString spec_relative_to (const IRI& base) const;
+    AnyString spec_relative_to (const IRI& base) const noexcept;
 
      // Check for existence of components.
     constexpr bool has_scheme () const;

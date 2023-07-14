@@ -86,10 +86,10 @@ struct DocumentItemRef {
 
 } using namespace in;
 
-Document::Document () : data(new DocumentData) { }
+Document::Document () noexcept : data(new DocumentData) { }
 Document::~Document () { delete data; }
 
-void* Document::allocate (Type t) {
+void* Document::allocate (Type t) noexcept {
     auto id = data->next_id++;
     auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
     auto header = new (p) DocumentItemHeader(&data->items, t, id);
@@ -123,7 +123,7 @@ void* Document::allocate_named (Type t, AnyString name) {
     }
 }
 
-void Document::delete_ (Type t, Mu* p) {
+void Document::delete_ (Type t, Mu* p) noexcept {
 #ifndef NDEBUG
      // Check that the pointer belongs to this document
     for (auto link = data->items.next; link != &data->items; link = link->next) {
@@ -134,9 +134,7 @@ void Document::delete_ (Type t, Mu* p) {
     we_good:;
 #endif
     auto header = (DocumentItemHeader*)p - 1;
-    if (header->type != t) {
-        throw DocumentDeleteWrongType(header->type, t);
-    }
+    expect(header->type == t);
     if (header->type) header->type.destroy(p);
     header->~DocumentItemHeader();
     free(header);
@@ -155,7 +153,7 @@ void Document::delete_named (Str name) {
     else throw DocumentDeleteMissing(name);
 }
 
-void Document::deallocate (void* p) {
+void Document::deallocate (void* p) noexcept {
     auto header = (DocumentItemHeader*)p - 1;
     header->~DocumentItemHeader();
     free(header);

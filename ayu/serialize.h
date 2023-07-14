@@ -152,11 +152,11 @@ Reference item_elem (
 
  // If a serialization operation is active, get the Location of the item that's
  // currently being processed.
-Location current_location ();
+Location current_location () noexcept;
 
  // Gets whatever the root of current_location() would be (either a Resource
  // Location or a Reference Locaiton).
-Location current_root_location ();
+Location current_root_location () noexcept;
 
 ///// DIAGNOSTICS HELP
 
