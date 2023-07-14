@@ -443,7 +443,7 @@ UniqueString string_from_file (AnyString filename) {
     usize size = ftell(f);
     rewind(f);
 
-    UniqueString r (size, Uninitialized());
+    auto r = UniqueString(Uninitialized(size));
     usize did_read = fread(r.data(), 1, size, f);
     if (did_read != size) {
         int errnum = errno;

@@ -122,7 +122,7 @@ UniqueString encode (Str input) {
             default: break;
         }
     }
-    UniqueString r (cap, Uninitialized());
+    auto r = UniqueString(Uninitialized(cap));
     char* out = r.data();
     for (auto c : input) {
         switch (c) {
@@ -132,7 +132,7 @@ UniqueString encode (Str input) {
             default: *out++ = c; break;
         }
     }
-    r.shrink(out - r.data());
+    r.unsafe_set_size(out - r.data());
     return r;
 }
 
@@ -140,7 +140,7 @@ UniqueString decode (Str input) {
     if (!input) return "";
     const char* in = input.begin();
     const char* end = input.end();
-    UniqueString r (input.size(), Uninitialized());
+    auto r = UniqueString(Uninitialized(input.size()));
     char* out = r.data();
     while (in != end) {
         if (*in == '%') {
@@ -151,7 +151,7 @@ UniqueString decode (Str input) {
         }
         else *out++ = *in++;
     }
-    r.shrink(out - r.data());
+    r.unsafe_set_size(out - r.data());
     return r;
 }
 
@@ -200,66 +200,66 @@ struct IRIParser {
          // Now figure out how much we actually need to parse.
         switch (relativity(input)) {
             case Relativity::Scheme: {
-                output.reserve(cap);
+                output = UniqueString(Uninitialized(cap));
                 return parse_scheme(
-                    output.end(), input.begin(), input.end()
+                    output.begin(), input.begin(), input.end()
                 );
             }
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
                 Str prefix = base.spec_with_scheme_only();
-                output.reserve(prefix.size() + cap);
-                output.append_expect_capacity(prefix);
+                output = UniqueString(Uninitialized(prefix.size() + cap));
+                std::memcpy(output.begin(), prefix.begin(), prefix.size());
                 colon = base.colon_;
                 return parse_authority(
-                    output.end(), input.begin(), input.end()
+                    output.begin() + prefix.size(), input.begin(), input.end()
                 );
             }
             case Relativity::AbsolutePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
                 Str prefix = base.spec_with_origin_only();
-                output.reserve(prefix.size() + cap);
-                output.append_expect_capacity(prefix);
+                output = UniqueString(Uninitialized(prefix.size() + cap));
+                std::memcpy(output.begin(), prefix.begin(), prefix.size());
                 colon = base.colon_;
                 path = base.path_;
                 return parse_absolute_path(
-                    output.end(), input.begin(), input.end()
+                    output.begin() + prefix.size(), input.begin(), input.end()
                 );
             }
             case Relativity::RelativePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
                 Str prefix = base.spec_without_filename();
-                output.reserve(prefix.size() + cap);
-                output.append_expect_capacity(prefix);
+                output = UniqueString(Uninitialized(prefix.size() + cap));
+                std::memcpy(output.begin(), prefix.begin(), prefix.size());
                 colon = base.colon_;
                 path = base.path_;
                 return parse_relative_path(
-                    output.end(), input.begin(), input.end()
+                    output.begin() + prefix.size(), input.begin(), input.end()
                 );
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
                 Str prefix = base.spec_without_query();
-                output.reserve(prefix.size() + cap);
-                output.append_expect_capacity(prefix);
+                output = UniqueString(Uninitialized(prefix.size() + cap));
+                std::memcpy(output.begin(), prefix.begin(), prefix.size());
                 colon = base.colon_;
                 path = base.path_;
                 question = base.question_;
                 return parse_query(
-                    output.end(), input.begin(), input.end()
+                    output.begin() + prefix.size(), input.begin(), input.end()
                 );
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
                 Str prefix = base.spec_without_fragment();
-                output.reserve(prefix.size() + cap);
-                output.append_expect_capacity(prefix);
+                output = UniqueString(Uninitialized(prefix.size() + cap));
+                std::memcpy(output.begin(), prefix.begin(), prefix.size());
                 colon = base.colon_;
                 path = base.path_;
                 question = base.question_;
                 hash = base.hash_;
                 return parse_fragment(
-                    output.end(), input.begin(), input.end()
+                    output.begin() + prefix.size(), input.begin(), input.end()
                 );
             }
             default: never();

@@ -185,8 +185,8 @@ concept ArrayContiguousIteratorFor =
 template <class I>
 concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<I>;
 
- // A tag type indicating a desire for uninitialized data.
-struct Uninitialized { };
+ // A tag-like type representing a span of uninitialized data
+struct Uninitialized { usize size; };
 
 ///// ARRAY INTERFACE
 // The shared interface for all the array classes
@@ -553,11 +553,11 @@ struct ArrayInterface {
 
      // Construct with uninitialized data if the elements support that
     explicit
-    ArrayInterface (usize s, Uninitialized) requires (
+    ArrayInterface (Uninitialized u) requires (
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
-        if (!s) { impl = {}; return; }
-        set_unique(allocate_owned(s), s);
+        if (!u.size) { impl = {}; return; }
+        set_unique(allocate_owned(u.size), u.size);
     }
 
      // Finally, std::initializer_list
@@ -1133,11 +1133,11 @@ struct ArrayInterface {
         }
     }
      // Append uninitialized data
-    void append (usize s, Uninitialized) requires (
+    void append (Uninitialized u) requires (
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
-        reserve_plenty(size() + s);
-        add_size(s);
+        reserve_plenty(size() + u.size);
+        add_size(u.size);
     }
 
      // Append but skip the capacity check
@@ -1173,10 +1173,10 @@ struct ArrayInterface {
             }
         }
     }
-    void append_expect_capacity (usize s, Uninitialized) requires (
+    void append_expect_capacity (Uninitialized u) requires (
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
-        add_size(s);
+        add_size(u.size);
     }
 
      // Construct an element into a specific place in the array, moving the rest
@@ -1270,22 +1270,22 @@ struct ArrayInterface {
     ) {
         insert(pos - impl.data, move(b), move(e));
     }
-    void insert (usize offset, usize s, Uninitialized) requires (
+    void insert (usize offset, Uninitialized u) requires (
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         expect(offset < size());
-        if (s == 0) {
+        if (u.size == 0) {
             make_unique();
         }
         else {
-            T* dat = do_split(impl, offset, s);
-            set_unique(dat, size() + s);
+            T* dat = do_split(impl, offset, u.size);
+            set_unique(dat, size() + u.size);
         }
     }
-    void insert (const T* pos, usize s, Uninitialized) requires (
+    void insert (const T* pos, Uninitialized u) requires (
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
-        insert(pos - impl.data, s, Uninitialized());
+        insert(pos - impl.data, u);
     }
 
      // Removes element(s) from the array.  If there are elements after the

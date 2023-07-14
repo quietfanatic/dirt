@@ -84,6 +84,7 @@ struct StringConversion<T> {
         return len;
     }
 };
+
 template <class T> requires (requires (const T& v) { Str(v); })
 struct StringConversion<T> {
     Str v;
@@ -95,6 +96,14 @@ struct StringConversion<T> {
         }
         return v.size();
     }
+};
+
+template <>
+struct StringConversion<Uninitialized> {
+    usize len;
+    constexpr StringConversion (Uninitialized u) : len(u.size) { }
+    constexpr usize capacity_upper_bound () const { return len; }
+    constexpr usize write (char*) const { return len; }
 };
 
  // If we don't add this expect(), the compiler emits extra branches for when
@@ -117,21 +126,29 @@ void cat_append (
     }
 }
 
+template <class... Tail> inline
+UniqueString cat_construct (
+    Tail&&... t
+) {
+    if constexpr (sizeof...(Tail) > 0) {
+        usize total_size = 0;
+        (cat_add_no_overflow(total_size, t.capacity_upper_bound()), ...);
+        auto r = UniqueString(Uninitialized(total_size));
+        usize s = 0;
+        ((s += t.write(r.data() + s)), ...);
+        r.unsafe_set_size(s);
+        return r;
+    }
+    else return "";
+}
+
 } // in
 
  // Concatenation for character strings.  Returns the result of printing all the
  // arguments, concatenated into a single string.
 template <class Head, class... Tail> inline
 UniqueString cat (Head&& h, Tail&&... t) {
-    if constexpr (
-        std::is_same_v<Head&&, UniqueString&&> ||
-        std::is_same_v<Head&&, SharedString&&> ||
-        std::is_same_v<Head&&, AnyString&&>
-    ) {
-         // mut_data() might trigger an unnecessary copy for Shared/AnyString,
-         // but to avoid that we'd have to branch on h.unique() and have two
-         // different calls to cat_append in the instruction stream, which isn't
-         // worth the extra code size IMO.
+    if constexpr (std::is_same_v<Head&&, UniqueString&&>) {
         UniqueString::Impl impl (h.size(), h.mut_data());
         h.unsafe_set_empty();
         in::cat_append(
@@ -139,14 +156,10 @@ UniqueString cat (Head&& h, Tail&&... t) {
         );
         return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
     }
-    else {
-        UniqueString::Impl impl = {};
-        in::cat_append(
-            impl, in::StringConversion<std::remove_cvref_t<Head>>(h),
-            in::StringConversion<std::remove_cvref_t<Tail>>(t)...
-        );
-        return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
-    }
+    else return in::cat_construct(
+        in::StringConversion<std::remove_cvref_t<Head>>(h),
+        in::StringConversion<std::remove_cvref_t<Tail>>(t)...
+    );
 }
 
 } // strings
