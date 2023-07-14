@@ -259,6 +259,7 @@ struct IRI {
      // Offset of the # for the fragment, or the end of the query (or path)
      // if there is no #.  hash_ >= question_.
     uint16 hash_ = 0;
+    friend class IRIParser;
 };
 
 } // namespace iri

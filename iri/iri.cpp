@@ -112,6 +112,7 @@ static char* parse_percent (char* out, const char* in, const char* end) {
 }
 
 UniqueString encode (Str input) {
+    if (!input) return "";
     usize cap = input.size();
     for (auto c : input) {
         switch (c) {
@@ -127,12 +128,8 @@ UniqueString encode (Str input) {
         switch (c) {
             case IRI_GENDELIM: case IRI_SUBDELIM:
             case IRI_FORBIDDEN: case IRI_IFFY:
-            case '%': {
-                out = write_percent(out, c); break;
-            }
-            default: {
-                *out++ = c; break;
-            }
+            case '%': out = write_percent(out, c); break;
+            default: *out++ = c; break;
         }
     }
     r.shrink(out - r.data());
@@ -140,10 +137,11 @@ UniqueString encode (Str input) {
 }
 
 UniqueString decode (Str input) {
+    if (!input) return "";
     const char* in = input.begin();
     const char* end = input.end();
-    UniqueString r;
-    r.reserve(input.size());
+    UniqueString r (input.size(), Uninitialized());
+    char* out = r.data();
     while (in != end) {
         char c = *in++;
         if (c == '%') {
@@ -152,8 +150,9 @@ UniqueString decode (Str input) {
             c = result;
             in += 2;
         }
-        r.push_back_expect_capacity(c);
+        *out++ = c;
     }
+    r.shrink(out - r.data());
     return r;
 }
 
@@ -173,196 +172,325 @@ Relativity relativity (Str ref) {
     for (char c : ref) {
         switch (c) {
             case ':': return Relativity::Scheme;
-            case '/': case '?': case '#':
-                return Relativity::RelativePath;
+            case '/': case '?': case '#': return Relativity::RelativePath;
             default: break;
         }
     }
     return Relativity::RelativePath;
 }
 
-usize capacity_upper_bound (Str ref) {
-    if (ref.size() > maximum_length) return 0;
-    usize r = ref.size();
-    for (auto c : ref) {
-        switch (c) {
-            case IRI_IFFY: r += 2; break;
-            default: break;
+struct IRIParser {
+    Str input;
+    UniqueString output;
+    uint16 colon;
+    uint16 path;
+    uint16 question;
+    uint16 hash;
+
+    void parse (const IRI& base) {
+        if (!input) return fail(Error::Empty);
+        if (input.size() > maximum_length) return fail(Error::TooLong);
+         // Get capacity upper bound
+        usize cap = input.size();
+        for (auto c : input) {
+            switch (c) {
+                case IRI_IFFY: cap += 2; break;
+                default: break;
+            }
+        }
+         // Now figure out how much we actually need to parse.
+        switch (relativity(input)) {
+            case Relativity::Scheme: {
+                output.reserve(cap);
+                return parse_scheme(
+                    output.end(), input.begin(), input.end()
+                );
+            }
+            case Relativity::Authority: {
+                if (!base) return fail(Error::CouldNotResolve);
+                Str prefix = base.spec_with_scheme_only();
+                output.reserve(prefix.size() + cap);
+                output.append_expect_capacity(prefix);
+                colon = base.colon_;
+                return parse_authority(
+                    output.end(), input.begin(), input.end()
+                );
+            }
+            case Relativity::AbsolutePath: {
+                if (!base.hierarchical()) return fail(Error::CouldNotResolve);
+                Str prefix = base.spec_with_origin_only();
+                output.reserve(prefix.size() + cap);
+                output.append_expect_capacity(prefix);
+                colon = base.colon_;
+                path = base.path_;
+                return parse_absolute_path(
+                    output.end(), input.begin(), input.end()
+                );
+            }
+            case Relativity::RelativePath: {
+                if (!base.hierarchical()) return fail(Error::CouldNotResolve);
+                Str prefix = base.spec_without_filename();
+                output.reserve(prefix.size() + cap);
+                output.append_expect_capacity(prefix);
+                colon = base.colon_;
+                path = base.path_;
+                return parse_relative_path(
+                    output.end(), input.begin(), input.end()
+                );
+            }
+            case Relativity::Query: {
+                if (!base) return fail(Error::CouldNotResolve);
+                Str prefix = base.spec_without_query();
+                output.reserve(prefix.size() + cap);
+                output.append_expect_capacity(prefix);
+                output.push_back_expect_capacity('?');
+                colon = base.colon_;
+                path = base.path_;
+                question = base.question_;
+                return parse_query(
+                    output.end(), input.begin()+1, input.end()
+                );
+            }
+            case Relativity::Fragment: {
+                if (!base) return fail(Error::CouldNotResolve);
+                Str prefix = base.spec_without_fragment();
+                output.reserve(prefix.size() + cap);
+                output.append_expect_capacity(prefix);
+                output.push_back_expect_capacity('#');
+                colon = base.colon_;
+                path = base.path_;
+                question = base.question_;
+                hash = base.hash_;
+                return parse_fragment(
+                    output.end(), input.begin()+1, input.end()
+                );
+            }
+            default: never();
         }
     }
-    return r;
-}
 
-IRI::IRI (Str input, const IRI& base) {
-    if (!input) return;
-
-    const char* in = input.begin();
-    const char* end = input.end();
-    char* out;
-    usize cap = capacity_upper_bound(input);
-
-     // Reject absurdly large input
-    if (input.size() > maximum_length) {
-        hash_ = uint16(Error::TooLong);
-        goto fail;
-    }
-     // Now start parsing...wait stop.
-     // If we've been given a relative reference, we can skip some parsing
-    switch (relativity(input)) {
-        case Relativity::Scheme: {
-            spec_.reserve(cap);
-            out = spec_.mut_data();
-            goto parse_scheme;
-        }
-        case Relativity::Authority: {
-            if (!base) {
-                hash_ = uint16(Error::CouldNotResolve);
-                goto fail;
-            }
-            Str prefix = base.spec_with_scheme_only();
-            spec_.reserve(prefix.size() + cap);
-            spec_.append_expect_capacity(prefix);
-            colon_ = base.colon_;
-            out = spec_.mut_end();
-            goto parse_authority;
-        }
-        case Relativity::AbsolutePath: {
-            if (!base.hierarchical()) {
-                hash_ = uint16(Error::CouldNotResolve);
-                goto fail;
-            }
-            Str prefix = base.spec_with_origin_only();
-            spec_.reserve(prefix.size() + cap);
-            spec_.append_expect_capacity(prefix);
-            colon_ = base.colon_;
-            path_ = base.path_;
-            out = spec_.mut_end();
-            goto parse_absolute_path;
-        }
-        case Relativity::RelativePath: {
-            if (!base.hierarchical()) {
-                hash_ = uint16(Error::CouldNotResolve);
-                goto fail;
-            }
-            Str prefix = base.spec_without_filename();
-            spec_.reserve(prefix.size() + cap);
-            spec_.append_expect_capacity(prefix);
-            colon_ = base.colon_;
-            path_ = base.path_;
-            out = spec_.mut_end();
-            goto parse_relative_path;
-        }
-        case Relativity::Query: {
-            in++;
-            if (!base) {
-                hash_ = uint16(Error::CouldNotResolve);
-                goto fail;
-            }
-            Str prefix = base.spec_without_query();
-            spec_.reserve(prefix.size() + cap);
-            spec_.append_expect_capacity(prefix);
-            colon_ = base.colon_;
-            path_ = base.path_;
-            question_ = base.question_;
-            out = spec_.mut_end();
-            *out++ = '?';
-            goto parse_query;
-        }
-        case Relativity::Fragment: {
-            in++;
-            if (!base) {
-                hash_ = uint16(Error::CouldNotResolve);
-                goto fail;
-            }
-            Str prefix = base.spec_without_fragment();
-            spec_.reserve(prefix.size() + cap);
-            spec_.append_expect_capacity(prefix);
-            colon_ = base.colon_;
-            path_ = base.path_;
-            question_ = base.question_;
-            hash_ = base.hash_;
-            out = spec_.mut_end();
-            *out++ = '#';
-            goto parse_fragment;
-        }
-        default: never();
-    }
-     // Okay NOW start parsing.
-
-    parse_scheme:
-    {
+    void parse_scheme (char* out, const char* in, const char* in_end) {
         char c = *in++;
+         // Must start with a letter.
         switch (c) {
-            case IRI_UPPERCASE:
-                *out++ = c - 'A' + 'a';
-                break;
-            case IRI_LOWERCASE:
-                *out++ = c;
-                break;
-            default: {
-                hash_ = uint16(Error::InvalidScheme);
-                goto fail;
-            }
+            case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
+            case IRI_LOWERCASE: *out++ = c; break;
+            default: return fail(Error::InvalidScheme);
         }
-    }
-    while (in != end) {
-        char c = *in++;
-        switch (c) {
-            case IRI_UPPERCASE:
-                 // Canonicalize to lowercase
-                *out++ = c - 'A' + 'a';
-                break;
-            case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
-                *out++ = c;
-                break;
-            case ':':
-                colon_ = out - spec_.begin();
-                *out++ = ':';
-                goto parse_authority;
-            default: {
-                hash_ = uint16(Error::InvalidScheme);
-                goto fail;
-            }
-        }
-    }
-     // If the input doesn't have a :, we should never have been sent to
-     // parse_scheme.
-    never();
-
-    parse_authority: expect(out[-1] == ':');
-    if (in + 2 <= end && in[0] == '/' && in[1] == '/') {
-        *out++ = '/'; *out++ = '/';
-        in += 2;
-        while (in != end) {
+        while (in != in_end) {
             char c = *in++;
             switch (c) {
-                case IRI_UPPERCASE:
-                     // Canonicalize to lowercase
-                    *out++ = c - 'A' + 'a';
-                    break;
-                case IRI_LOWERCASE: case IRI_DIGIT:
-                case IRI_UNRESERVED_SYMBOL:
+                case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
+                case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
+                    *out++ = c; break;
+                case ':':
+                    colon = out - output.begin();
+                    *out++ = ':';
+                    return parse_authority(out, in, in_end);
+                default: return fail(Error::InvalidScheme);
+            }
+        }
+         // We should not have been called if the input doesn't have a :
+        never();
+    }
+    void parse_authority (char* out, const char* in, const char* in_end) {
+        expect(out[-1] == ':');
+         // TODO: move this check out
+        if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
+            *out++ = '/'; *out++ = '/';
+            in += 2;
+            while (in != in_end) {
+                char c = *in++;
+                switch (c) {
+                    case IRI_UPPERCASE: *out++ = c - 'A' + 'a'; break;
+                    case IRI_LOWERCASE: case IRI_DIGIT:
+                    case IRI_UNRESERVED_SYMBOL:
+                    case IRI_UTF8_HIGH:
+                    case IRI_SUBDELIM:
+                    case ':': case '[': case ']': case '@':
+                        *out++ = c; break;
+                    case '/':
+                        path = out - output.begin();
+                        in--;
+                        return parse_absolute_path(out, in, in_end);
+                    case '?':
+                        path = question = out - output.begin();
+                        *out++ = '?';
+                        return parse_query(out, in, in_end);
+                    case '#':
+                        path = question = hash = out - output.begin();
+                        *out++ = '#';
+                        return parse_fragment(out, in, in_end);
+                    case '%':
+                        if (!(out = parse_percent(out, in, in_end))) {
+                            return fail(Error::InvalidPercentSequence);
+                        }
+                        in += 2; break;
+                    case IRI_IFFY:
+                        out = write_percent(out, c); break;
+                    default: return fail(Error::InvalidAuthority);
+                }
+            }
+            path = question = hash = out - output.begin();
+            return done(out);
+        }
+        else {
+             // Doesn't start with //, so no authority
+            path = out - output.begin();
+            if (in != in_end && *in == '/') {
+                return parse_absolute_path(out, in, in_end);
+            }
+            else return parse_nonhierarchical_path(out, in, in_end);
+        }
+    }
+    void parse_absolute_path (char* out, const char* in, const char* in_end) {
+        expect(*in == '/');
+        *out++ = '/'; in++;
+        return parse_relative_path(out, in, in_end);
+    }
+    void parse_relative_path (char* out, const char* in, const char* in_end) {
+         // TODO: This breaks if it's != so something ain't quite right here
+        while (in < in_end) {
+            char c = *in++;
+            switch (c) {
+                case IRI_UPPERCASE: case IRI_LOWERCASE:
+                case IRI_DIGIT: case IRI_SUBDELIM:
                 case IRI_UTF8_HIGH:
-                case IRI_SUBDELIM:
-                case ':': case '[': case ']': case '@':
+                case '-': case '_': case '~': case ':': case '@':
+                    *out++ = c; break;
+                case '/':
+                     // Eliminate duplicate /
+                     // TODO flip this
+                    if (out[-1] != '/') {
+                        *out++ = c;
+                    }
+                    else in++;
+                    break;
+                case '.':
+                    if (out[-1] == '/') {
+                        if (in < in_end && *in == '.') {
+                            if (in+1 == in_end ||
+                                in[1] == '/' || in[1] == '?' || in[1] == '#'
+                            ) {
+                                 // Got a .. so pop off last segment
+                                if (out - output.begin() - 1 > path) {
+                                    out--; // last slash
+                                    while (out[-1] != '/') {
+                                        out--;
+                                    }
+                                    in += 2;
+                                    break;
+                                }
+                                else return fail(Error::InvalidPath);
+                            }
+                        }
+                        else if (
+                            in == in_end ||
+                            *in == '/' || *in == '?' || *in == '#'
+                        ) {
+                             // Go a . so ignore it
+                            in++;
+                            break;
+                        }
+                    }
+                    *out++ = c; break;
+                case '?':
+                    question = out - output.begin();
+                    *out++ = '?';
+                    return parse_query(out, in, in_end);
+                case '#':
+                    question = hash = out - output.begin();
+                    *out++ = '#';
+                    return parse_fragment(out, in, in_end);
+                case '%':
+                    if (!(out = parse_percent(out, in, in_end))) {
+                        return fail(Error::InvalidPercentSequence);
+                    }
+                    in += 2; break;
+                case IRI_IFFY:
+                    out = write_percent(out, c); break;
+                default: return fail(Error::InvalidPath);
+            }
+        }
+        question = hash = out - output.begin();
+        return done(out);
+    }
+    void parse_nonhierarchical_path (
+        char* out, const char* in, const char* in_end
+    ) {
+        expect(out[-1] == ':');
+        while (in != in_end) {
+            char c = *in++;
+            switch (c) {
+                case IRI_UPPERCASE: case IRI_LOWERCASE:
+                case IRI_DIGIT: case IRI_SUBDELIM:
+                case IRI_UTF8_HIGH:
+                case '-': case '_': case '~':
+                case ':': case '@': case '/':
+                    *out++ = c; break;
+                case '?':
+                    question = out - output.begin();
+                    *out++ = '?';
+                    return parse_query(out, in, in_end);
+                case '#':
+                    question = hash = out - output.begin();
+                    *out++ = '#';
+                    return parse_fragment(out, in, in_end);
+                case '%':
+                    if (!(out = parse_percent(out, in, in_end))) {
+                        return fail(Error::InvalidPercentSequence);
+                    }
+                    in += 2;
+                    break;
+                case IRI_IFFY:
+                    out = write_percent(out, c);
+                    break;
+                default: return fail(Error::InvalidPath);
+            }
+        }
+        question = hash = out - output.begin();
+        return done(out);
+    }
+    void parse_query (char* out, const char* in, const char* in_end) {
+        expect(out[-1] == '?');
+        while (in != in_end) {
+            char c = *in++;
+            switch (c) {
+                case IRI_UNRESERVED: case IRI_SUBDELIM:
+                case ':': case '@': case '/': case '?':
+                    *out++ = c; break;
+                case '#':
+                    hash = out - output.begin();
+                    *out++ = '#';
+                    return parse_fragment(out, in, in_end);
+                case '%':
+                    if (!(out = parse_percent(out, in, in_end))) {
+                        return fail(Error::InvalidPercentSequence);
+                    }
+                    in += 2; break;
+                case IRI_IFFY:
+                    out = write_percent(out, c); break;
+                default: return fail(Error::InvalidQuery);
+            }
+        }
+        hash = out - output.begin();
+        return done(out);
+    }
+    void parse_fragment (char* out, const char* in, const char* in_end) {
+        expect(out[-1] == '#');
+        while (in != in_end) {
+             // Note that a second # is not allowed.  If that happens, it's likely
+             // that there is a nested URL with an unescaped fragment, and in that
+             // case it's ambiguous how to parse it, so we won't try.
+            char c = *in++;
+            switch (c) {
+                case IRI_UNRESERVED: case IRI_SUBDELIM:
+                case ':': case '@': case '/': case '?':
                     *out++ = c;
                     break;
-                case '/':
-                    path_ = out - spec_.begin();
-                    in--;
-                    goto parse_absolute_path;
-                case '?':
-                    path_ = question_ = out - spec_.begin();
-                    *out++ = '?';
-                    goto parse_query;
-                case '#':
-                    path_ = question_ = hash_ = out - spec_.begin();
-                    *out++ = '#';
-                    goto parse_fragment;
                 case '%':
-                    if (!(out = parse_percent(out, in, end))) {
-                        hash_ = uint16(Error::InvalidPercentSequence);
-                        goto fail;
+                    if (!(out = parse_percent(out, in, in_end))) {
+                        return fail(Error::InvalidPercentSequence);
                     }
                     in += 2;
                     break;
@@ -370,221 +498,38 @@ IRI::IRI (Str input, const IRI& base) {
                     out = write_percent(out, c);
                     break;
                 default: {
-                    hash_ = uint16(Error::InvalidAuthority);
-                    goto fail;
+                    return fail(Error::InvalidFragment);
                 }
             }
         }
-        path_ = question_ = hash_ = out - spec_.begin();
-        goto done;
+        return done(out);
     }
-    else {
-         // No authority
-        path_ = out - spec_.begin();
-        if (in != end && *in == '/') {
-            goto parse_absolute_path;
-        }
-        else goto parse_nonhierarchical_path;
+    void done (char* out) {
+        if (out - output.begin() > maximum_length) return fail(Error::TooLong);
+    //        expect(in == end);
+        expect(colon < path);
+        expect(colon + 2 != path);
+        expect(path <= question);
+        expect(question <= hash);
+        expect(hash <= out - output.begin());
+        output.unsafe_set_size(out - output.begin());
     }
+    [[gnu::cold]] void fail (Error err) {
+        output = input;
+        colon = path = question = 0;
+        hash = uint16(err);
+    }
+};
 
-    parse_absolute_path:
-    *out++ = '/'; in++;
-
-    parse_relative_path:
-    while (in < end) {
-        char c = *in++;
-        switch (c) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE:
-            case IRI_DIGIT: case IRI_SUBDELIM:
-            case IRI_UTF8_HIGH:
-            case '-': case '_': case '~': case ':': case '@':
-                *out++ = c;
-                break;
-            case '/': {
-                 // Eliminate duplicate /
-                if (out[-1] != '/') {
-                    *out++ = c;
-                }
-                else in++;
-                break;
-            }
-            case '.': {
-                if (out[-1] == '/') {
-                    if (in < end && *in == '.') {
-                        if (in+1 == end ||
-                            in[1] == '/' || in[1] == '?' || in[1] == '#'
-                        ) {
-                             // Got a .. so pop off last segment
-                            if (out - spec_.begin() - 1 > path_) {
-                                out--; // last slash
-                                while (out[-1] != '/') {
-                                    out--;
-                                }
-                                in += 2;
-                                break;
-                            }
-                            else {
-                                hash_ = uint16(Error::InvalidPath);
-                                goto fail;
-                            }
-                        }
-                    }
-                    else if (
-                        in == end || *in == '/' || *in == '?' || *in == '#'
-                    ) {
-                         // Go a . so ignore it
-                        in++;
-                        break;
-                    }
-                }
-                *out++ = c;
-                break;
-            }
-            case '?':
-                question_ = out - spec_.begin();
-                *out++ = '?';
-                goto parse_query;
-            case '#':
-                question_ = hash_ = out - spec_.begin();
-                *out++ = '#';
-                goto parse_fragment;
-            case '%':
-                if (!(out = parse_percent(out, in, end))) {
-                    hash_ = uint16(Error::InvalidPercentSequence);
-                    goto fail;
-                }
-                in += 2;
-                break;
-            case IRI_IFFY:
-                out = write_percent(out, c);
-                break;
-            default: {
-                hash_ = uint16(Error::InvalidPath);
-                goto fail;
-            }
-        }
-    }
-    question_ = hash_ = out - spec_.begin();
-    goto done;
-
-    parse_nonhierarchical_path: expect(out[-1] == ':');
-    while (in != end) {
-        char c = *in++;
-        switch (c) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE:
-            case IRI_DIGIT: case IRI_SUBDELIM:
-            case IRI_UTF8_HIGH:
-            case '-': case '_': case '~':
-            case ':': case '@': case '/':
-                *out++ = c;
-                break;
-            case '?':
-                question_ = out - spec_.begin();
-                *out++ = '?';
-                goto parse_query;
-            case '#':
-                question_ = hash_ = out - spec_.begin();
-                *out++ = '#';
-                goto parse_fragment;
-            case '%':
-                if (!(out = parse_percent(out, in, end))) {
-                    hash_ = uint16(Error::InvalidPercentSequence);
-                    goto fail;
-                }
-                in += 2;
-                break;
-            case IRI_IFFY:
-                out = write_percent(out, c);
-                break;
-            default: {
-                hash_ = uint16(Error::InvalidPath);
-                goto fail;
-            }
-        }
-    }
-    question_ = hash_ = out - spec_.begin();
-    goto done;
-
-    parse_query: expect(out[-1] == '?');
-    while (in != end) {
-        char c = *in++;
-        switch (c) {
-            case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?':
-                *out++ = c;
-                break;
-            case '#':
-                hash_ = out - spec_.begin();
-                *out++ = '#';
-                goto parse_fragment;
-            case '%':
-                if (!(out = parse_percent(out, in, end))) {
-                    hash_ = uint16(Error::InvalidPercentSequence);
-                    goto fail;
-                }
-                in += 2;
-                break;
-            case IRI_IFFY:
-                out = write_percent(out, c);
-                break;
-            default: {
-                hash_ = uint16(Error::InvalidQuery);
-                goto fail;
-            }
-        }
-    }
-    hash_ = out - spec_.begin();
-    goto done;
-
-    parse_fragment: expect(out[-1] == '#');
-    while (in != end) {
-         // Note that a second # is not allowed.  If that happens, it's likely
-         // that there is a nested URL with an unescaped fragment, and in that
-         // case it's ambiguous how to parse it, so we won't try.
-        char c = *in++;
-        switch (c) {
-            case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?':
-                *out++ = c;
-                break;
-            case '%':
-                if (!(out = parse_percent(out, in, end))) {
-                    hash_ = uint16(Error::InvalidPercentSequence);
-                    goto fail;
-                }
-                in += 2;
-                break;
-            case IRI_IFFY:
-                out = write_percent(out, c);
-                break;
-            default: {
-                hash_ = uint16(Error::InvalidFragment);
-                goto fail;
-            }
-        }
-    }
-    goto done;
-
-    done: {
-        if (out - spec_.begin() > maximum_length) {
-            hash_ = uint16(Error::TooLong);
-            goto fail;
-        }
-//        expect(in == end);
-        expect(colon_ < path_);
-        expect(colon_ + 2 != path_);
-        expect(path_ <= question_);
-        expect(question_ <= hash_);
-        expect(hash_ <= out - spec_.begin());
-        spec_.unsafe_set_size(out - spec_.begin());
-        return;
-    }
-    fail: [[unlikely]] {
-        spec_ = input;
-        colon_ = path_ = question_ = 0;
-        expect(hash_ != 0);
-        return;
-    }
+IRI::IRI (Str spec, const IRI& base) {
+    IRIParser parser;
+    parser.input = spec;
+    parser.parse(base);
+    spec_ = move(parser.output);
+    colon_ = parser.colon;
+    path_ = parser.path;
+    question_ = parser.question;
+    hash_ = parser.hash;
 }
 
 AnyString IRI::spec_relative_to (const IRI& base) const {
