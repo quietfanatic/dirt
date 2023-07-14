@@ -138,8 +138,7 @@ UniqueString encode (Str input) {
             default: break;
         }
     }
-    UniqueString r;
-    r.reserve(cap);
+    UniqueString r (cap, Uninitialized());
     char* out = r.data();
     for (auto c : input) {
         switch (c) {
@@ -153,22 +152,22 @@ UniqueString encode (Str input) {
             }
         }
     }
-    r.unsafe_set_size(out - r.data());
+    r.shrink(out - r.data());
     return r;
 }
 
 UniqueString decode (Str input) {
-    const char* p = input.begin();
+    const char* in = input.begin();
     const char* end = input.end();
     UniqueString r;
     r.reserve(input.size());
-    while (p != end) {
-        char c = *p++;
+    while (in != end) {
+        char c = *in++;
         if (c == '%') {
-            int result = read_percent(p, end);
+            int result = read_percent(in, end);
             if (result < 0) return "";
             c = result;
-            p += 2;
+            in += 2;
         }
         r.push_back_expect_capacity(c);
     }

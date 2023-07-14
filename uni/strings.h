@@ -19,7 +19,7 @@ struct StringConversion;
 template <>
 struct StringConversion<char> {
     char v;
-    constexpr usize length () const { return 1; }
+    constexpr usize capacity_upper_bound () const { return 1; }
     constexpr usize write (char* p) const {
         *p = v;
         return 1;
@@ -29,7 +29,7 @@ struct StringConversion<char> {
 template <>
 struct StringConversion<bool> {
     bool v;
-    constexpr usize length () const { return 1; }
+    constexpr usize capacity_upper_bound () const { return 1; }
     constexpr usize write (char* p) const {
         *p = v ? '1' : '0';
         return 1;
@@ -72,7 +72,7 @@ struct StringConversion<T> {
         expect(ec == std::errc());
         len = ptr - digits;
     }
-    constexpr usize length () const { return len; }
+    constexpr usize capacity_upper_bound () const { return len; }
     constexpr usize write (char* p) const {
         expect(len > 0);
          // Awkward incantation to keep the compiler from overkilling the loop
@@ -88,7 +88,7 @@ template <class T> requires (requires (const T& v) { Str(v); })
 struct StringConversion<T> {
     Str v;
     constexpr StringConversion (const T& v) : v(Str(v)) { }
-    constexpr usize length () const { return v.size(); }
+    constexpr usize capacity_upper_bound () const { return v.size(); }
     constexpr usize write (char* p) const {
         for (usize i = 0; i < v.size(); i++) {
             p[i] = v[i];
@@ -107,11 +107,11 @@ void cat_add_no_overflow (usize& a, usize b) {
 
 template <class... Tail> inline
 void cat_append (
-    ArrayImplementation<ArrayClass::UniqueS, char>& h, Tail&&... t
+    UniqueString::Impl& h, Tail&&... t
 ) {
     if constexpr (sizeof...(Tail) > 0) {
         usize total_size = h.size;
-        (cat_add_no_overflow(total_size, t.length()), ...);
+        (cat_add_no_overflow(total_size, t.capacity_upper_bound()), ...);
         reinterpret_cast<UniqueString&>(h).reserve_plenty(total_size);
         ((h.size += t.write(h.data + h.size)), ...);
     }
@@ -128,24 +128,26 @@ UniqueString cat (Head&& h, Tail&&... t) {
         std::is_same_v<Head&&, SharedString&&> ||
         std::is_same_v<Head&&, AnyString&&>
     ) {
-        if (h.unique()) {
-            ArrayImplementation<ArrayClass::UniqueS, char> impl;
-            impl.size = h.size(); impl.data = h.mut_data();
-            h.unsafe_set_empty();
-            in::cat_append(
-                impl, in::StringConversion<std::remove_cvref_t<Tail>>(t)...
-            );
-            return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
-        }
+         // mut_data() might trigger an unnecessary copy for Shared/AnyString,
+         // but to avoid that we'd have to branch on h.unique() and have two
+         // different calls to cat_append in the instruction stream, which isn't
+         // worth the extra code size IMO.
+        UniqueString::Impl impl (h.size(), h.mut_data());
+        h.unsafe_set_empty();
+        in::cat_append(
+            impl, in::StringConversion<std::remove_cvref_t<Tail>>(t)...
+        );
+        return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
     }
-    ArrayImplementation<ArrayClass::UniqueS, char> impl = {};
-    in::cat_append(
-        impl, in::StringConversion<std::remove_cvref_t<Head>>(h),
-        in::StringConversion<std::remove_cvref_t<Tail>>(t)...
-    );
-    return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
+    else {
+        UniqueString::Impl impl = {};
+        in::cat_append(
+            impl, in::StringConversion<std::remove_cvref_t<Head>>(h),
+            in::StringConversion<std::remove_cvref_t<Tail>>(t)...
+        );
+        return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
+    }
 }
-
 
 } // strings
 } // uni

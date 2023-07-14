@@ -196,11 +196,12 @@ struct ArrayInterface {
     static_assert(
         alignof(T) <= 8, "Arrays with elements that have align > 8 are NYI."
     );
+    using Self = ArrayInterface<ac, T>;
+    using Impl = ArrayImplementation<ac, T>;
   private:
-    ArrayImplementation<ac, T> impl;
+    Impl impl;
     template <ArrayClass, class>
     friend struct ArrayInterface;
-    using Self = ArrayInterface<ac, T>;
   public:
 
     ///// PSEUDO-CONCEPTS
@@ -657,10 +658,6 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void unsafe_set_empty () {
         impl = {};
-    }
-    ALWAYS_INLINE constexpr
-    void unsafe_set_size (usize s) {
-        set_size(s);
     }
 
     ///// ACCESSORS
@@ -1457,7 +1454,7 @@ struct ArrayInterface {
         }
     }
     static
-    void destroy (ArrayImplementation<ac, T> impl) {
+    void destroy (Impl impl) {
         Self& self = reinterpret_cast<Self&>(impl);
         for (usize i = self.size(); i > 0;) {
             impl.data[--i].~T();
@@ -1465,7 +1462,7 @@ struct ArrayInterface {
         deallocate_owned(impl.data);
     }
     NOINLINE static
-    void noinline_destroy (ArrayImplementation<ac, T> impl) noexcept {
+    void noinline_destroy (Impl impl) noexcept {
         destroy(impl);
     }
 
@@ -1558,7 +1555,7 @@ struct ArrayInterface {
 
      // Used by reserve and related functions
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* reallocate (ArrayImplementation<ac, T> impl, usize cap, usize cap2 = 0)
+    T* reallocate (Impl impl, usize cap, usize cap2 = 0)
         noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
          // Stuff non-fast-path reserve_plenty logic in here
@@ -1603,7 +1600,7 @@ struct ArrayInterface {
      // Used by emplace and insert.  Opens a gap but doesn't put anything in it.
      // The caller must placement-new elements in the gap.
     [[gnu::returns_nonnull]] NOINLINE static
-    T* do_split (ArrayImplementation<ac, T> impl, usize split, usize shift)
+    T* do_split (Impl impl, usize split, usize shift)
         noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
@@ -1682,7 +1679,7 @@ struct ArrayInterface {
     }
 
     [[gnu::returns_nonnull]] NOINLINE static
-    T* do_erase (ArrayImplementation<ac, T> impl, usize offset, usize count)
+    T* do_erase (Impl impl, usize offset, usize count)
         noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
