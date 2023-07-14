@@ -76,14 +76,6 @@ namespace iri {
          IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT: \
     case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH
 
-static void write_percent (UniqueString& s, uint8 c) {
-    uint8 high = uint8(c) >> 4;
-    uint8 low = uint8(c) & 0xf;
-    s = cat(move(s), '%',
-        char(high >= 10 ? high - 10 + 'A' : high + '0'),
-        char(low >= 10 ? low - 10 + 'A' : low + '0')
-    );
-}
 static int read_percent (const char* in, const char* end) {
     if (in + 2 > end) [[unlikely]] return -1;
     uint8 byte = 0;
@@ -98,18 +90,8 @@ static int read_percent (const char* in, const char* end) {
     }
     return byte;
 }
-static bool parse_percent (UniqueString& s, const char* p, const char* end) {
-    int byte = read_percent(p, end);
-    switch (byte) {
-        case -1: [[unlikely]] return false;
-        case IRI_GENDELIM: case IRI_SUBDELIM:
-        case IRI_FORBIDDEN: case IRI_IFFY:
-            write_percent(s, byte); return true;
-        default: s.push_back(byte); return true;
-    }
-}
 
-static char* write_percent_p (char* out, uint8 c) {
+static char* write_percent (char* out, uint8 c) {
     uint8 high = uint8(c) >> 4;
     uint8 low = uint8(c) & 0xf;
     *out++ = '%';
@@ -117,13 +99,14 @@ static char* write_percent_p (char* out, uint8 c) {
     *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
     return out;
 }
-static char* parse_percent_p (char* out, const char* in, const char* end) {
+
+static char* parse_percent (char* out, const char* in, const char* end) {
     int byte = read_percent(in, end);
-    switch (byte) {
-        case -1: [[unlikely]] return null;
+    if (byte < 0) [[unlikely]] return null;
+    switch (char(byte)) {
         case IRI_GENDELIM: case IRI_SUBDELIM:
         case IRI_FORBIDDEN: case IRI_IFFY:
-            return write_percent_p(out, byte);
+            return write_percent(out, byte);
         default: *out++ = byte; return out;
     }
 }
@@ -145,7 +128,7 @@ UniqueString encode (Str input) {
             case IRI_GENDELIM: case IRI_SUBDELIM:
             case IRI_FORBIDDEN: case IRI_IFFY:
             case '%': {
-                out = write_percent_p(out, c); break;
+                out = write_percent(out, c); break;
             }
             default: {
                 *out++ = c; break;
@@ -187,8 +170,8 @@ Relativity relativity (Str ref) {
         case '#': return Relativity::Fragment;
         default: break;
     }
-    for (size_t i = 1; i < ref.size(); i++) {
-        switch (ref[i]) {
+    for (char c : ref) {
+        switch (c) {
             case ':': return Relativity::Scheme;
             case '/': case '?': case '#':
                 return Relativity::RelativePath;
@@ -199,6 +182,7 @@ Relativity relativity (Str ref) {
 }
 
 usize capacity_upper_bound (Str ref) {
+    if (ref.size() > maximum_length) return 0;
     usize r = ref.size();
     for (auto c : ref) {
         switch (c) {
@@ -212,9 +196,10 @@ usize capacity_upper_bound (Str ref) {
 IRI::IRI (Str input, const IRI& base) {
     if (!input) return;
 
-    const char* p = input.begin();
+    const char* in = input.begin();
     const char* end = input.end();
-    UniqueString spec;
+    char* out;
+    usize cap = capacity_upper_bound(input);
 
      // Reject absurdly large input
     if (input.size() > maximum_length) {
@@ -225,8 +210,8 @@ IRI::IRI (Str input, const IRI& base) {
      // If we've been given a relative reference, we can skip some parsing
     switch (relativity(input)) {
         case Relativity::Scheme: {
-             // Optimize for the case that the input won't be altered
-            spec.reserve(input.size());
+            spec_.reserve(cap);
+            out = spec_.mut_data();
             goto parse_scheme;
         }
         case Relativity::Authority: {
@@ -235,10 +220,10 @@ IRI::IRI (Str input, const IRI& base) {
                 goto fail;
             }
             Str prefix = base.spec_with_scheme_only();
-            spec.reserve(prefix.size() + input.size());
-            spec.append_expect_capacity(prefix);
+            spec_.reserve(prefix.size() + cap);
+            spec_.append_expect_capacity(prefix);
             colon_ = base.colon_;
-            expect(colon_ == spec.size()-1);
+            out = spec_.mut_end();
             goto parse_authority;
         }
         case Relativity::AbsolutePath: {
@@ -247,12 +232,11 @@ IRI::IRI (Str input, const IRI& base) {
                 goto fail;
             }
             Str prefix = base.spec_with_origin_only();
-            expect(prefix.size());
-            spec.reserve(prefix.size() + input.size());
-            spec.append_expect_capacity(prefix);
+            spec_.reserve(prefix.size() + cap);
+            spec_.append_expect_capacity(prefix);
             colon_ = base.colon_;
             path_ = base.path_;
-            expect(path_ == spec.size());
+            out = spec_.mut_end();
             goto parse_absolute_path;
         }
         case Relativity::RelativePath: {
@@ -261,62 +245,59 @@ IRI::IRI (Str input, const IRI& base) {
                 goto fail;
             }
             Str prefix = base.spec_without_filename();
-            expect(prefix.size());
-            spec.reserve(prefix.size() + input.size());
-            spec.append_expect_capacity(prefix);
+            spec_.reserve(prefix.size() + cap);
+            spec_.append_expect_capacity(prefix);
             colon_ = base.colon_;
             path_ = base.path_;
-            expect(path_ < spec.size());
+            out = spec_.mut_end();
             goto parse_relative_path;
         }
         case Relativity::Query: {
-            p++;
+            in++;
             if (!base) {
                 hash_ = uint16(Error::CouldNotResolve);
                 goto fail;
             }
             Str prefix = base.spec_without_query();
-            spec.reserve(prefix.size() + input.size());
-            spec.append_expect_capacity(prefix);
-            spec.push_back_expect_capacity('?');
+            spec_.reserve(prefix.size() + cap);
+            spec_.append_expect_capacity(prefix);
             colon_ = base.colon_;
             path_ = base.path_;
             question_ = base.question_;
-            expect(question_ == spec.size()-1);
+            out = spec_.mut_end();
+            *out++ = '?';
             goto parse_query;
         }
         case Relativity::Fragment: {
-            p++;
+            in++;
             if (!base) {
                 hash_ = uint16(Error::CouldNotResolve);
                 goto fail;
             }
             Str prefix = base.spec_without_fragment();
-            spec.reserve(prefix.size() + input.size());
-            spec.append_expect_capacity(prefix);
-            spec.push_back_expect_capacity('#');
+            spec_.reserve(prefix.size() + cap);
+            spec_.append_expect_capacity(prefix);
             colon_ = base.colon_;
             path_ = base.path_;
             question_ = base.question_;
             hash_ = base.hash_;
-            expect(hash_ == spec.size()-1);
+            out = spec_.mut_end();
+            *out++ = '#';
             goto parse_fragment;
         }
         default: never();
     }
      // Okay NOW start parsing.
-     // (Note: until we encounter a %, we are guaranteed to have enough
-     // capacity).
 
     parse_scheme:
     {
-        char c = *p++;
+        char c = *in++;
         switch (c) {
             case IRI_UPPERCASE:
-                spec.push_back_expect_capacity(c - 'A' + 'a');
+                *out++ = c - 'A' + 'a';
                 break;
             case IRI_LOWERCASE:
-                spec.push_back_expect_capacity(c);
+                *out++ = c;
                 break;
             default: {
                 hash_ = uint16(Error::InvalidScheme);
@@ -324,19 +305,19 @@ IRI::IRI (Str input, const IRI& base) {
             }
         }
     }
-    while (p != end) {
-        char c = *p++;
+    while (in != end) {
+        char c = *in++;
         switch (c) {
             case IRI_UPPERCASE:
                  // Canonicalize to lowercase
-                spec.push_back_expect_capacity(c - 'A' + 'a');
+                *out++ = c - 'A' + 'a';
                 break;
             case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
-                spec.push_back_expect_capacity(c);
+                *out++ = c;
                 break;
             case ':':
-                colon_ = spec.size();
-                spec.push_back_expect_capacity(':');
+                colon_ = out - spec_.begin();
+                *out++ = ':';
                 goto parse_authority;
             default: {
                 hash_ = uint16(Error::InvalidScheme);
@@ -348,46 +329,45 @@ IRI::IRI (Str input, const IRI& base) {
      // parse_scheme.
     never();
 
-    parse_authority: expect(spec.back() == ':');
-    if (p + 2 <= end && p[0] == '/' && p[1] == '/') {
-        spec.push_back_expect_capacity('/');
-        spec.push_back_expect_capacity('/');
-        p += 2;
-        while (p != end) {
-            char c = *p++;
+    parse_authority: expect(out[-1] == ':');
+    if (in + 2 <= end && in[0] == '/' && in[1] == '/') {
+        *out++ = '/'; *out++ = '/';
+        in += 2;
+        while (in != end) {
+            char c = *in++;
             switch (c) {
                 case IRI_UPPERCASE:
                      // Canonicalize to lowercase
-                    spec.push_back(c - 'A' + 'a');
+                    *out++ = c - 'A' + 'a';
                     break;
                 case IRI_LOWERCASE: case IRI_DIGIT:
                 case IRI_UNRESERVED_SYMBOL:
                 case IRI_UTF8_HIGH:
                 case IRI_SUBDELIM:
                 case ':': case '[': case ']': case '@':
-                    spec.push_back(c);
+                    *out++ = c;
                     break;
                 case '/':
-                    path_ = spec.size();
-                    p--;
+                    path_ = out - spec_.begin();
+                    in--;
                     goto parse_absolute_path;
                 case '?':
-                    path_ = question_ = spec.size();
-                    spec.push_back('?');
+                    path_ = question_ = out - spec_.begin();
+                    *out++ = '?';
                     goto parse_query;
                 case '#':
-                    path_ = question_ = hash_ = spec.size();
-                    spec.push_back('#');
+                    path_ = question_ = hash_ = out - spec_.begin();
+                    *out++ = '#';
                     goto parse_fragment;
                 case '%':
-                    if (!parse_percent(spec, p, end)) {
+                    if (!(out = parse_percent(out, in, end))) {
                         hash_ = uint16(Error::InvalidPercentSequence);
                         goto fail;
                     }
-                    p += 2;
+                    in += 2;
                     break;
                 case IRI_IFFY:
-                    write_percent(spec, c);
+                    out = write_percent(out, c);
                     break;
                 default: {
                     hash_ = uint16(Error::InvalidAuthority);
@@ -395,52 +375,53 @@ IRI::IRI (Str input, const IRI& base) {
                 }
             }
         }
-        path_ = question_ = hash_ = spec.size();
+        path_ = question_ = hash_ = out - spec_.begin();
         goto done;
     }
     else {
          // No authority
-        path_ = spec.size();
-        if (p != end && *p == '/') {
+        path_ = out - spec_.begin();
+        if (in != end && *in == '/') {
             goto parse_absolute_path;
         }
         else goto parse_nonhierarchical_path;
     }
 
-    parse_absolute_path: expect(p < end && *p == '/');
-    spec.push_back('/'); p++;
+    parse_absolute_path:
+    *out++ = '/'; in++;
 
     parse_relative_path:
-    while (p < end) {
-        char c = *p++;
+    while (in < end) {
+        char c = *in++;
         switch (c) {
             case IRI_UPPERCASE: case IRI_LOWERCASE:
             case IRI_DIGIT: case IRI_SUBDELIM:
             case IRI_UTF8_HIGH:
             case '-': case '_': case '~': case ':': case '@':
-                spec.push_back(c);
+                *out++ = c;
                 break;
             case '/': {
                  // Eliminate duplicate /
-                if (spec.back() != '/') {
-                    spec.push_back(c);
+                if (out[-1] != '/') {
+                    *out++ = c;
                 }
-                else p++;
+                else in++;
                 break;
             }
             case '.': {
-                if (spec.back() == '/') {
-                    if (p < end && *p == '.') {
-                        if (p+1 == end ||
-                            p[1] == '/' || p[1] == '?' || p[1] == '#'
+                if (out[-1] == '/') {
+                    if (in < end && *in == '.') {
+                        if (in+1 == end ||
+                            in[1] == '/' || in[1] == '?' || in[1] == '#'
                         ) {
                              // Got a .. so pop off last segment
-                            if (spec.size() - 1 > path_) {
-                                spec.pop_back(); // last slash
-                                while (spec.back() != '/') {
-                                    spec.pop_back();
+                            if (out - spec_.begin() - 1 > path_) {
+                                out--; // last slash
+                                while (out[-1] != '/') {
+                                    out--;
                                 }
-                                p += 2; break;
+                                in += 2;
+                                break;
                             }
                             else {
                                 hash_ = uint16(Error::InvalidPath);
@@ -449,32 +430,33 @@ IRI::IRI (Str input, const IRI& base) {
                         }
                     }
                     else if (
-                        p == end || *p == '/' || *p == '?' || *p == '#'
+                        in == end || *in == '/' || *in == '?' || *in == '#'
                     ) {
                          // Go a . so ignore it
-                        p++; break;
+                        in++;
+                        break;
                     }
                 }
-                spec.push_back(c);
+                *out++ = c;
                 break;
             }
             case '?':
-                question_ = spec.size();
-                spec.push_back('?');
+                question_ = out - spec_.begin();
+                *out++ = '?';
                 goto parse_query;
             case '#':
-                question_ = hash_ = spec.size();
-                spec.push_back('#');
+                question_ = hash_ = out - spec_.begin();
+                *out++ = '#';
                 goto parse_fragment;
             case '%':
-                if (!parse_percent(spec, p, end)) {
+                if (!(out = parse_percent(out, in, end))) {
                     hash_ = uint16(Error::InvalidPercentSequence);
                     goto fail;
                 }
-                p += 2;
+                in += 2;
                 break;
             case IRI_IFFY:
-                write_percent(spec, c);
+                out = write_percent(out, c);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidPath);
@@ -482,37 +464,37 @@ IRI::IRI (Str input, const IRI& base) {
             }
         }
     }
-    question_ = hash_ = spec.size();
+    question_ = hash_ = out - spec_.begin();
     goto done;
 
-    parse_nonhierarchical_path: expect(spec.back() == ':');
-    while (p != end) {
-        char c = *p++;
+    parse_nonhierarchical_path: expect(out[-1] == ':');
+    while (in != end) {
+        char c = *in++;
         switch (c) {
             case IRI_UPPERCASE: case IRI_LOWERCASE:
             case IRI_DIGIT: case IRI_SUBDELIM:
             case IRI_UTF8_HIGH:
             case '-': case '_': case '~':
             case ':': case '@': case '/':
-                spec.push_back(c);
+                *out++ = c;
                 break;
             case '?':
-                question_ = spec.size();
-                spec.push_back('?');
+                question_ = out - spec_.begin();
+                *out++ = '?';
                 goto parse_query;
             case '#':
-                question_ = hash_ = spec.size();
-                spec.push_back('#');
+                question_ = hash_ = out - spec_.begin();
+                *out++ = '#';
                 goto parse_fragment;
             case '%':
-                if (!parse_percent(spec, p, end)) {
+                if (!(out = parse_percent(out, in, end))) {
                     hash_ = uint16(Error::InvalidPercentSequence);
                     goto fail;
                 }
-                p += 2;
+                in += 2;
                 break;
             case IRI_IFFY:
-                write_percent(spec, c);
+                out = write_percent(out, c);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidPath);
@@ -520,30 +502,30 @@ IRI::IRI (Str input, const IRI& base) {
             }
         }
     }
-    question_ = hash_ = spec.size();
+    question_ = hash_ = out - spec_.begin();
     goto done;
 
-    parse_query: expect(spec.back() == '?');
-    while (p != end) {
-        char c = *p++;
+    parse_query: expect(out[-1] == '?');
+    while (in != end) {
+        char c = *in++;
         switch (c) {
             case IRI_UNRESERVED: case IRI_SUBDELIM:
             case ':': case '@': case '/': case '?':
-                spec.push_back(c);
+                *out++ = c;
                 break;
             case '#':
-                hash_ = spec.size();
-                spec.push_back('#');
+                hash_ = out - spec_.begin();
+                *out++ = '#';
                 goto parse_fragment;
             case '%':
-                if (!parse_percent(spec, p, end)) {
+                if (!(out = parse_percent(out, in, end))) {
                     hash_ = uint16(Error::InvalidPercentSequence);
                     goto fail;
                 }
-                p += 2;
+                in += 2;
                 break;
             case IRI_IFFY:
-                write_percent(spec, c);
+                out = write_percent(out, c);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidQuery);
@@ -551,29 +533,29 @@ IRI::IRI (Str input, const IRI& base) {
             }
         }
     }
-    hash_ = spec.size();
+    hash_ = out - spec_.begin();
     goto done;
 
-    parse_fragment: expect(spec.back() == '#');
-    while (p != end) {
+    parse_fragment: expect(out[-1] == '#');
+    while (in != end) {
          // Note that a second # is not allowed.  If that happens, it's likely
          // that there is a nested URL with an unescaped fragment, and in that
          // case it's ambiguous how to parse it, so we won't try.
-        char c = *p++;
+        char c = *in++;
         switch (c) {
             case IRI_UNRESERVED: case IRI_SUBDELIM:
             case ':': case '@': case '/': case '?':
-                spec.push_back(c);
+                *out++ = c;
                 break;
             case '%':
-                if (!parse_percent(spec, p, end)) {
+                if (!(out = parse_percent(out, in, end))) {
                     hash_ = uint16(Error::InvalidPercentSequence);
                     goto fail;
                 }
-                p += 2;
+                in += 2;
                 break;
             case IRI_IFFY:
-                write_percent(spec, c);
+                out = write_percent(out, c);
                 break;
             default: {
                 hash_ = uint16(Error::InvalidFragment);
@@ -584,17 +566,17 @@ IRI::IRI (Str input, const IRI& base) {
     goto done;
 
     done: {
-        if (spec.size() > maximum_length) {
+        if (out - spec_.begin() > maximum_length) {
             hash_ = uint16(Error::TooLong);
             goto fail;
         }
-//        expect(p == end);
+//        expect(in == end);
         expect(colon_ < path_);
         expect(colon_ + 2 != path_);
         expect(path_ <= question_);
         expect(question_ <= hash_);
-        expect(hash_ <= spec.size());
-        spec_ = move(spec);
+        expect(hash_ <= out - spec_.begin());
+        spec_.unsafe_set_size(out - spec_.begin());
         return;
     }
     fail: [[unlikely]] {

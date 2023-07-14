@@ -659,6 +659,10 @@ struct ArrayInterface {
     void unsafe_set_empty () {
         impl = {};
     }
+    ALWAYS_INLINE constexpr
+    void unsafe_set_size (usize s) {
+        set_size(s);
+    }
 
     ///// ACCESSORS
 
