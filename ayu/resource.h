@@ -127,8 +127,17 @@ struct Resource {
 
      // Syntax sugar
     explicit operator bool () const { return data; }
-    Reference operator [] (Str key);
-    Reference operator [] (usize index);
+     // Templated to delay requirement of serialize.h.  Return auto to delay
+     // requirement of resource.h.  If you get an error here, include
+     // serialize.h in the file that uses these.
+    template <class T = void>
+    auto operator [] (AnyString key) {
+        return item_attr((T(), ref()), move(key));
+    }
+    template <class T = void>
+    auto operator [] (usize index) {
+        return item_elem((T(), ref()), index);
+    }
 };
 
  // Resources are considered equal if their names are equal (Resources with the
@@ -217,13 +226,5 @@ AnyString resource_filename (Resource);
  // Returns a list of all resources with state != UNLOADED.  This includes
  // resources that are in the process of being loaded, reloaded, or unloaded.
 UniqueArray<Resource> loaded_resources ();
-
-} // ayu
- // cyclic dependencies
-#include "reference.h"
-namespace ayu {
-
-inline Reference Resource::operator [] (Str key) { return ref()[key]; }
-inline Reference Resource::operator [] (usize index) { return ref()[index]; }
 
 } // namespace ayu

@@ -101,4 +101,4 @@ Location location_from_iri (const IRI& iri);
 
 } // namespace ayu
 
-#include "internal/location-internal.h"
+#include "internal/location-inline.h"

@@ -172,4 +172,4 @@ bool operator == (TreeRef a, TreeRef b) noexcept;
 
 }  // namespace ayu
 
-#include "internal/tree-internal.h"
+#include "internal/tree-inline.h"

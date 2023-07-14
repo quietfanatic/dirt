@@ -67,14 +67,6 @@ Reference Reference::chain_elem_func (
     }
 }
 
- // TODO: figure out how to inline these without cyclic dependency hell
-Reference Reference::operator[] (AnyString key) const {
-    return item_attr(*this, move(key));
-}
-Reference Reference::operator[] (usize i) const {
-    return item_elem(*this, i);
-}
-
 } using namespace ayu;
 
 static Tree Reference_to_tree (const Reference& v) {

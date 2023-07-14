@@ -96,6 +96,8 @@ struct Reference {
         return *this;
     }
 
+    ~Reference () { if (acr) acr->dec(); }
+
     explicit operator bool () const { assert(host || !acr); return !!host; }
      // Get type of referred-to item
     Type type () const { return acr ? acr->type(host.address) : host.type; }
@@ -263,11 +265,16 @@ struct Reference {
         }
     }
 
-     // Syntax sugar for item_attr and item_elem
-    Reference operator [] (AnyString key) const;
-    Reference operator [] (usize index) const;
-
-    ~Reference () { if (acr) acr->dec(); }
+     // Syntax sugar.  Templated to delay requirement of serialize.h.  If you
+     // get errors here, include serialize.h before using these.
+    template <class T = void>
+    Reference operator [] (AnyString key) const {
+        return item_attr((T(), *this), move(key));
+    }
+    template <class T = void>
+    Reference operator [] (usize index) const {
+        return item_elem((T(), *this), index);
+    }
 };
 
  // Reference comparison is best-effort.  References compare equal if:
