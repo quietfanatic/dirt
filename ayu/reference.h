@@ -43,7 +43,6 @@
 
 #pragma once
 
-#include <cassert>
 #include <type_traits>
 
 #include "internal/accessors-internal.h"
@@ -98,7 +97,7 @@ struct Reference {
 
     ~Reference () { if (acr) acr->dec(); }
 
-    explicit operator bool () const { assert(host || !acr); return !!host; }
+    explicit operator bool () const { return !!host; }
      // Get type of referred-to item
     Type type () const { return acr ? acr->type(host.address) : host.type; }
 

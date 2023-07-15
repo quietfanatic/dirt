@@ -85,24 +85,27 @@ static inline void trav_start (
     AccessMode mode, CB cb
 ) {
     Traversal trav;
-    trav.address = ref.address();
     trav.desc = DescriptionPrivate::get(ref.type());
     trav.readonly = ref.readonly();
-    trav.addressable = !!trav.address;
-    trav.children_addressable = !!trav.address ||
-        ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
     trav.only_addressable = only_addressable;
     trav.op = START;
     trav.reference = &ref;
     trav.location = loc;
-    if (trav.address) {
+    trav.address = ref.address();
+    trav.addressable = trav.address;
+    if (trav.addressable) {
+        trav.children_addressable = true;
         cb(trav);
     }
-    else if (!trav.only_addressable || trav.children_addressable) {
-        ref.access(mode, [&](Mu& v){
-            trav.address = &v;
-            cb(trav);
-        });
+    else {
+        trav.children_addressable =
+            ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+        if (!trav.only_addressable || trav.children_addressable) {
+            ref.access(mode, [&](Mu& v){
+                trav.address = &v;
+                cb(trav);
+            });
+        }
     }
 }
 
@@ -111,27 +114,26 @@ static inline void trav_acr (
     Traversal& trav, const Traversal& parent, const Accessor* acr,
     AccessMode mode, CB cb
 ) {
-    trav.address = acr->address(*parent.address);
-    trav.desc = DescriptionPrivate::get(acr->type(parent.address));
     trav.readonly = parent.readonly || acr->accessor_flags & ACR_READONLY;
-    if (parent.children_addressable) {
-        trav.addressable = !!trav.address;
-        trav.children_addressable = !!trav.address ||
-            acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
-    }
-    else {
-        trav.addressable = trav.children_addressable = false;
-    }
     trav.only_addressable = parent.only_addressable;
     trav.acr = acr;
+    trav.desc = DescriptionPrivate::get(acr->type(parent.address));
+    trav.address = acr->address(*parent.address);
     if (trav.address) {
+        trav.addressable = parent.children_addressable;
+        trav.children_addressable = parent.children_addressable;
         cb(trav);
     }
-    else if (!trav.only_addressable || trav.children_addressable) {
-        acr->access(mode, *parent.address, [&](Mu& v){
-            trav.address = &v;
-            cb(trav);
-        });
+    else {
+        trav.addressable = false;
+        trav.children_addressable =
+            acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+        if (!trav.only_addressable || trav.children_addressable) {
+            acr->access(mode, *parent.address, [&](Mu& v){
+                trav.address = &v;
+                cb(trav);
+            });
+        }
     }
 }
 
@@ -142,26 +144,25 @@ static inline void trav_ref (
     Traversal& trav, const Traversal& parent, const Reference& ref,
     AccessMode mode, CB cb
 ) {
-    trav.address = ref.address();
-    trav.desc = DescriptionPrivate::get(ref.type());
-    trav.readonly = parent.readonly || ref.readonly();
-    if (parent.children_addressable) {
-        trav.addressable = !!trav.address;
-        trav.children_addressable = !!trav.address ||
-            ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
-    }
-    else {
-        trav.addressable = trav.children_addressable = false;
-    }
     trav.only_addressable = parent.only_addressable;
+    trav.readonly = parent.readonly || ref.readonly();
+    trav.desc = DescriptionPrivate::get(ref.type());
+    trav.address = ref.address();
     if (trav.address) {
+        trav.addressable = parent.children_addressable;
+        trav.children_addressable = parent.children_addressable;
         cb(trav);
     }
-    else if (!trav.only_addressable || trav.children_addressable) {
-        ref.access(mode, [&](Mu& v){
-            trav.address = &v;
-            cb(trav);
-        });
+    else {
+        trav.addressable = false;
+        trav.children_addressable =
+            ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+        if (!trav.only_addressable || trav.children_addressable) {
+            ref.access(mode, [&](Mu& v){
+                trav.address = &v;
+                cb(trav);
+            });
+        }
     }
 }
 

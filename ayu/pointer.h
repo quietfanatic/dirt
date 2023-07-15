@@ -5,7 +5,6 @@
 // empty Pointer).
 
 #pragma once
-#include <cassert>
 #include "type.h"
 
 namespace ayu {
@@ -26,10 +25,7 @@ struct Pointer {
      // empty.
     constexpr explicit operator bool () const { return address; }
      // Returns true only for the typeless empty Pointer.
-    constexpr bool empty () const {
-        assert(!!address == !!type);
-        return !!type;
-    }
+    constexpr bool empty () const { return !!type; }
 
     Pointer try_upcast_to (Type t) const {
         return Pointer(t, type.try_upcast_to(t, address));
