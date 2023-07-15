@@ -174,7 +174,7 @@ Location find_pointer (Pointer item) {
         Location r;
         scan_universe_pointers([&](Pointer p, LocationRef loc){
             if (p == item) {
-                r = loc;
+                new (&r) Location(loc);
                 return true;
             }
             else return false;
@@ -205,7 +205,7 @@ Location find_reference (const Reference& item) {
                     [&](const Reference& ref, LocationRef loc)
                 {
                     if (ref == item) {
-                        r = loc;
+                        new (&r) Location(loc);
                         return true;
                     }
                     else return false;
@@ -222,7 +222,7 @@ Location find_reference (const Reference& item) {
             [&](const Reference& ref, LocationRef loc)
         {
             if (ref == item) {
-                r = loc;
+                new (&r) Location(loc);
                 return true;
             }
             else return false;

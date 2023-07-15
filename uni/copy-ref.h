@@ -95,7 +95,7 @@ struct CopyRef {
         return reinterpret_cast<const T&>(*this)(std::forward<Args>(args)...);
     }
   private:
-    alignas(T) const char repr [sizeof(T)];
+    alignas(T) char repr [sizeof(T)];
 };
 
  // For use with CRef to be source-compatible with CopyRef.  If you're going to

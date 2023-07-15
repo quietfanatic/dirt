@@ -72,7 +72,7 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     if (auto acr = trav.desc->delegate_acr()) {
         Tree r;
         trav_delegate(trav, acr, ACR_READ, [&](const Traversal& child){
-            r = ser_to_tree(child);
+            new (&r) Tree(ser_to_tree(child));
             r.flags |= acr->tree_flags();
         });
         return r;
@@ -100,7 +100,7 @@ catch (const Error& e) {
 Tree item_to_tree (const Reference& item, LocationRef loc) {
     Tree r;
     trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
-        r = ser_to_tree(trav);
+        new (&r) Tree(ser_to_tree(trav));
     });
     return r;
 }
@@ -572,7 +572,7 @@ Reference item_maybe_attr (
      // reference from the start?
     trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_maybe_attr(trav, key, ACR_READ, [&](const Traversal& child){
-            r = trav_reference(child);
+            new (&r) Reference(trav_reference(child));
         });
     });
     return r;
@@ -581,7 +581,7 @@ Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     Reference r;
     trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_attr(trav, key, ACR_READ, [&](const Traversal& child){
-            r = trav_reference(child);
+            new (&r) Reference(trav_reference(child));
         });
     });
     return r;
@@ -736,7 +736,7 @@ Reference item_maybe_elem (
      // optimize though.
     trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_maybe_elem(trav, index, ACR_READ, [&](const Traversal& child){
-            r = trav_reference(child);
+            new (&r) Reference(trav_reference(child));
         });
     });
     return r;
@@ -745,7 +745,7 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r;
     trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_elem(trav, index, ACR_READ, [&](const Traversal& child){
-            r = trav_reference(child);
+            new (&r) Reference(trav_reference(child));
         });
     });
     return r;
