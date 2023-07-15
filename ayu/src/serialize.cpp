@@ -194,15 +194,16 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
     auto swizzle = trav.desc->swizzle();
     auto init = trav.desc->init();
     if (swizzle || init) [[unlikely]] {
-        Reference ref = trav_reference(trav);
+         // We're duplicating the work to get the ref and loc if there's both a
+         // swizzle and an init, but almost no types are going to have both.
         if (swizzle) {
             IFTContext::current->swizzle_ops.emplace_back(
-                swizzle->f, ref, tree, trav_location(trav)
+                swizzle->f, trav_reference(trav), tree, trav_location(trav)
             );
         }
         if (init) {
             IFTContext::current->init_ops.emplace_back(
-                init->f, ref, trav_location(trav)
+                init->f, trav_reference(trav), trav_location(trav)
             );
         }
     }

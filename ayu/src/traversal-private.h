@@ -74,15 +74,15 @@ struct Traversal {
 
 using TravCallbackRef = CallbackRef<void(const Traversal&)>;
 
- // The traversal functions really want to be inlined because they have so many
- // parameters.  If they're not inlined, the code to wrangle all the parameters
- // takes up nearly as much space as the functions themselves.
-
  // If only_addressable is true, will skip over any items that aren't
  // addressable and don't have pass_through_addressable.
+ // Note: This doesn't have to be a template, but making it a template
+ // makes the compiler inline it wherever it's used, for a pretty big
+ // performance win.
+template <class CB>
 static inline void trav_start (
     const Reference& ref, LocationRef loc, bool only_addressable,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     Traversal trav;
     trav.address = ref.address();
@@ -106,9 +106,10 @@ static inline void trav_start (
     }
 }
 
+template <class CB>
 static inline void trav_acr (
     Traversal& trav, const Traversal& parent, const Accessor* acr,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     trav.address = acr->address(*parent.address);
     trav.desc = DescriptionPrivate::get(acr->type(parent.address));
@@ -134,9 +135,12 @@ static inline void trav_acr (
     }
 }
 
+ // Add another template parameter to encourage more inlining (CB is always
+ // TravCallbackRef here)
+template <class CB, TraversalOp op>
 static inline void trav_ref (
     Traversal& trav, const Traversal& parent, const Reference& ref,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     trav.address = ref.address();
     trav.desc = DescriptionPrivate::get(ref.type());
@@ -161,9 +165,10 @@ static inline void trav_ref (
     }
 }
 
+template <class CB>
 static inline void trav_delegate (
     const Traversal& parent, const Accessor* acr,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     expect(&parent == current_traversal);
     Traversal trav;
@@ -174,9 +179,10 @@ static inline void trav_delegate (
  // key is a reference instead of a pointer so that a temporary can be passed
  // in.  The pointer will be released when this function returns, so no worry
  // about a dangling pointer to a temporary.
+template <class CB>
 static inline void trav_attr (
     const Traversal& parent, const Accessor* acr, const AnyString& key,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     expect(&parent == current_traversal);
     Traversal trav;
@@ -185,22 +191,24 @@ static inline void trav_attr (
     trav_acr(trav, parent, acr, mode, cb);
 }
 
+template <class CB>
 static inline void trav_attr_func (
     const Traversal& parent, const Reference& ref,
     Reference(* func )(Mu&, AnyString), const AnyString& key,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     expect(&parent == current_traversal);
     Traversal trav;
     trav.op = ATTR_FUNC;
     trav.attr_func = func;
     trav.key = &key;
-    trav_ref(trav, parent, ref, mode, cb);
+    trav_ref<CB, ATTR_FUNC>(trav, parent, ref, mode, cb);
 }
 
+template <class CB>
 static inline void trav_elem (
     const Traversal& parent, const Accessor* acr, usize index,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     expect(&parent == current_traversal);
     Traversal trav;
@@ -209,20 +217,21 @@ static inline void trav_elem (
     trav_acr(trav, parent, acr, mode, cb);
 }
 
+template <class CB>
 static inline void trav_elem_func (
     const Traversal& parent, const Reference& ref,
     Reference(* func )(Mu&, usize), usize index,
-    AccessMode mode, TravCallbackRef cb
+    AccessMode mode, CB cb
 ) {
     expect(&parent == current_traversal);
     Traversal trav;
     trav.op = ELEM_FUNC;
     trav.elem_func = func;
     trav.index = index;
-    trav_ref(trav, parent, ref, mode, cb);
+    trav_ref<CB, ELEM_FUNC>(trav, parent, ref, mode, cb);
 }
 
-static Reference trav_reference (const Traversal& trav) noexcept {
+inline Reference trav_reference (const Traversal& trav) noexcept {
     if (trav.addressable) {
         return Pointer(
             trav.readonly ? Type(trav.desc).add_readonly() : trav.desc,
@@ -246,7 +255,7 @@ static Reference trav_reference (const Traversal& trav) noexcept {
     }
 }
 
-static Location trav_location (const Traversal& trav) noexcept {
+inline Location trav_location (const Traversal& trav) noexcept {
     if (trav.op == START) {
         if (*trav.location) return trav.location;
          // This * took a half a day of debugging to add. :(
@@ -265,7 +274,7 @@ static Location trav_location (const Traversal& trav) noexcept {
     }
 }
 
-static const Traversal& find_trav_start (const Traversal& trav) {
+inline const Traversal& find_trav_start (const Traversal& trav) {
     if (trav.op == START) return trav;
     else return find_trav_start(*trav.parent);
 }
