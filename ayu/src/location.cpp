@@ -5,6 +5,7 @@
 #include "../describe.h"
 #include "../errors.h"
 #include "../serialize.h"
+#include "traversal-private.h"
 
 namespace ayu {
 namespace in {

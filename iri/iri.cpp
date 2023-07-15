@@ -197,6 +197,7 @@ struct IRIParser {
                 default: break;
             }
         }
+        expect(cap > 0 && cap <= maximum_length * 3);
          // Now figure out how much we actually need to parse.
         Str prefix;
         decltype(&IRIParser::parse_authority) next;
@@ -253,7 +254,7 @@ struct IRIParser {
             default: never();
         }
          // Allocate and start
-        expect(prefix);
+        expect(prefix.size() > 0 && prefix.size() <= maximum_length);
         expect(!output.owned());
         output = cat(prefix, Uninitialized(cap));
         return (this->*next)(
@@ -371,6 +372,8 @@ struct IRIParser {
         }
         if (in < in_end) switch (*in) {
             case '/':
+                 // Here we can collapse extra /s without accidentally chopping
+                 // off a final /
                 if (out[-1] == '/') in++;
                 else *out++ = *in++;
                 return parse_relative_path(out, in, in_end);

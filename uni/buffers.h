@@ -27,7 +27,6 @@ inline namespace buffers {
         }
 
         static constexpr usize capacity_for_size (usize size) {
-            if (size == 0) return 0;
             usize min_bytes = sizeof(usize) == 8 ? 24 : 16;
             usize min_cap = min_bytes / sizeof(T);
             if (!min_cap) min_cap = 1;
@@ -41,7 +40,6 @@ inline namespace buffers {
 
         [[gnu::malloc, gnu::returns_nonnull]] static
         T* allocate (usize size) {
-            if (size == 0) return null;
             require(size <= uint32(-1) >> 1);
             usize cap = capacity_for_size(size);
              // On 32-bit platforms we need to make sure we don't overflow usize
