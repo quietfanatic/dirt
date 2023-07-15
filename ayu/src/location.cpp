@@ -23,7 +23,8 @@ void delete_LocationData (LocationData* p) noexcept {
 
 } using namespace in;
 
- // TODO: Use traversals for this
+ // It would be nice to be able to use Traversal for this, but this walks
+ // upwards and Traversal only walks downwards.
 Reference reference_from_location (LocationRef loc) {
     if (!*loc) return Reference();
     switch (loc->data->form) {

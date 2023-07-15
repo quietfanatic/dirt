@@ -299,7 +299,7 @@ void in::ser_collect_keys (
                 }
             });
         }
-        else {
+        else [[unlikely]] {
              // General case, any type that serializes to an array of strings.
             acr->read(*trav.address, [&](Mu& ksv){
                  // We might be able to optimize this more, but it's not that
@@ -381,7 +381,7 @@ void in::ser_claim_keys (
                     reinterpret_cast<AnyArray<AnyString>&>(ksv) = ks;
                 });
             }
-            else {
+            else [[unlikely]] {
                  // General case: call item_from_tree on the keys.  This will
                  // be slow.
                 UniqueArray<Tree> a (ks.size());
@@ -522,14 +522,14 @@ bool in::ser_maybe_attr (
                 if (found) return true;
             }
         }
-        return false;
+        [[unlikely]] return false;
     }
     else if (auto attr_func = trav.desc->attr_func()) {
         if (Reference ref = attr_func->f(*trav.address, key)) {
             trav_attr_func(trav, move(ref), attr_func->f, key, mode, cb);
             return true;
         }
-        return false;
+        [[unlikely]] return false;
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         bool r;
@@ -686,14 +686,14 @@ bool in::ser_maybe_elem (
             trav_elem(trav, acr, index, mode, cb);
             return true;
         }
-        return false;
+        else [[unlikely]] return false;
     }
     else if (auto elem_func = trav.desc->elem_func()) {
         if (Reference ref = elem_func->f(*trav.address, index)) {
             trav_elem_func(trav, move(ref), elem_func->f, index, mode, cb);
             return true;
         }
-        return false;
+        else [[unlikely]] return false;
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         bool found;
@@ -731,9 +731,9 @@ Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
 ) {
     Reference r;
-     // Maybe we don't need to set up a whole traversal stack for this,
-     // now that we've removed included elems.  This isn't that important to
-     // optimize though.
+     // Maybe we don't need to set up a whole traversal stack for this, now that
+     // we've removed included elems.  This isn't that important to optimize
+     // though.
     trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_maybe_elem(trav, index, ACR_READ, [&](const Traversal& child){
             new (&r) Reference(trav_reference(child));

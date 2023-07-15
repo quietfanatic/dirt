@@ -266,17 +266,18 @@ inline Location trav_location (const Traversal& trav) noexcept {
         switch (trav.op) {
             case DELEGATE: return parent;
             case ATTR: case ATTR_FUNC:
-                return Location(parent, *trav.key);
+                return Location(move(parent), *trav.key);
             case ELEM: case ELEM_FUNC:
-                return Location(parent, trav.index);
+                return Location(move(parent), trav.index);
             default: never();
         }
     }
 }
 
 inline const Traversal& find_trav_start (const Traversal& trav) {
-    if (trav.op == START) return trav;
-    else return find_trav_start(*trav.parent);
+    auto tr = &trav;
+    while (tr->op != START) tr = tr->parent;
+    return *tr;
 }
 
 } // namespace ayu::in
