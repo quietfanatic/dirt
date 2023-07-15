@@ -181,10 +181,10 @@ Relativity relativity (Str ref) noexcept {
 struct IRIParser {
     Str input;
     UniqueString output;
-    uint16 colon;
-    uint16 path;
-    uint16 question;
-    uint16 hash;
+    uint16 scheme_end;
+    uint16 authority_end;
+    uint16 path_end;
+    uint16 query_end;
 
     void parse (const IRI& base) {
         if (!input) return fail(Error::Empty);
@@ -211,42 +211,42 @@ struct IRIParser {
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
                 prefix = base.spec_with_scheme_only();
-                colon = base.colon_;
+                scheme_end = base.scheme_end;
                 next = &IRIParser::parse_authority;
                 break;
             }
             case Relativity::AbsolutePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
                 prefix = base.spec_with_origin_only();
-                colon = base.colon_;
-                path = base.path_;
+                scheme_end = base.scheme_end;
+                authority_end = base.authority_end;
                 next = &IRIParser::parse_absolute_path;
                 break;
             }
             case Relativity::RelativePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
                 prefix = base.spec_without_filename();
-                colon = base.colon_;
-                path = base.path_;
+                scheme_end = base.scheme_end;
+                authority_end = base.authority_end;
                 next = &IRIParser::parse_relative_path;
                 break;
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
                 prefix = base.spec_without_query();
-                colon = base.colon_;
-                path = base.path_;
-                question = base.question_;
+                scheme_end = base.scheme_end;
+                authority_end = base.authority_end;
+                path_end = base.path_end;
                 next = &IRIParser::parse_query;
                 break;
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
                 prefix = base.spec_without_fragment();
-                colon = base.colon_;
-                path = base.path_;
-                question = base.question_;
-                hash = base.hash_;
+                scheme_end = base.scheme_end;
+                authority_end = base.authority_end;
+                path_end = base.path_end;
+                query_end = base.query_end;
                 next = &IRIParser::parse_fragment;
                 break;
             }
@@ -273,13 +273,13 @@ struct IRIParser {
             case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
                 *out++ = *in++; break;
             case ':':
-                colon = out - output.begin();
+                scheme_end = out - output.begin();
                 *out++ = *in++;
                 if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
                     return parse_authority(out, in, in_end);
                 }
                 else {
-                    path = out - output.begin();
+                    authority_end = out - output.begin();
                     if (in + 1 <= in_end && in[0] == '/') {
                         return parse_absolute_path(out, in, in_end);
                     }
@@ -306,13 +306,13 @@ struct IRIParser {
             case ':': case '[': case ']': case '@':
                 *out++ = *in++; break;
             case '/':
-                path = out - output.begin();
+                authority_end = out - output.begin();
                 return parse_absolute_path(out, in, in_end);
             case '?':
-                path = question = out - output.begin();
+                authority_end = path_end = out - output.begin();
                 return parse_query(out, in, in_end);
             case '#':
-                path = question = hash = out - output.begin();
+                authority_end = path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
@@ -323,7 +323,7 @@ struct IRIParser {
                 out = write_percent(out, *in++); break;
             default: return fail(Error::InvalidAuthority);
         }
-        path = question = hash = out - output.begin();
+        authority_end = path_end = query_end = out - output.begin();
         return done(out, in, in_end);
     }
 
@@ -363,7 +363,7 @@ struct IRIParser {
             }
             else if (out[-2] == '.' && out[-3] == '/') {
                 out -= 3;
-                if (out - output.begin() == path) {
+                if (out - output.begin() == authority_end) {
                     return fail(Error::PathOutsideRoot);
                 }
                 while (out[-1] != '/') out--;
@@ -375,14 +375,14 @@ struct IRIParser {
                 else *out++ = *in++;
                 return parse_relative_path(out, in, in_end);
             case '?':
-                question = out - output.begin();
+                path_end = out - output.begin();
                 return parse_query(out, in, in_end);
             case '#':
-                question = hash = out - output.begin();
+                path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             default: never();
         }
-        question = hash = out - output.begin();
+        path_end = query_end = out - output.begin();
         return done(out, in, in_end);
     }
 
@@ -399,10 +399,10 @@ struct IRIParser {
             case ':': case '@': case '/':
                 *out++ = *in++; break;
             case '?':
-                question = out - output.begin();
+                path_end = out - output.begin();
                 return parse_query(out, in, in_end);
             case '#':
-                question = hash = out - output.begin();
+                path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
@@ -415,7 +415,7 @@ struct IRIParser {
                 break;
             default: return fail(Error::InvalidPath);
         }
-        question = hash = out - output.begin();
+        path_end = query_end = out - output.begin();
         return done(out, in, in_end);
     }
 
@@ -428,7 +428,7 @@ struct IRIParser {
             case ':': case '@': case '/': case '?':
                 *out++ = *in++; break;
             case '#':
-                hash = out - output.begin();
+                query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
@@ -439,7 +439,7 @@ struct IRIParser {
                 out = write_percent(out, *in++); break;
             default: return fail(Error::InvalidQuery);
         }
-        hash = out - output.begin();
+        query_end = out - output.begin();
         return done(out, in, in_end);
     }
 
@@ -474,18 +474,18 @@ struct IRIParser {
     void done (char* out, const char* in, const char* in_end) {
         if (out - output.begin() > maximum_length) return fail(Error::TooLong);
         expect(in == in_end);
-        expect(colon < path);
-        expect(colon + 2 != path);
-        expect(path <= question);
-        expect(question <= hash);
-        expect(hash <= out - output.begin());
+        expect(scheme_end < authority_end);
+        expect(scheme_end + 2 != authority_end);
+        expect(authority_end <= path_end);
+        expect(path_end <= query_end);
+        expect(query_end <= out - output.begin());
         output.unsafe_set_size(out - output.begin());
     }
 
     [[gnu::cold]] void fail (Error err) {
         output = input;
-        colon = path = question = 0;
-        hash = uint16(err);
+        scheme_end = authority_end = path_end = 0;
+        query_end = uint16(err);
     }
 };
 
@@ -493,11 +493,11 @@ IRI::IRI (Str spec, const IRI& base) noexcept {
     IRIParser parser;
     parser.input = spec;
     parser.parse(base);
-    spec_ = move(parser.output);
-    colon_ = parser.colon;
-    path_ = parser.path;
-    question_ = parser.question;
-    hash_ = parser.hash;
+    new (this) IRI (
+        move(parser.output),
+        parser.scheme_end, parser.authority_end,
+        parser.path_end, parser.query_end
+    );
 }
 
 AnyString IRI::spec_relative_to (const IRI& base) const noexcept {
@@ -505,30 +505,30 @@ AnyString IRI::spec_relative_to (const IRI& base) const noexcept {
     else if (!base) return spec_;
     else if (scheme() != base.scheme()) return spec_;
     else if (authority() != base.authority()) {
-        if (has_authority()) return spec_.substr(colon_ + 1);
+        if (has_authority()) return spec_.substr(scheme_end + 1);
         else return spec_;
     }
     else if (path() != base.path()) {
          // Pulling apart path is NYI. TODO: make it YYI
-        return spec_.substr(path_);
+        return spec_.substr(authority_end);
     }
     else if (query() != base.query()) {
-        return spec_.substr(question_);
+        return spec_.substr(path_end);
     }
     else {
          // Wait!  We're not allowed to return an empty string, so only chop off
          // as much as we can.
-        if (hash_ != spec_.size()) {
-            return spec_.substr(hash_);
+        if (query_end != spec_.size()) {
+            return spec_.substr(query_end);
         }
-        else if (question_ != spec_.size()) {
-            return spec_.substr(question_);
+        else if (path_end != spec_.size()) {
+            return spec_.substr(path_end);
         }
-        else if (path_ != spec_.size()) {
-            return spec_.substr(path_);
+        else if (authority_end != spec_.size()) {
+            return spec_.substr(authority_end);
         }
-        else if (colon_ + 1u != spec_.size()) {
-            return spec_.substr(colon_ + 1);
+        else if (scheme_end + 1u != spec_.size()) {
+            return spec_.substr(scheme_end + 1);
         }
         else return spec_;
     }

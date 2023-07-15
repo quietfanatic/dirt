@@ -107,9 +107,9 @@ enum class Error : uint16 {
     InvalidPath,
     InvalidQuery,
     InvalidFragment,
-     // The path had too many .. segments.  Note: most URI libraries will
-     // silently turn http://example.com/../foo into http://example.com/foo.
-     // This library errors instead.
+     // The path had too many .. segments.  This is a deviation from the URI
+     // specs, which say that http://example.com/../foo should be canonicalized
+     // into http://example.com/foo.  This library errors instead.
     PathOutsideRoot,
      // There's a % that isn't followed by two hexadecimal digits.
     InvalidPercentSequence,
@@ -127,8 +127,8 @@ struct IRI {
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr IRI (
         AnyString spec,
-        uint16 colon_position, uint16 path_position,
-        uint16 question_position, uint16 hash_position
+        uint16 scheme_end, uint16 authority_end,
+        uint16 path_end, uint16 query_end
     );
 
      // Copy and move construction and assignment
@@ -250,20 +250,11 @@ struct IRI {
 #endif
 #undef IRI_FRIEND_OP
 
-  private:
-     // Full text of the IRI
-    AnyString spec_;
-     // Offset of the : after the scheme.
-    uint16 colon_ = 0;
-     // Offset of the start of the path.  path_ > colon_.
-    uint16 path_ = 0;
-     // Offset of the ? for the query, or the end of the path if there is no ?.
-     // question_ >= path_.
-    uint16 question_ = 0;
-     // Offset of the # for the fragment, or the end of the query (or path)
-     // if there is no #.  hash_ >= question_.
-    uint16 hash_ = 0;
-    friend class IRIParser;
+    const AnyString spec_;
+    const uint16 scheme_end = 0;
+    const uint16 authority_end = 0;
+    const uint16 path_end = 0;
+    const uint16 query_end = 0;
 };
 
 } // namespace iri
