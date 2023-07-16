@@ -71,7 +71,7 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     }
     if (auto acr = trav.desc->delegate_acr()) {
         Tree r;
-        trav_delegate(trav, acr, ACR_READ, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_READ, [&](const Traversal& child){
             new (&r) Tree(ser_to_tree(child));
             r.flags |= acr->tree_flags();
         });
@@ -93,13 +93,13 @@ catch (const std::exception& e) {
         return Tree(std::current_exception());
     }
     else throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
 Tree item_to_tree (const Reference& item, LocationRef loc) {
     Tree r;
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         new (&r) Tree(ser_to_tree(trav));
     });
     return r;
@@ -159,7 +159,7 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
     }
      // Nothing matched, so use delegate
     if (auto acr = trav.desc->delegate_acr()) {
-        trav_delegate(trav, acr, ACR_WRITE, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_WRITE, [&](const Traversal& child){
             ser_from_tree(child, tree);
         });
         goto done;
@@ -198,12 +198,12 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
          // swizzle and an init, but almost no types are going to have both.
         if (swizzle) {
             IFTContext::current->swizzle_ops.emplace_back(
-                swizzle->f, trav_reference(trav), tree, trav_location(trav)
+                swizzle->f, trav.to_reference(), tree, trav.to_location()
             );
         }
         if (init) {
             IFTContext::current->init_ops.emplace_back(
-                init->f, trav_reference(trav), trav_location(trav)
+                init->f, trav.to_reference(), trav.to_location()
             );
         }
     }
@@ -211,7 +211,7 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
@@ -223,7 +223,7 @@ void in::IFTContext::do_swizzles () {
          // Explicitly assign to clear swizzle_ops
         auto swizzles = move(swizzle_ops);
         for (auto& op : swizzles) {
-            trav_start(
+            Traversal::start(
                 op.item, op.loc, false, ACR_MODIFY, [&](const Traversal& trav)
             {
                 op.f(*trav.address, op.tree);
@@ -237,7 +237,7 @@ void in::IFTContext::do_inits () {
     while (!init_ops.empty()) {
         auto inits = move(init_ops);
         for (auto& op : inits) {
-            trav_start(
+            Traversal::start(
                 op.item, op.loc, false, ACR_MODIFY, [&](const Traversal& trav)
             {
                 op.f(*trav.address);
@@ -261,13 +261,13 @@ void item_from_tree (
          // Delay swizzle and inits to the outer item_from_tree call.  Basically
          // this just means keep the current context instead of making a new
          // one.
-        trav_start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+        Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
             ser_from_tree(trav, tree);
         });
     }
     else {
         IFTContext context;
-        trav_start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+        Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
             ser_from_tree(trav, tree);
         });
         context.do_swizzles();
@@ -319,8 +319,8 @@ void in::ser_collect_keys (
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (acr->attr_flags & ATTR_INCLUDE) {
-                trav_attr(
-                    trav, acr, attr->key, ACR_READ, [&](const Traversal& child)
+                trav.follow_attr(
+                    acr, attr->key, ACR_READ, [&](const Traversal& child)
                 {
                     ser_collect_keys(child, ks);
                 });
@@ -329,7 +329,7 @@ void in::ser_collect_keys (
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav_delegate(trav, acr, ACR_READ, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_READ, [&](const Traversal& child){
             ser_collect_keys(child, ks);
         });
     }
@@ -338,7 +338,7 @@ void in::ser_collect_keys (
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
@@ -346,7 +346,7 @@ AnyArray<AnyString> item_get_keys (
     const Reference& item, LocationRef loc
 ) {
     UniqueArray<AnyString> ks;
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_collect_keys(trav, ks);
     });
     return ks;
@@ -444,8 +444,8 @@ void in::ser_claim_keys (
             if (acr->attr_flags & ATTR_INCLUDE) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed_included[i]) continue;
-                trav_attr(
-                    trav, acr, attr->key, ACR_WRITE, [&](const Traversal& child)
+                trav.follow_attr(
+                    acr, attr->key, ACR_WRITE, [&](const Traversal& child)
                 {
                     ser_claim_keys(
                         child, ks,
@@ -456,7 +456,7 @@ void in::ser_claim_keys (
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav_delegate(trav, acr, ACR_WRITE, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_WRITE, [&](const Traversal& child){
             ser_claim_keys(child, ks, optional);
         });
     }
@@ -470,7 +470,7 @@ void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) try {
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
@@ -478,7 +478,7 @@ void item_set_keys (
     const Reference& item, AnyArray<AnyString> ks,
     LocationRef loc
 ) {
-    trav_start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
         ser_set_keys(trav, move(ks));
     });
 }
@@ -489,18 +489,18 @@ Reference item_maybe_attr (
     Reference r;
      // Is ACR_READ correct here?  Will we instead have to chain up the
      // reference from the start?
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_maybe_attr(trav, key, ACR_READ, [&](const Traversal& child){
-            new (&r) Reference(trav_reference(child));
+            new (&r) Reference(child.to_reference());
         });
     });
     return r;
 }
 Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     Reference r;
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_attr(trav, key, ACR_READ, [&](const Traversal& child){
-            new (&r) Reference(trav_reference(child));
+            new (&r) Reference(child.to_reference());
         });
     });
     return r;
@@ -523,7 +523,7 @@ usize in::ser_get_length (const Traversal& trav) try {
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         usize len;
-        trav_delegate(trav, acr, ACR_READ, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_READ, [&](const Traversal& child){
             len = ser_get_length(child);
         });
         return len;
@@ -533,13 +533,13 @@ usize in::ser_get_length (const Traversal& trav) try {
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
 usize item_get_length (const Reference& item, LocationRef loc) {
     usize len;
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         len = ser_get_length(trav);
     });
     return len;
@@ -577,7 +577,7 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav_delegate(trav, acr, ACR_WRITE, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_WRITE, [&](const Traversal& child){
             ser_set_length(child, len);
         });
     }
@@ -586,12 +586,12 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
-    trav_start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
         ser_set_length(trav, len);
     });
 }
@@ -600,21 +600,18 @@ Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
 ) {
     Reference r;
-     // Maybe we don't need to set up a whole traversal stack for this, now that
-     // we've removed included elems.  This isn't that important to optimize
-     // though.
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_maybe_elem(trav, index, ACR_READ, [&](const Traversal& child){
-            new (&r) Reference(trav_reference(child));
+            new (&r) Reference(child.to_reference());
         });
     });
     return r;
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r;
-    trav_start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         ser_elem(trav, index, ACR_READ, [&](const Traversal& child){
-            new (&r) Reference(trav_reference(child));
+            new (&r) Reference(child.to_reference());
         });
     });
     return r;
@@ -624,13 +621,13 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
 
 Location current_location () noexcept {
     if (current_traversal) {
-        return trav_location(*current_traversal);
+        return current_traversal->to_location();
     }
     else return Location();
 }
 Location current_root_location () noexcept {
     if (current_traversal) {
-        return trav_location(find_trav_start(*current_traversal)).root();
+        return current_traversal->find_start().to_location().root();
     }
     else return Location();
 }

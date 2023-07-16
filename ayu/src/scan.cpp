@@ -46,8 +46,8 @@ bool scan_trav (
         default: {
             if (auto acr = trav.desc->delegate_acr()) {
                 bool r = false;
-                trav_delegate(
-                    trav, acr, ACR_READ, [&](const Traversal& child)
+                trav.follow_delegate(
+                    acr, ACR_READ, [&](const Traversal& child)
                 {
                     r = scan_trav(child, loc, cb);
                 });
@@ -98,7 +98,7 @@ bool scan_pointers (
     CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
     bool r = false;
-    trav_start(base_item, base_loc, true, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(base_item, base_loc, true, ACR_READ, [&](const Traversal& trav){
         r = scan_trav(
             trav, base_loc, [&](const Traversal& trav, LocationRef loc)
         {
@@ -116,11 +116,11 @@ bool scan_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
     bool r = false;
-    trav_start(base_item, base_loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(base_item, base_loc, false, ACR_READ, [&](const Traversal& trav){
         r = scan_trav(
             trav, base_loc, [&](const Traversal& trav, LocationRef loc)
         {
-            return cb(trav_reference(trav), loc);
+            return cb(trav.to_reference(), loc);
         });
     });
     return r;

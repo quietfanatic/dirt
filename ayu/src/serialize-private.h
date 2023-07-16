@@ -92,7 +92,7 @@ bool ser_maybe_attr (
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->key == key) {
-                trav_attr(trav, attr->acr(), key, mode, cb);
+                trav.follow_attr(attr->acr(), key, mode, cb);
                 return true;
             }
         }
@@ -109,8 +109,8 @@ bool ser_maybe_attr (
                  // optimize this, then in claim_keys we could build up a
                  // structure mirroring the inclusion diagram and follow it,
                  // instead of just keeping the flat list of keys.
-                trav_attr(
-                    trav, acr, attr->key, mode == ACR_WRITE ? ACR_MODIFY : mode,
+                trav.follow_attr(
+                    acr, attr->key, mode == ACR_WRITE ? ACR_MODIFY : mode,
                     [&](const Traversal& child)
                 {
                     found = ser_maybe_attr(child, key, mode, cb);
@@ -122,15 +122,15 @@ bool ser_maybe_attr (
     }
     else if (auto attr_func = trav.desc->attr_func()) {
         if (Reference ref = attr_func->f(*trav.address, key)) {
-            trav_attr_func(trav, move(ref), attr_func->f, key, mode, cb);
+            trav.follow_attr_func(move(ref), attr_func->f, key, mode, cb);
             return true;
         }
         [[unlikely]] return false;
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         bool r;
-        trav_delegate(
-            trav, acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
+        trav.follow_delegate(
+            acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
             [&](const Traversal& child)
         {
             r = ser_maybe_attr(child, key, mode, cb);
@@ -142,7 +142,7 @@ bool ser_maybe_attr (
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
@@ -157,7 +157,7 @@ void ser_attr (
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
@@ -168,22 +168,22 @@ bool ser_maybe_elem (
     if (auto elems = trav.desc->elems()) {
         if (index < elems->n_elems) {
             auto acr = elems->elem(index)->acr();
-            trav_elem(trav, acr, index, mode, cb);
+            trav.follow_elem(acr, index, mode, cb);
             return true;
         }
         else [[unlikely]] return false;
     }
     else if (auto elem_func = trav.desc->elem_func()) {
         if (Reference ref = elem_func->f(*trav.address, index)) {
-            trav_elem_func(trav, move(ref), elem_func->f, index, mode, cb);
+            trav.follow_elem_func(move(ref), elem_func->f, index, mode, cb);
             return true;
         }
         else [[unlikely]] return false;
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         bool found;
-        trav_delegate(
-            trav, acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
+        trav.follow_delegate(
+            acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
             [&](const Traversal& child)
         {
             found = ser_maybe_elem(child, index, mode, cb);
@@ -195,7 +195,7 @@ bool ser_maybe_elem (
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
@@ -210,7 +210,7 @@ void ser_elem (
 catch (const SerializeFailed&) { throw; }
 catch (const std::exception& e) {
     throw SerializeFailed(
-        trav_location(trav), trav.desc, std::current_exception()
+        trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
