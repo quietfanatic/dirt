@@ -103,9 +103,9 @@ struct Reference {
 
      // Writing through this reference throws if this is true
     bool readonly () const {
-        if (host.type.readonly()) return true;
-        else if (acr) return acr->accessor_flags & in::ACR_READONLY;
-        else return false;
+        bool r = host.type.readonly();
+        if (acr) r = r || acr->accessor_flags & in::ACR_READONLY;
+        return r;
     }
 
     [[noreturn]] void throw_WriteReadonly () const;

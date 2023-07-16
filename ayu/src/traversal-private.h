@@ -74,30 +74,37 @@ struct Traversal {
 
 using TravCallbackRef = CallbackRef<void(const Traversal&)>;
 
- // If only_addressable is true, will skip over any items that aren't
- // addressable and don't have pass_through_addressable.
- // Note: This doesn't have to be a template, but making it a template
- // makes the compiler inline it wherever it's used, for a pretty big
- // performance win.
+ // The trav_ functions are the bones of the serialization and scanning modules,
+ // and are worth heavily optimizing.
 template <class CB>
 static inline void trav_start (
     const Reference& ref, LocationRef loc, bool only_addressable,
     AccessMode mode, CB cb
 ) {
+    expect(ref);
     Traversal trav;
-    trav.desc = DescriptionPrivate::get(ref.type());
-    trav.readonly = ref.readonly();
     trav.only_addressable = only_addressable;
     trav.op = START;
     trav.reference = &ref;
     trav.location = loc;
     trav.address = ref.address();
-    trav.addressable = trav.address;
-    if (trav.addressable) {
+     // I experimented with several ways of branching, and this one works out
+     // the best.  ref.address(), ref.type(), and ref.readonly() all branch on
+     // the existence of ref.acr, so if we bundle them up this way, the
+     // compiler can make it so the happy path where ref.acr == null only has
+     // one branch.  (For some reason putting ref.type() and ref.readonly()
+     // before ref.address() doesn't work as well, so I put them after).
+    if (trav.address) {
+        trav.readonly = ref.readonly();
+        trav.desc = DescriptionPrivate::get(ref.type());
+        trav.addressable = true;
         trav.children_addressable = true;
         cb(trav);
     }
     else {
+        trav.readonly = ref.readonly();
+        trav.desc = DescriptionPrivate::get(ref.type());
+        trav.addressable = false;
         trav.children_addressable =
             ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
         if (!trav.only_addressable || trav.children_addressable) {
@@ -145,15 +152,17 @@ static inline void trav_ref (
     AccessMode mode, CB cb
 ) {
     trav.only_addressable = parent.only_addressable;
-    trav.readonly = parent.readonly || ref.readonly();
-    trav.desc = DescriptionPrivate::get(ref.type());
     trav.address = ref.address();
     if (trav.address) {
+        trav.desc = DescriptionPrivate::get(ref.type());
+        trav.readonly = parent.readonly || ref.readonly();
         trav.addressable = parent.children_addressable;
         trav.children_addressable = parent.children_addressable;
         cb(trav);
     }
     else {
+        trav.desc = DescriptionPrivate::get(ref.type());
+        trav.readonly = parent.readonly || ref.readonly();
         trav.addressable = false;
         trav.children_addressable =
             ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
@@ -235,7 +244,7 @@ static inline void trav_elem_func (
 inline Reference trav_reference (const Traversal& trav) noexcept {
     if (trav.addressable) {
         return Pointer(
-            trav.readonly ? Type(trav.desc).add_readonly() : trav.desc,
+            Type(trav.desc, trav.readonly),
             trav.address
         );
     }
