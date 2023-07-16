@@ -216,15 +216,12 @@ AYU_DESCRIBE_TEMPLATE(
          // move() on the element, thereby supporting elements without a move
          // constructor.
         std::unordered_set<T> source;
-        auto loc = ayu::current_location();
-        uni::usize i = 0;
         for (auto& e : a) {
             auto iter = source.emplace().first;
             auto node = source.extract(iter);
-             // This Location value isn't really correct because the order of
-             // the elements can change, but it's needed if there are References
-             // inside the elements.
-            item_from_tree(&node.value(), e, ayu::Location(loc, i++));
+             // Because we aren't transmitting the location through here, you
+             // cannot have references inside an unordered_set (yet)
+            item_from_tree(&node.value(), e);
             auto res = v.insert(move(node));
              // Check for duplicates.
             if (!res.inserted) {
@@ -262,12 +259,12 @@ AYU_DESCRIBE_TEMPLATE(
         }
         auto a = ayu::TreeArraySlice(tree);
         std::set<T> source;
-        auto loc = ayu::current_location();
-        uni::usize i = 0;
         for (auto& e : a) {
             auto iter = source.emplace().first;
             auto node = source.extract(iter);
-            item_from_tree(&node.value(), e, ayu::Location(loc, i++));
+             // Because we aren't transmitting the location through here, you
+             // cannot have references inside an set (yet)
+            item_from_tree(&node.value(), e);
             auto res = v.insert(move(node));
              // Check for duplicates.
             if (!res.inserted) {

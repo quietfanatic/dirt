@@ -150,12 +150,7 @@ Reference item_elem (
 
 ///// MISC
 
- // If a serialization operation is active, get the Location of the item that's
- // currently being processed.
-Location current_location () noexcept;
-
- // Gets whatever the root of current_location() would be (either a Resource
- // Location or a Reference Locaiton).
+ // TODO: replace this with current_iri_base()
 Location current_root_location () noexcept;
 
 ///// DIAGNOSTICS HELP

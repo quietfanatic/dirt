@@ -71,8 +71,6 @@ struct Traversal {
         current_traversal = parent;
     }
 
-     // These functions are the bones of the serialization and scanning modules,
-     // and are worth heavily optimizing.
     template <class CB>
     static void start (
         const Reference& ref, LocationRef loc, bool only_addressable,
