@@ -27,6 +27,14 @@ struct Pointer {
      // Returns true only for the typeless empty Pointer.
     constexpr bool empty () const { return !!type; }
 
+    bool readonly () const { return type.readonly(); }
+    Pointer add_readonly () const {
+        return Pointer(type.add_readonly(), address);
+    }
+    Pointer remove_readonly () const {
+        return Pointer(type.remove_readonly(), address);
+    }
+
     Pointer try_upcast_to (Type t) const {
         return Pointer(t, type.try_upcast_to(t, address));
     }
@@ -81,8 +89,13 @@ struct Pointer {
     operator T* () const { return type.upcast_to<T>(address); }
 };
 
+ // Pointers have a slightly evil property where a readonly pointer can equal a
+ // non-readonly pointer.  This may be unintuitive, but it matches the behavior
+ // of native C++ poitners and also makes looking them up in a hash table much
+ // easier.
 constexpr bool operator == (const Pointer& a, const Pointer& b) {
-    return a.address == b.address && a.type == b.type;
+    return a.address == b.address &&
+        a.type.remove_readonly() == b.type.remove_readonly();
 }
 constexpr bool operator != (const Pointer& a, const Pointer& b) {
     return !(a == b);
@@ -95,7 +108,7 @@ struct std::hash<ayu::Pointer> {
     std::size_t operator () (const ayu::Pointer& p) const {
         return ayu::in::hash_combine(
             std::hash<ayu::Mu*>{}(p.address),
-            std::hash<ayu::Type>{}(p.type)
+            std::hash<ayu::Type>{}(p.type.remove_readonly())
         );
     }
 };

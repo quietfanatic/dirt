@@ -67,6 +67,12 @@ std::unordered_map<Pointer, Location>* get_location_cache () {
     if (!keep_location_cache_count) return null;
     if (!have_location_cache) {
         scan_universe_pointers([&](Pointer ptr, LocationRef loc){
+             // We're deliberately ignoring the case where the same typed
+             // pointer turns up twice in the data tree.  If this happens, we're
+             // probably dealing with some sort of shared_ptr-like situation,
+             // and in that case it shouldn't matter which location gets cached.
+             // It could theoretically be a problem if the pointers differ in
+             // readonlyness, but that should probably never happen.
             location_cache.emplace(ptr, loc);
             return false;
         });
@@ -167,17 +173,26 @@ Location find_pointer (Pointer item) {
     if (!item) return Location();
     else if (auto cache = get_location_cache()) {
         auto it = cache->find(item);
-        if (it != cache->end()) return it->second;
-        else return Location();
+        if (it != cache->end()) {
+             // Reject non-readonly pointer to readonly location
+            if (it->first.readonly() && !item.readonly()) {
+                [[unlikely]] return Location();
+            }
+            return it->second;
+        }
+        return Location();
     }
     else {
         Location r;
         scan_universe_pointers([&](Pointer p, LocationRef loc){
             if (p == item) {
+                 // If we get a non-readonly pointer to a readonly location,
+                 // reject it, but also don't keep searching.
+                if (p.readonly() && !item.readonly()) [[unlikely]] return true;
                 new (&r) Location(loc);
                 return true;
             }
-            else return false;
+            return false;
         });
         return r;
     }
@@ -189,8 +204,13 @@ Location find_reference (const Reference& item) {
         if (Mu* address = item.address()) {
              // Addressable! This will be fast.
             auto it = cache->find(Pointer(item.type(), address));
-            if (it != cache->end()) return it->second;
-            else return Location();
+            if (it != cache->end()) {
+                if (it->first.readonly() && !item.readonly()) {
+                    [[unlikely]] return Location();
+                }
+                return it->second;
+            }
+            return Location();
         }
         else {
              // Not addressable.  First find the host in the location cache.
@@ -205,6 +225,9 @@ Location find_reference (const Reference& item) {
                     [&](const Reference& ref, LocationRef loc)
                 {
                     if (ref == item) {
+                        if (ref.readonly() && !item.readonly()) {
+                            [[unlikely]] return true;
+                        }
                         new (&r) Location(loc);
                         return true;
                     }
@@ -222,6 +245,9 @@ Location find_reference (const Reference& item) {
             [&](const Reference& ref, LocationRef loc)
         {
             if (ref == item) {
+                if (ref.readonly() && !item.readonly()) {
+                    [[unlikely]] return true;
+                }
                 new (&r) Location(loc);
                 return true;
             }

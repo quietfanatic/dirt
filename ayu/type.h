@@ -55,12 +55,8 @@ struct Type {
      // Checks if this type is readonly (const).
     bool readonly () const { return data & 1; }
      // Add or remove readonly bit
-    Type add_readonly () const {
-        return Type(get_description(), true);
-    }
-    Type remove_readonly () const {
-        return Type(get_description(), false);
-    }
+    Type add_readonly () const { return Type(get_description(), true); }
+    Type remove_readonly () const { return Type(get_description(), false); }
 
      // Get human-readable type name (whatever name was registered with
      // AYU_DESCRIBE).  This ignores the readonly bit.
