@@ -218,7 +218,7 @@ struct Traversal {
      // noexcept because any user code called from here should be confirmed to
      // already work without throwing.
     inline Reference to_reference () const noexcept {
-        if (addressable) {
+        if (addressable) [[likely]] {
             return Pointer(Type(desc, readonly), address);
         }
         else if (op == START) {

@@ -225,10 +225,11 @@ void in::IFTContext::do_swizzles () {
         auto swizzles = move(swizzle_ops);
         for (auto& op : swizzles) {
             PushBaseLocation pbl (op.loc);
-            Traversal::start(
-                op.item, op.loc, false, ACR_MODIFY, [&](const Traversal& trav)
-            {
-                op.f(*trav.address, op.tree);
+            if (auto address = op.item.address()) {
+                op.f(*address, op.tree);
+            }
+            else op.item.access(ACR_MODIFY, [&](Mu& v){
+                op.f(v, op.tree);
             });
         }
     }
@@ -240,10 +241,11 @@ void in::IFTContext::do_inits () {
         auto inits = move(init_ops);
         for (auto& op : inits) {
             PushBaseLocation pbl (op.loc);
-            Traversal::start(
-                op.item, op.loc, false, ACR_MODIFY, [&](const Traversal& trav)
-            {
-                op.f(*trav.address);
+            if (auto address = op.item.address()) {
+                op.f(*address);
+            }
+            else op.item.access(ACR_MODIFY, [&](Mu& v){
+                op.f(v);
             });
              // Initting might even add more swizzle ops.
             do_swizzles();
