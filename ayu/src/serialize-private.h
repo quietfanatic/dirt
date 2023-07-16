@@ -1,6 +1,7 @@
 #pragma once
 #include "../serialize.h"
 
+#include "../errors.h"
 #include "../reference.h"
 #include "../resource.h"
 #include "descriptors-private.h"
@@ -56,9 +57,11 @@ void ser_claim_keys (const Traversal&, UniqueArray<AnyString>&, bool optional);
 void ser_set_keys (const Traversal&, UniqueArray<AnyString>&&);
 
  // If the attr isn't found, returns false and doesn't call the callback
-bool ser_maybe_attr (const Traversal&, const AnyString&, AccessMode, TravCallbackRef);
+template <class CB>
+bool ser_maybe_attr (const Traversal&, const AnyString&, AccessMode, CB);
  // Throws if the attr isn't found
-void ser_attr (const Traversal&, const AnyString&, AccessMode, TravCallbackRef);
+template <class CB>
+void ser_attr (const Traversal&, const AnyString&, AccessMode, CB);
 
  ///// Elem operations
 usize ser_get_length (const Traversal&);
@@ -67,8 +70,148 @@ void ser_claim_length (const Traversal&, usize& claimed, usize len);
 void ser_set_length (const Traversal&, usize);
 
  // If elem is out of range, returns false and doesn't call the callback
-bool ser_maybe_elem (const Traversal&, usize, AccessMode, TravCallbackRef);
+template <class CB>
+bool ser_maybe_elem (const Traversal&, usize, AccessMode, CB);
  // Throws if elem is out of bounds
-void ser_elem (const Traversal&, usize, AccessMode, TravCallbackRef);
+template <class CB>
+void ser_elem (const Traversal&, usize, AccessMode, CB);
+
+///// INLINE DEFINITIONS
+
+template <class CB>
+bool ser_maybe_attr (
+    const Traversal& trav, const AnyString& key,
+    AccessMode mode, CB cb
+) try {
+    if (auto attrs = trav.desc->attrs()) {
+         // Note: This will likely be called once for each attr, making it
+         // O(N^2) over the number of attrs.  If we want we could optimize for
+         // large N by keeping a temporary map...somewhere
+         //
+         // First check direct attrs
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            if (attr->key == key) {
+                trav_attr(trav, attr->acr(), key, mode, cb);
+                return true;
+            }
+        }
+         // Then included attrs
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            auto acr = attr->acr();
+            bool found = false;
+            if (acr->attr_flags & ATTR_INCLUDE) {
+                 // Change mode to modify so we don't clobber the other attrs of
+                 // the included item.  Hopefully it won't matter, because
+                 // inheriting through a non-addressable reference will be
+                 // pretty slow no matter what.  Perhaps if we really wanted to
+                 // optimize this, then in claim_keys we could build up a
+                 // structure mirroring the inclusion diagram and follow it,
+                 // instead of just keeping the flat list of keys.
+                trav_attr(
+                    trav, acr, attr->key, mode == ACR_WRITE ? ACR_MODIFY : mode,
+                    [&](const Traversal& child)
+                {
+                    found = ser_maybe_attr(child, key, mode, cb);
+                });
+                if (found) return true;
+            }
+        }
+        [[unlikely]] return false;
+    }
+    else if (auto attr_func = trav.desc->attr_func()) {
+        if (Reference ref = attr_func->f(*trav.address, key)) {
+            trav_attr_func(trav, move(ref), attr_func->f, key, mode, cb);
+            return true;
+        }
+        [[unlikely]] return false;
+    }
+    else if (auto acr = trav.desc->delegate_acr()) {
+        bool r;
+        trav_delegate(
+            trav, acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
+            [&](const Traversal& child)
+        {
+            r = ser_maybe_attr(child, key, mode, cb);
+        });
+        return r;
+    }
+    else throw NoAttrs();
+}
+catch (const SerializeFailed&) { throw; }
+catch (const std::exception& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
+
+template <class CB>
+void ser_attr (
+    const Traversal& trav, const AnyString& key, AccessMode mode, CB cb
+) try {
+    if (!ser_maybe_attr(trav, key, mode, cb)) {
+        throw AttrNotFound(key);
+    }
+}
+catch (const SerializeFailed&) { throw; }
+catch (const std::exception& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
+
+template <class CB>
+bool ser_maybe_elem (
+    const Traversal& trav, usize index, AccessMode mode, CB cb
+) try {
+    if (auto elems = trav.desc->elems()) {
+        if (index < elems->n_elems) {
+            auto acr = elems->elem(index)->acr();
+            trav_elem(trav, acr, index, mode, cb);
+            return true;
+        }
+        else [[unlikely]] return false;
+    }
+    else if (auto elem_func = trav.desc->elem_func()) {
+        if (Reference ref = elem_func->f(*trav.address, index)) {
+            trav_elem_func(trav, move(ref), elem_func->f, index, mode, cb);
+            return true;
+        }
+        else [[unlikely]] return false;
+    }
+    else if (auto acr = trav.desc->delegate_acr()) {
+        bool found;
+        trav_delegate(
+            trav, acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
+            [&](const Traversal& child)
+        {
+            found = ser_maybe_elem(child, index, mode, cb);
+        });
+        return found;
+    }
+    else throw NoElems();
+}
+catch (const SerializeFailed&) { throw; }
+catch (const std::exception& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
+
+template <class CB>
+void ser_elem (
+    const Traversal& trav, usize index, AccessMode mode, CB cb
+) try {
+    if (!ser_maybe_elem(trav, index, mode, cb)) {
+        throw ElemNotFound(index);
+    }
+}
+catch (const SerializeFailed&) { throw; }
+catch (const std::exception& e) {
+    throw SerializeFailed(
+        trav_location(trav), trav.desc, std::current_exception()
+    );
+}
 
 } // namespace ayu::in

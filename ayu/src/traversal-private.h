@@ -72,8 +72,6 @@ struct Traversal {
     }
 };
 
-using TravCallbackRef = CallbackRef<void(const Traversal&)>;
-
  // The trav_ functions are the bones of the serialization and scanning modules,
  // and are worth heavily optimizing.
 template <class CB>
