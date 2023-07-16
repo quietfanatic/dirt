@@ -68,14 +68,6 @@ Reference reference_from_location (LocationRef);
 
 ///// IRI CONVERSION
 
- // Get the current base location.  Always a Resource or Reference Location.
- // If not currently in a serialization or scan operation, this returns empty.
-Location current_base_location () noexcept;
- // The IRI corresponding to current_base_location().
- // When serializing IRIS with AYU, they will be read and written as relative
- // IRI reference strings, relative to this IRI.
-IRI current_base_iri () noexcept;
-
  // Gets an IRI corresponding to the given Location.  If the root is a Resource,
  // the IRI up to the fragment will be the resource's name.  If the root is a
  // Reference, the non-fragment part of the IRI will be "ayu-anonymous:".
@@ -101,6 +93,22 @@ IRI location_to_iri (LocationRef) noexcept;
  // or +, or if a + is followed by something that isn't a positive integer, or
  // if the IRI is just plain invalid.
 Location location_from_iri (const IRI& iri);
+
+///// BASE MANAGEMENT
+
+ // Get the current base location.  Always a Resource or Reference Location.
+Location current_base_location () noexcept;
+ // The IRI corresponding to current_base_location().
+ // When serializing IRIS with AYU, they will be read and written as relative
+ // IRI reference strings, relative to this IRI.
+IRI current_base_iri () noexcept;
+ // Temporarily set loc.root() as the current base location.  This is called in
+ // item_to_tree and item_from_tree.
+struct PushBaseLocation {
+    Location old_base_location;
+    PushBaseLocation (Location loc) noexcept;
+    ~PushBaseLocation ();
+};
 
 } // namespace ayu
 

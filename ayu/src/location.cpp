@@ -42,18 +42,6 @@ Reference reference_from_location (LocationRef loc) {
     }
 }
 
-Location current_base_location () noexcept {
-    if (auto trav = Traversal::current_start) {
-        if (*trav->location) return trav->location->root();
-        else return Location(*trav->reference);
-    }
-    else return Location();
-}
-
-IRI current_base_iri () noexcept {
-    return location_to_iri(current_base_location());
-}
-
 namespace in {
 
 static const IRI anonymous_iri ("ayu-anonymous:");
@@ -93,11 +81,9 @@ Location location_from_iri (const IRI& iri) {
         iri.possibly_invalid_spec(), "iri does not have a #fragment"
     );
     auto root_iri = iri.without_fragment();
-    Location r;
-    if (root_iri == anonymous_iri) {
-        r = current_base_location();
-    }
-    else r = Location(Resource(root_iri));
+    Location r = root_iri == current_base_iri()
+        ? current_base_location()
+        : Location(Resource(root_iri));
     Str fragment = iri.fragment();
     usize i = 0;
     while (i < fragment.size()) {
@@ -128,6 +114,29 @@ Location location_from_iri (const IRI& iri) {
         );
     }
     return r;
+}
+
+static Location cur_base_location;
+IRI cur_base_iri;
+
+Location current_base_location () noexcept { return cur_base_location; }
+
+IRI current_base_iri () noexcept {
+    if (!cur_base_iri) {
+        cur_base_iri = location_to_iri(cur_base_location).without_fragment();
+    }
+    return cur_base_iri;
+}
+
+PushBaseLocation::PushBaseLocation (Location loc) noexcept :
+    old_base_location(move(cur_base_location))
+{
+    cur_base_location = loc.root();
+    cur_base_iri = IRI();
+}
+PushBaseLocation::~PushBaseLocation () {
+    cur_base_location = move(old_base_location);
+    cur_base_iri = IRI();
 }
 
 } using namespace ayu;

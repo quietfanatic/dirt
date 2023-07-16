@@ -98,6 +98,7 @@ catch (const std::exception& e) {
 }
 
 Tree item_to_tree (const Reference& item, LocationRef loc) {
+    PushBaseLocation pbl(*loc ? *loc : Location(item));
     Tree r;
     Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
         new (&r) Tree(ser_to_tree(trav));
@@ -223,6 +224,7 @@ void in::IFTContext::do_swizzles () {
          // Explicitly assign to clear swizzle_ops
         auto swizzles = move(swizzle_ops);
         for (auto& op : swizzles) {
+            PushBaseLocation pbl (op.loc);
             Traversal::start(
                 op.item, op.loc, false, ACR_MODIFY, [&](const Traversal& trav)
             {
@@ -237,6 +239,7 @@ void in::IFTContext::do_inits () {
     while (!init_ops.empty()) {
         auto inits = move(init_ops);
         for (auto& op : inits) {
+            PushBaseLocation pbl (op.loc);
             Traversal::start(
                 op.item, op.loc, false, ACR_MODIFY, [&](const Traversal& trav)
             {
@@ -254,6 +257,7 @@ void item_from_tree (
     const Reference& item, TreeRef tree, LocationRef loc,
     ItemFromTreeFlags flags
 ) {
+    PushBaseLocation pbl(*loc ? *loc : Location(item));
     if (tree->form == UNDEFINED) {
         throw GenericError("Undefined tree passed to item_from_tree");
     }

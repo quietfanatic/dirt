@@ -62,8 +62,6 @@ struct Traversal {
         usize index;
     };
 
-    static const Traversal* current_start;
-
     template <class CB>
     static void start (
         const Reference& ref, LocationRef loc, bool only_addressable,
@@ -71,43 +69,37 @@ struct Traversal {
     ) {
         expect(ref);
         Traversal child;
-        auto old_start = current_start;
-        try {
-            current_start = &child;
-            child.only_addressable = only_addressable;
-            child.op = START;
-            child.reference = &ref;
-            child.location = loc;
-            child.address = ref.address();
-             // I experimented with several ways of branching, and this one works out
-             // the best.  ref.address(), ref.type(), and ref.readonly() all branch on
-             // the existence of ref.acr, so if we bundle them up this way, the
-             // compiler can make it so the happy path where ref.acr == null only has
-             // one branch.  (For some reason putting ref.type() and ref.readonly()
-             // before ref.address() doesn't work as well, so I put them after).
-            if (child.address) {
-                child.readonly = ref.readonly();
-                child.desc = DescriptionPrivate::get(ref.type());
-                child.addressable = true;
-                child.children_addressable = true;
-                cb(child);
-            }
-            else {
-                child.readonly = ref.readonly();
-                child.desc = DescriptionPrivate::get(ref.type());
-                child.addressable = false;
-                child.children_addressable =
-                    ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
-                if (!child.only_addressable || child.children_addressable) {
-                    ref.access(mode, [&](Mu& v){
-                        child.address = &v;
-                        cb(child);
-                    });
-                }
-            }
-            current_start = old_start;
+        child.only_addressable = only_addressable;
+        child.op = START;
+        child.reference = &ref;
+        child.location = loc;
+        child.address = ref.address();
+         // I experimented with several ways of branching, and this one works out
+         // the best.  ref.address(), ref.type(), and ref.readonly() all branch on
+         // the existence of ref.acr, so if we bundle them up this way, the
+         // compiler can make it so the happy path where ref.acr == null only has
+         // one branch.  (For some reason putting ref.type() and ref.readonly()
+         // before ref.address() doesn't work as well, so I put them after).
+        if (child.address) {
+            child.readonly = ref.readonly();
+            child.desc = DescriptionPrivate::get(ref.type());
+            child.addressable = true;
+            child.children_addressable = true;
+            cb(child);
         }
-        catch (...) { current_start = old_start; throw; }
+        else {
+            child.readonly = ref.readonly();
+            child.desc = DescriptionPrivate::get(ref.type());
+            child.addressable = false;
+            child.children_addressable =
+                ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+            if (!child.only_addressable || child.children_addressable) {
+                ref.access(mode, [&](Mu& v){
+                    child.address = &v;
+                    cb(child);
+                });
+            }
+        }
     }
 
     template <class CB>
@@ -266,7 +258,5 @@ struct Traversal {
     }
 
 };
-
-inline const Traversal* Traversal::current_start = null;
 
 } // namespace ayu::in

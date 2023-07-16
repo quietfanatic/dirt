@@ -80,7 +80,7 @@ static void Reference_from_tree (Reference& v, const Tree& t) {
         case NULLFORM: break;
         case STRING: if (!Str(t)) throw GenericError(
             "Cannot make Reference from empty IRI.  To make the null Reference, use null."
-        );
+        ); break;
         default: throw InvalidForm(t.form);
     }
     v = Reference();
