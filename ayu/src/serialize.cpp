@@ -88,7 +88,7 @@ catch (const SerializeFailed& e) {
     }
     else throw;
 }
-catch (const Error& e) {
+catch (const std::exception& e) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
@@ -209,7 +209,7 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
     }
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -336,7 +336,7 @@ void in::ser_collect_keys (
     else throw NoAttrs();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -468,7 +468,7 @@ void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) try {
     if (ks) throw UnwantedAttr(ks[0]);
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -544,7 +544,7 @@ bool in::ser_maybe_attr (
     else throw NoAttrs();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -558,7 +558,7 @@ void in::ser_attr (
     }
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -612,7 +612,7 @@ usize in::ser_get_length (const Traversal& trav) try {
     else throw NoElems();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -665,7 +665,7 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
     else throw NoElems();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -708,7 +708,7 @@ bool in::ser_maybe_elem (
     else throw NoElems();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -721,7 +721,7 @@ void in::ser_elem (
     }
 }
 catch (const SerializeFailed&) { throw; }
-catch (const Error& e) {
+catch (const std::exception& e) {
     throw SerializeFailed(
         trav_location(trav), trav.desc, std::current_exception()
     );
@@ -1176,12 +1176,16 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
         item_elem(&est, 5).read_as<int>([&](const int& v){ answer = v; });
     }, "item_elem and Reference::read_as");
     is(answer, 21, "item_elem gives correct answer");
-    throws<std::out_of_range>([&]{
-        item_elem(&est, 6);
-    }, "item_elem can throw on out of bounds index (from user-defined function)");
+    throws_check<SerializeFailed>(
+        [&]{ item_elem(&est, 6); },
+        [](const SerializeFailed& e){
+            return throws<std::out_of_range>([&]{ std::rethrow_exception(e.inner); });
+        },
+        "item_elem can throw on out of bounds index (from user-defined function)"
+    );
     item_set_length(&est, 5);
     is(est.xs.size(), 5u, "item_set_length shrink");
-    throws<std::out_of_range>([&]{
+    throws<SerializeFailed>([&]{
         item_elem(&est, 5);
     }, "item_elem reflects new length");
     item_set_length(&est, 9);
@@ -1207,7 +1211,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
         item_attr(&ast, "b").read_as<int>([&](const int& v){ answer = v; });
     }, "item_attr and Reference::read_as");
     is(answer, 22, "item_attr gives correct answer");
-    throws<std::out_of_range>([&]{
+    throws<SerializeFailed>([&]{
         item_attr(&ast, "c");
     }, "item_attr can throw on missing key (from user-defined function)");
     auto ks = std::vector<AnyString>{"c", "d"};
@@ -1235,7 +1239,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
         item_attr(&ast2, "b").read_as<int>([&](const int& v){ answer = v; });
     }, "item_attr and Reference::read_as");
     is(answer, 22, "item_attr gives correct answer");
-    throws<std::out_of_range>([&]{
+    throws<SerializeFailed>([&]{
         item_attr(&ast2, "c");
     }, "item_attr can throw on missing key (from user-defined function)");
     ks = std::vector<AnyString>{"c", "d"};
