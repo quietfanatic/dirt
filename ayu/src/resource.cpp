@@ -84,7 +84,7 @@ Resource::Resource (const IRI& name) {
     }
 }
 Resource::Resource (Str ref) :
-    Resource(location_iri_from_relative_iri(ref))
+    Resource(IRI(ref, current_base_iri()))
 { }
 
 Resource::Resource (const IRI& name, Dynamic&& value) :
@@ -509,7 +509,7 @@ AYU_DESCRIBE(ayu::Resource,
 #ifndef TAP_DISABLE_TESTS
 #include "test-environment-private.h"
 
-AYU_DESCRIBE_INSTANTIATE(std::unordered_set<int32*>)
+AYU_DESCRIBE_INSTANTIATE(std::vector<int32*>)
 
 static tap::TestSet tests ("dirt/ayu/resource", []{
     using namespace tap;

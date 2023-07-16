@@ -42,30 +42,27 @@ Reference reference_from_location (LocationRef loc) {
     }
 }
 
-AnyString location_iri_to_relative_iri (const IRI& iri) noexcept {
-    auto base = location_to_iri(current_root_location());
-    expect(base.fragment().empty());
-    return iri.spec_relative_to(base);
+Location current_base_location () noexcept {
+    if (auto trav = Traversal::current_start) {
+        if (*trav->location) return trav->location->root();
+        else return Location(*trav->reference);
+    }
+    else return Location();
 }
 
-IRI location_iri_from_relative_iri (Str rel) noexcept {
-    if (!rel) return IRI();
-    auto base = location_to_iri(current_root_location());
-    expect(base.fragment().empty());
-    return IRI(rel, base);
+IRI current_base_iri () noexcept {
+    return location_to_iri(current_base_location());
 }
 
 namespace in {
 
-static const IRI ayu_current_root ("ayu-current-root:");
+static const IRI anonymous_iri ("ayu-anonymous:");
 
 NOINLINE static
 UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
     switch (loc->data->form) {
         case RESOURCE: base = &loc->resource()->name(); return "#";
-         // TODO: This might be incorrect in some cases.  Check it
-         // against current_root_location() maybe?
-        case REFERENCE: base = &ayu_current_root; return "#";
+        case REFERENCE: base = &anonymous_iri; return "#";
         case KEY: return cat(
             location_to_iri_accumulate(base, *loc->parent()),
             '/', *loc->key()
@@ -97,8 +94,8 @@ Location location_from_iri (const IRI& iri) {
     );
     auto root_iri = iri.without_fragment();
     Location r;
-    if (root_iri == ayu_current_root) {
-        r = current_root_location();
+    if (root_iri == anonymous_iri) {
+        r = current_base_location();
     }
     else r = Location(Resource(root_iri));
     Str fragment = iri.fragment();
@@ -137,11 +134,14 @@ Location location_from_iri (const IRI& iri) {
 
 AYU_DESCRIBE(ayu::Location,
     to_tree([](const Location& v){
+        if (!v) return Tree("");
         auto iri = location_to_iri(v);
-        return Tree(location_iri_to_relative_iri(iri));
+        return Tree(iri.spec_relative_to(current_base_iri()));
     }),
     from_tree([](Location& v, const Tree& t){
-        auto iri = location_iri_from_relative_iri(Str(t));
+        auto rel = Str(t);
+        if (!rel) v = Location();
+        auto iri = IRI(rel, current_base_iri());
         v = location_from_iri(iri);
     })
 );

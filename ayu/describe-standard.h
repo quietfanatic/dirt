@@ -196,43 +196,30 @@ AYU_DESCRIBE_TEMPLATE(
         );
         return uni::StaticString(r);
     }),
-     // Although sets serialize to arrays, accessing elements in a set by index
-     // doesn't make sense, so use to_tree and from_tree instead of length and
-     // elem_func
-    desc::to_tree([](const std::unordered_set<T>& v){
-        ayu::TreeArray a; a.reserve(v.size());
-        for (auto& e : v) {
-            a.emplace_back_expect_capacity(ayu::item_to_tree(e));
-        }
-        return ayu::Tree(move(a));
-    }),
-    desc::from_tree([](std::unordered_set<T>& v, const ayu::Tree& tree){
-        if (tree.form != ayu::ARRAY) {
-            throw ayu::InvalidForm(tree.form);
-        }
-        auto a = ayu::TreeArraySlice(tree);
-        v.reserve(a.size());
-         // If we use C++17's node interface, we can get away with not doing a
-         // move() on the element, thereby supporting elements without a move
-         // constructor.
-        std::unordered_set<T> source;
-        for (auto& e : a) {
-            auto iter = source.emplace().first;
-            auto node = source.extract(iter);
-             // Because we aren't transmitting the location through here, you
-             // cannot have references inside an unordered_set (yet)
-            item_from_tree(&node.value(), e);
-            auto res = v.insert(move(node));
-             // Check for duplicates.
-            if (!res.inserted) {
-                 // TODO: Something doesn't instantiate right without this
-                ayu::Type::CppType<std::unordered_set<T>>();
-                throw ayu::GenericError(
-                    "Duplicate element given for unordered_set"
-                );
+     // This does an extra copy of all the elements, but it's hard to avoid
+     // doing that.
+    desc::delegate(desc::template mixed_funcs<uni::UniqueArray<T>>(
+        [](const std::unordered_set<T>& v) {
+            uni::UniqueArray<T> r; r.reserve(v.size());
+            for (const auto& e : v) {
+                r.emplace_back_expect_capacity(e);
+            }
+            return r;
+        },
+        [](std::unordered_set<T>& v, const uni::UniqueArray<T>& a){
+            v.clear();
+            for (const auto& e : a) {
+                auto [iter, did] = v.emplace(e);
+                if (!did) {
+                     // TODO: Something doesn't instantiate right without this
+                    ayu::Type::CppType<std::unordered_set<T>>();
+                    throw ayu::GenericError(
+                        "Duplicate element given for std::unordered_set"
+                    );
+                }
             }
         }
-    })
+    ))
 )
 
  // std::set.  Same as std::unordered_set above, but elements will be serialized
@@ -246,32 +233,28 @@ AYU_DESCRIBE_TEMPLATE(
         );
         return uni::StaticString(r);
     }),
-    desc::to_tree([](const std::set<T>& v){
-        ayu::TreeArray a; a.reserve(v.size());
-        for (auto& e : v) {
-            a.emplace_back_expect_capacity(ayu::item_to_tree(&e));
-        }
-        return ayu::Tree(move(a));
-    }),
-    desc::from_tree([](std::set<T>& v, const ayu::Tree& tree){
-        if (tree.form != ayu::ARRAY) {
-            throw ayu::InvalidForm(tree.form);
-        }
-        auto a = ayu::TreeArraySlice(tree);
-        std::set<T> source;
-        for (auto& e : a) {
-            auto iter = source.emplace().first;
-            auto node = source.extract(iter);
-             // Because we aren't transmitting the location through here, you
-             // cannot have references inside an set (yet)
-            item_from_tree(&node.value(), e);
-            auto res = v.insert(move(node));
-             // Check for duplicates.
-            if (!res.inserted) {
-                throw ayu::GenericError("Duplicate element given for set");
+    desc::delegate(desc::template mixed_funcs<uni::UniqueArray<T>>(
+        [](const std::set<T>& v) {
+            uni::UniqueArray<T> r; r.reserve(v.size());
+            for (const auto& e : v) {
+                r.emplace_back_expect_capacity(e);
+            }
+            return r;
+        },
+        [](std::set<T>& v, const uni::UniqueArray<T>& a){
+            v.clear();
+            for (const auto& e : a) {
+                auto [iter, did] = v.emplace(e);
+                if (!did) {
+                     // TODO: Something doesn't instantiate right without this
+                    ayu::Type::CppType<std::set<T>>();
+                    throw ayu::GenericError(
+                        "Duplicate element given for std::set"
+                    );
+                }
             }
         }
-    })
+    ))
 )
 
  // Raw pointers

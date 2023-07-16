@@ -73,18 +73,21 @@ static Tree Reference_to_tree (const Reference& v) {
     if (!v) return Tree(null);
     auto loc = reference_to_location(v);
     auto iri = location_to_iri(loc);
-    return Tree(location_iri_to_relative_iri(iri));
+    return Tree(iri.spec_relative_to(current_base_iri()));
 }
 static void Reference_from_tree (Reference& v, const Tree& t) {
     switch (t.form) {
-        case NULLFORM: case STRING: break;
+        case NULLFORM: break;
+        case STRING: if (!Str(t)) throw GenericError(
+            "Cannot make Reference from empty IRI.  To make the null Reference, use null."
+        );
         default: throw InvalidForm(t.form);
     }
     v = Reference();
 }
 static void Reference_swizzle (Reference& v, const Tree& t) {
     if (t.form == NULLFORM) return;
-    auto iri = location_iri_from_relative_iri(Str(t));
+    auto iri = IRI(Str(t), current_base_iri());
     auto loc = location_from_iri(iri);
     v = reference_from_location(loc);
 }

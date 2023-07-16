@@ -23,8 +23,6 @@ enum TraversalOp : uint8 {
     ELEM,
     ELEM_FUNC,
 };
-struct Traversal;
-inline const Traversal* current_traversal = null;
 struct Traversal {
     const Traversal* parent;
     Mu* address;
@@ -63,13 +61,8 @@ struct Traversal {
          // ELEM, ELEM_FUNC
         usize index;
     };
-    Traversal() : parent(current_traversal) {
-        current_traversal = this;
-    }
-    ~Traversal() {
-        expect(current_traversal == this);
-        current_traversal = parent;
-    }
+
+    static const Traversal* current_start;
 
     template <class CB>
     static void start (
@@ -78,43 +71,50 @@ struct Traversal {
     ) {
         expect(ref);
         Traversal child;
-        child.only_addressable = only_addressable;
-        child.op = START;
-        child.reference = &ref;
-        child.location = loc;
-        child.address = ref.address();
-         // I experimented with several ways of branching, and this one works out
-         // the best.  ref.address(), ref.type(), and ref.readonly() all branch on
-         // the existence of ref.acr, so if we bundle them up this way, the
-         // compiler can make it so the happy path where ref.acr == null only has
-         // one branch.  (For some reason putting ref.type() and ref.readonly()
-         // before ref.address() doesn't work as well, so I put them after).
-        if (child.address) {
-            child.readonly = ref.readonly();
-            child.desc = DescriptionPrivate::get(ref.type());
-            child.addressable = true;
-            child.children_addressable = true;
-            cb(child);
-        }
-        else {
-            child.readonly = ref.readonly();
-            child.desc = DescriptionPrivate::get(ref.type());
-            child.addressable = false;
-            child.children_addressable =
-                ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
-            if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, [&](Mu& v){
-                    child.address = &v;
-                    cb(child);
-                });
+        auto old_start = current_start;
+        try {
+            current_start = &child;
+            child.only_addressable = only_addressable;
+            child.op = START;
+            child.reference = &ref;
+            child.location = loc;
+            child.address = ref.address();
+             // I experimented with several ways of branching, and this one works out
+             // the best.  ref.address(), ref.type(), and ref.readonly() all branch on
+             // the existence of ref.acr, so if we bundle them up this way, the
+             // compiler can make it so the happy path where ref.acr == null only has
+             // one branch.  (For some reason putting ref.type() and ref.readonly()
+             // before ref.address() doesn't work as well, so I put them after).
+            if (child.address) {
+                child.readonly = ref.readonly();
+                child.desc = DescriptionPrivate::get(ref.type());
+                child.addressable = true;
+                child.children_addressable = true;
+                cb(child);
             }
+            else {
+                child.readonly = ref.readonly();
+                child.desc = DescriptionPrivate::get(ref.type());
+                child.addressable = false;
+                child.children_addressable =
+                    ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+                if (!child.only_addressable || child.children_addressable) {
+                    ref.access(mode, [&](Mu& v){
+                        child.address = &v;
+                        cb(child);
+                    });
+                }
+            }
+            current_start = old_start;
         }
+        catch (...) { current_start = old_start; throw; }
     }
 
     template <class CB>
     void follow_acr (
         Traversal& child, const Accessor* acr, AccessMode mode, CB cb
     ) const {
+        child.parent = this;
         child.readonly = readonly || acr->accessor_flags & ACR_READONLY;
         child.only_addressable = only_addressable;
         child.acr = acr;
@@ -142,6 +142,7 @@ struct Traversal {
     void follow_ref (
         Traversal& child, const Reference& ref, AccessMode mode, CB cb
     ) const {
+        child.parent = this;
         child.only_addressable = only_addressable;
         child.address = ref.address();
         if (child.address) {
@@ -170,7 +171,6 @@ struct Traversal {
     void follow_delegate (
         const Accessor* acr, AccessMode mode, CB cb
     ) const {
-        expect(this == current_traversal);
         Traversal child;
         child.op = DELEGATE;
         follow_acr(child, acr, mode, cb);
@@ -183,7 +183,6 @@ struct Traversal {
     void follow_attr (
         const Accessor* acr, const AnyString& key, AccessMode mode, CB cb
     ) const {
-        expect(this == current_traversal);
         Traversal child;
         child.op = ATTR;
         child.key = &key;
@@ -195,7 +194,6 @@ struct Traversal {
         const Reference& ref, Reference(* func )(Mu&, AnyString),
         const AnyString& key, AccessMode mode, CB cb
     ) const {
-        expect(this == current_traversal);
         Traversal child;
         child.op = ATTR_FUNC;
         child.attr_func = func;
@@ -207,7 +205,6 @@ struct Traversal {
     void follow_elem (
         const Accessor* acr, usize index, AccessMode mode, CB cb
     ) const {
-        expect(this == current_traversal);
         Traversal child;
         child.op = ELEM;
         child.index = index;
@@ -219,7 +216,6 @@ struct Traversal {
         const Reference& ref, Reference(* func )(Mu&, usize),
         usize index, AccessMode mode, CB cb
     ) const {
-        expect(this == current_traversal);
         Traversal child;
         child.op = ELEM_FUNC;
         child.elem_func = func;
@@ -269,12 +265,8 @@ struct Traversal {
         }
     }
 
-    const Traversal& find_start () const {
-        auto tr = this;
-        while (tr->op != START) tr = tr->parent;
-        return *tr;
-    }
-
 };
+
+inline const Traversal* Traversal::current_start = null;
 
 } // namespace ayu::in

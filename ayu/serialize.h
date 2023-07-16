@@ -148,11 +148,6 @@ Reference item_elem (
     const Reference&, usize, LocationRef loc = Location()
 );
 
-///// MISC
-
- // TODO: replace this with current_iri_base()
-Location current_root_location () noexcept;
-
 ///// DIAGNOSTICS HELP
 
  // While this object is alive, if an exception is thrown while serializing an

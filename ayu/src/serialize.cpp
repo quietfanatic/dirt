@@ -617,15 +617,6 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     return r;
 }
 
-///// MISC
-
-Location current_root_location () noexcept {
-    if (current_traversal) {
-        return current_traversal->find_start().to_location().root();
-    }
-    else return Location();
-}
-
 } using namespace ayu;
 
 ///// TESTS

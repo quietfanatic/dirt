@@ -156,7 +156,7 @@ bool scan_universe_references (
      // it's not in a Resource (so we don't duplicate work).
      // TODO: Maybe don't do this if the traversal was started by a scan,
      // instead of by a serialize.
-    if (Location loc = current_root_location()) {
+    if (Location loc = current_base_location()) {
         if (auto ref = loc.reference()) {
             if (scan_references(*ref, loc, cb)) {
                 return true;

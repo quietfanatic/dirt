@@ -316,7 +316,6 @@ constexpr auto _AYU_DescribeBase<T>::_ayu_describe (
 template <> \
 struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
-    static constexpr bool _ayu_defined = true; \
     static constexpr auto _ayu_full_description = ayu::_AYU_DescribeBase<T>::_ayu_describe(name
 
 #define AYU_DESCRIBE_END(T) \
@@ -341,7 +340,6 @@ AYU_DESCRIBE_END(T)
 template params \
 struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
-    static constexpr bool _ayu_defined = true; \
     static constexpr auto _ayu_full_description = desc::_ayu_describe("",
 
 #define AYU_DESCRIBE_TEMPLATE_END(params, T) \
@@ -361,8 +359,9 @@ AYU_DESCRIBE_TEMPLATE_BEGIN(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
     __VA_ARGS__ \
 AYU_DESCRIBE_TEMPLATE_END(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
 
+ // The 1+ is to suppress a "will never be NULL" warning
 #define AYU_DESCRIBE_INSTANTIATE(T) \
-static_assert(ayu_desc::_AYU_Describe<T>::_ayu_defined);
+static_assert(1+&ayu_desc::_AYU_Describe<T>::_ayu_description);
 
 #define AYU_FRIEND_DESCRIBE(T) \
     friend struct ::ayu_desc::_AYU_Describe<T>;

@@ -59,23 +59,26 @@ struct Location {
     Location root () const;
 };
 
+///// REFERENCE CONVERSION
+
  // Convert a Location to a Reference.  This will not have to do any scanning,
  // so it should be fairly quick.  Well, quicker than reference_to_location.
  // reference_to_location is in scan.h
 Reference reference_from_location (LocationRef);
 
- // Parse the given IRI reference relative to current_root_location().
-IRI location_iri_from_relative_iri (Str) noexcept;
+///// IRI CONVERSION
 
- // Convert the given IRI to an IRI reference relative to
- // current_root_location().  If the given IRI is exactly
- // current_root_location(), this will return "#".
-AnyString location_iri_to_relative_iri (const IRI&) noexcept;
+ // Get the current base location.  Always a Resource or Reference Location.
+ // If not currently in a serialization or scan operation, this returns empty.
+Location current_base_location () noexcept;
+ // The IRI corresponding to current_base_location().
+ // When serializing IRIS with AYU, they will be read and written as relative
+ // IRI reference strings, relative to this IRI.
+IRI current_base_iri () noexcept;
 
  // Gets an IRI corresponding to the given Location.  If the root is a Resource,
  // the IRI up to the fragment will be the resource's name.  If the root is a
- // Reference, the root will be "ayu-current-root:".  TODO: That will only
- // produce good results during a serialization operation.
+ // Reference, the non-fragment part of the IRI will be "ayu-anonymous:".
  // A key location will have /key appended to the fragment, and an index
  // location will have +index appended to the fragment.
 IRI location_to_iri (LocationRef) noexcept;

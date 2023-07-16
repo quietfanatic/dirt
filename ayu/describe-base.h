@@ -82,6 +82,10 @@ struct _AYU_DescribeBase {
      //
      // The provided Tree will never be the undefined Tree.
      //
+     // It is acceptable to call item_to_tree() instead a to_tree() function,
+     // but references in the item passed to item_to_tree() will not be
+     // serialized properly.
+     //
      // TODO: Add construct_from_tree for types that refuse to be default
      // constructed no matter what.
     static constexpr auto from_tree (void(* f )(T&, const Tree&));
@@ -90,6 +94,10 @@ struct _AYU_DescribeBase {
      // example, this is used for pointers so that they can point to other
      // items after those items have been properly constructed.  This is not
      // needed for most types.
+     //
+     // It is acceptable to call item_from_tree() inside a from_tree function,
+     // but the inner call to item_to_tree() will not be able to deserialize
+     // references properly.
      //
      // For compound types (types with attributes or elements), this will be
      // called first on all the child items in order, then on the parent item.
