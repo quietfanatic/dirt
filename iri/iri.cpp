@@ -122,8 +122,8 @@ UniqueString encode (Str input) noexcept {
             default: break;
         }
     }
-    auto r = UniqueString(Uninitialized(cap));
-    char* out = r.data();
+    char* buf = SharableBuffer<char>::allocate(input.size());
+    char* out = buf;
     for (auto c : input) {
         switch (c) {
             case IRI_GENDELIM: case IRI_SUBDELIM:
@@ -132,16 +132,15 @@ UniqueString encode (Str input) noexcept {
             default: *out++ = c; break;
         }
     }
-    r.unsafe_set_size(out - r.data());
-    return r;
+    return UniqueString::UnsafeConstructOwned(buf, out - buf);
 }
 
 UniqueString decode (Str input) noexcept {
     if (!input) return "";
     const char* in = input.begin();
     const char* end = input.end();
-    auto r = UniqueString(Uninitialized(input.size()));
-    char* out = r.data();
+    char* buf = SharableBuffer<char>::allocate(input.size());
+    char* out = buf;
     while (in != end) {
         if (*in == '%') {
             int result = read_percent(in, end);
@@ -151,8 +150,7 @@ UniqueString decode (Str input) noexcept {
         }
         else *out++ = *in++;
     }
-    r.unsafe_set_size(out - r.data());
-    return r;
+    return UniqueString::UnsafeConstructOwned(buf, out - buf);
 }
 
 Relativity relativity (Str ref) noexcept {
@@ -204,7 +202,7 @@ struct IRIParser {
         switch (relativity(input)) {
             case Relativity::Scheme: {
                 expect(!output.owned());
-                output = UniqueString(Uninitialized(cap));
+                output = UniqueString(Capacity(cap));
                 return parse_scheme(
                     output.begin(), input.begin(), input.end()
                 );
@@ -256,7 +254,8 @@ struct IRIParser {
          // Allocate and start
         expect(prefix.size() > 0 && prefix.size() <= maximum_length);
         expect(!output.owned());
-        output = cat(prefix, Uninitialized(cap));
+        output = UniqueString(Capacity(prefix.size() + cap));
+        output.append_expect_capacity(prefix);
         return (this->*next)(
             output.begin() + prefix.size(), input.begin(), input.end()
         );

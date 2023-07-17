@@ -189,6 +189,8 @@ concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<
 
  // A tag-like type representing a span of uninitialized data
 struct Uninitialized { usize size; };
+ // Requests constructing with the given capacity but size 0
+struct Capacity { usize cap; };
 
 ///// ARRAY INTERFACE
 // The shared interface for all the array classes
@@ -512,7 +514,7 @@ struct ArrayInterface {
         if (!s) {
             impl = {}; return;
         }
-        T* dat = SharedBuffer<T>::allocate(s);
+        T* dat = SharableBuffer<T>::allocate(s);
         usize i = 0;
         try {
             for (; i < s; ++i) {
@@ -523,7 +525,7 @@ struct ArrayInterface {
             while (i > 0) {
                 impl.data[--i].~T();
             }
-            SharedBuffer<T>::deallocate(dat);
+            SharableBuffer<T>::deallocate(dat);
             throw;
         }
         set_unique(dat, s);
@@ -536,7 +538,7 @@ struct ArrayInterface {
         supports_owned && std::is_copy_constructible_v<T>
     ) {
         if (!s) { impl = {}; return; }
-        T* dat = SharedBuffer<T>::allocate(s);
+        T* dat = SharableBuffer<T>::allocate(s);
         usize i = 0;
         try {
             for (; i < s; ++i) {
@@ -547,7 +549,7 @@ struct ArrayInterface {
             while (i > 0) {
                 impl.data[--i].~T();
             }
-            SharedBuffer<T>::deallocate(dat);
+            SharableBuffer<T>::deallocate(dat);
             throw;
         }
         set_unique(dat, s);
@@ -559,7 +561,15 @@ struct ArrayInterface {
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         if (!u.size) { impl = {}; return; }
-        set_unique(SharedBuffer<T>::allocate(u.size), u.size);
+        set_unique(SharableBuffer<T>::allocate(u.size), u.size);
+    }
+     // Construct with specific capacity
+    explicit
+    ArrayInterface (Capacity cap) requires (
+        supports_owned
+    ) {
+        if (!cap.cap) { impl = {}; return; }
+        set_unique(SharableBuffer<T>::allocate(cap.cap), 0);
     }
 
      // Finally, std::initializer_list
@@ -641,9 +651,9 @@ struct ArrayInterface {
 #ifndef NDEBUG
         if (d) {
             expect(s <= max_size_);
-            expect(s <= SharedBuffer<T>::header(d)->capacity);
-            expect(SharedBuffer<T>::header(d)->capacity >= min_capacity);
-            expect(SharedBuffer<T>::header(d)->capacity <= max_capacity);
+            expect(s <= SharableBuffer<T>::header(d)->capacity);
+            expect(SharableBuffer<T>::header(d)->capacity >= min_capacity);
+            expect(SharableBuffer<T>::header(d)->capacity <= max_capacity);
         }
         else expect(!s);
 #endif
@@ -830,8 +840,8 @@ struct ArrayInterface {
 
      // The minimum capacity of a shared buffer (enough elements to fill 24 (on
      // 64-bit) or 16 (on 32-bit) bytes).
-    static constexpr usize min_capacity = SharedBuffer<T>::capacity_for_size(1);
-    static constexpr usize max_capacity = SharedBuffer<T>::capacity_for_size(max_size_);
+    static constexpr usize min_capacity = SharableBuffer<T>::capacity_for_size(1);
+    static constexpr usize max_capacity = SharableBuffer<T>::capacity_for_size(max_size_);
 
      // Returns if this string is owned (has a shared or unique buffer).  If
      // this returns true, then there is a SharedBufferHeader behind data().
@@ -968,7 +978,7 @@ struct ArrayInterface {
     constexpr
     void shrink_to_fit () requires (supports_owned) {
         if (!unique() ||
-            SharedBuffer<T>::capacity_for_size(size()) < capacity()
+            SharableBuffer<T>::capacity_for_size(size()) < capacity()
         ) {
             set_unique(reallocate(impl, size()), size());
         }
@@ -1327,7 +1337,7 @@ struct ArrayInterface {
     ALWAYS_INLINE
     SharedBufferHeader& header () const {
         expect(supports_owned);
-        return *SharedBuffer<T>::header(impl.data);
+        return *SharableBuffer<T>::header(impl.data);
     }
 
     ALWAYS_INLINE constexpr
@@ -1372,12 +1382,12 @@ struct ArrayInterface {
         }
         else {
              // don't noinline if we can't depolymorph ptr
-            dat = SharedBuffer<T>::allocate(s);
+            dat = SharableBuffer<T>::allocate(s);
             try {
                 copy_fill(dat, move(ptr), s);
             }
             catch (...) {
-                SharedBuffer<T>::deallocate(dat);
+                SharableBuffer<T>::deallocate(dat);
                 throw;
             }
         }
@@ -1467,7 +1477,7 @@ struct ArrayInterface {
         for (usize i = self.size(); i > 0;) {
             impl.data[--i].~T();
         }
-        SharedBuffer<T>::deallocate(impl.data);
+        SharableBuffer<T>::deallocate(impl.data);
     }
     NOINLINE static
     void destroy_noinline (Impl impl) noexcept {
@@ -1510,12 +1520,12 @@ struct ArrayInterface {
         requires (std::is_copy_constructible_v<T>)
     {
         expect(s > 0);
-        T* dat = SharedBuffer<T>::allocate(s);
+        T* dat = SharableBuffer<T>::allocate(s);
         try {
             return copy_fill(dat, d, s);
         }
         catch (...) {
-            SharedBuffer<T>::deallocate(dat);
+            SharableBuffer<T>::deallocate(dat);
             throw;
         }
     }
@@ -1542,7 +1552,7 @@ struct ArrayInterface {
         Self& self = reinterpret_cast<Self&>(impl);
         usize s = self.size();
         expect(cap >= s);
-        T* dat = SharedBuffer<T>::allocate(cap);
+        T* dat = SharableBuffer<T>::allocate(cap);
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
         if (self.unique()) {
@@ -1557,14 +1567,14 @@ struct ArrayInterface {
             catch (...) { never(); }
              // DON'T call remove_ref here because it'll double-destroy
              // self.impl.data[*]
-            SharedBuffer<T>::deallocate(self.impl.data);
+            SharableBuffer<T>::deallocate(self.impl.data);
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
             try {
                 copy_fill(dat, self.impl.data, s);
             }
             catch (...) {
-                SharedBuffer<T>::deallocate(self.impl.data);
+                SharableBuffer<T>::deallocate(self.impl.data);
                  // TODO: pragma this
                 throw;  // -Wno-terminate to suppress warning
             }
@@ -1602,7 +1612,7 @@ struct ArrayInterface {
         }
          // Not enough capacity!  We have to reallocate, and while we're at it,
          // let's do the copy/move too.
-        T* dat = SharedBuffer<T>::allocate(
+        T* dat = SharableBuffer<T>::allocate(
             cap * 2 > self.size() + shift ?
             cap * 2 : self.size() + shift
         );
@@ -1624,7 +1634,7 @@ struct ArrayInterface {
             }
             catch (...) { never(); }
              // Don't use remove_ref, it'll call the destructors again
-            SharedBuffer<T>::deallocate(self.impl.data);
+            SharableBuffer<T>::deallocate(self.impl.data);
         }
         else if constexpr (std::is_copy_constructible_v<T>) { // Not unique
             usize head_i = 0;
@@ -1682,7 +1692,7 @@ struct ArrayInterface {
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
              // Not unique, so copy instead of moving
-            T* dat = SharedBuffer<T>::allocate(old_size - count);
+            T* dat = SharableBuffer<T>::allocate(old_size - count);
             usize i = 0;
             try {
                 for (; i < offset; i++) {
@@ -1700,7 +1710,7 @@ struct ArrayInterface {
                 while (i > 0) {
                     dat[--i].~T();
                 }
-                SharedBuffer<T>::deallocate(dat);
+                SharableBuffer<T>::deallocate(dat);
                 throw;
             }
             --self.header().ref_count;

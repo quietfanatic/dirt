@@ -33,7 +33,7 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     if (trav.desc->preference() == Description::PREFER_OBJECT) {
         UniqueArray<AnyString> ks;
         ser_collect_keys(trav, ks);
-        TreeObject o; o.reserve(ks.size());
+        auto o = TreeObject(Capacity(ks.size()));
         for (auto& k : ks) {
             ser_attr(trav, k, ACR_READ, [&o, &k](const Traversal& child){
                 if (child.op == ATTR && child.acr->attr_flags & ATTR_INVISIBLE) {
@@ -53,9 +53,9 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         return Tree(move(o));
     }
     if (trav.desc->preference() == Description::PREFER_ARRAY) {
-        usize l = ser_get_length(trav);
-        TreeArray a; a.reserve(l);
-        for (usize i = 0; i < l; i++) {
+        usize len = ser_get_length(trav);
+        auto a = TreeArray(Capacity(len));
+        for (usize i = 0; i < len; i++) {
             ser_elem(trav, i, ACR_READ, [&a](const Traversal& child){
                 if (child.op == ELEM && child.acr->attr_flags & ATTR_INVISIBLE) {
                     return;
@@ -118,7 +118,7 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
         if (trav.desc->accepts_object()) {
             expect(tree->rep == REP_OBJECT);
             auto o = TreeObjectSlice(*tree);
-            UniqueArray<AnyString> ks; ks.reserve(o.size());
+            auto ks = UniqueArray<AnyString>(Capacity(o.size()));
             for (auto& p : o) {
                 ks.emplace_back_expect_capacity(p.first);
             }
@@ -456,7 +456,7 @@ void in::ser_claim_keys (
             if (acr->attr_flags & ATTR_INCLUDE) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed_included[i]) continue;
-                bool opt = optional || acr->attr_flags & ATTR_OPTIONAL;
+                bool opt = optional | !!(acr->attr_flags & ATTR_OPTIONAL);
                 trav.follow_attr(
                     acr, attr->key, ACR_WRITE, [&ks, opt](const Traversal& child)
                 {
@@ -596,12 +596,9 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
     else if (auto elems = trav.desc->elems()) {
         usize min = elems->n_elems;
          // Scan backwards for optional elements
-        while (min > 0) {
-            if (elems->elem(min-1)->acr()->attr_flags & ATTR_OPTIONAL) {
-                min -= 1;
-            }
-            else break;
-        }
+        while (min > 0 &&
+            elems->elem(min-1)->acr()->attr_flags & ATTR_OPTIONAL
+        ) min -= 1;
         if (len < min || len > elems->n_elems) {
             throw WrongLength(min, elems->n_elems, len);
         }

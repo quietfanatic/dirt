@@ -219,10 +219,13 @@ struct Traversal {
      // noexcept because any user code called from here should be confirmed to
      // already work without throwing.
     inline Reference to_reference () const noexcept {
-        if (addressable) [[likely]] {
+        if (addressable) {
             return Pointer(Type(desc, readonly), address);
         }
-        else if (op == START) {
+        else return to_reference_unaddressable();
+    }
+    NOINLINE Reference to_reference_unaddressable () const noexcept {
+        if (op == START) {
             return *reference;
         }
         else {

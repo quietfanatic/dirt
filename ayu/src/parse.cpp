@@ -443,18 +443,20 @@ UniqueString string_from_file (AnyString filename) {
     usize size = ftell(f);
     rewind(f);
 
-    auto r = UniqueString(Uninitialized(size));
-    usize did_read = fread(r.data(), 1, size, f);
+    char* buf = SharableBuffer<char>::allocate(size);
+    usize did_read = fread(buf, 1, size, f);
     if (did_read != size) {
         int errnum = errno;
         fclose(f);
+        SharableBuffer<char>::deallocate(buf);
         throw ReadFailed(move(filename), errnum);
     }
 
     if (fclose(f) != 0) {
+        SharableBuffer<char>::deallocate(buf);
         throw CloseFailed(move(filename), errno);
     }
-    return r;
+    return UniqueString::UnsafeConstructOwned(buf, size);
 }
 
 Tree tree_from_file (AnyString filename) {

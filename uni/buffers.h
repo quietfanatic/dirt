@@ -15,11 +15,11 @@ inline namespace buffers {
     };
 
     template <class T>
-    struct SharedBuffer {
+    struct SharableBuffer {
         static_assert(alignof(T) <= 8,
-            "SharedBuffer with objects of align > 8 are not yet supported."
+            "SharableBuffer with objects of align > 8 are not yet supported."
         );
-        SharedBuffer () = delete;
+        SharableBuffer () = delete;
 
         ALWAYS_INLINE
         static SharedBufferHeader* header (const T* data) {

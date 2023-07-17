@@ -129,7 +129,7 @@ UniqueString cat_construct (Tail&&... t) {
     if constexpr (sizeof...(Tail) > 0) {
         usize cap = 0;
         (add_no_overflow(cap, t.capacity_upper_bound()), ...);
-        char* p = SharedBuffer<char>::allocate(cap);
+        char* p = SharableBuffer<char>::allocate(cap);
         usize s = 0;
         ((s += t.write(p + s)), ...);
         return UniqueString::UnsafeConstructOwned(p, s);

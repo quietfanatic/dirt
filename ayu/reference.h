@@ -103,7 +103,7 @@ struct Reference {
      // Writing through this reference throws if this is true
     bool readonly () const {
         bool r = host.type.readonly();
-        if (acr) r = r || acr->accessor_flags & in::ACR_READONLY;
+        if (acr) r |= !!(acr->accessor_flags & in::ACR_READONLY);
         return r;
     }
 
@@ -285,7 +285,7 @@ struct Reference {
  // them.
 inline bool operator == (const Reference& a, const Reference& b) {
     if (a.host == b.host && a.acr == b.acr) return true;
-    if (!a || !b) return false;
+    if (!a | !b) return false;
     if (a.type() != b.type()) return false;
     auto aa = a.address();
     return aa && aa == b.address();
