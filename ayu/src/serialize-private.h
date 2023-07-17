@@ -146,6 +146,8 @@ catch (const std::exception& e) {
     );
 }
 
+[[noreturn]] void throw_AttrNotFound (const Traversal&, const AnyString&);
+
 template <class CB>
 void ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, CB cb
@@ -199,19 +201,15 @@ catch (const std::exception& e) {
     );
 }
 
+[[noreturn]] void throw_ElemNotFound (const Traversal&, usize);
+
 template <class CB>
 void ser_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
-) try {
+) {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
-        throw ElemNotFound(index);
+        throw_ElemNotFound(trav, index);
     }
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
 }
 
 } // namespace ayu::in

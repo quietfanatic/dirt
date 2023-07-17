@@ -28,8 +28,7 @@
 // to is addressable (i.e. the internal accessor supports the address
 // operation).  A readonly Reference can only be cast to a const pointer.  A raw
 // C++ pointer can be implicitly cast to a Reference if the pointed-to type is
-// known to AYU.  You cannot cast a native C++ reference to an AYU Reference
-// because that would conflict with other constructors of Reference.
+// known to AYU.
 //
 // There is an empty Reference, which has no type and no value.  There are also
 // typed "null" References, which have a type but no value, and are equivalent

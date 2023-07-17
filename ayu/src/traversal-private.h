@@ -107,7 +107,7 @@ struct Traversal {
         Traversal& child, const Accessor* acr, AccessMode mode, CB cb
     ) const {
         child.parent = this;
-        child.readonly = readonly || acr->accessor_flags & ACR_READONLY;
+        child.readonly = readonly | !!(acr->accessor_flags & ACR_READONLY);
         child.only_addressable = only_addressable;
         child.acr = acr;
         child.desc = DescriptionPrivate::get(acr->type(address));

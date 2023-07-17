@@ -543,6 +543,26 @@ catch (const std::exception& e) {
     );
 }
 
+void in::throw_AttrNotFound (const Traversal& trav, const AnyString& key) try {
+    throw AttrNotFound(key);
+}
+catch (const SerializeFailed&) { throw; }
+catch (const std::exception& e) {
+    throw SerializeFailed(
+        trav.to_location(), trav.desc, std::current_exception()
+    );
+}
+
+void in::throw_ElemNotFound (const Traversal& trav, usize index) try {
+    throw ElemNotFound(index);
+}
+catch (const SerializeFailed&) { throw; }
+catch (const std::exception& e) {
+    throw SerializeFailed(
+        trav.to_location(), trav.desc, std::current_exception()
+    );
+}
+
 usize item_get_length (const Reference& item, LocationRef loc) {
     usize len;
     Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
