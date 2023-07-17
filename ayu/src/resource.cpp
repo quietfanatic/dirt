@@ -274,7 +274,7 @@ void unload (Slice<Resource> reses) {
             for (auto res : rs) {
                 scan_resource_references(
                     res,
-                    [&](const Reference& ref, LocationRef loc) {
+                    [&ref_set](const Reference& ref, LocationRef loc) {
                         ref_set.emplace(ref, loc);
                         return false;
                     }
@@ -285,7 +285,7 @@ void unload (Slice<Resource> reses) {
             for (auto other : others) {
                 scan_resource_references(
                     other,
-                    [&](Reference ref_ref, LocationRef loc) {
+                    [&ref_set, &breaks](Reference ref_ref, LocationRef loc) {
                          // TODO: Check for Pointer as well
                         if (ref_ref.type() != Type::CppType<Reference>()) {
                             return false;
@@ -388,7 +388,7 @@ void reload (Slice<Resource> reses) {
             for (auto res : reses) {
                 scan_references(
                     res.data->old_value.ptr(), Location(res),
-                    [&](const Reference& ref, LocationRef loc) {
+                    [&old_refs](const Reference& ref, LocationRef loc) {
                         old_refs.emplace(ref, loc);
                         return false;
                     }
@@ -399,7 +399,7 @@ void reload (Slice<Resource> reses) {
             for (auto other : others) {
                 scan_resource_references(
                     other,
-                    [&](Reference ref_ref, LocationRef loc) {
+                    [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc) {
                          // TODO: scan Pointers as well
                         if (ref_ref.type() != Type::CppType<Reference>()) return false;
                         Reference ref = ref_ref.get_as<Reference>();
@@ -440,7 +440,7 @@ void reload (Slice<Resource> reses) {
             if (auto a = ref_ref.address()) {
                 reinterpret_cast<Reference&>(*a) = new_ref;
             }
-            else ref_ref.write([&](Mu& v){
+            else ref_ref.write([&new_ref](Mu& v){
                 reinterpret_cast<Reference&>(v) = new_ref;
             });
         }

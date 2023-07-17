@@ -25,7 +25,9 @@ bool scan_trav (
                  // Initialize to false because in only_addressable mode, the
                  // callback may not be called.
                 bool r = false;
-                ser_attr(trav, k, ACR_READ, [&](const Traversal& child){
+                ser_attr(trav, k, ACR_READ,
+                    [&r, loc, &k, &cb](const Traversal& child)
+                {
                     r = scan_trav(child, Location(loc, k), cb);
                 });
                 if (r) return true;
@@ -36,7 +38,9 @@ bool scan_trav (
             usize len = ser_get_length(trav);
             for (usize i = 0; i < len; i++) {
                 bool r = false;
-                ser_elem(trav, i, ACR_READ, [&](const Traversal& child){
+                ser_elem(trav, i, ACR_READ,
+                    [&r, loc, i, &cb](const Traversal& child)
+                {
                     r = scan_trav(child, Location(loc, i), cb);
                 });
                 if (r) return true;
@@ -46,8 +50,8 @@ bool scan_trav (
         default: {
             if (auto acr = trav.desc->delegate_acr()) {
                 bool r = false;
-                trav.follow_delegate(
-                    acr, ACR_READ, [&](const Traversal& child)
+                trav.follow_delegate(acr, ACR_READ,
+                    [&r, loc, &cb](const Traversal& child)
                 {
                     r = scan_trav(child, loc, cb);
                 });
@@ -66,7 +70,7 @@ static usize keep_location_cache_count = 0;
 std::unordered_map<Pointer, Location>* get_location_cache () {
     if (!keep_location_cache_count) return null;
     if (!have_location_cache) {
-        scan_universe_pointers([&](Pointer ptr, LocationRef loc){
+        scan_universe_pointers([](Pointer ptr, LocationRef loc){
              // We're deliberately ignoring the case where the same typed
              // pointer turns up twice in the data tree.  If this happens, we're
              // probably dealing with some sort of shared_ptr-like situation,
@@ -98,9 +102,11 @@ bool scan_pointers (
     CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
     bool r = false;
-    Traversal::start(base_item, base_loc, true, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(base_item, base_loc, true, ACR_READ,
+        [&r, base_loc, cb](const Traversal& trav)
+    {
         r = scan_trav(
-            trav, base_loc, [&](const Traversal& trav, LocationRef loc)
+            trav, base_loc, [cb](const Traversal& trav, LocationRef loc)
         {
             if (trav.addressable) {
                 return cb(Pointer(trav.desc, trav.address), loc);
@@ -116,9 +122,11 @@ bool scan_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
     bool r = false;
-    Traversal::start(base_item, base_loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(base_item, base_loc, false, ACR_READ,
+        [&r, base_loc, cb](const Traversal& trav)
+    {
         r = scan_trav(
-            trav, base_loc, [&](const Traversal& trav, LocationRef loc)
+            trav, base_loc, [cb](const Traversal& trav, LocationRef loc)
         {
             return cb(trav.to_reference(), loc);
         });
@@ -184,7 +192,7 @@ Location find_pointer (Pointer item) {
     }
     else {
         Location r;
-        scan_universe_pointers([&](Pointer p, LocationRef loc){
+        scan_universe_pointers([&r, item](Pointer p, LocationRef loc){
             if (p == item) {
                  // If we get a non-readonly pointer to a readonly location,
                  // reject it, but also don't keep searching.
@@ -222,7 +230,7 @@ Location find_reference (const Reference& item) {
                 Location r;
                 scan_references(
                     Reference(item.host), it->second,
-                    [&](const Reference& ref, LocationRef loc)
+                    [&r, &item](const Reference& ref, LocationRef loc)
                 {
                     if (ref == item) {
                         if (ref.readonly() && !item.readonly()) {
@@ -242,7 +250,7 @@ Location find_reference (const Reference& item) {
          // We don't have the location cache!  Time to do a global search.
         Location r;
         scan_universe_references(
-            [&](const Reference& ref, LocationRef loc)
+            [&r, &item](const Reference& ref, LocationRef loc)
         {
             if (ref == item) {
                 if (ref.readonly() && !item.readonly()) {

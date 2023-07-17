@@ -102,7 +102,7 @@ Type ChainAcr::_type (const Accessor* acr, Mu* v) {
     Type r = self->b->type(null);
     if (!r) {
         if (!v) return Type();
-        self->a->read(*v, [&](Mu& av){
+        self->a->read(*v, [&r, self](Mu& av){
             r = self->b->type(&av);
         });
     }
@@ -114,19 +114,19 @@ void ChainAcr::_access (
     auto self = static_cast<const ChainAcr*>(acr);
     switch (mode) {
         case ACR_READ: {
-            return self->a->access(ACR_READ, v, [&](Mu& m){
+            return self->a->access(ACR_READ, v, [self, cb](Mu& m){
                 self->b->access(ACR_READ, m, cb);
             });
         }
         case ACR_WRITE: {
              // Have to use modify instead of write here, or other parts of the item
              // will get clobbered.  Hope that we don't go down this code path a lot.
-            return self->a->access(ACR_MODIFY, v, [&](Mu& m){
+            return self->a->access(ACR_MODIFY, v, [self, cb](Mu& m){
                 self->b->access(ACR_WRITE, m, cb);
             });
         }
         case ACR_MODIFY: {
-            return self->a->access(ACR_MODIFY, v, [&](Mu& m){
+            return self->a->access(ACR_MODIFY, v, [self, cb](Mu& m){
                 self->b->access(ACR_MODIFY, m, cb);
             });
         }
@@ -136,7 +136,7 @@ Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainAcr*>(acr);
     if (self->a->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) {
         Mu* r = null;
-        self->a->access(ACR_READ, v, [&](Mu& av){
+        self->a->access(ACR_READ, v, [&r, self](Mu& av){
             r = self->b->address(av);
         });
         return r;

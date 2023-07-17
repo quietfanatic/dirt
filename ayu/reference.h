@@ -149,7 +149,7 @@ struct Reference {
     }
      // Cast and read with callback
     void read_as (Type t, CallbackRef<void(Mu&)> cb) const {
-        read([&](Mu& v){
+        read([this, t, cb](Mu& v){
             Mu& tv = *type().cast_to(t, &v);
             cb(tv);
         });
@@ -162,7 +162,7 @@ struct Reference {
     void write (CallbackRef<void(Mu&)> cb) const { access(in::ACR_WRITE, cb); }
      // Cast and write with callback
     void write_as (Type t, CallbackRef<void(Mu&)> cb) const {
-        write([&](Mu& v){
+        write([this, t, cb](Mu& v){
             Mu& tv = *type().cast_to(t, &v);
             cb(tv);
         });
@@ -176,7 +176,7 @@ struct Reference {
     void modify (CallbackRef<void(Mu&)> cb) const { access(in::ACR_MODIFY, cb); }
      // Cast and modify in-place with callback
     void modify_as (Type t, CallbackRef<void(Mu&)> cb) const {
-        write([&](Mu& v){
+        write([this, t, cb](Mu& v){
             Mu& tv = *type().cast_to(t, &v);
             cb(tv);
         });
@@ -197,7 +197,7 @@ struct Reference {
         }
         else {
             T r;
-            read_as<T>([&](const T& v){
+            read_as<T>([&r](const T& v){
                 r = v;
             });
             return r;
@@ -215,7 +215,7 @@ struct Reference {
             ) = move(new_v);
         }
         else {
-            write_as<T>([&](T& v){
+            write_as<T>([&new_v](T& v){
                 v = move(new_v);
             });
         }
@@ -231,7 +231,7 @@ struct Reference {
             ) = new_v;
         }
         else {
-            write_as<T>([&](T& v){
+            write_as<T>([&new_v](T& v){
                 v = new_v;
             });
         }

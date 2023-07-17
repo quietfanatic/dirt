@@ -35,7 +35,7 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         ser_collect_keys(trav, ks);
         TreeObject o; o.reserve(ks.size());
         for (auto& k : ks) {
-            ser_attr(trav, k, ACR_READ, [&](const Traversal& child){
+            ser_attr(trav, k, ACR_READ, [&o, &k](const Traversal& child){
                 if (child.op == ATTR && child.acr->attr_flags & ATTR_INVISIBLE) {
                     return;
                 }
@@ -56,7 +56,7 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         usize l = ser_get_length(trav);
         TreeArray a; a.reserve(l);
         for (usize i = 0; i < l; i++) {
-            ser_elem(trav, i, ACR_READ, [&](const Traversal& child){
+            ser_elem(trav, i, ACR_READ, [&a](const Traversal& child){
                 if (child.op == ELEM && child.acr->attr_flags & ATTR_INVISIBLE) {
                     return;
                 }
@@ -71,10 +71,10 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     }
     if (auto acr = trav.desc->delegate_acr()) {
         Tree r;
-        trav.follow_delegate(acr, ACR_READ, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_READ, [&r](const Traversal& child){
             new (&r) Tree(ser_to_tree(child));
-            r.flags |= acr->tree_flags();
         });
+        r.flags |= acr->tree_flags();
         return r;
     }
     if (trav.desc->values()) {
@@ -100,7 +100,7 @@ catch (const std::exception& e) {
 Tree item_to_tree (const Reference& item, LocationRef loc) {
     PushBaseLocation pbl(*loc ? *loc : Location(item));
     Tree r;
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&r](const Traversal& trav){
         new (&r) Tree(ser_to_tree(trav));
     });
     return r;
@@ -124,8 +124,9 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
             }
             ser_set_keys(trav, move(ks));
             for (auto& p : o) {
-                ser_attr(trav, p.first, ACR_WRITE, [&](const Traversal& child){
-                    ser_from_tree(child, p.second);
+                TreeRef v = p.second;
+                ser_attr(trav, p.first, ACR_WRITE, [v](const Traversal& child){
+                    ser_from_tree(child, v);
                 });
             }
             goto done;
@@ -137,8 +138,9 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
             auto a = TreeArraySlice(*tree);
             ser_set_length(trav, a.size());
             for (usize i = 0; i < a.size(); i++) {
-                ser_elem(trav, i, ACR_WRITE, [&](const Traversal& child){
-                    ser_from_tree(child, a[i]);
+                TreeRef e = a[i];
+                ser_elem(trav, i, ACR_WRITE, [e](const Traversal& child){
+                    ser_from_tree(child, e);
                 });
             }
             goto done;
@@ -160,7 +162,7 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
     }
      // Nothing matched, so use delegate
     if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_WRITE, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_WRITE, [tree](const Traversal& child){
             ser_from_tree(child, tree);
         });
         goto done;
@@ -228,7 +230,7 @@ void in::IFTContext::do_swizzles () {
             if (auto address = op.item.address()) {
                 op.f(*address, op.tree);
             }
-            else op.item.access(ACR_MODIFY, [&](Mu& v){
+            else op.item.access(ACR_MODIFY, [&op](Mu& v){
                 op.f(v, op.tree);
             });
         }
@@ -244,7 +246,7 @@ void in::IFTContext::do_inits () {
             if (auto address = op.item.address()) {
                 op.f(*address);
             }
-            else op.item.access(ACR_MODIFY, [&](Mu& v){
+            else op.item.access(ACR_MODIFY, [&op](Mu& v){
                 op.f(v);
             });
              // Initting might even add more swizzle ops.
@@ -267,13 +269,17 @@ void item_from_tree (
          // Delay swizzle and inits to the outer item_from_tree call.  Basically
          // this just means keep the current context instead of making a new
          // one.
-        Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+        Traversal::start(item, loc, false, ACR_WRITE,
+            [tree](const Traversal& trav)
+        {
             ser_from_tree(trav, tree);
         });
     }
     else {
         IFTContext context;
-        Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+        Traversal::start(item, loc, false, ACR_WRITE,
+            [tree](const Traversal& trav)
+        {
             ser_from_tree(trav, tree);
         });
         context.do_swizzles();
@@ -298,7 +304,7 @@ void in::ser_collect_keys (
          // string comparison.
         if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
              // Optimize for AnyArray<AnyString>
-            acr->read(*trav.address, [&](Mu& v){
+            acr->read(*trav.address, [&ks](Mu& v){
                 auto& ksv = reinterpret_cast<const AnyArray<AnyString>&>(v);
                 for (auto& k : ksv) {
                     ser_collect_key(ks, AnyString(k));
@@ -307,7 +313,7 @@ void in::ser_collect_keys (
         }
         else [[unlikely]] {
              // General case, any type that serializes to an array of strings.
-            acr->read(*trav.address, [&](Mu& ksv){
+            acr->read(*trav.address, [keys_type, &ks](Mu& ksv){
                  // We might be able to optimize this more, but it's not that
                  // important.
                 auto tree = item_to_tree(Pointer(keys_type, &ksv));
@@ -326,7 +332,7 @@ void in::ser_collect_keys (
             auto acr = attr->acr();
             if (acr->attr_flags & ATTR_INCLUDE) {
                 trav.follow_attr(
-                    acr, attr->key, ACR_READ, [&](const Traversal& child)
+                    acr, attr->key, ACR_READ, [&ks](const Traversal& child)
                 {
                     ser_collect_keys(child, ks);
                 });
@@ -335,7 +341,7 @@ void in::ser_collect_keys (
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_READ, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_READ, [&ks](const Traversal& child){
             ser_collect_keys(child, ks);
         });
     }
@@ -352,7 +358,7 @@ AnyArray<AnyString> item_get_keys (
     const Reference& item, LocationRef loc
 ) {
     UniqueArray<AnyString> ks;
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&ks](const Traversal& trav){
         ser_collect_keys(trav, ks);
     });
     return ks;
@@ -383,7 +389,7 @@ void in::ser_claim_keys (
         if (!(acr->accessor_flags & ACR_READONLY)) {
             if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
                  // Optimize for AnyArray<AnyString>
-                acr->write(*trav.address, [&](Mu& ksv){
+                acr->write(*trav.address, [&ks](Mu& ksv){
                     reinterpret_cast<AnyArray<AnyString>&>(ksv) = ks;
                 });
             }
@@ -394,7 +400,7 @@ void in::ser_claim_keys (
                 for (usize i = 0; i < ks.size(); i++) {
                     a[i] = Tree(ks[i]);
                 }
-                acr->write(*trav.address, [&](Mu& ksv){
+                acr->write(*trav.address, [keys_type, &a](Mu& ksv){
                     item_from_tree(
                         Pointer(keys_type, &ksv), Tree(move(a))
                     );
@@ -450,19 +456,17 @@ void in::ser_claim_keys (
             if (acr->attr_flags & ATTR_INCLUDE) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed_included[i]) continue;
+                bool opt = optional || acr->attr_flags & ATTR_OPTIONAL;
                 trav.follow_attr(
-                    acr, attr->key, ACR_WRITE, [&](const Traversal& child)
+                    acr, attr->key, ACR_WRITE, [&ks, opt](const Traversal& child)
                 {
-                    ser_claim_keys(
-                        child, ks,
-                        optional || acr->attr_flags & ATTR_OPTIONAL
-                    );
+                    ser_claim_keys(child, ks, opt);
                 });
             }
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_WRITE, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_WRITE, [&ks, optional](const Traversal& child){
             ser_claim_keys(child, ks, optional);
         });
     }
@@ -484,7 +488,7 @@ void item_set_keys (
     const Reference& item, AnyArray<AnyString> ks,
     LocationRef loc
 ) {
-    Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_WRITE, [&ks](const Traversal& trav){
         ser_set_keys(trav, move(ks));
     });
 }
@@ -495,8 +499,8 @@ Reference item_maybe_attr (
     Reference r;
      // Is ACR_READ correct here?  Will we instead have to chain up the
      // reference from the start?
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
-        ser_maybe_attr(trav, key, ACR_READ, [&](const Traversal& child){
+    Traversal::start(item, loc, false, ACR_READ, [&r, &key](const Traversal& trav){
+        ser_maybe_attr(trav, key, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
     });
@@ -504,8 +508,8 @@ Reference item_maybe_attr (
 }
 Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     Reference r;
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
-        ser_attr(trav, key, ACR_READ, [&](const Traversal& child){
+    Traversal::start(item, loc, false, ACR_READ, [&r, &key](const Traversal& trav){
+        ser_attr(trav, key, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
     });
@@ -519,7 +523,7 @@ usize in::ser_get_length (const Traversal& trav) try {
         usize len;
          // Do we want to support other integral types besides usize?  Probably
          // not very high priority.
-        acr->read(*trav.address, [&](Mu& lv){
+        acr->read(*trav.address, [&len](Mu& lv){
             len = reinterpret_cast<const usize&>(lv);
         });
         return len;
@@ -529,7 +533,7 @@ usize in::ser_get_length (const Traversal& trav) try {
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         usize len;
-        trav.follow_delegate(acr, ACR_READ, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_READ, [&len](const Traversal& child){
             len = ser_get_length(child);
         });
         return len;
@@ -565,7 +569,7 @@ catch (const std::exception& e) {
 
 usize item_get_length (const Reference& item, LocationRef loc) {
     usize len;
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ, [&len](const Traversal& trav){
         len = ser_get_length(trav);
     });
     return len;
@@ -574,14 +578,14 @@ usize item_get_length (const Reference& item, LocationRef loc) {
 void in::ser_set_length (const Traversal& trav, usize len) try {
     if (auto acr = trav.desc->length_acr()) {
         if (!(acr->accessor_flags & ACR_READONLY)) {
-            acr->write(*trav.address, [&](Mu& lv){
+            acr->write(*trav.address, [len](Mu& lv){
                 reinterpret_cast<usize&>(lv) = len;
             });
         }
         else {
              // For readonly length, just check that the provided length matches
             usize expected;
-            acr->read(*trav.address, [&](Mu& lv){
+            acr->read(*trav.address, [&expected](Mu& lv){
                 expected = reinterpret_cast<const usize&>(lv);
             });
             if (len != expected) {
@@ -603,7 +607,7 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_WRITE, [&](const Traversal& child){
+        trav.follow_delegate(acr, ACR_WRITE, [len](const Traversal& child){
             ser_set_length(child, len);
         });
     }
@@ -617,7 +621,7 @@ catch (const std::exception& e) {
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
-    Traversal::start(item, loc, false, ACR_WRITE, [&](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_WRITE, [len](const Traversal& trav){
         ser_set_length(trav, len);
     });
 }
@@ -626,8 +630,8 @@ Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
 ) {
     Reference r;
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
-        ser_maybe_elem(trav, index, ACR_READ, [&](const Traversal& child){
+    Traversal::start(item, loc, false, ACR_READ, [&r, index](const Traversal& trav){
+        ser_maybe_elem(trav, index, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
     });
@@ -635,8 +639,10 @@ Reference item_maybe_elem (
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r;
-    Traversal::start(item, loc, false, ACR_READ, [&](const Traversal& trav){
-        ser_elem(trav, index, ACR_READ, [&](const Traversal& child){
+    Traversal::start(
+        item, loc, false, ACR_READ, [&r, index](const Traversal& trav)
+    {
+        ser_elem(trav, index, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
     });

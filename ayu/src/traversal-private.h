@@ -69,6 +69,7 @@ struct Traversal {
     ) {
         expect(ref);
         Traversal child;
+        child.parent = null;
         child.only_addressable = only_addressable;
         child.op = START;
         child.reference = &ref;
@@ -94,7 +95,7 @@ struct Traversal {
             child.children_addressable =
                 ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
             if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, [&](Mu& v){
+                ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
                     cb(child);
                 });
@@ -122,7 +123,7 @@ struct Traversal {
             child.children_addressable =
                 acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
             if (!child.only_addressable || child.children_addressable) {
-                acr->access(mode, *address, [&](Mu& v){
+                acr->access(mode, *address, [&child, cb](Mu& v){
                     child.address = &v;
                     cb(child);
                 });
@@ -151,7 +152,7 @@ struct Traversal {
             child.children_addressable =
                 ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
             if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, [&](Mu& v){
+                ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
                     cb(child);
                 });

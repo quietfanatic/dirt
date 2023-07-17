@@ -100,7 +100,6 @@ bool ser_maybe_attr (
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            bool found = false;
             if (acr->attr_flags & ATTR_INCLUDE) {
                  // Change mode to modify so we don't clobber the other attrs of
                  // the included item.  Hopefully it won't matter, because
@@ -109,9 +108,12 @@ bool ser_maybe_attr (
                  // optimize this, then in claim_keys we could build up a
                  // structure mirroring the inclusion diagram and follow it,
                  // instead of just keeping the flat list of keys.
+                 //
+                 // TODO: This may not behave properly with only_addressable.
+                bool found = false;
                 trav.follow_attr(
                     acr, attr->key, mode == ACR_WRITE ? ACR_MODIFY : mode,
-                    [&](const Traversal& child)
+                    [&found, &key, mode, &cb](const Traversal& child)
                 {
                     found = ser_maybe_attr(child, key, mode, cb);
                 });
@@ -128,10 +130,10 @@ bool ser_maybe_attr (
         [[unlikely]] return false;
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        bool r;
+        bool r = false;
         trav.follow_delegate(
             acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
-            [&](const Traversal& child)
+            [&r, &key, mode, &cb](const Traversal& child)
         {
             r = ser_maybe_attr(child, key, mode, cb);
         });
@@ -183,10 +185,10 @@ bool ser_maybe_elem (
         else [[unlikely]] return false;
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        bool found;
+        bool found = false;
         trav.follow_delegate(
             acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
-            [&](const Traversal& child)
+            [&found, index, mode, &cb](const Traversal& child)
         {
             found = ser_maybe_elem(child, index, mode, cb);
         });

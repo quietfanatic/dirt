@@ -42,7 +42,7 @@ Reference Reference::chain_attr_func (
          // Extra read just to check if the func returns null Reference.
          // If we're here, we're already on a fairly worst-case performance
          // scenario, so one more check isn't gonna make much difference.
-        read([&](const Mu& v){
+        read([f, &k](const Mu& v){
             Reference ref = f(const_cast<Mu&>(v), k);
             if (!ref) throw AttrNotFound(move(k));
         });
@@ -59,7 +59,7 @@ Reference Reference::chain_elem_func (
         else throw ElemNotFound(i);
     }
     else {
-        read([&](const Mu& v){
+        read([f, i](const Mu& v){
             Reference ref = f(const_cast<Mu&>(v), i);
             if (!ref) throw ElemNotFound(i);
         });
