@@ -4,8 +4,9 @@
 namespace ayu::in {
 
 struct ChainAcr : Accessor {
-    const Accessor* a;
-    const Accessor* b;
+    const Accessor* outer;
+    const Accessor* inner;
+    explicit ChainAcr (const Accessor* outer, const Accessor* inner);
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
@@ -15,12 +16,14 @@ struct ChainAcr : Accessor {
     static constexpr AccessorVT _vt = {
         &_type, &_access, &_address, null, &_destroy
     };
-    explicit ChainAcr (const Accessor* a, const Accessor* b);
 };
 
 struct AttrFuncAcr : Accessor {
     Reference(* fp )(Mu&, AnyString);
     AnyString key;
+    AttrFuncAcr (Reference(* fp )(Mu&, AnyString), AnyString k) :
+        Accessor(&_vt), fp(fp), key(move(k))
+    { }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
@@ -28,21 +31,18 @@ struct AttrFuncAcr : Accessor {
     static constexpr AccessorVT _vt = {
         &_type, &_access, &_address, null, &_destroy
     };
-    AttrFuncAcr (Reference(* fp )(Mu&, AnyString), AnyString k) :
-        Accessor(&_vt), fp(fp), key(move(k))
-    { }
 };
 
 struct ElemFuncAcr : Accessor {
     Reference(* fp )(Mu&, usize);
     size_t index;
+    ElemFuncAcr (Reference(* fp )(Mu&, usize), usize i) :
+        Accessor(&_vt), fp(fp), index(i)
+    { }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
     static constexpr AccessorVT _vt = {&_type, &_access, &_address};
-    ElemFuncAcr (Reference(* fp )(Mu&, usize), usize i)
-        : Accessor(&_vt), fp(fp), index(i)
-    { }
 };
 
 } // namespace ayu::in

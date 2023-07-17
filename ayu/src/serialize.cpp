@@ -31,43 +31,45 @@ Tree in::ser_to_tree (const Traversal& trav) try {
         }
     }
     if (trav.desc->preference() == Description::PREFER_OBJECT) {
-        UniqueArray<AnyString> ks;
-        ser_collect_keys(trav, ks);
-        auto o = TreeObject(Capacity(ks.size()));
-        for (auto& k : ks) {
-            ser_attr(trav, k, ACR_READ, [&o, &k](const Traversal& child){
+        UniqueArray<AnyString> keys;
+        ser_collect_keys(trav, keys);
+        auto object = TreeObject(Capacity(keys.size()));
+        for (auto& key : keys) {
+            ser_attr(trav, key, ACR_READ,
+                [&object, &key](const Traversal& child)
+            {
                 if (child.op == ATTR && child.acr->attr_flags & ATTR_INVISIBLE) {
                     return;
                 }
-                Tree t = ser_to_tree(child);
+                Tree value = ser_to_tree(child);
                  // Get flags from acr
                 if (child.op == ATTR) {
-                    t.flags |= child.acr->tree_flags();
+                    value.flags |= child.acr->tree_flags();
                 }
-                 // It's okay to move k even though the traversal stack has
-                 // a pointer to it, because this is the last thing that
-                 // happens before ser_attr returns.
-                o.emplace_back_expect_capacity(move(k), move(t));
+                 // It's okay to move key even though the traversal stack has a
+                 // pointer to it, because this is the last thing that happens
+                 // before ser_attr returns.
+                object.emplace_back_expect_capacity(move(key), move(value));
             });
         }
-        return Tree(move(o));
+        return Tree(move(object));
     }
     if (trav.desc->preference() == Description::PREFER_ARRAY) {
         usize len = ser_get_length(trav);
-        auto a = TreeArray(Capacity(len));
+        auto array = TreeArray(Capacity(len));
         for (usize i = 0; i < len; i++) {
-            ser_elem(trav, i, ACR_READ, [&a](const Traversal& child){
+            ser_elem(trav, i, ACR_READ, [&array](const Traversal& child){
                 if (child.op == ELEM && child.acr->attr_flags & ATTR_INVISIBLE) {
                     return;
                 }
-                Tree t = ser_to_tree(child);
+                Tree elem = ser_to_tree(child);
                 if (child.op == ELEM) {
-                    t.flags |= child.acr->tree_flags();
+                    elem.flags |= child.acr->tree_flags();
                 }
-                a.emplace_back_expect_capacity(move(t));
+                array.emplace_back_expect_capacity(move(elem));
             });
         }
-        return Tree(move(a));
+        return Tree(move(array));
     }
     if (auto acr = trav.desc->delegate_acr()) {
         Tree r;
@@ -82,13 +84,13 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     }
     else throw ToTreeNotSupported();
 }
-catch (const SerializeFailed& e) {
+catch (const SerializeFailed&) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
     else throw;
 }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
@@ -117,16 +119,17 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
     if (tree->form == OBJECT) {
         if (trav.desc->accepts_object()) {
             expect(tree->rep == REP_OBJECT);
-            auto o = TreeObjectSlice(*tree);
-            auto ks = UniqueArray<AnyString>(Capacity(o.size()));
-            for (auto& p : o) {
-                ks.emplace_back_expect_capacity(p.first);
+            auto object = TreeObjectSlice(*tree);
+            auto keys = UniqueArray<AnyString>(Capacity(object.size()));
+            for (auto& [key, value] : object) {
+                keys.emplace_back_expect_capacity(key);
             }
-            ser_set_keys(trav, move(ks));
-            for (auto& p : o) {
-                TreeRef v = p.second;
-                ser_attr(trav, p.first, ACR_WRITE, [v](const Traversal& child){
-                    ser_from_tree(child, v);
+            ser_set_keys(trav, move(keys));
+            for (auto& [key, value] : object) {
+                ser_attr(trav, key, ACR_WRITE,
+                    [value{TreeRef(value)}](const Traversal& child)
+                {
+                    ser_from_tree(child, value);
                 });
             }
             goto done;
@@ -135,12 +138,13 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
     else if (tree->form == ARRAY) {
         if (trav.desc->accepts_array()) {
             expect(tree->rep == REP_ARRAY);
-            auto a = TreeArraySlice(*tree);
-            ser_set_length(trav, a.size());
-            for (usize i = 0; i < a.size(); i++) {
-                TreeRef e = a[i];
-                ser_elem(trav, i, ACR_WRITE, [e](const Traversal& child){
-                    ser_from_tree(child, e);
+            auto array = TreeArraySlice(*tree);
+            ser_set_length(trav, array.size());
+            for (usize i = 0; i < array.size(); i++) {
+                ser_elem(trav, i, ACR_WRITE,
+                    [elem{TreeRef(array[i])}](const Traversal& child)
+                {
+                    ser_from_tree(child, elem);
                 });
             }
             goto done;
@@ -227,6 +231,7 @@ void in::IFTContext::do_swizzles () {
         auto swizzles = move(swizzle_ops);
         for (auto& op : swizzles) {
             PushBaseLocation pbl (op.loc);
+             // TODO: wrap error messages
             if (auto address = op.item.address()) {
                 op.f(*address, op.tree);
             }
@@ -271,32 +276,29 @@ void item_from_tree (
          // one.
         Traversal::start(item, loc, false, ACR_WRITE,
             [tree](const Traversal& trav)
-        {
-            ser_from_tree(trav, tree);
-        });
+        { ser_from_tree(trav, tree); });
     }
     else {
         IFTContext context;
         Traversal::start(item, loc, false, ACR_WRITE,
             [tree](const Traversal& trav)
-        {
-            ser_from_tree(trav, tree);
-        });
+        { ser_from_tree(trav, tree); });
         context.do_swizzles();
         context.do_inits();
     }
 }
 
 ///// ATTR OPERATIONS
-void in::ser_collect_key (UniqueArray<AnyString>& ks, AnyString&& k) {
+void in::ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
      // This'll end up being N^2.  TODO: Test whether including an unordered_set
-     // would speed this up (probably not).
-    for (auto ksk : ks) if (k == ksk) return;
-    ks.emplace_back(move(k));
+     // would speed this up (probably not).  Maybe even just hashing the key
+     // might be enough.
+    for (auto k : keys) if (k == key) return;
+    keys.emplace_back(move(key));
 }
 
 void in::ser_collect_keys (
-    const Traversal& trav, UniqueArray<AnyString>& ks
+    const Traversal& trav, UniqueArray<AnyString>& keys
 ) try {
     if (auto acr = trav.desc->keys_acr()) {
         Type keys_type = acr->type(trav.address);
@@ -304,51 +306,48 @@ void in::ser_collect_keys (
          // string comparison.
         if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
              // Optimize for AnyArray<AnyString>
-            acr->read(*trav.address, [&ks](Mu& v){
-                auto& ksv = reinterpret_cast<const AnyArray<AnyString>&>(v);
-                for (auto& k : ksv) {
-                    ser_collect_key(ks, AnyString(k));
+            acr->read(*trav.address, [&keys](Mu& v){
+                auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
+                for (auto& key : item_keys) {
+                    ser_collect_key(keys, AnyString(key));
                 }
             });
         }
         else [[unlikely]] {
              // General case, any type that serializes to an array of strings.
-            acr->read(*trav.address, [keys_type, &ks](Mu& ksv){
+            acr->read(*trav.address, [keys_type, &keys](Mu& v){
                  // We might be able to optimize this more, but it's not that
                  // important.
-                auto tree = item_to_tree(Pointer(keys_type, &ksv));
-                if (tree.form != ARRAY) throw InvalidKeysType(keys_type);
-                for (const Tree& e : TreeArraySlice(tree)) {
-                    if (e.form != STRING) throw InvalidKeysType(keys_type);
-                    ser_collect_key(ks, AnyString(move(e)));
+                auto keys_tree = item_to_tree(Pointer(keys_type, &v));
+                if (keys_tree.form != ARRAY) throw InvalidKeysType(keys_type);
+                for (const Tree& key : TreeArraySlice(keys_tree)) {
+                    if (key.form != STRING) throw InvalidKeysType(keys_type);
+                    ser_collect_key(keys, AnyString(move(key)));
                 }
             });
         }
     }
     else if (auto attrs = trav.desc->attrs()) {
-         // TODO: Optimize for the case where there are no included attrs
         for (uint16 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (acr->attr_flags & ATTR_INCLUDE) {
-                trav.follow_attr(
-                    acr, attr->key, ACR_READ, [&ks](const Traversal& child)
-                {
-                    ser_collect_keys(child, ks);
-                });
+                trav.follow_attr(acr, attr->key, ACR_READ,
+                    [&keys](const Traversal& child)
+                { ser_collect_keys(child, keys); });
             }
-            else ser_collect_key(ks, attr->key);
+            else ser_collect_key(keys, attr->key);
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_READ, [&ks](const Traversal& child){
-            ser_collect_keys(child, ks);
+        trav.follow_delegate(acr, ACR_READ, [&keys](const Traversal& child){
+            ser_collect_keys(child, keys);
         });
     }
     else throw NoAttrs();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -357,22 +356,22 @@ catch (const std::exception& e) {
 AnyArray<AnyString> item_get_keys (
     const Reference& item, LocationRef loc
 ) {
-    UniqueArray<AnyString> ks;
-    Traversal::start(item, loc, false, ACR_READ, [&ks](const Traversal& trav){
-        ser_collect_keys(trav, ks);
-    });
-    return ks;
+    UniqueArray<AnyString> keys;
+    Traversal::start(item, loc, false, ACR_READ,
+        [&keys](const Traversal& trav)
+    { ser_collect_keys(trav, keys); });
+    return keys;
 }
 
-bool in::ser_claim_key (UniqueArray<AnyString>& ks, Str k) {
+bool in::ser_claim_key (UniqueArray<AnyString>& keys, Str key) {
      // This algorithm overall is O(N^3), we may be able to speed it up by
      // setting a flag if there are no included attrs, or maybe by using an
      // unordered_set?
      // TODO: Just use a bool array for claiming instead of erasing from
-     // the vector?
-    for (usize i = 0; i < ks.size(); ++i) {
-        if (ks[i] == k) {
-            ks.erase(i);
+     // the array?
+    for (usize i = 0; i < keys.size(); ++i) {
+        if (keys[i] == key) {
+            keys.erase(i);
             return true;
         }
     }
@@ -381,7 +380,7 @@ bool in::ser_claim_key (UniqueArray<AnyString>& ks, Str k) {
 
 void in::ser_claim_keys (
     const Traversal& trav,
-    UniqueArray<AnyString>& ks,
+    UniqueArray<AnyString>& keys,
     bool optional
 ) {
     if (auto acr = trav.desc->keys_acr()) {
@@ -389,37 +388,37 @@ void in::ser_claim_keys (
         if (!(acr->accessor_flags & ACR_READONLY)) {
             if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
                  // Optimize for AnyArray<AnyString>
-                acr->write(*trav.address, [&ks](Mu& ksv){
-                    reinterpret_cast<AnyArray<AnyString>&>(ksv) = ks;
+                acr->write(*trav.address, [&keys](Mu& v){
+                    reinterpret_cast<AnyArray<AnyString>&>(v) = keys;
                 });
             }
             else [[unlikely]] {
                  // General case: call item_from_tree on the keys.  This will
                  // be slow.
-                UniqueArray<Tree> a (ks.size());
-                for (usize i = 0; i < ks.size(); i++) {
-                    a[i] = Tree(ks[i]);
+                UniqueArray<Tree> array (keys.size());
+                for (usize i = 0; i < keys.size(); i++) {
+                    array[i] = Tree(keys[i]);
                 }
-                acr->write(*trav.address, [keys_type, &a](Mu& ksv){
+                acr->write(*trav.address, [keys_type, &array](Mu& v){
                     item_from_tree(
-                        Pointer(keys_type, &ksv), Tree(move(a))
+                        Pointer(keys_type, &v), Tree(move(array))
                     );
                 });
             }
-            ks.clear();
+            keys = {};
         }
         else {
              // For readonly keys, get the keys and compare them.
              // TODO: This can probably be optimized more
-            UniqueArray<AnyString> got_ks;
-            ser_collect_keys(trav, got_ks);
-            for (auto& k : got_ks) {
-                if (ser_claim_key(ks, k)) {
+            UniqueArray<AnyString> required_keys;
+            ser_collect_keys(trav, required_keys);
+            for (auto& key : required_keys) {
+                if (ser_claim_key(keys, key)) {
                      // If any of the keys are present, it makes this item no
                      // longer optional.
                     optional = false;
                 }
-                else if (!optional) throw MissingAttr(k);
+                else if (!optional) throw MissingAttr(key);
             }
             return;
         }
@@ -435,7 +434,7 @@ void in::ser_claim_keys (
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (ser_claim_key(ks, attr->key)) {
+            if (ser_claim_key(keys, attr->key)) {
                  // If any attrs are given, all required attrs must be given
                  // (only matters if this item is an included attr)
                  // TODO: this should fail a test depending on the order of attrs
@@ -457,40 +456,39 @@ void in::ser_claim_keys (
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed_included[i]) continue;
                 bool opt = optional | !!(acr->attr_flags & ATTR_OPTIONAL);
-                trav.follow_attr(
-                    acr, attr->key, ACR_WRITE, [&ks, opt](const Traversal& child)
-                {
-                    ser_claim_keys(child, ks, opt);
-                });
+                trav.follow_attr(acr, attr->key, ACR_WRITE,
+                    [&keys, opt](const Traversal& child)
+                { ser_claim_keys(child, keys, opt); });
             }
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_WRITE, [&ks, optional](const Traversal& child){
-            ser_claim_keys(child, ks, optional);
-        });
+        trav.follow_delegate(acr, ACR_WRITE,
+            [&keys, optional](const Traversal& child)
+        { ser_claim_keys(child, keys, optional); });
     }
     else throw NoAttrs();
 }
 
-void in::ser_set_keys (const Traversal& trav, UniqueArray<AnyString>&& ks) try {
-    ser_claim_keys(trav, ks, false);
-    if (ks) throw UnwantedAttr(ks[0]);
+void in::ser_set_keys (
+    const Traversal& trav, UniqueArray<AnyString>&& keys
+) try {
+    ser_claim_keys(trav, keys, false);
+    if (keys) throw UnwantedAttr(keys[0]);
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
 }
 
 void item_set_keys (
-    const Reference& item, AnyArray<AnyString> ks,
-    LocationRef loc
+    const Reference& item, AnyArray<AnyString> keys, LocationRef loc
 ) {
-    Traversal::start(item, loc, false, ACR_WRITE, [&ks](const Traversal& trav){
-        ser_set_keys(trav, move(ks));
-    });
+    Traversal::start(item, loc, false, ACR_WRITE,
+        [&keys](const Traversal& trav)
+    { ser_set_keys(trav, move(keys)); });
 }
 
 Reference item_maybe_attr (
@@ -499,7 +497,9 @@ Reference item_maybe_attr (
     Reference r;
      // Is ACR_READ correct here?  Will we instead have to chain up the
      // reference from the start?
-    Traversal::start(item, loc, false, ACR_READ, [&r, &key](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ,
+        [&r, &key](const Traversal& trav)
+    {
         ser_maybe_attr(trav, key, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
@@ -508,7 +508,9 @@ Reference item_maybe_attr (
 }
 Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     Reference r;
-    Traversal::start(item, loc, false, ACR_READ, [&r, &key](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ,
+        [&r, &key](const Traversal& trav)
+    {
         ser_attr(trav, key, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
@@ -523,8 +525,8 @@ usize in::ser_get_length (const Traversal& trav) try {
         usize len;
          // Do we want to support other integral types besides usize?  Probably
          // not very high priority.
-        acr->read(*trav.address, [&len](Mu& lv){
-            len = reinterpret_cast<const usize&>(lv);
+        acr->read(*trav.address, [&len](Mu& v){
+            len = reinterpret_cast<const usize&>(v);
         });
         return len;
     }
@@ -541,7 +543,7 @@ usize in::ser_get_length (const Traversal& trav) try {
     else throw NoElems();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -551,7 +553,7 @@ void in::throw_AttrNotFound (const Traversal& trav, const AnyString& key) try {
     throw AttrNotFound(key);
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -561,7 +563,7 @@ void in::throw_ElemNotFound (const Traversal& trav, usize index) try {
     throw ElemNotFound(index);
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -578,15 +580,15 @@ usize item_get_length (const Reference& item, LocationRef loc) {
 void in::ser_set_length (const Traversal& trav, usize len) try {
     if (auto acr = trav.desc->length_acr()) {
         if (!(acr->accessor_flags & ACR_READONLY)) {
-            acr->write(*trav.address, [len](Mu& lv){
-                reinterpret_cast<usize&>(lv) = len;
+            acr->write(*trav.address, [len](Mu& v){
+                reinterpret_cast<usize&>(v) = len;
             });
         }
         else {
              // For readonly length, just check that the provided length matches
             usize expected;
-            acr->read(*trav.address, [&expected](Mu& lv){
-                expected = reinterpret_cast<const usize&>(lv);
+            acr->read(*trav.address, [&expected](Mu& v){
+                expected = reinterpret_cast<const usize&>(v);
             });
             if (len != expected) {
                 throw WrongLength(expected, expected, len);
@@ -611,7 +613,7 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
     else throw NoElems();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -627,7 +629,9 @@ Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
 ) {
     Reference r;
-    Traversal::start(item, loc, false, ACR_READ, [&r, index](const Traversal& trav){
+    Traversal::start(item, loc, false, ACR_READ,
+        [&r, index](const Traversal& trav)
+    {
         ser_maybe_elem(trav, index, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());
         });
@@ -636,8 +640,8 @@ Reference item_maybe_elem (
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r;
-    Traversal::start(
-        item, loc, false, ACR_READ, [&r, index](const Traversal& trav)
+    Traversal::start(item, loc, false, ACR_READ,
+        [&r, index](const Traversal& trav)
     {
         ser_elem(trav, index, ACR_READ, [&r](const Traversal& child){
             new (&r) Reference(child.to_reference());

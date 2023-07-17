@@ -132,7 +132,7 @@ struct Traversal {
     }
 
     template <class CB>
-    void follow_ref (
+    void follow_reference (
         Traversal& child, const Reference& ref, AccessMode mode, CB cb
     ) const {
         child.parent = this;
@@ -191,7 +191,7 @@ struct Traversal {
         child.op = ATTR_FUNC;
         child.attr_func = func;
         child.key = &key;
-        follow_ref(child, ref, mode, cb);
+        follow_reference(child, ref, mode, cb);
     }
 
     template <class CB>
@@ -213,7 +213,7 @@ struct Traversal {
         child.op = ELEM_FUNC;
         child.elem_func = func;
         child.index = index;
-        follow_ref(child, ref, mode, cb);
+        follow_reference(child, ref, mode, cb);
     }
 
      // noexcept because any user code called from here should be confirmed to
@@ -261,6 +261,7 @@ struct Traversal {
         }
     }
 
+     // TODO: add throw_SerializeFailed
 };
 
 } // namespace ayu::in

@@ -156,7 +156,7 @@ Reference item_elem (
  // that is not valid to read back in, so only use it for debugging.
  // Internally, this is used when generating the .what() message for exceptions
 struct DiagnosticSerialization {
-    DiagnosticSerialization ();
+    [[nodiscard]] DiagnosticSerialization ();
     ~DiagnosticSerialization ();
 };
 

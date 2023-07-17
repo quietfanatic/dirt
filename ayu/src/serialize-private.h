@@ -142,7 +142,7 @@ bool ser_maybe_attr (
     else throw NoAttrs();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -159,7 +159,7 @@ void ser_attr (
     }
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );
@@ -197,7 +197,7 @@ bool ser_maybe_elem (
     else throw NoElems();
 }
 catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
+catch (const std::exception&) {
     throw SerializeFailed(
         trav.to_location(), trav.desc, std::current_exception()
     );

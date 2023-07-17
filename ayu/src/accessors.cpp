@@ -95,15 +95,28 @@ Mu* ReferenceFuncAcr1::_address (const Accessor* acr, Mu& from) {
     return ref.address();
 }
 
+ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) :
+    Accessor(
+        &_vt,
+         // Readonly if either accessor is readonly
+        ((outer->accessor_flags & ACR_READONLY) |
+         (inner->accessor_flags & ACR_READONLY)) |
+         // Pass through addressable if both are PTA
+        ((outer->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) &
+         (inner->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE))
+    ), outer(outer), inner(inner)
+{
+    outer->inc(); inner->inc();
+}
 Type ChainAcr::_type (const Accessor* acr, Mu* v) {
     auto self = static_cast<const ChainAcr*>(acr);
      // Most accessors ignore the parameter, so we can usually skip the
      // read operation on a.
-    Type r = self->b->type(null);
+    Type r = self->inner->type(null);
     if (!r) {
         if (!v) return Type();
-        self->a->read(*v, [&r, self](Mu& av){
-            r = self->b->type(&av);
+        self->outer->read(*v, [&r, self](Mu& w){
+            r = self->inner->type(&w);
         });
     }
     return r;
@@ -113,56 +126,44 @@ void ChainAcr::_access (
 ) {
     auto self = static_cast<const ChainAcr*>(acr);
     switch (mode) {
+         // TODO: simplify?
         case ACR_READ: {
-            return self->a->access(ACR_READ, v, [self, cb](Mu& m){
-                self->b->access(ACR_READ, m, cb);
+            return self->outer->access(ACR_READ, v, [self, cb](Mu& w){
+                self->inner->access(ACR_READ, w, cb);
             });
         }
         case ACR_WRITE: {
              // Have to use modify instead of write here, or other parts of the item
              // will get clobbered.  Hope that we don't go down this code path a lot.
-            return self->a->access(ACR_MODIFY, v, [self, cb](Mu& m){
-                self->b->access(ACR_WRITE, m, cb);
+            return self->outer->access(ACR_MODIFY, v, [self, cb](Mu& w){
+                self->inner->access(ACR_WRITE, w, cb);
             });
         }
         case ACR_MODIFY: {
-            return self->a->access(ACR_MODIFY, v, [self, cb](Mu& m){
-                self->b->access(ACR_MODIFY, m, cb);
+            return self->outer->access(ACR_MODIFY, v, [self, cb](Mu& w){
+                self->inner->access(ACR_MODIFY, w, cb);
             });
         }
     }
 }
 Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainAcr*>(acr);
-    if (self->a->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) {
+    if (self->outer->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) {
         Mu* r = null;
-        self->a->access(ACR_READ, v, [&r, self](Mu& av){
-            r = self->b->address(av);
+        self->outer->access(ACR_READ, v, [&r, self](Mu& w){
+            r = self->inner->address(w);
         });
         return r;
     }
-    else if (auto aa = self->a->address(v)) {
+    else if (auto addr = self->outer->address(v)) {
          // We shouldn't get to this codepath but here it is anyway
-        return self->b->address(*aa);
+        return self->inner->address(*addr);
     }
     else return null;
 }
 void ChainAcr::_destroy (Accessor* acr) {
     auto self = static_cast<const ChainAcr*>(acr);
-    self->a->dec(); self->b->dec();
-}
-ChainAcr::ChainAcr (const Accessor* a, const Accessor* b) :
-    Accessor(
-        &_vt,
-         // Readonly if either accessor is readonly
-        ((a->accessor_flags & ACR_READONLY) |
-         (b->accessor_flags & ACR_READONLY)) |
-         // Pass through addressable if both are PTA
-        ((a->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) &
-         (b->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE))
-    ), a(a), b(b)
-{
-    a->inc(); b->inc();
+    self->inner->dec(); self->outer->dec();
 }
 
 Type AttrFuncAcr::_type (const Accessor* acr, Mu* v) {

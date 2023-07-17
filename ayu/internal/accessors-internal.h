@@ -178,6 +178,7 @@ template <class From, class To>
 struct BaseAcr2 : Accessor {
     using AccessorFromType = From;
     using AccessorToType = To;
+    explicit constexpr BaseAcr2 (uint8 flags = 0) : Accessor(&_vt, flags) { }
     static void _access (
         const Accessor*, AccessMode, Mu& from, CallbackRef<void(Mu&)> cb
     ) {
@@ -195,12 +196,12 @@ struct BaseAcr2 : Accessor {
     static constexpr AccessorVT _vt = {
         &AccessorVT::const_type<To>, &_access, &_address, &_inverse_address
     };
-    explicit constexpr BaseAcr2 (uint8 flags = 0) : Accessor(&_vt, flags) { }
 };
 
 /// member
 
 struct MemberAcr0 : Accessor {
+    using Accessor::Accessor;
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
@@ -208,7 +209,6 @@ struct MemberAcr0 : Accessor {
     static constexpr AccessorVT _vt = {
         &_type, &_access, &_address, &_inverse_address
     };
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct MemberAcr2 : MemberAcr0 {
@@ -237,11 +237,11 @@ struct MemberAcr2 : MemberAcr0 {
 struct RefFuncAcr0 : Accessor {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
+    using Accessor::Accessor;
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
     static constexpr AccessorVT _vt = {&_type, &_access, &_address};
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct RefFuncAcr2 : RefFuncAcr0 {
@@ -259,11 +259,11 @@ struct RefFuncAcr2 : RefFuncAcr0 {
 struct ConstRefFuncAcr0 : Accessor {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
+    using Accessor::Accessor;
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
     static constexpr AccessorVT _vt = {&_type, &_access, &_address};
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
@@ -282,9 +282,9 @@ struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
 
 template <class To>
 struct RefFuncsAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static constexpr AccessorVT _vt = {&AccessorVT::const_type<To>, &_access};
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct RefFuncsAcr2 : RefFuncsAcr1<To> {
@@ -353,9 +353,9 @@ void ValueFuncAcr1<To>::_access (
 
 template <class To>
 struct ValueFuncsAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static constexpr AccessorVT _vt = {&AccessorVT::const_type<To>, &_access};
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
@@ -399,9 +399,9 @@ void ValueFuncsAcr1<To>::_access (
 
 template <class To>
 struct MixedFuncsAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static constexpr AccessorVT _vt = {&AccessorVT::const_type<To>, &_access};
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
@@ -447,6 +447,9 @@ template <class From, class To>
 struct AssignableAcr2 : Accessor {
     using AccessorFromType = From;
     using AccessorToType = To;
+    explicit constexpr AssignableAcr2 (uint8 flags = 0) :
+        Accessor(&_vt, flags)
+    { }
     static void _access (
         const Accessor*, AccessMode mode, Mu& from_mu, CallbackRef<void(Mu&)> cb_mu
     ) {
@@ -459,15 +462,13 @@ struct AssignableAcr2 : Accessor {
         return;
     }
     static constexpr AccessorVT _vt = {&AccessorVT::const_type<To>, &_access};
-    explicit constexpr AssignableAcr2 (uint8 flags = 0) :
-        Accessor(&_vt, flags)
-    { }
 };
 
 /// variable
 
 template <class To>
 struct VariableAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
      // This ACR cannot be addressable, because then Reference::chain and co.
      //  may take the address of value but then release this ACR object,
@@ -477,7 +478,6 @@ struct VariableAcr1 : Accessor {
         &AccessorVT::const_type<To>, &_access, &AccessorVT::default_address,
         null, &_destroy_this
     };
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct VariableAcr2 : VariableAcr1<To> {
@@ -506,13 +506,13 @@ void VariableAcr1<To>::_destroy_this (Accessor* acr) {
 
 template <class To>
 struct ConstantAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static void _destroy_this (Accessor*);
     static constexpr AccessorVT _vt = {
         &AccessorVT::const_type<To>, &_access, &AccessorVT::default_address,
         null, &_destroy_this
     };
-    using Accessor::Accessor;
 };
 template <class From, class To>
 struct ConstantAcr2 : ConstantAcr1<To> {
@@ -540,12 +540,12 @@ void ConstantAcr1<To>::_destroy_this (Accessor* acr) {
 /// constant_pointer
 
 struct ConstantPointerAcr0 : Accessor {
+    using Accessor::Accessor;
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
      // Should be okay addressing this.
     static Mu* _address (const Accessor*, Mu&);
     static constexpr AccessorVT _vt = {&_type, &_access, &_address};
-    using Accessor::Accessor;
 };
 
 template <class From, class To>

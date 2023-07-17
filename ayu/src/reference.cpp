@@ -31,39 +31,41 @@ Reference Reference::chain (const Accessor* o_acr) const noexcept {
 }
 
 Reference Reference::chain_attr_func (
-    Reference(* f )(Mu&, AnyString), AnyString k
+    Reference(* attr_func )(Mu&, AnyString), AnyString key
 ) const {
-    if (auto a = address()) {
-        auto r = f(*a, k);
-        if (r) return r;
-        else throw AttrNotFound(move(k));
+    if (auto addr = address()) {
+        if (auto r = attr_func(*addr, key)) return r;
+        else throw AttrNotFound(move(key));
     }
     else {
          // Extra read just to check if the func returns null Reference.
          // If we're here, we're already on a fairly worst-case performance
          // scenario, so one more check isn't gonna make much difference.
-        read([f, &k](const Mu& v){
-            Reference ref = f(const_cast<Mu&>(v), k);
-            if (!ref) throw AttrNotFound(move(k));
+        read([attr_func, &key](const Mu& v){
+            Reference ref = attr_func(const_cast<Mu&>(v), key);
+            if (!ref) throw AttrNotFound(move(key));
         });
-        return Reference(host, new ChainAcr(acr, new AttrFuncAcr(f, move(k))));
+        return Reference(host, new ChainAcr(
+            acr, new AttrFuncAcr(attr_func, move(key))
+        ));
     }
 }
 
 Reference Reference::chain_elem_func (
-    Reference(* f )(Mu&, size_t), size_t i
+    Reference(* elem_func )(Mu&, size_t), size_t index
 ) const {
-    if (auto a = address()) {
-        auto r = f(*a, i);
-        if (r) return r;
-        else throw ElemNotFound(i);
+    if (auto addr = address()) {
+        if (auto r = elem_func(*addr, index)) return r;
+        else throw ElemNotFound(index);
     }
     else {
-        read([f, i](const Mu& v){
-            Reference ref = f(const_cast<Mu&>(v), i);
-            if (!ref) throw ElemNotFound(i);
+        read([elem_func, index](const Mu& v){
+            Reference ref = elem_func(const_cast<Mu&>(v), index);
+            if (!ref) throw ElemNotFound(index);
         });
-        return Reference(host, new ChainAcr(acr, new ElemFuncAcr(f, i)));
+        return Reference(host, new ChainAcr(
+            acr, new ElemFuncAcr(elem_func, index)
+        ));
     }
 }
 
@@ -75,19 +77,19 @@ static Tree Reference_to_tree (const Reference& v) {
     auto iri = location_to_iri(loc);
     return Tree(iri.spec_relative_to(current_base_iri()));
 }
-static void Reference_from_tree (Reference& v, const Tree& t) {
-    switch (t.form) {
+static void Reference_from_tree (Reference& v, const Tree& tree) {
+    switch (tree.form) {
         case NULLFORM: break;
-        case STRING: if (!Str(t)) throw GenericError(
+        case STRING: if (!Str(tree)) throw GenericError(
             "Cannot make Reference from empty IRI.  To make the null Reference, use null."
         ); break;
-        default: throw InvalidForm(t.form);
+        default: throw InvalidForm(tree.form);
     }
     v = Reference();
 }
-static void Reference_swizzle (Reference& v, const Tree& t) {
-    if (t.form == NULLFORM) return;
-    auto iri = IRI(Str(t), current_base_iri());
+static void Reference_swizzle (Reference& v, const Tree& tree) {
+    if (tree.form == NULLFORM) return;
+    auto iri = IRI(Str(tree), current_base_iri());
     auto loc = location_from_iri(iri);
     v = reference_from_location(loc);
 }

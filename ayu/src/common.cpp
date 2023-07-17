@@ -32,8 +32,7 @@ const char* Error::what () const noexcept {
     if (derived) {
         DiagnosticSerialization _;
         auto tree = Tree(TreeArray{
-            Tree(derived.type.name()),
-            item_to_tree(derived)
+            Tree(derived.type.name()), item_to_tree(derived)
         });
         mess_cache = cat(tree_to_string(tree, PRETTY), '\0');
     }
