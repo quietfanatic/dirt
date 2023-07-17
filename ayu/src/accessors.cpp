@@ -125,26 +125,13 @@ void ChainAcr::_access (
     const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
 ) {
     auto self = static_cast<const ChainAcr*>(acr);
-    switch (mode) {
-         // TODO: simplify?
-        case ACR_READ: {
-            return self->outer->access(ACR_READ, v, [self, cb](Mu& w){
-                self->inner->access(ACR_READ, w, cb);
-            });
-        }
-        case ACR_WRITE: {
-             // Have to use modify instead of write here, or other parts of the item
-             // will get clobbered.  Hope that we don't go down this code path a lot.
-            return self->outer->access(ACR_MODIFY, v, [self, cb](Mu& w){
-                self->inner->access(ACR_WRITE, w, cb);
-            });
-        }
-        case ACR_MODIFY: {
-            return self->outer->access(ACR_MODIFY, v, [self, cb](Mu& w){
-                self->inner->access(ACR_MODIFY, w, cb);
-            });
-        }
-    }
+;    // Have to use modify instead of write for the first mode, or other
+     // parts of the item will get clobbered.  Hope this isn't necessary
+     // very often.
+    auto outer_mode = mode == ACR_WRITE ? ACR_MODIFY : mode;
+    return self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
+        self->inner->access(mode, w, cb);
+    });
 }
 Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainAcr*>(acr);
