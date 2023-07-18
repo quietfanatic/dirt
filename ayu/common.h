@@ -73,6 +73,8 @@ struct Error : std::exception {
     mutable UniqueString mess_cache;
      // Calls item_to_string on the most derived type
     const char* what () const noexcept final;
+    [[gnu::cold]] Error () { }
+    [[gnu::cold]] ~Error () { }
 };
 
  // Unclassified error

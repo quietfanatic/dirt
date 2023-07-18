@@ -6,6 +6,16 @@
 namespace ayu {
 using namespace in;
 
+ // Pulling out this callback to avoid redundant instantiations of
+ // ser_maybe_attr<> and ser_maybe_elem<> due to all lambdas having unique
+ // types.
+struct ReceiveReference {
+    Reference& r;
+    void operator() (const Traversal& child) {
+        new (&r) Reference(child.to_reference());
+    }
+};
+
 ///// ATTRS
 
 void in::ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
@@ -206,22 +216,14 @@ Reference item_maybe_attr (
      // reference from the start?
     Traversal::start(item, loc, false, ACR_READ,
         [&r, &key](const Traversal& trav)
-    {
-        ser_maybe_attr(trav, key, ACR_READ, [&r](const Traversal& child){
-            new (&r) Reference(child.to_reference());
-        });
-    });
+    { ser_maybe_attr(trav, key, ACR_READ, ReceiveReference(r)); });
     return r;
 }
 Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
     Reference r;
     Traversal::start(item, loc, false, ACR_READ,
         [&r, &key](const Traversal& trav)
-    {
-        ser_attr(trav, key, ACR_READ, [&r](const Traversal& child){
-            new (&r) Reference(child.to_reference());
-        });
-    });
+    { ser_attr(trav, key, ACR_READ, ReceiveReference(r)); });
     return r;
 }
 
@@ -306,22 +308,14 @@ Reference item_maybe_elem (
     Reference r;
     Traversal::start(item, loc, false, ACR_READ,
         [&r, index](const Traversal& trav)
-    {
-        ser_maybe_elem(trav, index, ACR_READ, [&r](const Traversal& child){
-            new (&r) Reference(child.to_reference());
-        });
-    });
+    { ser_maybe_elem(trav, index, ACR_READ, ReceiveReference(r)); });
     return r;
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r;
     Traversal::start(item, loc, false, ACR_READ,
         [&r, index](const Traversal& trav)
-    {
-        ser_elem(trav, index, ACR_READ, [&r](const Traversal& child){
-            new (&r) Reference(child.to_reference());
-        });
-    });
+    { ser_elem(trav, index, ACR_READ, ReceiveReference(r)); });
     return r;
 }
 

@@ -154,13 +154,14 @@ struct Accessor {
             const_cast<uint16&>(ref_count)++;
         }
     }
-    void dec () const {
-        if (ref_count) [[unlikely]] {
-            if (!--const_cast<uint16&>(ref_count)) {
-                vt->destroy_this(const_cast<Accessor*>(this));
-                delete this;
-            }
+    NOINLINE void do_dec () const {
+        if (!--const_cast<uint16&>(ref_count)) {
+            vt->destroy_this(const_cast<Accessor*>(this));
+            delete this;
         }
+    }
+    void dec () const {
+        if (ref_count) [[unlikely]] do_dec();
     }
 };
 
