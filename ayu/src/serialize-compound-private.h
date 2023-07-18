@@ -1,5 +1,5 @@
 #pragma once
-#include "../serialize.h"
+#include "../serialize-compound.h"
 
 #include "../errors.h"
 #include "../reference.h"
@@ -8,43 +8,6 @@
 #include "traversal-private.h"
 
 namespace ayu::in {
-
-///// TO_TREE
-Tree ser_to_tree (const Traversal&);
-
-///// FROM_TREE
-struct SwizzleOp {
-    using FP = void(*)(Mu&, const Tree&);
-    FP f;
-    Reference item;
-     // This can't be TreeRef because the referenced Tree could go away after a
-     // nested from_tree is called with DELAY_SWIZZLE
-    Tree tree;
-    Location loc;
-};
-struct InitOp {
-    using FP = void(*)(Mu&);
-    FP f;
-    Reference item;
-    Location loc;
-};
-struct IFTContext {
-    static IFTContext* current;
-    IFTContext* previous;
-    IFTContext () : previous(current) {
-        current = this;
-    }
-    ~IFTContext () {
-        expect(current == this);
-        current = previous;
-    }
-
-    UniqueArray<SwizzleOp> swizzle_ops;
-    UniqueArray<InitOp> init_ops;
-    void do_swizzles ();
-    void do_inits ();
-};
-void ser_from_tree (const Traversal&, TreeRef);
 
 ///// ATTR OPERATIONS
  // Implement get_keys by adding keys to an array of AnyStrings

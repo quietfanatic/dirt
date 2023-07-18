@@ -4,10 +4,45 @@
 #include "../../iri/iri.h"
 #include "../describe.h"
 #include "../errors.h"
-#include "../serialize.h"
+#include "../serialize-compound.h"
 #include "traversal-private.h"
 
 namespace ayu {
+
+struct ResourceLocation : LocationData {
+    Resource resource;
+    ResourceLocation (Resource res) :
+        LocationData(RESOURCE), resource(res)
+    { }
+};
+struct ReferenceLocation : LocationData {
+    Reference reference;
+    ReferenceLocation (Reference ref) :
+        LocationData(REFERENCE), reference(move(ref))
+    { }
+};
+
+Location::Location (Resource res) :
+    data(new ResourceLocation(move(res)))
+{ }
+Location::Location (Reference ref) :
+    data(new ReferenceLocation(move(ref)))
+{ }
+
+const Resource* Location::resource () const {
+    switch (data->form) {
+        case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
+        default: return null;
+    }
+}
+
+const Reference* Location::reference () const {
+    switch (data->form) {
+        case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
+        default: return null;
+    }
+}
+
 namespace in {
 
 NOINLINE

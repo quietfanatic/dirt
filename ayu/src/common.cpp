@@ -3,7 +3,7 @@
 #include <cstdlib>
 
 #include "../../uni/utf.h"
-#include "../serialize.h"
+#include "../serialize-to-tree.h"
 
 namespace ayu {
 using namespace in;

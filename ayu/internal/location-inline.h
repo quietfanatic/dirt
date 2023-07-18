@@ -1,8 +1,6 @@
 #pragma once
 
 #include <charconv>
-#include "../reference.h"
-#include "../resource.h"
 
 namespace ayu {
 namespace in {
@@ -18,20 +16,8 @@ struct LocationData : RefCounted {
     uint8 form;
     LocationData (uint8 f) : form(f) { }
 };
-
-struct ResourceLocation : LocationData {
-    Resource resource;
-    ResourceLocation (Resource res) :
-        LocationData(RESOURCE), resource(res)
-    { }
-};
-struct ReferenceLocation : LocationData {
-    Reference reference;
-    ReferenceLocation (Reference ref) :
-        LocationData(REFERENCE), reference(move(ref))
-    { }
-};
-
+ // ResourceLocation and ReferenceLocation are extern to break a cyclic
+ // dependency.
 struct KeyLocation : LocationData {
     Location parent;
     AnyString key;
@@ -49,32 +35,12 @@ struct IndexLocation : LocationData {
 
 } using namespace in;
 
-inline Location::Location (Resource res) :
-    data(new ResourceLocation(move(res)))
-{ }
-inline Location::Location (Reference ref) :
-    data(new ReferenceLocation(move(ref)))
-{ }
 inline Location::Location (Location p, AnyString k) :
     data(new KeyLocation(expect(move(p)), move(k)))
 { }
 inline Location::Location (Location p, usize i) :
     data(new IndexLocation(expect(move(p)), i))
 { }
-
-inline const Resource* Location::resource () const {
-    switch (data->form) {
-        case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
-        default: return null;
-    }
-}
-
-inline const Reference* Location::reference () const {
-    switch (data->form) {
-        case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
-        default: return null;
-    }
-}
 
 inline const Location* Location::parent () const {
     switch (data->form) {

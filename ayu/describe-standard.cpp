@@ -31,6 +31,8 @@ AYU_DESCRIBE(std::u16string_view,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
+#include "serialize-from-tree.h"
+#include "serialize-to-tree.h"
 
 static tap::TestSet tests ("dirt/ayu/describe-standard", []{
     using namespace tap;

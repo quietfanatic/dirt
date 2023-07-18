@@ -1,7 +1,5 @@
 #include "../resource.h"
 
-#include <cerrno>
-#include <cstring>  // strerror
 #include "../../uni/utf.h"
 #include "../dynamic.h"
 #include "../describe.h"
@@ -12,7 +10,8 @@
 #include "../reference.h"
 #include "../resource-scheme.h"
 #include "../scan.h"
-#include "../serialize.h"
+#include "../serialize-from-tree.h"
+#include "../serialize-to-tree.h"
 #include "universe-private.h"
 
 ///// INTERNALS

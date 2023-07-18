@@ -2,13 +2,10 @@
 
 #include "../../iri/iri.h"
 #include "../describe.h"
-#include "../dynamic.h"
 #include "../errors.h"
-#include "../resource.h"
+#include "../location.h"
 #include "../scan.h"
-#include "../serialize.h"
 #include "accessors-private.h"
-#include "descriptors-private.h"
 
 namespace ayu {
 using namespace in;

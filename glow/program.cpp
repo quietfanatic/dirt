@@ -1,6 +1,7 @@
 #include "program.h"
 
 #include "../ayu/describe.h"
+#include "../ayu/scan.h"
 #include "gl.h"
 
 namespace glow {
@@ -181,6 +182,7 @@ AYU_DESCRIBE(glow::ProgramLinkFailed,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../ayu/resource.h"
+#include "../ayu/serialize-to-tree.h"
 #include "../geo/rect.h"
 #include "../geo/vec.h"
 #include "../tap/tap.h"

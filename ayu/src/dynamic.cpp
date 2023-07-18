@@ -30,7 +30,8 @@ AYU_DESCRIBE(ayu::Dynamic,
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
 #include "../parse.h"
-#include "../serialize.h"
+#include "../serialize-from-tree.h"
+#include "../serialize-to-tree.h"
 
 namespace ayu::test {
     struct DynamicTest {

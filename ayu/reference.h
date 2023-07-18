@@ -48,6 +48,7 @@
 #include "internal/descriptors-internal.h"
 #include "dynamic.h"
 #include "pointer.h"
+#include "serialize-compound.h"
 
 namespace ayu {
 
@@ -263,15 +264,12 @@ struct Reference {
         }
     }
 
-     // Syntax sugar.  Templated to delay requirement of serialize.h.  If you
-     // get errors here, include serialize.h before using these.
-    template <class T = void>
+     // Syntax sugar.
     Reference operator [] (AnyString key) const {
-        return item_attr((T(), *this), move(key));
+        return item_attr(*this, move(key));
     }
-    template <class T = void>
     Reference operator [] (usize index) const {
-        return item_elem((T(), *this), index);
+        return item_elem(*this, index);
     }
 };
 

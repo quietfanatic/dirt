@@ -227,6 +227,8 @@ AYU_DESCRIBE(control::Input,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
+#include "../ayu/serialize-from-tree.h"
+#include "../ayu/serialize-to-tree.h"
 
 static tap::TestSet tests ("dirt/control/input", []{
     using namespace tap;

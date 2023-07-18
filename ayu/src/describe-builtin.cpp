@@ -4,7 +4,7 @@
 #include "../../iri/iri.h"
 #include "../describe-base.h"
 #include "../location.h"
-#include "../serialize.h"
+#include "../serialize-to-tree.h"
 
 using namespace ayu;
 
@@ -101,6 +101,7 @@ AYU_DESCRIBE(std::exception_ptr,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
+#include "../serialize-from-tree.h"
 
 static tap::TestSet tests ("dirt/ayu/describe-standard", []{
     using namespace tap;

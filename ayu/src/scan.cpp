@@ -5,7 +5,7 @@
 #include "../pointer.h"
 #include "../reference.h"
 #include "descriptors-private.h"
-#include "serialize-private.h"
+#include "serialize-compound-private.h"
 #include "traversal-private.h"
 #include "universe-private.h"
 

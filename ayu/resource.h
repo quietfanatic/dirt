@@ -26,6 +26,7 @@
 #pragma once
 
 #include "internal/common-internal.h"
+#include "reference.h"
 
 namespace ayu {
 
@@ -127,16 +128,11 @@ struct Resource {
 
      // Syntax sugar
     explicit operator bool () const { return data; }
-     // Templated to delay requirement of serialize.h.  Return auto to delay
-     // requirement of resource.h.  If you get an error here, include
-     // serialize.h in the file that uses these.
-    template <class T = void>
     auto operator [] (AnyString key) {
-        return item_attr((T(), ref()), move(key));
+        return item_attr(ref(), move(key));
     }
-    template <class T = void>
     auto operator [] (usize index) {
-        return item_elem((T(), ref()), index);
+        return item_elem(ref(), index);
     }
 };
 
