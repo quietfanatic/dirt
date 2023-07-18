@@ -63,6 +63,10 @@ struct Traversal {
     };
 
     template <class CB>
+    void call (CB cb) try { cb(*this); }
+    catch (...) { wrap_exception(); }
+
+    template <class CB>
     static void start (
         const Reference& ref, LocationRef loc, bool only_addressable,
         AccessMode mode, CB cb
@@ -86,7 +90,7 @@ struct Traversal {
             child.desc = DescriptionPrivate::get(ref.type());
             child.addressable = true;
             child.children_addressable = true;
-            cb(child);
+            child.call(cb);
         }
         else {
             child.readonly = ref.readonly();
@@ -97,7 +101,7 @@ struct Traversal {
             if (!child.only_addressable || child.children_addressable) {
                 ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
-                    cb(child);
+                    child.call(cb);
                 });
             }
         }
@@ -116,7 +120,7 @@ struct Traversal {
         if (child.address) {
             child.addressable = children_addressable;
             child.children_addressable = children_addressable;
-            cb(child);
+            child.call(cb);
         }
         else {
             child.addressable = false;
@@ -125,7 +129,7 @@ struct Traversal {
             if (!child.only_addressable || child.children_addressable) {
                 acr->access(mode, *address, [&child, cb](Mu& v){
                     child.address = &v;
-                    cb(child);
+                    child.call(cb);
                 });
             }
         }
@@ -143,7 +147,7 @@ struct Traversal {
             child.readonly = readonly || ref.readonly();
             child.addressable = children_addressable;
             child.children_addressable = children_addressable;
-            cb(child);
+            child.call(cb);
         }
         else {
             child.desc = DescriptionPrivate::get(ref.type());
@@ -154,7 +158,7 @@ struct Traversal {
             if (!child.only_addressable || child.children_addressable) {
                 ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
-                    cb(child);
+                    child.call(cb);
                 });
             }
         }
@@ -261,7 +265,13 @@ struct Traversal {
         }
     }
 
-     // TODO: add throw_SerializeFailed
+    [[noreturn, gnu::cold]] void wrap_exception () const {
+        try { throw; }
+        catch (SerializeFailed&) { throw; }
+        catch (std::exception&) {
+            throw SerializeFailed(to_location(), desc, std::current_exception());
+        }
+    }
 };
 
 } // namespace ayu::in

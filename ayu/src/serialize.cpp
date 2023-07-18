@@ -84,19 +84,11 @@ Tree in::ser_to_tree (const Traversal& trav) try {
     }
     else throw ToTreeNotSupported();
 }
-catch (const SerializeFailed&) {
-    if (diagnostic_serialization) {
-        return Tree(std::current_exception());
-    }
-    else throw;
-}
 catch (const std::exception&) {
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }
-    else throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
+    else throw;
 }
 
 Tree item_to_tree (const Reference& item, LocationRef loc) {
@@ -109,7 +101,7 @@ Tree item_to_tree (const Reference& item, LocationRef loc) {
 }
 
 ///// FROM_TREE
-void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
+void in::ser_from_tree (const Traversal& trav, TreeRef tree) {
      // If description has a from_tree, just use that.
     if (auto from_tree = trav.desc->from_tree()) [[likely]] {
         from_tree->f(*trav.address, tree);
@@ -215,12 +207,6 @@ void in::ser_from_tree (const Traversal& trav, TreeRef tree) try {
         }
     }
 }
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception& e) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
-}
 
 void in::IFTContext::do_swizzles () {
      // Swizzling might add more swizzle ops; this will happen if we're
@@ -299,7 +285,7 @@ void in::ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
 
 void in::ser_collect_keys (
     const Traversal& trav, UniqueArray<AnyString>& keys
-) try {
+) {
     if (auto acr = trav.desc->keys_acr()) {
         Type keys_type = acr->type(trav.address);
          // Compare Type not std::type_info, since std::type_info can require a
@@ -345,12 +331,6 @@ void in::ser_collect_keys (
         });
     }
     else throw NoAttrs();
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
 }
 
 AnyArray<AnyString> item_get_keys (
@@ -472,15 +452,9 @@ void in::ser_claim_keys (
 
 void in::ser_set_keys (
     const Traversal& trav, UniqueArray<AnyString>&& keys
-) try {
+) {
     ser_claim_keys(trav, keys, false);
-    if (keys) throw UnwantedAttr(keys[0]);
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
+    if (keys) throw_noinline<UnwantedAttr>(keys[0]);
 }
 
 void item_set_keys (
@@ -520,7 +494,7 @@ Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
 
 ///// ELEM OPERATIONS
 
-usize in::ser_get_length (const Traversal& trav) try {
+usize in::ser_get_length (const Traversal& trav) {
     if (auto acr = trav.desc->length_acr()) {
         usize len;
          // Do we want to support other integral types besides usize?  Probably
@@ -542,32 +516,6 @@ usize in::ser_get_length (const Traversal& trav) try {
     }
     else throw NoElems();
 }
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
-}
-
-void in::throw_AttrNotFound (const Traversal& trav, const AnyString& key) try {
-    throw AttrNotFound(key);
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
-}
-
-void in::throw_ElemNotFound (const Traversal& trav, usize index) try {
-    throw ElemNotFound(index);
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
-}
 
 usize item_get_length (const Reference& item, LocationRef loc) {
     usize len;
@@ -577,7 +525,7 @@ usize item_get_length (const Reference& item, LocationRef loc) {
     return len;
 }
 
-void in::ser_set_length (const Traversal& trav, usize len) try {
+void in::ser_set_length (const Traversal& trav, usize len) {
     if (auto acr = trav.desc->length_acr()) {
         if (!(acr->accessor_flags & ACR_READONLY)) {
             acr->write(*trav.address, [len](Mu& v){
@@ -611,12 +559,6 @@ void in::ser_set_length (const Traversal& trav, usize len) try {
         });
     }
     else throw NoElems();
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {

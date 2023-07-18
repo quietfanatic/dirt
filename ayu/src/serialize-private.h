@@ -82,7 +82,7 @@ template <class CB>
 bool ser_maybe_attr (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, CB cb
-) try {
+) {
     if (auto attrs = trav.desc->attrs()) {
          // Note: This will likely be called once for each attr, making it
          // O(N^2) over the number of attrs.  If we want we could optimize for
@@ -139,36 +139,22 @@ bool ser_maybe_attr (
         });
         return r;
     }
-    else throw NoAttrs();
+    else throw_noinline<NoAttrs>();
 }
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
-}
-
-[[noreturn]] void throw_AttrNotFound (const Traversal&, const AnyString&);
 
 template <class CB>
 void ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, CB cb
-) try {
+) {
     if (!ser_maybe_attr(trav, key, mode, cb)) {
-        throw AttrNotFound(key);
+        throw_noinline<AttrNotFound>(key);
     }
-}
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
 }
 
 template <class CB>
 bool ser_maybe_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
-) try {
+) {
     if (auto elems = trav.desc->elems()) {
         if (index < elems->n_elems) {
             auto acr = elems->elem(index)->acr();
@@ -194,23 +180,15 @@ bool ser_maybe_elem (
         });
         return found;
     }
-    else throw NoElems();
+    else throw_noinline<NoElems>();
 }
-catch (const SerializeFailed&) { throw; }
-catch (const std::exception&) {
-    throw SerializeFailed(
-        trav.to_location(), trav.desc, std::current_exception()
-    );
-}
-
-[[noreturn]] void throw_ElemNotFound (const Traversal&, usize);
 
 template <class CB>
 void ser_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
 ) {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
-        throw_ElemNotFound(trav, index);
+        throw_noinline<ElemNotFound>(index);
     }
 }
 

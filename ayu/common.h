@@ -61,6 +61,13 @@ void dump (const Args&... v) {
     dump_refs({&v...});
 }
 
+ // Using this can result in better performance, especially in small or
+ // template functions.
+template <class Err, class... Args>
+[[noreturn, gnu::cold]] NOINLINE void throw_noinline (Args&&... args) {
+    throw Err(std::forward<Args&&>(args)...);
+}
+
  // Base class for ayu-related errors.
 struct Error : std::exception {
     mutable UniqueString mess_cache;
