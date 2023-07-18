@@ -62,7 +62,7 @@ struct Traversal {
         usize index;
     };
 
-    template <class CB>
+    template <class CB> ALWAYS_INLINE
     void call (CB cb) try { cb(*this); }
     catch (...) { wrap_exception(); }
 
