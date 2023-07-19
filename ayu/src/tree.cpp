@@ -1,7 +1,7 @@
 #include "../tree.h"
 
 #include "../describe.h"
-#include "../errors.h"
+#include "../serialize-to-tree.h"
 
 namespace ayu {
 namespace in {
@@ -40,16 +40,19 @@ void delete_Tree_data (TreeRef t) noexcept {
     }
 }
 
-[[noreturn, gnu::cold]]
-void throw_WrongForm (TreeRef t, TreeForm form) {
+void raise_TreeWrongForm (TreeRef t, TreeForm form) {
     if (t->rep == REP_ERROR) std::rethrow_exception(std::exception_ptr(*t));
     else if (t->form == form) never();
-    else throw WrongForm(form, t);
+    else raise(e_TreeWrongForm, cat(
+        "Tried to use tree of form ", item_to_string(&t->form),
+        " as form ", item_to_string(&form)
+    ));
 }
 
-[[noreturn, gnu::cold]]
-void throw_CantRepresent (StaticString type_name, TreeRef t) {
-    throw CantRepresent(type_name, t);
+void raise_TreeCantRepresent (StaticString type_name, TreeRef t) {
+    raise(e_TreeCantRepresent, cat(
+        "Can't represent type ", type_name, " with value ", tree_to_string(t)
+    ));
 }
 
 } using namespace in;
@@ -141,16 +144,16 @@ static tap::TestSet tests ("dirt/ayu/tree", []{
     is(Tree(0.0/0.0), Tree(0.0/0.0), "Tree of NAN equals Tree of NAN");
     is(Str(Tree("asdfg")), "asdfg", "Round-trip strings");
     is(Str(Tree("qwertyuiop")), "qwertyuiop", "Round-trip long strings");
-    throws<WrongForm>([]{ int(Tree("0")); }, "Can't convert string to integer");
+    throws_code<e_TreeWrongForm>([]{ int(Tree("0")); }, "Can't convert string to integer");
     try_is<int>([]{ return int(Tree(3.0)); }, 3, "Convert floating to integer");
     try_is<double>([]{ return double(Tree(3)); }, 3.0, "Convert integer to floating");
-    throws<CantRepresent>([]{
+    throws_code<e_TreeCantRepresent>([]{
         int(Tree(3.5));
     }, "Can't convert 3.5 to integer");
-    throws<CantRepresent>([]{
+    throws_code<e_TreeCantRepresent>([]{
         int8(Tree(1000));
     }, "Can't convert 1000 to int8");
-    throws<CantRepresent>([]{
+    throws_code<e_TreeCantRepresent>([]{
         uint8(Tree(-1));
     }, "Can't convert -1 to uint8");
     is(Tree(TreeArray{Tree(3), Tree(4)}), Tree(TreeArray{Tree(3), Tree(4)}), "Compare arrays.");

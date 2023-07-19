@@ -6,20 +6,13 @@ namespace glow {
     void register_gl_function (void*, const char*);
     void init_gl_functions ();
 
+    constexpr ayu::ErrorCode e_GLError = "glow::GLError";
+
      // TODO: warn instead of throwing
     void throw_on_glGetError (
         const char* function_name,
         std::source_location = std::source_location::current()
     );
-
-    struct GLError : GlowError {
-        uint error_code;
-        Str function_name; // Can't serialize const char*
-        std::source_location srcloc;
-        GLError (uint e, Str g, std::source_location l) :
-            error_code(e), function_name(g), srcloc(l)
-        { }
-    };
 }
 
  // Build GL API

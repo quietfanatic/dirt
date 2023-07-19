@@ -82,26 +82,8 @@ struct Statement {
     explicit operator bool () const { return !!command; }
 };
 
- // TODO: CommandError
-struct ConflictingCommandName : ayu::Error {
-    StaticString name;
-    StaticString desc_a;
-    StaticString desc_b;
-    ConflictingCommandName (StaticString n, StaticString a, StaticString b) :
-        name(n), desc_a(a), desc_b(b)
-    { }
-};
-struct CommandNotFound : ayu::Error {
-    AnyString name;
-    CommandNotFound (AnyString n) : name(move(n)) { }
-};
-struct StatementWrongArgsType : ayu::Error {
-    StaticString command;
-    ayu::Type expected;
-    ayu::Type got;
-    StatementWrongArgsType (const Command* c, ayu::Type e, ayu::Type g) :
-        command(c->name), expected(e), got(g)
-    { }
-};
+constexpr ayu::ErrorCode e_CommandNameDuplicate = "control::CommandNameDuplicate";
+constexpr ayu::ErrorCode e_CommandNotFound = "control::CommandNotFound";
+constexpr ayu::ErrorCode e_StatementArgsTypeIncorrect = "control::StatementArgsTypeIncorrect";
 
 } // namespace control

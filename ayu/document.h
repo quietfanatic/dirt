@@ -58,4 +58,14 @@ struct Document {
     void deallocate (void* p) noexcept;
 };
 
+ // Tried to create a document item with an invalid name (empty or starting
+ // with a _).
+constexpr ErrorCode e_DocumentItemNameInvalid = "DocumentItemNameInvalid";
+ // Tried to create a document item with a name that's already in use in
+ // this document.
+constexpr ErrorCode e_DocumentItemNameDuplicate = "DocumentItemNameDuplicate";
+ // Tried to delete a document item by name, but the given name isn't in this
+ // document.  TODO: Replace delete_named with find_by_name
+constexpr ErrorCode e_DocumentItemNotFound = "DocumentItemNotFound";
+
 } // namespace ayu

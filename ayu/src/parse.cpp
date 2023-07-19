@@ -5,7 +5,6 @@
 #include <limits>
 
 #include "../../uni/utf.h"
-#include "../errors.h"
 #include "../print.h" // for error reporting
 #include "char-cases-private.h"
 
@@ -66,18 +65,17 @@ struct Parser {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
         uint line = 1;
-        const char* nl = begin - 1;
+        const char* last_lf = begin - 1;
         for (const char* p2 = begin; p2 != p; p2++) {
             if (*p2 == '\n') {
                 line++;
-                nl = p2;
+                last_lf = p2;
             }
         }
-        uint col = p - nl;
-        throw ParseError(
-            cat(std::forward<Args>(args)...),
-            filename, line, col
-        );
+        uint col = p - last_lf;
+        raise(e_ParseFailed, cat(
+            std::forward<Args>(args)..., " at ", filename, ':', line, ':', col
+        ));
     }
 
     void skip_comment () {
@@ -436,7 +434,10 @@ Tree tree_from_string (Str s, AnyString filename) {
 UniqueString string_from_file (AnyString filename) {
     FILE* f = fopen_utf8(filename.c_str(), "rb");
     if (!f) {
-        throw OpenFailed(move(filename), errno, "rb");
+        int errnum = errno;
+        raise(e_OpenFailed, cat(
+            "Failed to open for reading ", filename, ": ", std::strerror(errnum)
+        ));
     }
 
     fseek(f, 0, SEEK_END);
@@ -449,12 +450,17 @@ UniqueString string_from_file (AnyString filename) {
         int errnum = errno;
         fclose(f);
         SharableBuffer<char>::deallocate(buf);
-        throw ReadFailed(move(filename), errnum);
+        raise(e_ReadFailed, cat(
+            "Failed to read from ", filename, ": ", std::strerror(errnum)
+        ));
     }
 
     if (fclose(f) != 0) {
+        int errnum = errno;
         SharableBuffer<char>::deallocate(buf);
-        throw CloseFailed(move(filename), errno);
+        raise(e_CloseFailed, cat(
+            "Failed to close ", filename, ": ", std::strerror(errnum)
+        ));
     }
     return UniqueString::UnsafeConstructOwned(buf, size);
 }
@@ -474,7 +480,7 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
         try_is<Tree>([&]{return tree_from_string(s);}, t, cat("yes: ", s));
     };
     auto n = [](StaticString s){
-        throws<ParseError>([&]{
+        throws_code<e_ParseFailed>([&]{
             tree_from_string(s);
         }, cat("no: ", s));
     };

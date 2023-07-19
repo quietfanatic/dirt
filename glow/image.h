@@ -108,17 +108,7 @@ struct ImageTexture : Texture {
     void init ();
 };
 
-struct SubImageBoundsNotProper : GlowError {
-    IRect bounds;
-    SubImageBoundsNotProper (IRect b) : bounds(b) { }
-};
-struct SubImageOutOfBounds : GlowError {
-    const Image* image;
-    IVec size;
-    IRect bounds;
-    SubImageOutOfBounds (const Image* i, IVec s, IRect b) :
-        image(i), size(s), bounds(b)
-    { }
-};
+constexpr ayu::ErrorCode e_SubImageBoundsNotProper = "glow::SubImageBoundsNotProper";
+constexpr ayu::ErrorCode e_SubImageOutOfBounds = "glow::SubImageOutOfBounds";
 
 }

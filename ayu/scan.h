@@ -91,4 +91,7 @@ bool scan_universe_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb
 );
 
+ // reference_to_location or pointer_to_location failed to find the Reference.
+constexpr ErrorCode e_ReferenceNotFound = "ReferenceNotFound";
+
 } // namespace ayu

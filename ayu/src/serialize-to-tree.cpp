@@ -70,11 +70,17 @@ Tree ser_to_tree (const Traversal& trav) try {
         return r;
     }
     if (trav.desc->values()) {
-        throw NoNameForValue();
+        raise(e_ToTreeValueNotFound, cat(
+            "No value for type ", Type(trav.desc).name(),
+            " matches the item's value"
+        ));
     }
-    else throw ToTreeNotSupported();
+    else raise(e_ToTreeNotSupported, cat(
+        "Item of type ", Type(trav.desc).name(), " does not support to_tree."
+    ));
 }
 catch (const std::exception&) {
+     // TODO also check std::uncaught_exceptions
     if (diagnostic_serialization) {
         return Tree(std::current_exception());
     }

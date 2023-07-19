@@ -13,9 +13,9 @@ static std::unordered_map<Str, const Command*>& commands_by_name () {
 
 void Command::register_command () const {
     auto [iter, emplaced] = commands_by_name().emplace(name, this);
-    if (!emplaced) throw ConflictingCommandName(
-        name, iter->second->description, description
-    );
+    if (!emplaced) ayu::raise(e_CommandNameDuplicate, cat(
+        "Duplicate command name ", name
+    ));
 }
 
 const Command* lookup_command (Str name) {
@@ -26,12 +26,15 @@ const Command* lookup_command (Str name) {
 const Command* require_command (Str name) {
     auto iter = commands_by_name().find(name);
     if (iter != commands_by_name().end()) return iter->second;
-    else throw CommandNotFound(name);
+    else ayu::raise(e_CommandNotFound, name);
 }
 
 Statement::Statement (Command* c, ayu::Dynamic&& a) : command(c), args(move(a)) {
     if (args.type != command->args_type()) {
-        throw StatementWrongArgsType(command, args.type, command->args_type());
+        ayu::raise(e_StatementArgsTypeIncorrect, cat(
+            "Statement args type for ", command->name, " is incorrect; expected ",
+            command->args_type().name(), " but got ", args.type.name()
+        ));
     }
 }
 
@@ -83,30 +86,6 @@ void Statement_from_tree (Statement& s, const ayu::Tree& t) {
 AYU_DESCRIBE(Statement,
     to_tree(&Statement_to_tree),
     from_tree(&Statement_from_tree)
-)
-
-AYU_DESCRIBE(control::ConflictingCommandName,
-    delegate(base<ayu::Error>()),
-    elems(
-        elem(&control::ConflictingCommandName::name),
-        elem(&control::ConflictingCommandName::desc_a),
-        elem(&control::ConflictingCommandName::desc_b)
-    )
-)
-
-AYU_DESCRIBE(control::CommandNotFound,
-    delegate(base<ayu::Error>()),
-    elems(
-        elem(&control::CommandNotFound::name)
-    )
-)
-
-AYU_DESCRIBE(control::StatementWrongArgsType,
-    delegate(base<ayu::Error>()),
-    attrs(
-        attr("expected", &control::StatementWrongArgsType::expected),
-        attr("got", &control::StatementWrongArgsType::got)
-    )
 )
 
 #ifndef TAP_DISABLE_TESTS

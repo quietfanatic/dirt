@@ -24,17 +24,17 @@ using iri::IRI;
 
 ///// BASIC TYPES AND STUFF
 
- // Defined elsewhere
-struct Document;
-struct Dynamic;
-struct Location;
+struct Document; // document.h
+struct Dynamic; // dynamic.h
+struct Error; // error.h
+struct Location; // location.h
 using LocationRef = CopyRef<Location>;
-struct Pointer;
-struct Reference;
-struct Resource;
-struct Tree;
+struct Pointer; // pointer.h
+struct Reference; // reference.h
+struct Resource; // resource.h
+struct Tree; // tree.h
 using TreeRef = CRef<Tree, 16>;
-struct Type;
+struct Type; // type.h
 
 using TreeArray = SharedArray<Tree>;
 using TreeArraySlice = Slice<Tree>;
@@ -61,29 +61,43 @@ void dump (const Args&... v) {
     dump_refs({&v...});
 }
 
- // Using this can result in better performance, especially in small or
- // template functions.
-template <class Err, class... Args>
-[[noreturn, gnu::cold]] NOINLINE void throw_noinline (Args&&... args) {
-    throw Err(std::forward<Args&&>(args)...);
-}
+///// EXCEPTIONS
 
- // Base class for ayu-related errors.
+using ErrorCode = const char*;
+
+ // Class for ayu-related errors.
 struct Error : std::exception {
-    mutable UniqueString mess_cache;
-     // Calls item_to_string on the most derived type
-    const char* what () const noexcept final;
-    [[gnu::cold]] Error () { }
-    [[gnu::cold]] ~Error () { }
+     // An API-stable constant string.  Assigned values will be in the
+     // associated header files.
+    ErrorCode code = null;
+     // More information about the error, subject to change.
+    AnyString details;
+     // If this wrapped a different error, this stores it.  code will be
+     // e_External and details will have the CPP type (hopefully demangled) and
+     // the what() of the error.
+    std::exception_ptr external;
+     // A lot of exception handling stuff assumes that the string returned by
+     // what() will never run out of lifetime, so store it here.
+    mutable UniqueString what_cache;
+     // Keep track of whether a traversal location has been added to details.
+    bool has_travloc = false;
+    [[gnu::cold]] ~Error ();
+    const char* what () const noexcept override;
 };
 
- // Unclassified error
-struct GenericError : Error {
-    AnyString mess;
-    GenericError (StaticString s) : mess(s) { }
-    template <class... Args> requires (sizeof...(Args) > 1) [[gnu::cold]]
-    GenericError (Args&&... args) : mess(cat(std::forward<Args>(args)...)) { }
-};
+ // Simple noinline wrapper around construct and throw to reduce code bloat
+[[noreturn, gnu::cold]] NOINLINE
+void raise (ErrorCode code, AnyString details);
+
+ // Unspecified error
+constexpr ErrorCode e_General = "General";
+ // Non-AYU error, std::rethrow(e.external) to unwrap
+constexpr ErrorCode e_External = "External";
+ // TODO: Move these into an IO module
+constexpr ErrorCode e_OpenFailed = "OpenFailed";
+constexpr ErrorCode e_ReadFailed = "ReadFailed";
+constexpr ErrorCode e_WriteFailed = "WriteFailed";
+constexpr ErrorCode e_CloseFailed = "CloseFailed";
 
  // Called when an exception is thrown in a place where the library can't
  // properly clean up after itself, such as when a resource value throws
@@ -91,3 +105,17 @@ struct GenericError : Error {
 [[noreturn]] void unrecoverable_exception (Str when) noexcept;
 
 } // namespace ayu
+
+#ifndef TAP_DISABLE_TESTS
+#include "../tap/tap.h"
+
+namespace ayu {
+    template <const ErrorCode& ec>
+    bool throws_code (tap::CallbackRef<void()> cb, std::string_view name = "") {
+        return tap::throws_check<Error>(
+            cb, [](const Error& e){ return Str(e.code) == Str(ec); }, name
+        );
+    }
+}
+
+#endif

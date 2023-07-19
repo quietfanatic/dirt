@@ -225,6 +225,43 @@ UniqueString t34a (StaticString a, AnyString b, StaticString c) {
 UniqueString t34b (StaticString a, AnyString b, StaticString c) {
     return cat("Couldn't ", a, " ", b, " when its state is ", c);
 }
+[[gnu::cold]]
+UniqueString t34c (StaticString a, AnyString b, StaticString c) {
+    auto r = UniqueString(Capacity(a.size() + b.size() + c.size() + 29));
+    r.append_expect_capacity("Couldn't ");
+    r.append_expect_capacity(a);
+    r.append_expect_capacity(" ");
+    r.append_expect_capacity(b);
+    r.append_expect_capacity(" when its state is ");
+    r.append_expect_capacity(c);
+    return r;
+}
+[[gnu::cold]]
+std::string c34 (std::string_view a, std::string b, std::string_view c) {
+    std::string r = "Couldn't ";
+    r.append(a);
+    r.append(" ");
+    r.append(b);
+    r.append(" when its state is ");
+    r.append(c);
+    return r;
+}
+[[gnu::cold]]
+auto b34 (StaticString a, AnyString b, StaticString c) {
+    return UniqueArray<std::pair<AnyString, AnyString>>{
+        {"tried", a},
+        {"name", move(b)},
+        {"state", c}
+    };
+}
+[[gnu::cold]]
+auto b34b (StaticString a, AnyString b, StaticString c) {
+    auto r = UniqueArray<std::pair<AnyString, AnyString>>(Capacity(3));
+    r.emplace_back_expect_capacity("tried", a);
+    r.emplace_back_expect_capacity("name", move(b));
+    r.emplace_back_expect_capacity("state", c);
+    return r;
+}
 
 static tap::TestSet tests ("dirt/uni/arrays", []{
     using namespace tap;

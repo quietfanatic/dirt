@@ -2,7 +2,8 @@
 #include "../common.h"
 #include "../../uni/utf.h"
 
-namespace ayu::in {
+namespace ayu {
+namespace in {
 
 using TreeRep = int8;
 enum : TreeRep {
@@ -22,13 +23,12 @@ enum : TreeRep {
 NOINLINE
 void delete_Tree_data (TreeRef) noexcept;
 
-[[noreturn, gnu::cold]]
-void throw_WrongForm (TreeRef, TreeForm);
-[[noreturn, gnu::cold]]
-void throw_CantRepresent (StaticString, TreeRef);
+[[noreturn]]
+void raise_TreeWrongForm (TreeRef, TreeForm);
+[[noreturn]]
+void raise_TreeCantRepresent (StaticString, TreeRef);
 
-} // ayu::in
-namespace ayu {
+} // in
 
 constexpr Tree::Tree () :
     form(UNDEFINED), rep(0), flags(0), length(0), data{.as_int64 = 0}
@@ -112,20 +112,20 @@ constexpr Tree::~Tree () {
 }
 
 constexpr Tree::operator Null () const {
-    if (rep != in::REP_NULL) in::throw_WrongForm(*this, NULLFORM);
+    if (rep != in::REP_NULL) in::raise_TreeWrongForm(*this, NULLFORM);
     return null;
 }
 constexpr Tree::operator bool () const {
-    if (rep != in::REP_BOOL) in::throw_WrongForm(*this, BOOL);
+    if (rep != in::REP_BOOL) in::raise_TreeWrongForm(*this, BOOL);
     return data.as_bool;
 }
 constexpr Tree::operator char () const {
     switch (rep) { \
         case in::REP_STATICSTRING:
         case in::REP_SHAREDSTRING:
-            if (length != 1) in::throw_CantRepresent("char", *this);
+            if (length != 1) in::raise_TreeCantRepresent("char", *this);
             return data.as_char_ptr[0];
-        default: in::throw_WrongForm(*this, STRING);
+        default: in::raise_TreeWrongForm(*this, STRING);
     }
 }
 #define AYU_INTEGRAL_CONVERSION(T) \
@@ -134,14 +134,14 @@ constexpr Tree::operator T () const { \
         case in::REP_INT64: { \
             int64 v = data.as_int64; \
             if (int64(T(v)) == v) return v; \
-            else in::throw_CantRepresent(#T, *this); \
+            else in::raise_TreeCantRepresent(#T, *this); \
         } \
         case in::REP_DOUBLE: { \
             double v = data.as_double; \
             if (double(T(v)) == v) return v; \
-            else in::throw_CantRepresent(#T, *this); \
+            else in::raise_TreeCantRepresent(#T, *this); \
         } \
-        default: in::throw_WrongForm(*this, NUMBER); \
+        default: in::raise_TreeWrongForm(*this, NUMBER); \
     } \
 }
 AYU_INTEGRAL_CONVERSION(int8)
@@ -159,7 +159,7 @@ constexpr Tree::operator double () const {
         case in::REP_NULL: return +uni::nan;
         case in::REP_INT64: return data.as_int64;
         case in::REP_DOUBLE: return data.as_double;
-        default: in::throw_WrongForm(*this, NUMBER);
+        default: in::raise_TreeWrongForm(*this, NUMBER);
     }
 }
 constexpr Tree::operator Str () const {
@@ -167,7 +167,7 @@ constexpr Tree::operator Str () const {
         case in::REP_STATICSTRING:
         case in::REP_SHAREDSTRING:
             return Str(data.as_char_ptr, length);
-        default: in::throw_WrongForm(*this, STRING);
+        default: in::raise_TreeWrongForm(*this, STRING);
     }
 }
 constexpr Tree::operator AnyString () const& {
@@ -182,7 +182,7 @@ constexpr Tree::operator AnyString () const& {
                 const_cast<char*>(data.as_char_ptr), length
             );
         }
-        default: in::throw_WrongForm(*this, STRING);
+        default: in::raise_TreeWrongForm(*this, STRING);
     }
 }
 inline Tree::operator AnyString () && {
@@ -196,18 +196,18 @@ inline Tree::operator AnyString () && {
             new (this) Tree();
             return r;
         }
-        default: in::throw_WrongForm(*this, STRING);
+        default: in::raise_TreeWrongForm(*this, STRING);
     }
 }
 inline Tree::operator UniqueString16 () const {
     return to_utf16(Str(*this));
 }
 constexpr Tree::operator TreeArraySlice () const {
-    if (rep != in::REP_ARRAY) in::throw_WrongForm(*this, ARRAY);
+    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, ARRAY);
     return TreeArraySlice(data.as_array_ptr, length);
 }
 constexpr Tree::operator TreeArray () const& {
-    if (rep != in::REP_ARRAY) in::throw_WrongForm(*this, ARRAY);
+    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, ARRAY);
     if (data.as_array_ptr) {
         ++SharableBuffer<Tree>::header(data.as_array_ptr)->ref_count;
     }
@@ -216,7 +216,7 @@ constexpr Tree::operator TreeArray () const& {
     );
 }
 inline Tree::operator TreeArray () && {
-    if (rep != in::REP_ARRAY) in::throw_WrongForm(*this, ARRAY);
+    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, ARRAY);
     auto r = TreeArray::UnsafeConstructOwned(
         const_cast<Tree*>(data.as_array_ptr), length
     );
@@ -224,11 +224,11 @@ inline Tree::operator TreeArray () && {
     return r;
 }
 constexpr Tree::operator TreeObjectSlice () const {
-    if (rep != in::REP_OBJECT) in::throw_WrongForm(*this, OBJECT);
+    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, OBJECT);
     return TreeObjectSlice(data.as_object_ptr, length);
 }
 constexpr Tree::operator TreeObject () const& {
-    if (rep != in::REP_OBJECT) in::throw_WrongForm(*this, OBJECT);
+    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, OBJECT);
     if (data.as_object_ptr) {
         ++SharableBuffer<TreePair>::header(data.as_object_ptr)->ref_count;
     }
@@ -237,7 +237,7 @@ constexpr Tree::operator TreeObject () const& {
     );
 }
 inline Tree::operator TreeObject () && {
-    if (rep != in::REP_OBJECT) in::throw_WrongForm(*this, OBJECT);
+    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, OBJECT);
     auto r = TreeObject::UnsafeConstructOwned(
         const_cast<TreePair*>(data.as_object_ptr), length
     );
@@ -245,34 +245,34 @@ inline Tree::operator TreeObject () && {
     return r;
 }
 inline Tree::operator std::exception_ptr () const {
-    if (rep != in::REP_ERROR) in::throw_WrongForm(*this, ERROR);
+    if (rep != in::REP_ERROR) in::raise_TreeWrongForm(*this, ERROR);
     return *data.as_error_ptr;
 }
 
 constexpr const Tree* Tree::attr (Str key) const {
-    if (rep != in::REP_OBJECT) in::throw_WrongForm(*this, OBJECT);
+    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, OBJECT);
     for (auto& p : TreeObjectSlice(*this)) {
         if (p.first == key) return &p.second;
     }
     return null;
 }
 constexpr const Tree* Tree::elem (usize index) const {
-    if (rep != in::REP_ARRAY) in::throw_WrongForm(*this, ARRAY);
+    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, ARRAY);
     auto a = TreeArraySlice(*this);
     if (index < a.size()) return &a[index];
     else return null;
 }
 constexpr const Tree& Tree::operator[] (Str key) const {
     if (const Tree* r = attr(key)) return *r;
-    else throw GenericError(
+    else raise(e_General, cat(
         "This tree has no attr with key \"", key, '"'
-    );
+    ));
 }
 constexpr const Tree& Tree::operator[] (usize index) const {
     if (const Tree* r = elem(index)) return *r;
-    else throw GenericError(
+    else raise(e_General, cat(
         "This tree has no elem with index ", index
-    );
+    ));
 }
 
 } // ayu

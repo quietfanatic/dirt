@@ -95,11 +95,11 @@ static tap::TestSet tests ("dirt/ayu/dynamic", []{
     ok(d.has_value(), "Dynamic false bool is has_value");
     d = DynamicTest{4, 5};
     is(d.as<DynamicTest>().b, 5, "Can make Dynamic with struct type");
-    throws<CannotCoerce>([&]{ d.as<bool>(); }, "CannotCoerce");
-    throws<CannotDefaultConstruct>([&]{
+    throws_code<e_TypeCantCast>([&]{ d.as<bool>(); }, "TypeCantCast");
+    throws_code<e_TypeCantDefaultConstruct>([&]{
         Dynamic(Type::CppType<NoConstructor>());
-    }, "CannotDefaultConstruct");
-    throws<CannotDestroy>([&]{
+    }, "TypeCantDefaultConstruct");
+    throws_code<e_TypeCantDestroy>([&]{
         d = Dynamic(Type::CppType<NoDestructor>());
     }, "Cannot construct type without destructor");
 

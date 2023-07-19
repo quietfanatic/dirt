@@ -170,6 +170,12 @@ static_assert(sizeof(Tree) == sizeof(TreeRef));
  //  comparison, it'll just do ordinary array comparison.
 bool operator == (TreeRef a, TreeRef b) noexcept;
 
+ // Tried to get something out of a tree that was the wrong form.
+constexpr ErrorCode e_TreeWrongForm = "TreeWrongForm";
+ // Tried to get something (probably a number) out of a tree but its value was
+ // out of range for the requested type.  Example, uint8(Tree(257)).
+constexpr ErrorCode e_TreeCantRepresent = "TreeCantRepresent";
+
 }  // namespace ayu
 
 #include "internal/tree-inline.h"

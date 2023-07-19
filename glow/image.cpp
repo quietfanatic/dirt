@@ -2,6 +2,7 @@
 
 #include <cerrno>
 #include "../ayu/describe.h"
+#include "../ayu/serialize-to-tree.h"
 #include "gl.h"
 
 namespace glow {
@@ -14,9 +15,14 @@ Image::~Image () { delete[](pixels); }
 
 void SubImage::validate () {
     if (bounds != GINF) {
-        if (!proper(bounds)) throw SubImageBoundsNotProper(bounds);
+        if (!proper(bounds)) ayu::raise(e_SubImageBoundsNotProper,
+            ayu::item_to_string(&bounds));
         if (image && !contains(image->bounds(), bounds)) {
-            throw SubImageOutOfBounds(image, image->size, bounds);
+            ayu::raise(e_SubImageOutOfBounds, cat(
+                "SubImage is out of bounds of image at ", ayu::item_to_string(image),
+                "\n    Image size: ", ayu::item_to_string(&image->size),
+                "\n    SubImage bounds: ", ayu::item_to_string(&bounds)
+            ));
         }
     }
 }
@@ -102,18 +108,5 @@ AYU_DESCRIBE(glow::ImageTexture,
         attr("internalformat", &ImageTexture::internalformat, optional)
     ),
     init([](ImageTexture& v){ v.init(); })
-)
-
-AYU_DESCRIBE(glow::SubImageBoundsNotProper,
-    delegate(base<glow::GlowError>()),
-    elems( elem(&glow::SubImageBoundsNotProper::bounds) )
-)
-AYU_DESCRIBE(glow::SubImageOutOfBounds,
-    delegate(base<glow::GlowError>()),
-    elems(
-        elem(&glow::SubImageOutOfBounds::image),
-        elem(&glow::SubImageOutOfBounds::size),
-        elem(&glow::SubImageOutOfBounds::bounds)
-    )
 )
 

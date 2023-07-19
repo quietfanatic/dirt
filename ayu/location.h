@@ -89,10 +89,12 @@ IRI location_to_iri (LocationRef) noexcept;
  // and calling reference_from_location on that is equivalent to
  //     Resource("foo")["bar"][3]["qux"]
  //
- // Throws InvalidLocationIRI if there is anything between the # and the first /
- // or +, or if a + is followed by something that isn't a positive integer, or
- // if the IRI is just plain invalid.
+ // Throws if there is anything between the # and the first / or +, or if a + is
+ // followed by something that isn't a positive integer, or if the IRI is just
+ // plain invalid.
 Location location_from_iri (const IRI& iri);
+
+constexpr ErrorCode e_LocationIRIInvalid = "LocationIRIInvalid";
 
 ///// BASE MANAGEMENT
 

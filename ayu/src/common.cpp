@@ -1,7 +1,5 @@
 #include "../internal/common-internal.h"
 
-#include <cstdlib>
-
 #include "../../uni/utf.h"
 #include "../serialize-to-tree.h"
 
@@ -28,26 +26,33 @@ void dump_refs (Slice<Reference> rs) {
 }
 
 const char* Error::what () const noexcept {
-    auto derived = Pointer(this).try_downcast_to(Type(typeid(*this), true));
-    if (derived) {
-        DiagnosticSerialization _;
-        auto tree = Tree(TreeArray{
-            Tree(derived.type.name()), item_to_tree(derived)
-        });
-        mess_cache = cat(tree_to_string(tree, PRETTY), '\0');
-    }
-    else mess_cache = "?(Couldn't downcast error data)\0";
-    return mess_cache.data();
+    return (what_cache = cat(code, "; ", details)).c_str();
+}
+Error::~Error () { }
+
+void raise (ErrorCode code, AnyString details) {
+    Error e;
+    e.code = code;
+    e.details = move(details);
+    throw e;
 }
 
 [[gnu::cold]]
 void unrecoverable_exception (Str when) noexcept {
-    auto e = std::current_exception();
-    warn_utf8(cat(
-        "ERROR: Unrecoverable exception ", when, ":\n",
-        item_to_string(&e, PRETTY)
-    ));
-    std::terminate();
+    try {
+        throw std::current_exception();
+    } catch (std::exception& e) {
+        warn_utf8(cat(
+            "ERROR: Unrecoverable exception ", when, ":\n    ",
+            get_demangled_name(typeid(e)), ": ", e.what()
+        ));
+        std::terminate();
+    } catch (...) {
+        warn_utf8(cat(
+            "ERROR: Unrecoverable exception ", "of non-standard type ", when
+        ));
+        std::terminate();
+    }
 }
 
 } using namespace ayu;

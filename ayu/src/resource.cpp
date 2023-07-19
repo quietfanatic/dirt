@@ -4,7 +4,6 @@
 #include "../dynamic.h"
 #include "../describe.h"
 #include "../describe-standard.h"
-#include "../errors.h"
 #include "../parse.h"
 #include "../print.h"
 #include "../reference.h"
@@ -19,23 +18,68 @@
 namespace ayu {
 namespace in {
 
+[[noreturn]]
+static void raise_ResourceStateInvalid (StaticString tried, Resource res) {
+    raise(e_ResourceStateInvalid, cat(
+        "Can't ", tried, ' ', res.name().spec(),
+        " when its state is ", show_ResourceState(res.state())
+    ));
+}
+
+[[noreturn]]
+static void raise_ResourceValueEmpty (StaticString tried, Resource res) {
+    raise(e_ResourceValueInvalid, cat(
+        "Can't ", tried, ' ', res.name().spec(), " with empty value"
+    ));
+}
+
+[[noreturn]]
+static void raise_ResourceTypeRejected (
+    StaticString tried, Resource res, Type type
+) {
+    raise(e_ResourceTypeRejected, cat(
+        "Can't ", tried, ' ', res.name().spec(), " with type ", type.name()
+    ));
+}
+
+[[noreturn]]
+static void raise_would_break (
+    ErrorCode code, UniqueArray<std::pair<Location, Location>> breaks
+) {
+    UniqueString mess = cat(
+        (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
+        "loading resources would break ", breaks.size(), " reference(s): \n"
+    );
+    for (usize i = 0; i < breaks.size(); ++i) {
+        if (i > 5) break;
+        mess = cat(move(mess),
+            "    ", location_to_iri(breaks[i].first).spec(),
+            " -> ", location_to_iri(breaks[i].second).spec(), '\n'
+        );
+    }
+    if (breaks.size() > 5) {
+        mess = cat(move(mess), "    ...and ", breaks.size() - 5, " others.\n");
+    }
+    raise(code, move(mess));
+}
+
 static void verify_tree_for_scheme (
     Resource res,
     const ResourceScheme* scheme,
     const Tree& tree
 ) {
     if (tree.form == NULLFORM) {
-        throw EmptyResourceValue(res.name().spec());
+        raise_ResourceValueEmpty("load", res);
     }
     auto a = TreeArraySlice(tree);
     if (a.size() == 2) {
         Type type = Type(Str(a[0]));
         if (!scheme->accepts_type(type)) {
-            throw UnacceptableResourceType(res.name().spec(), type);
+            raise_ResourceTypeRejected("load", res, type);
         }
     }
     else {
-         // TODO: Figure out/remember what to do here
+         // TODO: throw ResourceValueInvalid
         require(false);
     }
 }
@@ -64,11 +108,11 @@ StaticString show_ResourceState (ResourceState state) {
 
 Resource::Resource (const IRI& name) {
     if (!name || name.has_fragment()) {
-        throw InvalidResourceName(name.possibly_invalid_spec());
+        raise(e_ResourceNameInvalid, name.possibly_invalid_spec());
     }
     auto scheme = universe().require_scheme(name);
     if (!scheme->accepts_iri(name)) {
-        throw UnacceptableResourceName(name.spec());
+        raise(e_ResourceNameRejected, name.spec());
     }
     auto& resources = universe().resources;
     auto iter = resources.find(name.spec());
@@ -90,11 +134,11 @@ Resource::Resource (const IRI& name, Dynamic&& value) :
     Resource(name)
 {
     if (!value.has_value()) {
-        throw EmptyResourceValue(name.spec());
+        raise_ResourceValueEmpty("construct", *this);
     }
     if (data->state == UNLOADED) set_value(move(value));
     else {
-        throw InvalidResourceState("construct", *this);
+        raise_ResourceStateInvalid("construct", *this);
     }
 }
 
@@ -112,12 +156,12 @@ Dynamic& Resource::get_value () const {
 }
 void Resource::set_value (Dynamic&& value) const {
     if (!value.has_value()) {
-        throw EmptyResourceValue(data->name.spec());
+        raise_ResourceValueEmpty("set_value", *this);
     }
     if (data->name) {
         auto scheme = universe().require_scheme(data->name);
         if (!scheme->accepts_type(value.type)) {
-            throw UnacceptableResourceType(data->name.spec(), value.type);
+            raise_ResourceTypeRejected("set_value", *this, value.type);
         }
     }
     switch (data->state) {
@@ -127,7 +171,7 @@ void Resource::set_value (Dynamic&& value) const {
         case LOAD_CONSTRUCTING:
         case LOADED:
             break;
-        default: throw InvalidResourceState("set_value", *this);
+        default: raise_ResourceStateInvalid("set_value", *this);
     }
     data->value = move(value);
 }
@@ -152,7 +196,7 @@ void load (Slice<Resource> reses) {
         case UNLOADED: rs.push_back(res); break;
         case LOADED:
         case LOAD_CONSTRUCTING: continue;
-        default: throw InvalidResourceState("load", res);
+        default: raise_ResourceStateInvalid("load", res);
     }
     try {
         for (auto res : rs) res.data->state = LOAD_CONSTRUCTING;
@@ -186,10 +230,10 @@ void load (Slice<Resource> reses) {
 
 void rename (Resource old_res, Resource new_res) {
     if (old_res.data->state != LOADED) {
-        throw InvalidResourceState("rename from", old_res);
+        raise_ResourceStateInvalid("rename from", old_res);
     }
     if (new_res.data->state != UNLOADED) {
-        throw InvalidResourceState("rename to", new_res);
+        raise_ResourceStateInvalid("rename to", new_res);
     }
     new_res.data->value = move(old_res.data->value);
     new_res.data->state = LOADED;
@@ -201,7 +245,7 @@ void save (Resource res) {
 }
 void save (Slice<Resource> reses) {
     for (auto res : reses) {
-        if (res.data->state != LOADED) throw InvalidResourceState("save", res);
+        if (res.data->state != LOADED) raise_ResourceStateInvalid("save", res);
     }
     try {
         for (auto res : reses) res.data->state = SAVE_VERIFYING;
@@ -212,14 +256,11 @@ void save (Slice<Resource> reses) {
             for (usize i = 0; i < reses.size(); i++) {
                 Resource res = reses[i];
                 if (!res.data->value.has_value()) {
-                    throw EmptyResourceValue(res.data->name.spec());
+                    raise_ResourceValueEmpty("save", res);
                 }
                 auto scheme = universe().require_scheme(res.data->name);
                 if (!scheme->accepts_type(res.data->value.type)) {
-                    throw UnacceptableResourceType(
-                        res.data->name.spec(),
-                        res.data->value.type
-                    );
+                    raise_ResourceTypeRejected("save", res, res.data->value.type);
                 }
                 auto filename = scheme->get_file(res.data->name);
                 auto contents = tree_to_string(
@@ -252,7 +293,7 @@ void unload (Slice<Resource> reses) {
     switch (res.data->state) {
         case UNLOADED: continue;
         case LOADED: rs.push_back(res); break;
-        default: throw InvalidResourceState("unload", res);
+        default: raise_ResourceStateInvalid("unload", res);
     }
      // Verify step
     try {
@@ -263,7 +304,7 @@ void unload (Slice<Resource> reses) {
                 case UNLOADED: continue;
                 case UNLOAD_VERIFYING: continue;
                 case LOADED: others.emplace_back(&*other); break;
-                default: throw InvalidResourceState("scan for unload", &*other);
+                default: raise_ResourceStateInvalid("scan for unload", &*other);
             }
         }
          // If we're unloading everything, no need to do any scanning.
@@ -280,7 +321,7 @@ void unload (Slice<Resource> reses) {
                 );
             }
              // Then check if any other resources contain references in that set
-            UniqueArray<UnloadBreak> breaks;
+            UniqueArray<std::pair<Location, Location>> breaks;
             for (auto other : others) {
                 scan_resource_references(
                     other,
@@ -298,7 +339,9 @@ void unload (Slice<Resource> reses) {
                     }
                 );
             }
-            if (breaks) throw UnloadWouldBreak(move(breaks));
+            if (breaks) {
+                raise_would_break(e_ResourceUnloadWouldBreak, move(breaks));
+            }
         }
     }
     catch (...) {
@@ -327,7 +370,7 @@ void force_unload (Slice<Resource> reses) {
     switch (res.data->state) {
         case UNLOADED: continue;
         case LOADED: rs.push_back(res); break;
-        default: throw InvalidResourceState("force_unload", res);
+        default: raise_ResourceStateInvalid("force_unload", res);
     }
      // Skip straight to destruct step
     for (auto res : rs) res.data->state = UNLOAD_COMMITTING;
@@ -348,7 +391,7 @@ void reload (Resource res) {
 void reload (Slice<Resource> reses) {
     for (auto res : reses)
     if (res.data->state != LOADED) {
-        throw InvalidResourceState("reload", res);
+        raise_ResourceStateInvalid("reload", res);
     }
      // Preparation (this won't throw)
     for (auto res : reses) {
@@ -377,7 +420,7 @@ void reload (Slice<Resource> reses) {
                 case UNLOADED: continue;
                 case RELOAD_VERIFYING: continue;
                 case LOADED: others.emplace_back(&*other); break;
-                default: throw InvalidResourceState("scan for reload", &*other);
+                default: raise_ResourceStateInvalid("scan for reload", &*other);
             }
         }
          // If we're reloading everything, no need to do any scanning.
@@ -394,7 +437,7 @@ void reload (Slice<Resource> reses) {
                 );
             }
              // Then build set of ref-refs to update.
-            UniqueArray<ReloadBreak> breaks;
+            UniqueArray<std::pair<Location, Location>> breaks;
             for (auto other : others) {
                 scan_resource_references(
                     other,
@@ -410,13 +453,15 @@ void reload (Slice<Resource> reses) {
                             updates.emplace(ref_ref, new_ref);
                         }
                         catch (std::exception&) {
-                             breaks.emplace_back(loc, iter->second, std::current_exception());
+                             breaks.emplace_back(loc, iter->second);
                         }
                         return false;
                     }
                 );
             }
-            if (breaks) throw ReloadWouldBreak(move(breaks));
+            if (breaks) {
+                raise_would_break(e_ResourceReloadWouldBreak, move(breaks));
+            }
         }
     }
     catch (...) {
@@ -529,7 +574,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     is(input.state(), LOADED, "Resource state is LOADED after loading");
     ok(input.value().has_value(), "Resource has value after loading");
 
-    throws<InvalidResourceState>([&]{
+    throws_code<e_ResourceStateInvalid>([&]{
         Resource(input.name(), Dynamic(3));
     }, "Creating resource throws on duplicate");
 
@@ -545,7 +590,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     is(input["foo"][1].get_as<int32>(), 4, "Value was generated properly (0)");
     is(input["bar"][1].get_as<std::string>(), "qux", "Value was generated properly (1)");
 
-    throws<InvalidResourceState>([&]{ save(output); }, "save throws on unloaded resource");
+    throws_code<e_ResourceStateInvalid>([&]{ save(output); }, "save throws on unloaded resource");
 
     doc->delete_named("foo");
     doc->new_named<int32>("asdf", 51);
@@ -562,7 +607,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     ok(source_exists(output), "source_exists returns true before deletion");
     doesnt_throw([&]{ remove_source(output); }, "remove_source");
     ok(!source_exists(output), "source_exists returns false after deletion");
-    throws<OpenFailed>([&]{
+    throws_code<e_OpenFailed>([&]{
         tree_from_file(resource_filename(output.name()));
     }, "Can't open file after calling remove_source");
     doesnt_throw([&]{ remove_source(output); }, "Can call remove_source twice");
@@ -590,7 +635,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     is(tree_from_file(resource_filename(output.name())), tree_from_string(
         "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _0:[ayu::Reference #/bar+1] _1:[int32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct reference as location");
-    throws<OpenFailed>([&]{
+    throws_code<e_OpenFailed>([&]{
         load(badinput);
     }, "Can't load file with incorrect reference in it");
 
@@ -620,7 +665,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
         unicode2["val"][1].address_as<std::string>(),
         "Loading pointer with \"#\" for own file worked."
     );
-    throws<UnloadWouldBreak>([&]{
+    throws_code<e_ResourceUnloadWouldBreak>([&]{
         unload(input);
     }, "Can't unload resource when there are references to it");
     doesnt_throw([&]{
@@ -630,10 +675,10 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     doesnt_throw([&]{
         load(rec1);
     }, "Can load resources with reference cycle");
-    throws<UnloadWouldBreak>([&]{
+    throws_code<e_ResourceUnloadWouldBreak>([&]{
         unload(rec1);
     }, "Can't unload part of a reference cycle 1");
-    throws<UnloadWouldBreak>([&]{
+    throws_code<e_ResourceUnloadWouldBreak>([&]{
         unload(rec2);
     }, "Can't unload part of a reference cycle 2");
     doesnt_throw([&]{
@@ -646,7 +691,7 @@ static tap::TestSet tests ("dirt/ayu/resource", []{
     }, "Can reload file with references to it");
     isnt(rec1["ref"][1].get_as<int*>(), old_p, "Reference to reloaded file was updated");
 
-    throws<UnacceptableResourceType>([&]{
+    throws_code<e_ResourceTypeRejected>([&]{
         load("ayu-test:/wrongtype.ayu");
     }, "ResourceScheme::accepts_type rejects wrong type");
 

@@ -26,6 +26,7 @@ namespace ayu {
  // manipulate any Types until main() starts.
 struct ResourceScheme {
      // Must be a valid scheme name matching [a-z][a-z0-9+.-]*
+     // TODO: Store an IRI here instead.
     const AnyString scheme_name;
 
      // If you want to do some of your own validation besides the standard IRI
@@ -68,6 +69,15 @@ struct ResourceScheme {
     void activate () const;
     void deactivate () const;
 };
+
+ResourceScheme* get_resource_scheme (Str name);
+
+ // The name for a resource scheme was not a valid IRI scheme.
+constexpr ErrorCode e_ResourceSchemeNameInvalid = "ResourceSchemeNameInvalid";
+ // Tried to register a scheme name that was already registered.
+constexpr ErrorCode e_ResourceSchemeNameDuplicate = "ResourceSchemeNameDuplicate";
+ // Tried to find a resoursce scheme that didn't exist.
+constexpr ErrorCode e_ResourceSchemeNotFound = "ResourceSchemeNotFound";
 
  // Maps resource names to the contents of a folder.
 struct FileResourceScheme : ResourceScheme {

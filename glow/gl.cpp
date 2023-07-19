@@ -3,7 +3,6 @@
 #include <iomanip>
 #include <sstream>
 #include <SDL2/SDL_video.h>
-#include "../ayu/describe.h"
 
 using namespace std::literals;
 
@@ -42,16 +41,10 @@ void throw_on_glGetError (
     std::source_location srcloc
 ) {
     GLenum err = p_glGetError<>();
-    if (err) throw GLError(err, StaticString(function_name), srcloc);
+    if (err) ayu::raise(e_GLError, cat(
+        "GL error code ", err, " from ", function_name,
+        " in ", srcloc.function_name(), " at ", srcloc.file_name(), ':', srcloc.line()
+    ));
 }
 
 } using namespace glow;
-
-AYU_DESCRIBE(glow::GLError,
-    delegate(base<glow::GlowError>()),
-    elems(
-        elem(&glow::GLError::error_code),
-        elem(&glow::GLError::function_name),
-        elem(&glow::GLError::srcloc)
-    )
-)

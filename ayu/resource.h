@@ -223,4 +223,29 @@ AnyString resource_filename (Resource);
  // resources that are in the process of being loaded, reloaded, or unloaded.
 UniqueArray<Resource> loaded_resources ();
 
+///// RESOURCE ERROR CODES
+
+ // Tried to use an invalid IRI as a resource name
+constexpr ErrorCode e_ResourceNameInvalid = "ResourceNameInvalid";
+ // The ResourceScheme associated with the resource name rejected the name.
+constexpr ErrorCode e_ResourceNameRejected = "ResourceNameRejected";
+ // The ResourceScheme associated with the resource did not accept the type
+ // provided for the resource.  This can happen either while loading from a
+ // file, or when setting a resource's value programmatically.
+constexpr ErrorCode e_ResourceTypeRejected = "ResourceTypeRejected";
+ // Tried to create a resource with an empty Dynamic, or load from a tree that
+ // didn't correspond to a valid Dynamic.
+constexpr ErrorCode e_ResourceValueInvalid = "ResourceValueInvalid";
+ // Tried to perform an operation on a resource, but its state() was not valid
+ // for that operations.
+constexpr ErrorCode e_ResourceStateInvalid = "ResourceStateInvalid";
+ // Tried to unload a resource, but there's still a reference somewhere pointing
+ // to an item inside it.
+constexpr ErrorCode e_ResourceUnloadWouldBreak = "ResourceUnloadWouldBreak";
+ // Tried to reload a resource, but there was a reference pointing to an item
+ // inside of it which couldn't be updated for some reason.
+constexpr ErrorCode e_ResourceReloadWouldBreak = "ResourceReloadWouldBreak";
+ // Failed to delete a resource's source file.
+constexpr ErrorCode e_ResourceRemoveSourceFailed = "ResourceRemoveSourceFailed";
+
 } // namespace ayu

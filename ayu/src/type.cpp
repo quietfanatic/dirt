@@ -1,27 +1,50 @@
 #include "../type.h"
 
 #include "../describe.h"
-#include "../errors.h"
 #include "descriptors-private.h"
 
 namespace ayu {
+namespace in {
+
+[[noreturn]]
+static void raise_TypeCantDefaultConstruct (Type t) {
+    raise(e_TypeCantDefaultConstruct, cat(
+        "Type ", t.name(), " has no default constructor."
+    ));
+}
+
+[[noreturn]]
+static void raise_TypeCantDestroy (Type t) {
+    raise(e_TypeCantDestroy, cat(
+        "Type ", t.name(), " has no destructor."
+    ));
+}
+
+[[noreturn]]
+static void raise_TypeCantCast (Type from, Type to) {
+    raise(e_TypeCantCast, cat(
+        "Can't cast from ", from.name(), " to ", to.name()
+    ));
+}
+
+} using namespace in;
 
 void Type::default_construct (void* target) const {
-    auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc->default_construct) throw CannotDefaultConstruct(*this);
+    auto desc = DescriptionPrivate::get(*this);
+    if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
      // Don't allow constructing objects that can't be destroyed
-    if (!desc->destroy) throw CannotDestroy(*this);
+    if (!desc->destroy) raise_TypeCantDestroy(*this);
     desc->default_construct(target);
 }
 
 void Type::destroy (Mu* p) const {
-    auto desc = in::DescriptionPrivate::get(*this);
-    if (!desc->destroy) throw CannotDestroy(*this);
+    auto desc = DescriptionPrivate::get(*this);
+    if (!desc->destroy) raise_TypeCantDestroy(*this);
     desc->destroy(p);
 }
 
 void* Type::allocate () const noexcept {
-    auto desc = in::DescriptionPrivate::get(*this);
+    auto desc = DescriptionPrivate::get(*this);
     return expect(std::aligned_alloc(desc->cpp_align, desc->cpp_size));
 }
 
@@ -30,10 +53,10 @@ void Type::deallocate (void* p) const noexcept {
 }
 
 Mu* Type::default_new () const {
-    auto desc = in::DescriptionPrivate::get(*this);
+    auto desc = DescriptionPrivate::get(*this);
      // Throw before allocating
-    if (!desc->default_construct) throw CannotDefaultConstruct(*this);
-    if (!desc->destroy) throw CannotDestroy(*this);
+    if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
+    if (!desc->destroy) raise_TypeCantDestroy(*this);
     void* p = allocate();
     desc->default_construct(p);
     return (Mu*)p;
@@ -47,7 +70,7 @@ void Type::delete_ (Mu* p) const {
 Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (!to || !p) return null;
     if (*this == to.remove_readonly()) return p;
-    auto desc = in::DescriptionPrivate::get(*this);
+    auto desc = DescriptionPrivate::get(*this);
 
     if (auto delegate = desc->delegate_acr())
     if (Mu* a = delegate->address(*p))
@@ -74,7 +97,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
 Mu* Type::upcast_to (Type to, Mu* p) const {
     if (!p) return null;
     if (Mu* r = try_upcast_to(to, p)) return r;
-    else throw CannotCoerce(*this, to);
+    else raise_TypeCantCast(*this, to);
 }
 
 Mu* Type::try_downcast_to (Type to, Mu* p) const {
@@ -82,7 +105,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
      // Downcasting is unsafe anyway, so allow downcasting from readonly to
      // non-readonly.
     if (this->remove_readonly() == to.remove_readonly()) return p;
-    auto desc = in::DescriptionPrivate::get(to);
+    auto desc = DescriptionPrivate::get(to);
 
      // It's okay to pass null to ->type() because the only accessor that
      // actually checks it doesn't have an inverse_address.
@@ -114,7 +137,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
 Mu* Type::downcast_to (Type to, Mu* p) const {
     if (!p) return p;
     if (Mu* r = try_downcast_to(to, p)) return r;
-    else throw CannotCoerce(*this, to);
+    else raise_TypeCantCast(*this, to);
 }
 
 Mu* Type::try_cast_to (Type to, Mu* p) const {
@@ -125,7 +148,7 @@ Mu* Type::try_cast_to (Type to, Mu* p) const {
 Mu* Type::cast_to (Type to, Mu* p) const {
     if (!p) return p;
     if (Mu* r = try_cast_to(to, p)) return r;
-    else throw CannotCoerce(*this, to);
+    else raise_TypeCantCast(*this, to);
 }
 
 using namespace in;

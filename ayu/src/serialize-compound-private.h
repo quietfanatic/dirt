@@ -1,7 +1,6 @@
 #pragma once
 #include "../serialize-compound.h"
 
-#include "../errors.h"
 #include "../reference.h"
 #include "../resource.h"
 #include "descriptors-private.h"
@@ -38,6 +37,16 @@ bool ser_maybe_elem (const Traversal&, usize, AccessMode, CB);
  // Throws if elem is out of bounds
 template <class CB>
 void ser_elem (const Traversal&, usize, AccessMode, CB);
+
+ ///// Exceptions
+[[noreturn]]
+void raise_AttrNotFound (Type, const AnyString&);
+[[noreturn]]
+void raise_ElemNotFound (Type, usize);
+[[noreturn]]
+void raise_AttrsNotSupported (Type);
+[[noreturn]]
+void raise_ElemsNotSupported (Type);
 
 ///// INLINE DEFINITIONS
 
@@ -102,7 +111,7 @@ bool ser_maybe_attr (
         });
         return r;
     }
-    else throw_noinline<NoAttrs>();
+    else raise_AttrsNotSupported(trav.desc);
 }
 
 template <class CB>
@@ -110,7 +119,7 @@ void ser_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, CB cb
 ) {
     if (!ser_maybe_attr(trav, key, mode, cb)) {
-        throw_noinline<AttrNotFound>(key);
+        raise_AttrNotFound(trav.desc, key);
     }
 }
 
@@ -143,7 +152,7 @@ bool ser_maybe_elem (
         });
         return found;
     }
-    else throw_noinline<NoElems>();
+    else raise_ElemsNotSupported(trav.desc);
 }
 
 template <class CB>
@@ -151,7 +160,7 @@ void ser_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
 ) {
     if (!ser_maybe_elem(trav, index, mode, cb)) {
-        throw_noinline<ElemNotFound>(index);
+        raise_ElemNotFound(trav.desc, index);
     }
 }
 

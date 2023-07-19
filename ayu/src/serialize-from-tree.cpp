@@ -104,23 +104,26 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
 
      // If we got here, we failed to find any method to from_tree this item.
      // Go through maybe a little too much effort to figure out what went wrong.
-    if (tree->form == OBJECT &&
-        (trav.desc->values() || trav.desc->accepts_array())
-    ) {
-        throw InvalidForm(tree->form);
+    {
+        bool object_rejected = tree->form == OBJECT &&
+            (trav.desc->values() || trav.desc->accepts_array());
+        bool array_rejected = tree->form == ARRAY &&
+            (trav.desc->values() || trav.desc->accepts_object());
+        bool other_rejected =
+            trav.desc->accepts_array() || trav.desc->accepts_object();
+        if (object_rejected || array_rejected || other_rejected) {
+            raise_FromTreeFormRejected(trav.desc, tree->form);
+        }
+        else if (trav.desc->values()) {
+            raise(e_FromTreeValueNotFound, cat(
+                "No value for type ", Type(trav.desc).name(),
+                " matches the provided tree ", tree_to_string(tree)
+            ));
+        }
+        else raise(e_FromTreeNotSupported, cat(
+            "Item of type ", Type(trav.desc).name(), " does not support from_tree."
+        ));
     }
-    else if (tree->form == ARRAY &&
-        (trav.desc->values() || trav.desc->accepts_object())
-    ) {
-        throw InvalidForm(tree->form);
-    }
-    else if (trav.desc->accepts_array() || trav.desc->accepts_object()) {
-        throw InvalidForm(tree->form);
-    }
-    else if (trav.desc->values()) {
-        throw NoValueForName(tree);
-    }
-    else throw FromTreeNotSupported();
 
     done:
      // Now register swizzle and init ops.  We're doing it now instead of at the
@@ -192,7 +195,7 @@ void item_from_tree (
 ) {
     PushBaseLocation pbl(*loc ? *loc : Location(item));
     if (tree->form == UNDEFINED) {
-        throw GenericError("Undefined tree passed to item_from_tree");
+        raise(e_FromTreeFormRejected, "Undefined tree given to item_from_tree");
     }
     if (flags & DELAY_SWIZZLE && IFTContext::current) {
          // Delay swizzle and inits to the outer item_from_tree call.  Basically
@@ -210,6 +213,14 @@ void item_from_tree (
         context.do_swizzles();
         context.do_inits();
     }
+}
+
+void raise_FromTreeFormRejected (Type t, TreeForm f) {
+    raise(e_FromTreeFormRejected, cat(
+        "Item of type ", t.name(),
+        " does not support from_tree with a tree of form ",
+        item_to_string(&f)
+    ));
 }
 
 } // ayu::in

@@ -5,7 +5,8 @@
 #include <cxxabi.h>
 #endif
 
-#include "../errors.h"
+#include "../internal/descriptors-internal.h"
+#include "../type.h"
 
 namespace ayu {
 namespace in {
@@ -33,7 +34,7 @@ static void init_names () {
 
 const Description* register_description (const Description* desc) {
     if (registry().initted) {
-        throw GenericError("register_description called after init time");
+        raise(e_General, "register_description called after init time");
     }
     auto [p, e] = registry().by_cpp_type.emplace(*desc->cpp_type, desc);
     return p->second;
@@ -48,7 +49,9 @@ const Description* get_description_for_type_info (const std::type_info& t) noexc
 const Description* need_description_for_type_info (const std::type_info& t) {
     auto desc = get_description_for_type_info(t);
     if (desc) return desc;
-    else throw UnknownType(t);
+    else raise(e_TypeUnknown, cat(
+        "C++ type ", get_demangled_name(t), " doesn't have an AYU_DESCRIBE"
+    ));
 }
 
 const Description* get_description_for_name (Str name) noexcept {
@@ -61,7 +64,9 @@ const Description* get_description_for_name (Str name) noexcept {
 const Description* need_description_for_name (Str name) {
     auto desc = get_description_for_name(name);
     if (desc) return desc;
-    else throw TypeNotFound(name);
+    else raise(e_TypeNotFound, cat(
+        "Did not find type named ", name
+    ));
 }
 
 StaticString get_description_name (const Description* desc) {

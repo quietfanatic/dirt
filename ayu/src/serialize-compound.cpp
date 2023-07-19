@@ -4,7 +4,7 @@
 #include "../serialize-to-tree.h"
 
 namespace ayu {
-using namespace in;
+namespace in {
 
  // Pulling out this callback to avoid redundant instantiations of
  // ser_maybe_attr<> and ser_maybe_elem<> due to all lambdas having unique
@@ -15,6 +15,8 @@ struct ReceiveReference {
         new (&r) Reference(child.to_reference());
     }
 };
+
+} using namespace in;
 
 ///// ATTRS
 
@@ -44,15 +46,21 @@ void in::ser_collect_keys (
         }
         else [[unlikely]] {
              // General case, any type that serializes to an array of strings.
-            acr->read(*trav.address, [keys_type, &keys](Mu& v){
+            acr->read(*trav.address, [&trav, keys_type, &keys](Mu& v){
                  // We might be able to optimize this more, but it's not that
                  // important.
                 auto keys_tree = item_to_tree(Pointer(keys_type, &v));
-                if (keys_tree.form != ARRAY) throw InvalidKeysType(keys_type);
+                if (keys_tree.form != ARRAY) goto keys_type_invalid;
                 for (const Tree& key : TreeArraySlice(keys_tree)) {
-                    if (key.form != STRING) throw InvalidKeysType(keys_type);
+                    if (key.form != STRING) goto keys_type_invalid;
                     ser_collect_key(keys, AnyString(move(key)));
                 }
+                return;
+                keys_type_invalid: raise(e_KeysTypeInvalid, cat(
+                    "Item of type ", Type(trav.desc).name(),
+                    " gave keys() type ", keys_type.name(),
+                    " which does not serialize to an array of strings"
+                ));
             });
         }
     }
@@ -73,7 +81,7 @@ void in::ser_collect_keys (
             ser_collect_keys(child, keys);
         });
     }
-    else throw NoAttrs();
+    else raise_AttrsNotSupported(trav.desc);
 }
 
 AnyArray<AnyString> item_get_keys (
@@ -141,7 +149,7 @@ void in::ser_claim_keys (
                      // longer optional.
                     optional = false;
                 }
-                else if (!optional) throw MissingAttr(key);
+                else if (!optional) raise_AttrMissing(trav.desc, key);
             }
             return;
         }
@@ -169,7 +177,7 @@ void in::ser_claim_keys (
             else if (optional || acr->attr_flags & (ATTR_OPTIONAL|ATTR_INCLUDE)) {
                  // Allow omitting optional or included attrs
             }
-            else throw MissingAttr(attr->key);
+            else raise_AttrMissing(trav.desc, attr->key);
         }
          // Then check included attrs
         for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -190,14 +198,14 @@ void in::ser_claim_keys (
             [&keys, optional](const Traversal& child)
         { ser_claim_keys(child, keys, optional); });
     }
-    else throw NoAttrs();
+    else raise_AttrsNotSupported(trav.desc);
 }
 
 void in::ser_set_keys (
     const Traversal& trav, UniqueArray<AnyString>&& keys
 ) {
     ser_claim_keys(trav, keys, false);
-    if (keys) throw_noinline<UnwantedAttr>(keys[0]);
+    if (keys) raise_AttrRejected(trav.desc, keys[0]);
 }
 
 void item_set_keys (
@@ -249,7 +257,7 @@ usize in::ser_get_length (const Traversal& trav) {
         });
         return len;
     }
-    else throw NoElems();
+    else raise_ElemsNotSupported(trav.desc);
 }
 
 usize item_get_length (const Reference& item, LocationRef loc) {
@@ -274,7 +282,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
                 expected = reinterpret_cast<const usize&>(v);
             });
             if (len != expected) {
-                throw WrongLength(expected, expected, len);
+                raise_LengthRejected(trav.desc, expected, expected, len);
             }
         }
     }
@@ -285,7 +293,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             elems->elem(min-1)->acr()->attr_flags & ATTR_OPTIONAL
         ) min -= 1;
         if (len < min || len > elems->n_elems) {
-            throw WrongLength(min, elems->n_elems, len);
+            raise_LengthRejected(trav.desc, min, elems->n_elems, len);
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
@@ -293,7 +301,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
             ser_set_length(child, len);
         });
     }
-    else throw NoElems();
+    else raise_ElemsNotSupported(trav.desc);
 }
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
@@ -317,6 +325,51 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
         [&r, index](const Traversal& trav)
     { ser_elem(trav, index, ACR_READ, ReceiveReference(r)); });
     return r;
+}
+
+void in::raise_AttrsNotSupported (Type item_type) {
+    raise(e_AttrsNotSupported, cat(
+        "Item of type ", item_type.name(),
+        " does not support behaving like an ", "object."
+    ));
+}
+void raise_AttrMissing (Type item_type, const AnyString& key) {
+    raise(e_AttrMissing, cat(
+        "Item of type ", item_type.name(), " missing required key ", key
+    ));
+}
+void raise_AttrRejected (Type item_type, const AnyString& key) {
+    raise(e_AttrRejected, cat(
+        "Item of type ", item_type.name(), " given unwanted key ", key
+    ));
+}
+void in::raise_ElemsNotSupported (Type item_type) {
+    raise(e_ElemsNotSupported, cat(
+        "Item of type ", item_type.name(),
+        " does not support behaving like an ", "array."
+    ));
+}
+void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
+    UniqueString mess = min == max ? cat(
+        "Item of type ", item_type.name(), " given wrong length ", got,
+        " (expected ", min, ")"
+    ) : cat(
+        "Item of type ", item_type.name(), " given wrong length ", got,
+        " (expected between ", min, " and ", max, ")"
+    );
+    raise(e_LengthRejected, move(mess));
+}
+
+void in::raise_AttrNotFound (Type item_type, const AnyString& key) {
+    raise(e_AttrNotFound, cat(
+        "Item of type ", item_type.name(), " has no attribute with key ", key
+    ));
+}
+
+void in::raise_ElemNotFound (Type item_type, usize index) {
+    raise(e_ElemNotFound, cat(
+        "Item of type ", item_type.name(), " has no element at index ", index
+    ));
 }
 
 } using namespace ayu;

@@ -4,7 +4,6 @@
 
 #include "../common.h"
 #include "../describe.h"
-#include "../errors.h"
 #include "../reference.h"
 
 namespace ayu {
@@ -98,14 +97,18 @@ void* Document::allocate (Type t) noexcept {
 }
 
 void* Document::allocate_named (Type t, AnyString name) {
-    if (!name) throw DocumentInvalidName(move(name));
+    if (!name) {
+        raise(e_DocumentItemNameInvalid, "Empty string");
+    }
     usize id = parse_numbered_name(name);
     if (id == usize(-1) && name[0] == '_') {
-        throw DocumentInvalidName(move(name));
+        raise(e_DocumentItemNameInvalid,
+            cat("Names starting with _ are reserved: ", name)
+        );
     }
     auto ref = DocumentItemRef(data, name);
     if (ref.header) {
-        throw DocumentDuplicateName(move(name));
+        raise(e_DocumentItemNameDuplicate, move(name));
     }
 
     if (id == usize(-1)) {
@@ -115,7 +118,7 @@ void* Document::allocate_named (Type t, AnyString name) {
     }
     else { // Actually a numbered item
         if (id > data->next_id + 10000) {
-            throw GenericError("Unreasonable growth of next_id");
+            raise(e_General, "Unreasonable growth of _next_id");
         }
         if (id >= data->next_id) data->next_id = id + 1;
         auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
@@ -151,7 +154,7 @@ void Document::delete_named (Str name) {
         free(ref.header);
         return;
     }
-    else throw DocumentDeleteMissing(name);
+    else raise(e_DocumentItemNotFound, name);
 }
 
 void Document::deallocate (void* p) noexcept {

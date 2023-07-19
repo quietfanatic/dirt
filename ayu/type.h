@@ -175,6 +175,19 @@ inline bool operator != (Type a, Type b) {
     return a.data != b.data;
 }
 
+ // Tried to map a C++ type to an AYU type, but AYU doesn't know about that type
+ // (it has no AYU_DESCRIBE description).
+constexpr ErrorCode e_TypeUnknown = "TypeUnknown";
+ // Tried to look up a type be name but there is no registered type with that
+ // name.
+constexpr ErrorCode e_TypeNotFound = "TypeNotFound";
+ // Tried to default construct a type that has no default constructor.
+constexpr ErrorCode e_TypeCantDefaultConstruct = "TypeCantDefaultConstruct";
+ // Tried to construct or destroy a type that has no destructor.
+constexpr ErrorCode e_TypeCantDestroy = "TypeCantDestroy";
+ // Tried to cast between types that can't be casted between.
+constexpr ErrorCode e_TypeCantCast = "TypeCantCast";
+
 } // namespace ayu
 
  // Allow hashing Type for std::unordered_map

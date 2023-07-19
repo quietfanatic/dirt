@@ -56,4 +56,12 @@ inline void item_to_file (
     return tree_to_file(item_to_tree(item, loc), move(filename), opts);
 }
 
+ // Called item_to_tree on an item that has no way of doing the to_tree
+ // operation.  item_to_tree can also throw errors with the error codes in
+ // serialize-compound.h.
+constexpr ErrorCode e_ToTreeNotSupported = "ToTreeNotSupported";
+ // Called item_to_tree on an item that only has a values() descriptor, but the
+ // given tree did not match any of its values.
+constexpr ErrorCode e_ToTreeValueNotFound = "ToTreeValueNotFound";
+
 } // namespace ayu

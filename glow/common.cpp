@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <SDL2/SDL_error.h>
-#include "../ayu/describe.h"
 #include "../uni/strings.h"
 #include "../uni/utf.h"
 #include "gl.h"
@@ -25,8 +24,3 @@ void requirement_failed_sdl (std::source_location loc) {
 }
 
 } using namespace glow;
-
-AYU_DESCRIBE(glow::GlowError,
-    delegate(base<ayu::Error>())
-)
-

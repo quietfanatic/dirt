@@ -108,9 +108,9 @@ struct Reference {
         return r;
     }
 
-    [[noreturn]] void throw_WriteReadonly () const;
+    [[noreturn]] void raise_WriteReadonly () const;
     void require_writeable () const {
-        if (readonly()) throw_WriteReadonly();
+        if (readonly()) raise_WriteReadonly();
     }
 
      // Returns null if this reference is not addressable.
@@ -129,11 +129,11 @@ struct Reference {
         return (T*)address_as(Type::CppType<T>());
     }
 
-    [[noreturn]] void throw_Unaddressable () const;
+    [[noreturn]] void raise_Unaddressable () const;
     Mu* require_address () const {
         if (!*this) return null;
         if (auto a = address()) return a;
-        else throw_Unaddressable();
+        else raise_Unaddressable();
     }
      // Can throw either CannotCoerce or UnaddressableReference
     Mu* require_address_as (Type t) const {
@@ -291,6 +291,13 @@ inline bool operator == (const Reference& a, const Reference& b) {
 inline bool operator != (const Reference& a, const Reference& b) {
     return !(a == b);
 }
+
+///// Reference error codes
+
+ // Tried to write through a readonly reference.
+constexpr ErrorCode e_ReferenceReadonly = "ReferenceReadonly";
+ // Tried to get the address of a reference, but it doesn't support addressing.
+constexpr ErrorCode e_ReferenceUnaddressable = "RefereneUnaddressable";
 
 } // ayu
 

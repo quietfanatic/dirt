@@ -2,6 +2,7 @@
 
 #include "../common.h"
 #include "../location.h"
+#include "../serialize-to-tree.h"
 #include "accessors-private.h"
 #include "descriptors-private.h"
 
@@ -265,11 +266,29 @@ struct Traversal {
         }
     }
 
-    [[noreturn, gnu::cold]] void wrap_exception () const {
+    [[noreturn]] void wrap_exception () const {
         try { throw; }
-        catch (SerializeFailed&) { throw; }
-        catch (std::exception&) {
-            throw SerializeFailed(to_location(), desc, std::current_exception());
+        catch (Error& e) {
+            if (!e.has_travloc) {
+                e.has_travloc = true;
+                Location here = to_location();
+                e.details = cat(move(e.details),
+                    " (", item_to_string(&here), ')'
+                );
+            }
+            throw e;
+        }
+        catch (std::exception& ex) {
+            Error e;
+            e.code = e_External;
+            Location here = to_location();
+            e.details = cat(
+                get_demangled_name(typeid(ex)), ": ", ex.what(),
+                " (", item_to_string(&here), ')'
+            );
+            e.has_travloc = true;
+            e.external = std::current_exception();
+            throw e;
         }
     }
 };

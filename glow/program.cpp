@@ -1,7 +1,7 @@
 #include "program.h"
 
 #include "../ayu/describe.h"
-#include "../ayu/scan.h"
+#include "../ayu/serialize-to-tree.h"
 #include "gl.h"
 
 namespace glow {
@@ -23,11 +23,13 @@ void Shader::compile () {
     int status = 0; glGetShaderiv(id, GL_COMPILE_STATUS, &status);
     int loglen = 0; glGetShaderiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
+         // TODO: Use UniqueString
         std::string info_log (loglen, 0);
         glGetShaderInfoLog(id, loglen, nullptr, info_log.data());
-        throw ShaderCompileFailed(
-            ayu::reference_to_location(this), move(info_log)
-        );
+        ayu::raise(e_ShaderCompileFailed, cat(
+            "Failed to compile GL shader at ", ayu::item_to_string(this),
+            ":\n", info_log
+        ));
     }
 }
 
@@ -67,9 +69,10 @@ void Program::link () {
     if (!status || loglen > 16) {
         std::string info_log (loglen, 0);
         glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
-        throw ProgramLinkFailed(
-            ayu::reference_to_location(this), move(info_log)
-        );
+        ayu::raise(e_ProgramLinkFailed, cat(
+            "Failed to link GL program at ", ayu::item_to_string(this),
+            ":\n", info_log
+        ));
     }
      // Extra
     if (current_program) current_program->unuse();
@@ -162,22 +165,6 @@ AYU_DESCRIBE(glow::Program,
         attr("shaders", &Program::shaders)
     ),
     init<&Program::link>()
-)
-
-AYU_DESCRIBE(glow::ShaderCompileFailed,
-    delegate(base<glow::GlowError>()),
-    elems(
-        elem(&glow::ShaderCompileFailed::location),
-        elem(&glow::ShaderCompileFailed::info_log)
-    )
-)
-
-AYU_DESCRIBE(glow::ProgramLinkFailed,
-    delegate(base<glow::GlowError>()),
-    elems(
-        elem(&glow::ProgramLinkFailed::location),
-        elem(&glow::ProgramLinkFailed::info_log)
-    )
 )
 
 #ifndef TAP_DISABLE_TESTS

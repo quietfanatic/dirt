@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.h"
-#include "../ayu/location.h"
 
 namespace glow {
 
@@ -38,21 +37,7 @@ struct Program {
     operator uint () const { return id; }
 };
 
-struct ShaderCompileFailed : GlowError {
-     // TODO: replace with pointer
-    ayu::Location location;
-     // TODO: replace with UniqueString
-    std::string info_log;
-    ShaderCompileFailed (ayu::Location l, std::string i) :
-        location(move(l)), info_log(move(i))
-    { }
-};
-struct ProgramLinkFailed : GlowError {
-    ayu::Location location;
-    std::string info_log;
-    ProgramLinkFailed (ayu::Location l, std::string i) :
-        location(move(l)), info_log(move(i))
-    { }
-};
+constexpr ayu::ErrorCode e_ShaderCompileFailed = "glow::ShaderCompileFailed";
+constexpr ayu::ErrorCode e_ProgramLinkFailed = "glow::ProgramLinkFailed";
 
 } // namespace glow

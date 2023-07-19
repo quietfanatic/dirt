@@ -1,6 +1,5 @@
 #include "../scan.h"
 
-#include "../errors.h"
 #include "../location.h"
 #include "../pointer.h"
 #include "../reference.h"
@@ -270,14 +269,18 @@ Location pointer_to_location (Pointer item) {
     else if (Location r = find_pointer(item)) {
         return r;
     }
-    else throw ReferenceNotFound(item.type);
+    else raise(e_ReferenceNotFound, cat(
+        "Couldn't locate pointer target of type ", item.type.name()
+    ));
 }
 Location reference_to_location (const Reference& item) {
     if (!item) return Location();
     else if (Location r = find_reference(item)) {
         return r;
     }
-    else throw ReferenceNotFound(item.type());
+    else raise(e_ReferenceNotFound, cat(
+        "Couldn't locate reference target of type ", item.type().name()
+    ));
 }
 
 } using namespace ayu;

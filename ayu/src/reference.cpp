@@ -2,20 +2,28 @@
 
 #include "../../iri/iri.h"
 #include "../describe.h"
-#include "../errors.h"
 #include "../location.h"
 #include "../scan.h"
 #include "accessors-private.h"
+#include "serialize-compound-private.h"
 
 namespace ayu {
 using namespace in;
 
-void Reference::throw_WriteReadonly () const {
-    throw WriteReadonlyReference(reference_to_location(*this), type());
+void Reference::raise_WriteReadonly () const {
+    Location here = reference_to_location(*this);
+    raise(e_ReferenceReadonly, cat(
+        "Can't write to readonly Reference of type ", type().name(),
+        " at ", item_to_string(&here)
+    ));
 }
 
-void Reference::throw_Unaddressable () const {
-    throw UnaddressableReference(reference_to_location(*this), type());
+void Reference::raise_Unaddressable () const {
+    Location here = reference_to_location(*this);
+    raise(e_ReferenceUnaddressable, cat(
+        "Can't get address of unaddressable Reference of type ", type().name(),
+        " at ", item_to_string(&here)
+    ));
 }
 
 Reference Reference::chain (const Accessor* o_acr) const noexcept {
@@ -32,15 +40,15 @@ Reference Reference::chain_attr_func (
 ) const {
     if (auto addr = address()) {
         if (auto r = attr_func(*addr, key)) return r;
-        else throw AttrNotFound(move(key));
+        else raise_AttrNotFound(type(), move(key));
     }
     else {
          // Extra read just to check if the func returns null Reference.
          // If we're here, we're already on a fairly worst-case performance
          // scenario, so one more check isn't gonna make much difference.
-        read([attr_func, &key](const Mu& v){
+        read([this, attr_func, &key](const Mu& v){
             Reference ref = attr_func(const_cast<Mu&>(v), key);
-            if (!ref) throw AttrNotFound(move(key));
+            if (!ref) raise_AttrNotFound(type(), move(key));
         });
         return Reference(host, new ChainAcr(
             acr, new AttrFuncAcr(attr_func, move(key))
@@ -53,12 +61,12 @@ Reference Reference::chain_elem_func (
 ) const {
     if (auto addr = address()) {
         if (auto r = elem_func(*addr, index)) return r;
-        else throw ElemNotFound(index);
+        else raise_ElemNotFound(type(), index);
     }
     else {
-        read([elem_func, index](const Mu& v){
+        read([this, elem_func, index](const Mu& v){
             Reference ref = elem_func(const_cast<Mu&>(v), index);
-            if (!ref) throw ElemNotFound(index);
+            if (!ref) raise_ElemNotFound(type(), index);
         });
         return Reference(host, new ChainAcr(
             acr, new ElemFuncAcr(elem_func, index)
@@ -77,10 +85,10 @@ static Tree Reference_to_tree (const Reference& v) {
 static void Reference_from_tree (Reference& v, const Tree& tree) {
     switch (tree.form) {
         case NULLFORM: break;
-        case STRING: if (!Str(tree)) throw GenericError(
+        case STRING: if (!Str(tree)) raise(e_General,
             "Cannot make Reference from empty IRI.  To make the null Reference, use null."
         ); break;
-        default: throw InvalidForm(tree.form);
+        default: raise_FromTreeFormRejected(Type::CppType<Reference>(), tree.form);
     }
     v = Reference();
 }

@@ -5,7 +5,6 @@
 #include <memory>
 #include <unordered_map>
 #include "../common.h"
-#include "../errors.h"
 #include "../resource.h"
 #include "../resource-scheme.h"
 
@@ -26,7 +25,7 @@ struct Universe {
         Str scheme = name.scheme();
         auto iter = schemes.find(scheme);
         if (iter != schemes.end()) return iter->second;
-        else throw UnknownResourceScheme(name.spec());
+        else raise(e_ResourceSchemeNotFound, name.spec());
     }
 };
 

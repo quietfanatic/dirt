@@ -3,7 +3,7 @@
 #include <charconv>
 #include "../../iri/iri.h"
 #include "../describe.h"
-#include "../errors.h"
+#include "../resource.h"
 #include "../serialize-compound.h"
 #include "traversal-private.h"
 
@@ -109,12 +109,12 @@ IRI location_to_iri (LocationRef loc) noexcept {
 
 Location location_from_iri (const IRI& iri) {
     if (iri.empty()) return Location();
-    if (!iri) throw InvalidLocationIRI(
-        iri.possibly_invalid_spec(), "iri is an invalid iri by itself"
-    );
-    if (!iri.has_fragment()) throw InvalidLocationIRI(
-        iri.possibly_invalid_spec(), "iri does not have a #fragment"
-    );
+    if (!iri) raise(e_LocationIRIInvalid, cat(
+        "IRI is an invalid IRI by itself: ", iri.possibly_invalid_spec()
+    ));
+    if (!iri.has_fragment()) raise(e_LocationIRIInvalid, cat(
+        "IRI does not have a #fragment: ", iri.possibly_invalid_spec()
+    ));
     auto root_iri = iri.without_fragment();
     Location r = root_iri == current_base_iri()
         ? current_base_location()
@@ -135,18 +135,18 @@ Location location_from_iri (const IRI& iri) {
             auto [ptr, ec] = std::from_chars(
                 start, fragment.end(), index
             );
-            if (ptr == start) throw InvalidLocationIRI(
+            if (ptr == start) raise(e_LocationIRIInvalid, cat(
                 iri.spec(), "invalid +index in #fragment"
-            );
+            ));
             i += ptr - start;
             r = Location(move(r), index);
         }
-        else if (i == 0) throw InvalidLocationIRI(
+        else if (i == 0) raise(e_LocationIRIInvalid, cat(
             iri.spec(), "#fragment doesn't start with / or +"
-        );
-        else throw InvalidLocationIRI(
+        ));
+        else raise(e_LocationIRIInvalid, cat(
             iri.spec(), "invalid +index in #fragment"
-        );
+        ));
     }
     return r;
 }

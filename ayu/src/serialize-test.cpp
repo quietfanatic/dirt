@@ -2,8 +2,6 @@
 #include "../serialize-from-tree.h"
 #include "../serialize-to-tree.h"
 
-#include "../errors.h"
-
 using namespace ayu;
 using namespace ayu::in;
 
@@ -294,49 +292,24 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     item_from_string(&mt, "{b:92 a:47}");
     is(mt.a, 47, "item_from_tree works with attrs out of order (a)");
     is(mt.b, 92, "item_from_tree works with attrs out of order (b)");
-    throws_what<SerializeFailed>(
+    throws_code<e_AttrMissing>(
         [&]{ item_from_string(&mt, "{a:16}"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #\n"
-        "    type: ayu::test::MemberTest\n"
-        "    inner: [ayu::MissingAttr [[] b]]\n"
-        "}]\n",
         "item_from_tree throws on missing attr with attrs descriptor"
     );
-    throws_what<SerializeFailed>(
+    throws_code<e_TreeWrongForm>(
         [&]{ item_from_string(&mt, "{a:41 b:foo}"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #/b\n"
-        "    type: int32\n"
-        "    inner: [ayu::WrongForm [[] number foo]]\n"
-        "}]\n",
         "item_from_tree throws when attr has wrong form"
     );
-    throws_what<SerializeFailed>(
+    throws_code<e_TreeCantRepresent>(
         [&]{ item_from_string(&mt, "{a:41 b:4.3}"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #/b\n"
-        "    type: int32\n"
-        "    inner: [ayu::CantRepresent [[] int32 4.3]]\n"
-        "}]\n",
         "item_from_tree throws when int attr isn't integer"
     );
-    throws_what<SerializeFailed>(
+    throws_code<e_FromTreeFormRejected>(
         [&]{ item_from_string(&mt, "[54 43]"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #\n"
-        "    type: ayu::test::MemberTest\n"
-        "    inner: [ayu::InvalidForm [[] array]]\n"
-        "}]\n",
         "item_from_tree throws when trying to make attrs object from array"
     );
-    throws_what<SerializeFailed>(
+    throws_code<e_AttrRejected>(
         [&]{ item_from_string(&mt, "{a:0 b:1 c:60}"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #\n"
-        "    type: ayu::test::MemberTest\n"
-        "    inner: [ayu::UnwantedAttr [[] c]]\n"
-        "}]\n",
         "item_from_tree throws on extra attr"
     );
 
@@ -346,13 +319,8 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     Tree from_tree_bt1 = tree_from_string("{c:-4,MemberTest:{a:-5,b:-6}}");
     item_from_tree(&bt, from_tree_bt1);
     is(bt.b, -6, "item_from_tree with base attr");
-    throws_what<SerializeFailed>(
+    throws_code<e_AttrMissing>(
         [&]{ item_from_string(&bt, "{a:-7,b:-8,c:-9}"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #\n"
-        "    type: ayu::test::BaseTest\n"
-        "    inner: [ayu::MissingAttr [[] MemberTest]]\n"
-        "}]\n",
         "item_from_tree with base attr throws when collapsed but include is not specified"
     );
 
@@ -371,11 +339,11 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     item_from_tree(&iot, from_tree_iot1);
     is(iot.d, 44, "Inherit optional works");
     is(iot.a, 23, "Didn't set attrs of optional included attrs");
-    throws<SerializeFailed>([&]{
+    throws_code<e_AttrMissing>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 MemberTest:{a:56 b:67}}"));
     }, "Optional included attrs need either all or no attrs");
     todo(1);
-    throws<SerializeFailed>([&]{
+    throws_code<e_AttrMissing>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 c:78}"));
     }, "Optional included attrs need either all or no attrs (2)");
 
@@ -385,24 +353,14 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
     Tree from_tree_et1 = tree_from_string("[3.5 4.5 5.5]");
     item_from_tree(&et, from_tree_et1);
     is(et.y, 4.5, "item_from_tree with elems descriptor");
-    throws_what<SerializeFailed>(
+    throws_code<e_LengthRejected>(
         [&]{ item_from_string(&et, "[6.5 7.5]"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #\n"
-        "    type: ayu::test::ElemTest\n"
-        "    inner: [ayu::WrongLength {min:3 max:3 got:2}]\n"
-        "}]\n",
         "item_from_tree throws on too short array with elems descriptor"
     );
-    throws_what<SerializeFailed>(
+    throws_code<e_LengthRejected>(
         [&]{ item_from_string(&et, "[6.5 7.5 8.5 9.5]"); },
-        "[ayu::SerializeFailed {\n"
-        "    location: #\n"
-        "    type: ayu::test::ElemTest\n"
-        "    inner: [ayu::WrongLength {min:3 max:3 got:4}]\n"
-        "}]\n",
         "item_from_tree throws on too long array with elems descriptor");
-    throws<SerializeFailed>([&]{
+    throws_code<e_FromTreeFormRejected>([&]{
         item_from_string(&et, "{x:1.1 y:2.2}");
     }, "item_from_tree throws when trying to make elems thing from object");
 
@@ -413,16 +371,13 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
         item_elem(&est, 5).read_as<int>([&](const int& v){ answer = v; });
     }, "item_elem and Reference::read_as");
     is(answer, 21, "item_elem gives correct answer");
-    throws_check<SerializeFailed>(
+    throws_code<e_External>(
         [&]{ item_elem(&est, 6); },
-        [](const SerializeFailed& e){
-            return throws<std::out_of_range>([&]{ std::rethrow_exception(e.inner); });
-        },
         "item_elem can throw on out of bounds index (from user-defined function)"
     );
     item_set_length(&est, 5);
     is(est.xs.size(), 5u, "item_set_length shrink");
-    throws<SerializeFailed>([&]{
+    throws_code<e_External>([&]{
         item_elem(&est, 5);
     }, "item_elem reflects new length");
     item_set_length(&est, 9);
@@ -448,7 +403,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
         item_attr(&ast, "b").read_as<int>([&](const int& v){ answer = v; });
     }, "item_attr and Reference::read_as");
     is(answer, 22, "item_attr gives correct answer");
-    throws<SerializeFailed>([&]{
+    throws_code<e_External>([&]{
         item_attr(&ast, "c");
     }, "item_attr can throw on missing key (from user-defined function)");
     auto ks = std::vector<AnyString>{"c", "d"};
@@ -476,7 +431,7 @@ static tap::TestSet tests ("dirt/ayu/serialize", []{
         item_attr(&ast2, "b").read_as<int>([&](const int& v){ answer = v; });
     }, "item_attr and Reference::read_as");
     is(answer, 22, "item_attr gives correct answer");
-    throws<SerializeFailed>([&]{
+    throws_code<e_External>([&]{
         item_attr(&ast2, "c");
     }, "item_attr can throw on missing key (from user-defined function)");
     ks = std::vector<AnyString>{"c", "d"};

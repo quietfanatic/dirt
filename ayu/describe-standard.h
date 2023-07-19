@@ -16,9 +16,9 @@
 #include <vector>
 
 #include "common.h"
-#include "errors.h"
 #include "describe-base.h"
 #include "reference.h"
+#include "serialize-from-tree.h"
 
  // std::optional serializes to null for nullopt and whatever it contains
  // otherwise.  Yes, that means that this won't serialize properly if the
@@ -209,13 +209,10 @@ AYU_DESCRIBE_TEMPLATE(
             v.clear();
             for (const auto& e : a) {
                 auto [iter, did] = v.emplace(e);
-                if (!did) {
-                     // TODO: Something doesn't instantiate right without this
-                    ayu::Type::CppType<std::unordered_set<T>>();
-                    throw ayu::GenericError(
-                        "Duplicate element given for std::unordered_set"
-                    );
-                }
+                if (!did) ayu::raise(ayu::e_General, uni::cat(
+                    "Duplicate element given for ",
+                    ayu::Type::CppType<std::unordered_set<T>>().name()
+                ));
             }
         }
     ))
@@ -244,13 +241,10 @@ AYU_DESCRIBE_TEMPLATE(
             v.clear();
             for (const auto& e : a) {
                 auto [iter, did] = v.emplace(e);
-                if (!did) {
-                     // TODO: Something doesn't instantiate right without this
-                    ayu::Type::CppType<std::set<T>>();
-                    throw ayu::GenericError(
-                        "Duplicate element given for std::set"
-                    );
-                }
+                if (!did) ayu::raise(ayu::e_General, uni::cat(
+                    "Duplicate element given for ",
+                    ayu::Type::CppType<std::set<T>>().name()
+                ));
             }
         }
     ))
@@ -308,7 +302,9 @@ AYU_DESCRIBE_TEMPLATE(
         if (tree.form == ayu::STRING) {
             auto s = uni::Str(tree);
             if (s.size() != n) {
-                throw ayu::WrongLength(n, n, s.size());
+                ayu::raise_LengthRejected(
+                    ayu::Type::CppType<char[n]>(), n, n, s.size()
+                );
             }
             for (uint i = 0; i < n; i++) {
                 v[i] = s[i];
@@ -317,14 +313,18 @@ AYU_DESCRIBE_TEMPLATE(
         else if (tree.form == ayu::ARRAY) {
             auto a = ayu::TreeArraySlice(tree);
             if (a.size() != n) {
-                throw ayu::WrongLength(n, n, a.size());
+                ayu::raise_LengthRejected(
+                    ayu::Type::CppType<char[n]>(), n, n, a.size()
+                );
             }
             for (uint i = 0; i < n; i++) {
                 v[i] = char(a[i]);
             }
         }
         else {
-            throw ayu::InvalidForm(tree.form);
+            ayu::raise_FromTreeFormRejected(
+                ayu::Type::CppType<char[n]>(), tree.form
+            );
         }
     }),
      // Allow accessing individual elements like an array

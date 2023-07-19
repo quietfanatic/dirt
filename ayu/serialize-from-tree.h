@@ -70,4 +70,18 @@ inline void item_from_file (
     return item_from_tree(item, tree_from_file(move(filename)), loc);
 }
 
+ // Called item_from_tree on an item that doesn't have any way of doing the
+ // from_tree operation.  item_from_tree can also throw errors with the codes in
+ // serialize-compound.h.
+constexpr ErrorCode e_FromTreeNotSupported = "FromTreeNotSupported";
+ // An item did not accept the form of tree given to it.
+constexpr ErrorCode e_FromTreeFormRejected = "FromTreeFormRejected";
+ // Tried to deserialize an item that only has a values() descriptor, but a
+ // value was not found that matched the given tree.
+constexpr ErrorCode e_FromTreeValueNotFound = "FromTreeValueNotFound";
+
+ // You may want to use this in your from_tree descriptor.
+[[noreturn]]
+void raise_FromTreeFormRejected (Type item_type, TreeForm got_form);
+
 } // ayu

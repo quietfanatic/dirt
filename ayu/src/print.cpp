@@ -4,7 +4,6 @@
 #include <charconv>
 
 #include "../../uni/utf.h"
-#include "../errors.h"
 #include "../type.h"
 #include "char-cases-private.h"
 
@@ -307,15 +306,11 @@ struct Printer {
                     std::rethrow_exception(std::exception_ptr(*t));
                 }
                 catch (const std::exception& e) {
-                    Str name;
-                    try {
-                        name = Type(typeid(e)).name();
-                    }
-                    catch (const UnknownType&) {
-                        name = Str(typeid(e).name());
-                    }
-                     // TODO: change these to !
-                    return pchar(pstr(pstr(p, "?("), name), ')');
+                     // TODO: change to !
+                    p = pstr(p, "?(");
+                    p = pstr(p, e.what());
+                    p = pchar(p, ')');
+                    return p;
                 }
             }
             default: never();
@@ -332,7 +327,7 @@ static void validate_print_options (PrintOptions opts) {
     if (opts & ~VALID_PRINT_OPTION_BITS ||
         ((opts & PRETTY) && (opts & COMPACT))
     ) {
-        throw InvalidPrintOptions(opts);
+        raise(e_PrintOptionsInvalid, "Further info NYI");
     }
 }
 
@@ -350,16 +345,24 @@ UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
 void string_to_file (Str content, AnyString filename) {
     FILE* f = fopen_utf8(filename.c_str(), "wb");
     if (!f) {
-        throw OpenFailed(move(filename), errno, "wb");
+        int errnum = errno;
+        raise(e_OpenFailed, cat(
+            "Failed to open for writing ", filename, ": ", std::strerror(errnum)
+        ));
     }
     usize did_write = fwrite(content.data(), 1, content.size(), f);
     if (did_write != content.size()) {
         int errnum = errno;
         fclose(f);
-        throw WriteFailed(move(filename), errnum);
+        raise(e_WriteFailed, cat(
+            "Failed to write to ", filename, ": ", std::strerror(errnum)
+        ));
     }
     if (fclose(f) != 0) {
-        throw CloseFailed(move(filename), errno);
+        int errnum = errno;
+        raise(e_CloseFailed, cat(
+            "Failed to close ", filename, ": ", std::strerror(errnum)
+        ));
     }
 }
 

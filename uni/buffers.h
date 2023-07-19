@@ -40,7 +40,7 @@ inline namespace buffers {
 
         [[gnu::malloc, gnu::returns_nonnull]] static
         T* allocate (usize size) {
-            require(size <= uint32(-1) >> 1);
+            require(size <= (uint32(-1) >> 1));
             usize cap = capacity_for_size(size);
              // On 32-bit platforms we need to make sure we don't overflow usize
             uint64 bytes = sizeof(SharedBufferHeader) + (uint64)cap * sizeof(T);

@@ -22,6 +22,8 @@ enum : PrintOptions {
 
 UniqueString tree_to_string (TreeRef, PrintOptions opts = 0);
 
+constexpr ErrorCode e_PrintOptionsInvalid = "PrintOptionsInvalid";
+
 void string_to_file (Str, AnyString filename);
 
 void tree_to_file (TreeRef, AnyString filename, PrintOptions opts = 0);
