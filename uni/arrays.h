@@ -515,18 +515,23 @@ struct ArrayInterface {
             impl = {}; return;
         }
         T* dat = SharableBuffer<T>::allocate(s);
-        usize i = 0;
-        try {
-            for (; i < s; ++i) {
-                new ((void*)&dat[i]) T();
-            }
+        if (std::is_trivially_default_constructible_v<T>) {
+            dat = (T*)std::memset((void*)dat, 0, s * sizeof(T));
         }
-        catch (...) {
-            while (i > 0) {
-                impl.data[--i].~T();
+        else {
+            usize i = 0;
+            try {
+                for (; i < s; ++i) {
+                    new ((void*)&dat[i]) T();
+                }
             }
-            SharableBuffer<T>::deallocate(dat);
-            throw;
+            catch (...) {
+                while (i > 0) {
+                    impl.data[--i].~T();
+                }
+                SharableBuffer<T>::deallocate(dat);
+                throw;
+            }
         }
         set_unique(dat, s);
     }
@@ -539,18 +544,25 @@ struct ArrayInterface {
     ) {
         if (!s) { impl = {}; return; }
         T* dat = SharableBuffer<T>::allocate(s);
-        usize i = 0;
-        try {
-            for (; i < s; ++i) {
-                new ((void*)&dat[i]) T(v);
-            }
+        if constexpr (sizeof(T) == 1 &&
+            std::is_trivially_copy_constructible_v<T>
+        ) {
+            dat = (T*)std::memset((void*)dat, v, s);
         }
-        catch (...) {
-            while (i > 0) {
-                impl.data[--i].~T();
+        else {
+            usize i = 0;
+            try {
+                for (; i < s; ++i) {
+                    new ((void*)&dat[i]) T(v);
+                }
             }
-            SharableBuffer<T>::deallocate(dat);
-            throw;
+            catch (...) {
+                while (i > 0) {
+                    impl.data[--i].~T();
+                }
+                SharableBuffer<T>::deallocate(dat);
+                throw;
+            }
         }
         set_unique(dat, s);
     }
@@ -1015,17 +1027,26 @@ struct ArrayInterface {
         usize old_size = size();
         if (new_size <= old_size) [[unlikely]] return;
         reserve(new_size);
-        usize i = old_size;
-        try {
-            for (; i < new_size; ++i) {
-                new ((void*)&impl.data[i]) T();
-            }
+        if constexpr (std::is_trivially_default_constructible_v<T>) {
+            std::memset(
+                (void*)(impl.data + old_size),
+                0,
+                (new_size - old_size) * sizeof(T)
+            );
         }
-        catch (...) {
-            while (i > old_size) {
-                impl.data[i].~T();
+        else {
+            usize i = old_size;
+            try {
+                for (; i < new_size; ++i) {
+                    new ((void*)&impl.data[i]) T();
+                }
             }
-            throw;
+            catch (...) {
+                while (i > old_size) {
+                    impl.data[i].~T();
+                }
+                throw;
+            }
         }
         set_size(new_size);
     }
@@ -1486,6 +1507,11 @@ struct ArrayInterface {
 
     template <ArrayIterator Ptr> static
     T* copy_fill (T* dat, Ptr ptr, usize s) requires (std::is_copy_constructible_v<T>) {
+        if constexpr (std::is_trivially_copy_constructible_v<T>) {
+            return (T*)std::memcpy(
+                (void*)dat, std::to_address(ptr), s * sizeof(T)
+            );
+        }
         usize i = 0;
         try {
             for (auto p = move(ptr); i < s; ++i, ++p) {
@@ -1556,15 +1582,25 @@ struct ArrayInterface {
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
         if (self.unique()) {
-             // Assume that the move constructor and destructor never throw
-             // even if they aren't marked noexcept.
-            try {
+            if constexpr (
+                std::is_trivially_move_constructible_v<T> &&
+                std::is_trivially_destructible_v<T>
+            ) {
+                dat = (T*)std::memcpy(
+                    (void*)dat, self.impl.data, s * sizeof(T)
+                );
+            }
+            else try {
                 for (usize i = 0; i < s; ++i) {
                     new ((void*)&dat[i]) T(move(self.impl.data[i]));
                     self.impl.data[i].~T();
                 }
             }
-            catch (...) { never(); }
+            catch (...) {
+                 // Assume that the move constructor and destructor never throw
+                 // even if they aren't marked noexcept.
+                never();
+            }
              // DON'T call remove_ref here because it'll double-destroy
              // self.impl.data[*]
             SharableBuffer<T>::deallocate(self.impl.data);
