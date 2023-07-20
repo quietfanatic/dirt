@@ -18,22 +18,19 @@ struct StringConversion;
 
 template <>
 struct StringConversion<char> {
-    char v;
-    constexpr usize capacity_upper_bound () const { return 1; }
-    constexpr usize write (char* p) const {
-        *p = v;
-        return 1;
-    }
+    using Self = StringConversion<char>;
+    char c;
+    constexpr usize size () const { return 1; }
+    constexpr const char* data () const { return &c; }
 };
 
 template <>
 struct StringConversion<bool> {
-    bool v;
-    constexpr usize capacity_upper_bound () const { return 1; }
-    constexpr usize write (char* p) const {
-        *p = v ? '1' : '0';
-        return 1;
-    }
+    using Self = StringConversion<bool>;
+    char c;
+    constexpr StringConversion (bool v) : c(v + '0') { }
+    constexpr usize size () const { return 1; }
+    constexpr const char* data () const { return &c; }
 };
 
 template <class T> constexpr uint32 max_digits;
@@ -51,6 +48,7 @@ template <> constexpr uint32 max_digits<long double> = 48; // dunno, seems safe
 
 template <class T> requires (std::is_arithmetic_v<T>)
 struct StringConversion<T> {
+    using Self = StringConversion<T>;
     char digits [max_digits<T>];
     uint32 len;
     constexpr StringConversion (T v) {
@@ -72,69 +70,52 @@ struct StringConversion<T> {
         expect(ec == std::errc());
         len = ptr - digits;
     }
-    constexpr usize capacity_upper_bound () const { return len; }
-    constexpr usize write (char* p) const {
-        expect(len > 0);
-         // Awkward incantation to keep the compiler from overkilling the loop
-         // with a memcpy
-        usize end = len <= max_digits<T> ? len : max_digits<T>;
-        for (usize i = 0; i < end; ++i) {
-            p[i] = digits[i];
-        }
-        return len;
-    }
+    constexpr usize size () const { return len; }
+    constexpr const char* data () const { return digits; }
 };
 
-template <class T> requires (requires (const T& v) { Str(v); })
+template <class T> requires (
+    requires (const T& v) { v.size(); v.data(); }
+)
 struct StringConversion<T> {
-    Str v;
-    constexpr StringConversion (const T& v) : v(Str(v)) { }
-    constexpr usize capacity_upper_bound () const { return v.size(); }
-    constexpr usize write (char* p) const {
-        for (usize i = 0; i < v.size(); i++) {
-            p[i] = v[i];
-        }
-        return v.size();
-    }
+    using Self = const T&;
 };
 
-template <>
-struct StringConversion<Uninitialized> {
-    usize len;
-    constexpr StringConversion (Uninitialized u) : len(u.size) { }
-    constexpr usize capacity_upper_bound () const { return len; }
-    constexpr usize write (char*) const { return len; }
+template <class T> requires (
+    requires (const T& v) { Str(v); } &&
+    !requires (const T& v) { v.size(); v.data(); }
+)
+struct StringConversion<T> {
+    using Self = Str;
 };
 
- // If we don't add this expect(), the compiler emits extra branches for when
- // the total size overflows to 0, but those branches just crash anyway.
-static constexpr
-void add_no_overflow (usize& a, usize b) {
-    expect(a + b <= UniqueString::max_size_);
-    a += b;
-}
-
-template <class... Tail> static inline
-void cat_append (UniqueString::Impl& h, Tail&&... t) {
+template <class... Tail> inline
+void cat_append (UniqueString& h, const Tail&... t) {
     if constexpr (sizeof...(Tail) > 0) {
-        usize cap = h.size;
-        (add_no_overflow(cap, t.capacity_upper_bound()), ...);
-        reinterpret_cast<UniqueString&>(h).reserve_plenty(cap);
-        ((h.size += t.write(h.data + h.size)), ...);
+        usize cap = (h.size() + ... + t.size());
+        expect(cap >= h.size());
+        h.reserve_plenty(cap);
+        (h.append_expect_capacity(t.data(), t.size()), ...);
     }
 }
 
-template <class... Tail> static inline
-UniqueString cat_construct (Tail&&... t) {
-    if constexpr (sizeof...(Tail) > 0) {
-        usize cap = 0;
-        (add_no_overflow(cap, t.capacity_upper_bound()), ...);
-        char* p = SharableBuffer<char>::allocate(cap);
-        usize s = 0;
-        ((s += t.write(p + s)), ...);
-        return UniqueString::UnsafeConstructOwned(p, s);
-    }
-    else return "";
+template <class Head, class... Tail> inline
+UniqueString cat_construct (Head&& h, const Tail&... t) {
+     // Record of investigations: I was poking around in the disassembly on an
+     // optimized build, and found that this function was producing a call to
+     // UniqueString::remove_ref, which indicated that a move construct (and
+     // destruct) was happening, instead of the NVRO I expected.  After some
+     // investigation, it turned out that wrapping the entire function in an
+     // if constexpr was screwing with GCC's NVRO only when LTO was enabled.
+     // (Also, I was misunderstanding this variadic folding syntax and was using
+     // if constexpr to compensate, so it is no longer necessary).
+    usize cap = (h.size() + ... + t.size());
+     // No overflow
+    expect(cap >= h.size());
+    auto r = UniqueString(Capacity(cap));
+    r.append_expect_capacity(h.data(), h.size());
+    (r.append_expect_capacity(t.data(), t.size()), ...);
+    return r;
 }
 
 } // in
@@ -142,20 +123,21 @@ UniqueString cat_construct (Tail&&... t) {
  // Concatenation for character strings.  Returns the result of printing all the
  // arguments, concatenated into a single string.
 template <class Head, class... Tail> inline
-UniqueString cat (Head&& h, Tail&&... t) {
+UniqueString cat (Head&& h, const Tail&... t) {
     if constexpr (std::is_same_v<Head&&, UniqueString&&>) {
-        UniqueString::Impl impl (h.size(), h.mut_data());
-        h.unsafe_set_empty();
-        in::cat_append(
-            impl, in::StringConversion<std::remove_cvref_t<Tail>>(t)...
+        in::cat_append(h,
+            typename in::StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
         );
-        return UniqueString::UnsafeConstructOwned(impl.data, impl.size);
+        return move(h);
     }
     else return in::cat_construct(
-        in::StringConversion<std::remove_cvref_t<Head>>(h),
-        in::StringConversion<std::remove_cvref_t<Tail>>(t)...
+        typename in::StringConversion<std::remove_cvref_t<Head>>::Self(
+            std::forward<Head>(h)
+        ),
+        typename in::StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
     );
 }
+inline UniqueString cat () { return ""; }
 
 } // strings
 } // uni

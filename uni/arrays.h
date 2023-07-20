@@ -1181,7 +1181,8 @@ struct ArrayInterface {
         supports_owned && std::is_copy_constructible_v<T>
     ) {
         expect(size() + s <= max_size_);
-        expect(unique() && capacity() >= size() + s);
+        expect(unique());
+        expect(capacity() >= size() + s);
         copy_fill(impl.data + size(), move(p), s);
         add_size(s);
     }

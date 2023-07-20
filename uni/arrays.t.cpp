@@ -218,6 +218,14 @@ void c33c (std::string&& a) {
     c33b(move(a));
 }
 
+UniqueString t34a (StaticString a, AnyString b, StaticString c) {
+    return cat("Couldn't ", a, " ", b, " when its state is ", c);
+}
+[[gnu::cold]] NOINLINE
+UniqueString t34b (StaticString a, AnyString b, StaticString c) {
+    return cat("Couldn't ", a, " ", b, " when its state is ", c);
+}
+
 static tap::TestSet tests ("dirt/uni/arrays", []{
     using namespace tap;
     AnyArray<int> a;
@@ -250,6 +258,7 @@ static tap::TestSet tests ("dirt/uni/arrays", []{
     is(d[0][1], 0, "other arrays sharing buffer are not changed");
     is(cat("foo"_s, 6, "bar"_s), "foo6bar"_s, "cat()");
     is(cat("foo", 6, "bar"), "foo6bar", "cat() (raw)");
+    is(t34b("save", "bap:/bup#bep", "UNLOADED"), "Couldn't save bap:/bup#bep when its state is UNLOADED");
 
     done_testing();
 });
