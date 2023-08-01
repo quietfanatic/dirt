@@ -22,7 +22,7 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
             if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
             uint8 b2 = s[i+2];
             if (b2 < 0b1000'0000 || b2 >= 0b1100'0000) goto invalid;
-            uint8 b3 = s[i+1];
+            uint8 b3 = s[i+3];
             if (b3 < 0b1000'0000 || b3 >= 0b1100'0000) goto invalid;
             uint32 c = (b0 & 0b0000'0111) << 18
                      | (b1 & 0b0011'1111) << 12
@@ -34,7 +34,7 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
             i += 3;
         }
         else if (b0 >= 0b1110'0000) {
-            if (s.size() - i < 3) *p++ = b0;  // Truncated sequence
+            if (s.size() - i < 3) goto invalid;  // Truncated sequence
             uint8 b1 = s[i+1];
             if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
             uint8 b2 = s[i+2];
