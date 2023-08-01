@@ -62,7 +62,7 @@ are supported in quoted strings.
 - `\\/` = literal slash
 - `\\xXX` = UTF-8 byte with a two-digit hexadecimal value, which may be part of
   a multibyte UTF-8 sequence, but must not be an unmatched leading or
-  continuation byte. This is not yet implemented by the reference implementation.
+  continuation byte.
 - `\uXXXX` = A UTF-16 code unit, which may be part of a surrogate pair, but
   must not be a lone surrogate.  Surrogate pairs are translated into UTF-8.
   This is not yet implemented by the reference implementation.

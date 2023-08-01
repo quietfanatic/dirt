@@ -4,6 +4,7 @@
 #include <charconv>
 #include <limits>
 
+#include "../../uni/text.h"
 #include "../../uni/utf.h"
 #include "../print.h" // for error reporting
 #include "char-cases-private.h"
@@ -117,30 +118,43 @@ struct Parser {
     Tree got_string () {
         p++;  // for the "
         UniqueString r;
-        for (;;) switch (look()) {
-            case EOF: error("string not terminated by end of input");
-            case '"': p++; return Tree(move(r));
-            case '\\': {
-                p++;
-                char c;
-                switch (look()) {
-                    case EOF: error("string not terminated by end of input");
-                    case '"': c = '"'; break;
-                    case '\\': c = '\\'; break;
-                     // Dunno why this is in json
-                    case '/': c = '/'; break;
-                    case 'b': c = '\b'; break;
-                    case 'f': c = '\f'; break;
-                    case 'n': c = '\n'; break;
-                    case 'r': c = '\r'; break;
-                    case 't': c = '\t'; break;
-                    default: error("Unrecognized escape sequence \\", show_char(look()));
+        for (;;) {
+            char c;
+            switch (look()) {
+                case EOF: error("String not terminated by end of input");
+                case '"': p++; return Tree(move(r));
+                case '\\': {
+                    p++;
+                    switch (look()) {
+                        case EOF: error("String not terminated by end of input");
+                        case '"': c = '"'; break;
+                        case '\\': c = '\\'; break;
+                         // Dunno why this is in json
+                        case '/': c = '/'; break;
+                        case 'b': c = '\b'; break;
+                        case 'f': c = '\f'; break;
+                        case 'n': c = '\n'; break;
+                        case 'r': c = '\r'; break;
+                        case 't': c = '\t'; break;
+                        case 'x': {
+                            if (p + 2 >= end) goto invalid_x;
+                            int n0; n0 = from_hex_digit(p[1]);
+                            if (n0 < 0) goto invalid_x;
+                            int n1; n1 = from_hex_digit(p[2]);
+                            if (n1 < 0) goto invalid_x;
+                            c = n0 << 4 | n1;
+                            p += 2;
+                            break;
+                            invalid_x: error("Invalid \\x escape sequence");
+                        }
+                        default: error("Unrecognized escape sequence \\", show_char(look()));
+                    }
+                    break;
                 }
-                r.push_back(c);
-                p++;
-                break;
+                default: [[likely]] c = *p;
             }
-            default: r.push_back(*p++);
+            p++;
+            r.push_back(c);
         }
     }
 
@@ -514,6 +528,9 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
     y("\"null\"", Tree("null"));
     y("\"true\"", Tree("true"));
     y("\"false\"", Tree("false"));
+    y("\"asdf\\x33asdf\"", Tree("asdf3asdf"));
+    n("\"af\\x3wasdf\"");
+    n("\"asdfasdf\\x");
     y("[]", Tree(TreeArray{}));
     y("[,,,,,]", Tree(TreeArray{}));
     y("[0 1 foo]", Tree(TreeArray{Tree(0), Tree(1), Tree("foo")}));
