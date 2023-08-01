@@ -18,7 +18,7 @@
 namespace ayu {
 namespace in {
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_ResourceStateInvalid (StaticString tried, Resource res) {
     raise(e_ResourceStateInvalid, cat(
         "Can't ", tried, ' ', res.name().spec(),
@@ -26,14 +26,14 @@ static void raise_ResourceStateInvalid (StaticString tried, Resource res) {
     ));
 }
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_ResourceValueEmpty (StaticString tried, Resource res) {
     raise(e_ResourceValueInvalid, cat(
         "Can't ", tried, ' ', res.name().spec(), " with empty value"
     ));
 }
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_ResourceTypeRejected (
     StaticString tried, Resource res, Type type
 ) {
@@ -42,7 +42,7 @@ static void raise_ResourceTypeRejected (
     ));
 }
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_would_break (
     ErrorCode code, UniqueArray<std::pair<Location, Location>> breaks
 ) {

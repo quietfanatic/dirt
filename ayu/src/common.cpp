@@ -30,7 +30,7 @@ const char* Error::what () const noexcept {
 }
 Error::~Error () { }
 
-void raise (ErrorCode code, AnyString details) {
+void raise (ErrorCode code, UniqueString&& details) {
     Error e;
     e.code = code;
     e.details = move(details);

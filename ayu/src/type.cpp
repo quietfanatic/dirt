@@ -6,21 +6,21 @@
 namespace ayu {
 namespace in {
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_TypeCantDefaultConstruct (Type t) {
     raise(e_TypeCantDefaultConstruct, cat(
         "Type ", t.name(), " has no default constructor."
     ));
 }
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_TypeCantDestroy (Type t) {
     raise(e_TypeCantDestroy, cat(
         "Type ", t.name(), " has no destructor."
     ));
 }
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 static void raise_TypeCantCast (Type from, Type to) {
     raise(e_TypeCantCast, cat(
         "Can't cast from ", from.name(), " to ", to.name()

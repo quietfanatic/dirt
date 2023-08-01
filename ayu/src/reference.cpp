@@ -10,6 +10,7 @@
 namespace ayu {
 using namespace in;
 
+[[gnu::cold]]
 void Reference::raise_WriteReadonly () const {
     Location here = reference_to_location(*this);
     raise(e_ReferenceReadonly, cat(
@@ -18,6 +19,7 @@ void Reference::raise_WriteReadonly () const {
     ));
 }
 
+[[gnu::cold]]
 void Reference::raise_Unaddressable () const {
     Location here = reference_to_location(*this);
     raise(e_ReferenceUnaddressable, cat(

@@ -20,17 +20,17 @@ template <>
 struct StringConversion<char> {
     using Self = StringConversion<char>;
     char c;
-    constexpr usize size () const { return 1; }
-    constexpr const char* data () const { return &c; }
+    ALWAYS_INLINE constexpr usize size () const { return 1; }
+    ALWAYS_INLINE constexpr const char* data () const { return &c; }
 };
 
 template <>
 struct StringConversion<bool> {
     using Self = StringConversion<bool>;
     char c;
-    constexpr StringConversion (bool v) : c(v + '0') { }
-    constexpr usize size () const { return 1; }
-    constexpr const char* data () const { return &c; }
+    ALWAYS_INLINE constexpr StringConversion (bool v) : c(v + '0') { }
+    ALWAYS_INLINE constexpr usize size () const { return 1; }
+    ALWAYS_INLINE constexpr const char* data () const { return &c; }
 };
 
 template <class T> constexpr uint32 max_digits;
@@ -70,8 +70,8 @@ struct StringConversion<T> {
         expect(ec == std::errc());
         len = ptr - digits;
     }
-    constexpr usize size () const { return len; }
-    constexpr const char* data () const { return digits; }
+    ALWAYS_INLINE constexpr usize size () const { return len; }
+    ALWAYS_INLINE constexpr const char* data () const { return digits; }
 };
 
 template <class T> requires (

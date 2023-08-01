@@ -218,9 +218,9 @@ void c33c (std::string&& a) {
     c33b(move(a));
 }
 
-UniqueString t34a (StaticString a, AnyString b, StaticString c) {
-    return cat("Couldn't ", a, " ", b, " when its state is ", c);
-}
+//UniqueString t34a (StaticString a, AnyString b, StaticString c) {
+//    return cat("Couldn't ", a, " ", b, " when its state is ", c);
+//}
 [[gnu::cold]] NOINLINE
 UniqueString t34b (StaticString a, AnyString b, StaticString c) {
     return cat("Couldn't ", a, " ", b, " when its state is ", c);

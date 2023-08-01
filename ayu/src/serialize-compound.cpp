@@ -327,28 +327,33 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     return r;
 }
 
+[[gnu::cold]]
 void in::raise_AttrsNotSupported (Type item_type) {
     raise(e_AttrsNotSupported, cat(
         "Item of type ", item_type.name(),
         " does not support behaving like an ", "object."
     ));
 }
+[[gnu::cold]]
 void raise_AttrMissing (Type item_type, const AnyString& key) {
     raise(e_AttrMissing, cat(
         "Item of type ", item_type.name(), " missing required key ", key
     ));
 }
+[[gnu::cold]]
 void raise_AttrRejected (Type item_type, const AnyString& key) {
     raise(e_AttrRejected, cat(
         "Item of type ", item_type.name(), " given unwanted key ", key
     ));
 }
+[[gnu::cold]]
 void in::raise_ElemsNotSupported (Type item_type) {
     raise(e_ElemsNotSupported, cat(
         "Item of type ", item_type.name(),
         " does not support behaving like an ", "array."
     ));
 }
+[[gnu::cold]]
 void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
     UniqueString mess = min == max ? cat(
         "Item of type ", item_type.name(), " given wrong length ", got,
@@ -360,12 +365,14 @@ void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
     raise(e_LengthRejected, move(mess));
 }
 
+[[gnu::cold]]
 void in::raise_AttrNotFound (Type item_type, const AnyString& key) {
     raise(e_AttrNotFound, cat(
         "Item of type ", item_type.name(), " has no attribute with key ", key
     ));
 }
 
+[[gnu::cold]]
 void in::raise_ElemNotFound (Type item_type, usize index) {
     raise(e_ElemNotFound, cat(
         "Item of type ", item_type.name(), " has no element at index ", index

@@ -20,7 +20,7 @@ static constexpr T&& expect (
     T&& v, std::source_location loc = std::source_location::current()
 );
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void abort_requirement_failed (
     std::source_location = std::source_location::current()
 ) noexcept;

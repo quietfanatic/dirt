@@ -215,6 +215,7 @@ void item_from_tree (
     }
 }
 
+[[gnu::cold]]
 void raise_FromTreeFormRejected (Type t, TreeForm f) {
     raise(e_FromTreeFormRejected, cat(
         "Item of type ", t.name(),

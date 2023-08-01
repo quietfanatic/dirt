@@ -87,7 +87,7 @@ struct Error : std::exception {
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
-void raise (ErrorCode code, AnyString details);
+void raise (ErrorCode code, UniqueString&& details);
 
  // Unspecified error
 constexpr ErrorCode e_General = "General";

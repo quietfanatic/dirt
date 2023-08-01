@@ -36,25 +36,25 @@ struct RCP {
         }
     }
 
-    constexpr RCP (Null n = null) : p(n) { }
-    constexpr RCP (T* p) : p(p) { inc(); }
-    constexpr RCP (const RCP& o) : p(o.p) { inc(); }
-    RCP (RCP&& o) : p(o.p) { o.p = null; }
-    constexpr ~RCP () { dec(); }
+    ALWAYS_INLINE constexpr RCP (Null n = null) : p(n) { }
+    ALWAYS_INLINE constexpr RCP (T* p) : p(p) { inc(); }
+    ALWAYS_INLINE constexpr RCP (const RCP& o) : p(o.p) { inc(); }
+    ALWAYS_INLINE RCP (RCP&& o) : p(o.p) { o.p = null; }
+    ALWAYS_INLINE constexpr ~RCP () { dec(); }
 
-    RCP& operator = (const RCP& o) { dec(); p = o.p; inc(); return *this; }
-    RCP& operator = (RCP&& o) { dec(); p = o.p; o.p = null; return *this; }
+    ALWAYS_INLINE RCP& operator = (const RCP& o) { dec(); p = o.p; inc(); return *this; }
+    ALWAYS_INLINE RCP& operator = (RCP&& o) { dec(); p = o.p; o.p = null; return *this; }
 
      // It's up to the owning class to maintain const-correctness.
-    T& operator * () const { return *p; }
-    T* operator -> () const { return p; }
-    explicit operator bool () const { return p; }
+    ALWAYS_INLINE T& operator * () const { return *p; }
+    ALWAYS_INLINE T* operator -> () const { return p; }
+    ALWAYS_INLINE explicit operator bool () const { return p; }
 };
-template <class T, void(& deleter )(T*)>
+template <class T, void(& deleter )(T*)> ALWAYS_INLINE
 bool operator == (const RCP<T, deleter>& a, const RCP<T, deleter>& b) {
     return a.p == b.p;
 }
-template <class T, void(& deleter )(T*)>
+template <class T, void(& deleter )(T*)> ALWAYS_INLINE
 bool operator != (const RCP<T, deleter>& a, const RCP<T, deleter>& b) {
     return a.p != b.p;
 }

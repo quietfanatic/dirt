@@ -66,7 +66,7 @@ struct CallbackRefV<Ret(Args...)> {
         return wrapper(f, std::forward<Args>(args)...);
     }
 
-    template <class Sig>
+    template <class Sig> [[gnu::always_inline, gnu::artificial]] inline constexpr
     const CallbackRefV<Sig>& reinterpret () const {
         return *(const CallbackRefV<Sig>*)this;
     }
