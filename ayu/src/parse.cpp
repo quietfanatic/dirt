@@ -42,26 +42,9 @@ struct Parser {
         if (d > 9) return 'A' + d;
         else return '0' + d;
     }
-    AnyString show_char (int c) {
-        switch (c) {
-            case EOF: return "<EOF>";
-            case ' ': return "<space>";
-            default: {
-                if (c > 0x20 && c < 0x7e) {
-                    return AnyString(1, c);
-                }
-                else {
-                    return cat(
-                        '<', show_hex_digit((c >> 4) & 0x0f),
-                        show_hex_digit(c & 0xf), '>'
-                    );
-                }
-            }
-        }
-    }
 
     template <class... Args>
-    [[noreturn]]
+    [[noreturn, gnu::cold]]
     void error (Args&&... args) {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
@@ -115,18 +98,18 @@ struct Parser {
         }
     }
 
-    Tree got_string () {
+    UniqueString got_string () {
         p++;  // for the "
         UniqueString r;
         for (;;) {
             char c;
             switch (look()) {
-                case EOF: error("String not terminated by end of input");
-                case '"': p++; return Tree(move(r));
+                case EOF: goto not_terminated;
+                case '"': p++; return r;
                 case '\\': {
                     p++;
                     switch (look()) {
-                        case EOF: error("String not terminated by end of input");
+                        case EOF: goto not_terminated;
                         case '"': c = '"'; break;
                         case '\\': c = '\\'; break;
                          // Dunno why this is in json
@@ -147,7 +130,7 @@ struct Parser {
                             break;
                             invalid_x: error("Invalid \\x escape sequence");
                         }
-                        default: error("Unrecognized escape sequence \\", show_char(look()));
+                        default: error("Unrecognized escape sequence.");
                     }
                     break;
                 }
@@ -156,6 +139,7 @@ struct Parser {
             p++;
             r.push_back(c);
         }
+        not_terminated: error("String not terminated by end of input.");
     }
 
     Str got_word () {
@@ -209,19 +193,18 @@ struct Parser {
                 [[fallthrough]];
             case '+':
                 word = word.substr(1);
-                if (word.empty() || !std::isdigit(word[0])) {
-                    error("Malformed number");
-                }
+                if (word.empty() || !std::isdigit(word[0])) goto nope;
                 break;
         }
          // Detect hex prefix
-        bool hex = false;
+        bool hex;
         if (word.size() >= 2 && word[0] == '0'
          && (word[1] == 'x' || word[1] == 'X')
         ) {
             hex = true;
             word = word.substr(2);
         }
+        else hex = false;
          // Try integer
         {
             int64 integer;
@@ -230,7 +213,7 @@ struct Parser {
             );
             if (ptr == word.begin()) {
                  // If the integer parse failed, the float parse will also fail.
-                error("Malformed number");
+                goto nope;
             }
             else if (ptr == word.end()) {
                 Tree r = minus && integer == 0
@@ -243,9 +226,7 @@ struct Parser {
             else if (ptr < word.end() && ptr[0] == '.') {
                 if (ptr == word.end() - 1 ||
                     (hex ? !std::isxdigit(ptr[1]) : !std::isdigit(ptr[1]))
-                ) {
-                    error("Number cannot end with a .");
-                }
+                ) error("Number cannot end with .");
             }
         }
          // Integer parse didn't take the whole word, try float parse
@@ -258,68 +239,67 @@ struct Parser {
             );
             if (ptr == word.begin()) {
                  // Shouldn't happen?
-                error("Malformed number");
+                 goto nope;
             }
             else if (ptr == word.end()) {
                 Tree r (minus ? -floating : floating);
                 if (hex) r.flags |= PREFER_HEX;
                 return r;
             }
-            else {
-                error("Junk at end of number");
-            }
+            else goto nope;
         }
+        nope: error("Couldn't parse number.");
     }
 
     TreeArray got_array () {
-        UniqueArray<Tree> a;
+        UniqueArray<Tree> r;
         p++;  // for the [
         for (;;) {
             skip_commas();
             switch (look()) {
-                case EOF: error("Array not terminated");
-                case ':': error("Cannot have : in an array");
-                case ']': p++; return a;
-                default: a.push_back(parse_term()); break;
+                case EOF: error("Array is not terminated.");
+                case ':': error("Cannot have : in an array.");
+                case ']': p++; return r;
+                default: r.push_back(parse_term()); break;
             }
         }
     }
 
     TreeObject got_object () {
-        UniqueArray<TreePair> o;
+        UniqueArray<TreePair> r;
         p++;  // for the {
         for (;;) {
             skip_commas();
             switch (look()) {
-                case EOF: error("Object not terminated");
-                case ':': error("Missing key before : in object");
-                case '}': p++; return o;
+                case EOF: error("Object is not terminated.");
+                case ':': error("Missing key before : in object.");
+                case '}': p++; return r;
                 default: break;
             }
             Tree key = parse_term();
             if (key.form != STRING) {
-                error("Can't use non-string ", tree_to_string(key), " as key in object");
+                error("Can't use non-string as key in object.");
             }
             skip_ws();
             switch (look()) {
-                case EOF: error("Object not terminated");
+                case EOF: error("Object is not terminated.");
                 case ':': p++; break;
                 case ANY_RESERVED_SYMBOL: {
                     error(*p, " is a reserved symbol and can't be used outside of strings.");
                 }
-                default: error("Missing : after name in object");
+                default: error("Missing : after name in object.");
             }
             skip_ws();
             switch (look()) {
                 case ',':
-                case '}': error("Missing value after : in object");
+                case '}': error("Missing value after : in object.");
                 default: {
-                    o.emplace_back(AnyString(move(key)), parse_term());
+                    r.emplace_back(AnyString(move(key)), parse_term());
                     break;
                 }
             }
         }
-        return o;
+        return r;
     }
 
     void set_shortcut (AnyString&& name, Tree value) {
@@ -343,11 +323,11 @@ struct Parser {
             case ANY_LETTER:
             case '_':
             case '"': break;
-            default: error("Expected ref name after &");
+            default: error("Expected shortcut name after ", '&');
         }
         Tree name = parse_term();
         if (name.form != STRING) {
-            error("Can't use non-string ", tree_to_string(name), " as ref name");
+            error("Can't use non-string as shortcut name.");
         }
         skip_ws();
         switch (look()) {
@@ -372,18 +352,18 @@ struct Parser {
             case ANY_LETTER:
             case '_':
             case '"': break;
-            default: error("Expected ref name after *");
+            default: error("Expected shortcut name after ", '*');
         }
         Tree name = parse_term();
         if (name.form != STRING) {
-            error("Can't use non-string ", tree_to_string(name), " as ref name");
+            error("Can't use non-string as shortcut name.");
         }
         return get_shortcut(Str(name));
     }
 
     Tree parse_term () {
         switch (look()) {
-            case EOF: error("Expected term but ran into end of document");
+            case EOF: error("Expected term but ran into end of file.");
             case ANY_WORD_STARTER: {
                 Str word = got_word();
                 if (word.size() == 4) {
@@ -407,7 +387,7 @@ struct Parser {
              // previous skip_ws().
             case '-': return got_number();
 
-            case '"': return got_string();
+            case '"': return Tree(got_string());
             case '[': return Tree(got_array());
             case '{': return Tree(got_object());
 
@@ -418,6 +398,7 @@ struct Parser {
             case ',':
             case ']':
             case '}': error("Unexpected ", *p);
+            case '.': error("Number cannot begin with .");
             case ANY_RESERVED_SYMBOL:
                 error(*p, " is a reserved symbol and can't be used outside of strings.");
             default: error("Unrecognized character ", *p);
@@ -433,7 +414,7 @@ struct Parser {
         skip_ws();
         Tree r = parse_term();
         skip_ws();
-        if (p != end) error("Extra stuff at end of document");
+        if (p != end) error("Extra stuff at end of document.");
         return r;
     }
 };
