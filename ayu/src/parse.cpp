@@ -102,14 +102,13 @@ struct Parser {
         p++;  // for the "
         UniqueString r;
         for (;;) {
-            char c;
-            switch (look()) {
-                case EOF: goto not_terminated;
-                case '"': p++; return r;
+            if (p >= end) goto not_terminated;
+            char c = *p++;
+            switch (c) {
+                case '"': return r;
                 case '\\': {
-                    p++;
-                    switch (look()) {
-                        case EOF: goto not_terminated;
+                    if (p >= end) goto not_terminated;
+                    switch (*p++) {
                         case '"': c = '"'; break;
                         case '\\': c = '\\'; break;
                          // Dunno why this is in json
@@ -121,22 +120,46 @@ struct Parser {
                         case 't': c = '\t'; break;
                         case 'x': {
                             if (p + 2 >= end) goto invalid_x;
-                            int n0; n0 = from_hex_digit(p[1]);
+                            int n0; n0 = from_hex_digit(p[0]);
                             if (n0 < 0) goto invalid_x;
-                            int n1; n1 = from_hex_digit(p[2]);
+                            int n1; n1 = from_hex_digit(p[1]);
                             if (n1 < 0) goto invalid_x;
                             c = n0 << 4 | n1;
                             p += 2;
                             break;
-                            invalid_x: error("Invalid \\x escape sequence");
+                            invalid_x: error("Invalid \\x escape sequence.");
                         }
-                        default: error("Unrecognized escape sequence.");
+                        case 'u': {
+                            UniqueString16 units;
+                             // Process multiple \uXXXX sequences at once so
+                             // that we can fuse UTF-16 surrogates.
+                            for (;;) {
+                                if (p + 4 >= end) goto invalid_u;
+                                int n0; n0 = from_hex_digit(p[0]);
+                                if (n0 < 0) goto invalid_u;
+                                int n1; n1 = from_hex_digit(p[1]);
+                                if (n1 < 0) goto invalid_u;
+                                int n2; n2 = from_hex_digit(p[2]);
+                                if (n0 < 0) goto invalid_u;
+                                int n3; n3 = from_hex_digit(p[3]);
+                                if (n1 < 0) goto invalid_u;
+                                units.push_back(n0 << 12 | n1 << 8 | n2 << 4 | n3);
+                                p += 4;
+                                if (p + 2 < end && p[0] == '\\' && p[1] == 'u') {
+                                    p += 2;
+                                }
+                                else break;
+                            }
+                            r.append(from_utf16(units));
+                            continue; // Skip the push_back
+                            invalid_u: error("Invalid \\u escape sequence.");
+                        }
+                        default: p--; error("Unrecognized escape sequence.");
                     }
                     break;
                 }
-                default: [[likely]] c = *p;
+                default: [[likely]] break;
             }
-            p++;
             r.push_back(c);
         }
         not_terminated: error("String not terminated by end of input.");
@@ -512,6 +535,8 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
     y("\"asdf\\x33asdf\"", Tree("asdf3asdf"));
     n("\"af\\x3wasdf\"");
     n("\"asdfasdf\\x");
+    y("\"asdf\\u0037asdf\"", Tree("asdf7asdf"));
+    y("\"asdf\\uD83C\\uDF31asdf\"", Tree("asdf🌱asdf"));
     y("[]", Tree(TreeArray{}));
     y("[,,,,,]", Tree(TreeArray{}));
     y("[0 1 foo]", Tree(TreeArray{Tree(0), Tree(1), Tree("foo")}));
