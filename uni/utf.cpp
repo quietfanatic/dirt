@@ -55,8 +55,8 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
                      | (b2 & 0b0011'1111) << 6
                      | (b3 & 0b0011'1111);
             if (c < 0x10000) goto invalid;  // Overlong sequence
-            *p++ = 0xb800 + ((c - 0x10000) >> 10);
-            *p++ = 0xbc00 + ((c - 0x10000) & 0x3ff);
+            *p++ = 0xd800 + ((c - 0x10000) >> 10);
+            *p++ = 0xdc00 + ((c - 0x10000) & 0x3ff);
             i += 3;
         }
         else goto invalid;
@@ -96,16 +96,17 @@ static usize from_utf16_buffer (char* buffer, Str16 s) {
     for (usize i = 0; i < s.size(); i++) {
         uint32 c;
         uint16 u0 = s[i];
-        if (u0 < 0xb800 || u0 >= 0xbc00 || i + 1 == s.size()) {
+        if (u0 < 0xd800 || u0 >= 0xdc00 || i + 1 == s.size()) {
             c = u0;
         }
         else {
             uint16 u1 = s[i+1];
-            if (u1 < 0xbc00 || u1 >= 0xc000) {
+            if (u1 < 0xdc00 || u1 >= 0xe000) {
                 c = u0;
             }
             else {
-                c = (u0 - 0xb800) << 10 | (u1 - 0xbc00);
+                c = (u0 - 0xd800) << 10 | (u1 - 0xdc00);
+                c += 0x10000;
                 i += 1;
             }
         }
