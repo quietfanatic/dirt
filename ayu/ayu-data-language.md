@@ -71,7 +71,7 @@ Some of these escape sequences may be obscure or useless, but they're included
 for compatibility with JSON.
 
 A string does not have to be quoted if it:
-- is not `null`, `true`, `false`, or `//`
+- is not `null`, `true`, or `false`
 - starts with a letter or one of `_`, `/`, `?`, or `#`
 - only contains the following:
     - ASCII letters, numbers, or underscores
@@ -113,22 +113,25 @@ valid character for unquoted strings.
 ##### Shortcuts
 
 Shortcuts (known as backreferences in some other DLs) can be declared with an
-ampersand (`&`), followed by a string, followed by either an item or a colon and
-an item.  If there is no colon, a copy of the item is left in the declaration's
-place (like in YAML).  If there is a colon, the whole declaration is discarded
-at that point.  (This is so you can declare shortcuts ahead of time at the
-beginning of a file or block.)
+ampersand (`&`), followed by a string (which may be quoted), followed by either
+an item or a colon and an item.  If there is no colon, a copy of the item is
+left in the declaration's place (like in YAML).  If there is a colon, the whole
+declaration is discarded at that point.  (This is so you can declare shortcuts
+ahead of time at the beginning of a file or block.)
 
 Shortcuts can be used later with an asterisk (`\*`) followed by a string.
 Whatever item the shortcut was declared with earlier will be used in its
 place.  Shortcuts can be used as the keys in objects if they refer to strings.
-Shortcuts are syntax only; they are semantically invisible and cannot be
-recursive.  Shortcut names are global to the file or string being parsed, and
-can only be used after they are declared.
 ```
 [1 &a 2 3 *a] -- Equivalent to [1 2 3 2]
 [1 &a:2 3 *a] -- Equivalent to [1 3 2]
 ```
+
+Shortcuts are syntax only; they are semantically invisible and cannot be
+recursive.  Shortcut names are global to the file or string being parsed, and
+can only be used after they are declared.
+
+Whitespace is not allowed after the `&` or `\*`.
 
 ### Notes
 
