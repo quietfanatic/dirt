@@ -17,17 +17,19 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
         uint8 b0 = s[i];
         if (b0 < 0b1000'0000) {
             *p++ = b0; // ASCII
+            continue;
         }
         else if (b0 < 0b1100'0000) goto invalid; // Unmatched continuation
         else if (b0 < 0b1110'0000) {
             if (s.size() - i < 2) goto invalid;  // Truncated sequence
             uint8 b1 = s[i+1];
             if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
-            uint32 c = (b0 & 0b0000'0111) << 6
+            uint32 c = (b0 & 0b0001'1111) << 6
                      | (b1 & 0b0011'1111);
             if (c < 0x80) goto invalid;  // Overlong sequence
             *p++ = c;
             i += 1;
+            continue;
         }
         else if (b0 < 0b1111'0000) {
             if (s.size() - i < 3) goto invalid;  // Truncated sequence
@@ -35,12 +37,13 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
             if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
             uint8 b2 = s[i+2];
             if (b2 < 0b1000'0000 || b2 >= 0b1100'0000) goto invalid;
-            uint32 c = (b0 & 0b0000'0111) << 12
+            uint32 c = (b0 & 0b0000'1111) << 12
                      | (b1 & 0b0011'1111) << 6
                      | (b2 & 0b0011'1111);
             if (c < 0x800) goto invalid;  // Overlong sequence
             *p++ = c;
             i += 2;
+            continue;
         }
         else if (b0 < 0b1111'1000) {
             if (s.size() - i < 4) goto invalid; // Truncated sequence
@@ -58,9 +61,8 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
             *p++ = 0xd800 + ((c - 0x10000) >> 10);
             *p++ = 0xdc00 + ((c - 0x10000) & 0x3ff);
             i += 3;
+            continue;
         }
-        else goto invalid;
-        continue;
         invalid: {
              // Pretend the byte is latin-1 and continue
             *p++ = b0;

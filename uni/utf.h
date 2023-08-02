@@ -16,12 +16,12 @@ namespace uni {
  // UTF-8/UTF-16 conversion functions.  These are best-effort, and never throw
  // errors, instead passing invalid characters through.  Unmatched UTF-8 bytes
  // and overlong sequences are treated as Latin-1 characters, and unmatched
- // UTF-16 surrogtes are encoded as-is into UTF-8.   UTF-16 is native-endian.
+ // UTF-16 surrogates are encoded as-is into UTF-8.   UTF-16 is native-endian.
 
  // Convert a UTF-8 string into a native-endian UTF-16 string.
 UniqueString16 to_utf16 (Str) noexcept;
 
- // Convert a native-endian UTF-16 string into a UTF=8 string.
+ // Convert a native-endian UTF-16 string into a UTF-8 string.
 UniqueString from_utf16 (Str16) noexcept;
 
 ///// UTF-8 IO FUNCTIONS
