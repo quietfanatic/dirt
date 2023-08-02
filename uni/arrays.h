@@ -1802,12 +1802,17 @@ constexpr bool operator== (
     if constexpr (requires { ad == bd; }) {
         if (ad == bd) return true;
     }
-    for (usize i = 0; i < as; ++i) {
-        if (!(ad[i] == bd[i])) {
-            return false;
-        }
+    if constexpr (std::is_scalar_v<T>) {
+        return std::memcmp(ad, bd, as) == 0;
     }
-    return true;
+    else {
+        for (usize i = 0; i < as; ++i) {
+            if (!(ad[i] == bd[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
  // Allow comparing to raw char arrays for string types only.
 template <ArrayClass ac, class T, usize len>
@@ -1821,12 +1826,17 @@ bool operator== (
     const T* ad = a.data();
     const auto& bd = b;
     if (as != bs) return false;
-    for (usize i = 0; i < as; ++i) {
-        if (!(ad[i] == bd[i])) {
-            return false;
-        }
+    if constexpr (std::is_scalar_v<T>) {
+        return std::memcmp(ad, bd, bs) == 0;
     }
-    return true;
+    else {
+        for (usize i = 0; i < bs; ++i) {
+            if (!(ad[i] == bd[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
  // I can't be bothered to learn what <=> is supposed to return.  They should
@@ -1844,11 +1854,16 @@ constexpr auto operator<=> (
     if constexpr (requires { ad == bd; }) {
         if (as == bs && ad == bd) return 0 <=> 0;
     }
-    for (usize i = 0; i < as && i < bs; ++i) {
-        auto res = ad[i] <=> bd[i];
-        if (res != (0 <=> 0)) return res;
+    if constexpr (std::is_scalar_v<T>) {
+        return std::memcmp(ad, bd, as) <=> 0;
     }
-    return as <=> bs;
+    else {
+        for (usize i = 0; i < as && i < bs; ++i) {
+            auto res = ad[i] <=> bd[i];
+            if (res != (0 <=> 0)) return res;
+        }
+        return as <=> bs;
+    }
 }
 template <ArrayClass ac, class T, usize len>
 ALWAYS_INLINE constexpr
@@ -1860,11 +1875,16 @@ auto operator<=> (
     usize bs = len - 1;
     const T* ad = a.data();
     const auto& bd = b;
-    for (usize i = 0; i < as && i < bs; ++i) {
-        auto res = ad[i] <=> bd[i];
-        if (res != (0 <=> 0)) return res;
+    if constexpr (std::is_scalar_v<T>) {
+        return std::memcmp(ad, bd, bs) <=> 0;
     }
-    return as <=> bs;
+    else {
+        for (usize i = 0; i < as && i < bs; ++i) {
+            auto res = ad[i] <=> bd[i];
+            if (res != (0 <=> 0)) return res;
+        }
+        return as <=> bs;
+    }
 }
 
 } // arrays

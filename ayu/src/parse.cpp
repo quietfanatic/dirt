@@ -362,22 +362,13 @@ struct Parser {
         error(cat("Unknown shortcut *", name));
     }
 
-    AnyString parse_shortcut_name (char sigil) {
+    NOINLINE AnyString parse_shortcut_name (char sigil) {
         switch (*p) {
             case ANY_WORD_STARTER: {
                 Str word = got_word();
-                if (word.size() == 4) {
-                    if (word[0] == 'n' && word[1] == 'u' &&
-                        word[2] == 'l' && word[3] == 'l'
-                    ) goto nope;
-                    if (word[0] == 't' && word[1] == 'r' &&
-                        word[2] == 'u' && word[3] == 'e'
-                    ) goto nope;
+                if (word == "null" || word == "true" || word == "false") {
+                    goto nope;
                 }
-                if (word.size() == 5 && word[0] == 'f' &&
-                    word[1] == 'a' && word[2] == 'l' &&
-                    word[3] == 's' && word[4] == 'e'
-                ) goto nope;
                 return StaticString(word);
             }
             case '"': return got_string(); break;
@@ -418,19 +409,10 @@ struct Parser {
         switch (*p) {
             case ANY_WORD_STARTER: {
                 Str word = got_word();
-                if (word.size() == 4) {
-                    if (word[0] == 'n' && word[1] == 'u' &&
-                        word[2] == 'l' && word[3] == 'l'
-                    ) return Tree(null);
-                    if (word[0] == 't' && word[1] == 'r' &&
-                        word[2] == 'u' && word[3] == 'e'
-                    ) return Tree(true);
-                }
-                if (word.size() == 5 && word[0] == 'f' &&
-                    word[1] == 'a' && word[2] == 'l' &&
-                    word[3] == 's' && word[4] == 'e'
-                ) return Tree(false);
-                return Tree(word);
+                if (word == "null") return Tree(null);
+                else if (word == "true") return Tree(true);
+                else if (word == "false") return Tree(false);
+                else return Tree(word);
             }
 
             case ANY_DECIMAL_DIGIT: return got_digit();

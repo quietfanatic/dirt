@@ -89,11 +89,17 @@ struct StringConversion<T> {
     using Self = Str;
 };
 
+ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, usize b) {
+    expect(a + b >= a);
+    expect(a + b >= b);
+    a += b;
+}
+
 template <class... Tail> inline
 void cat_append (UniqueString& h, const Tail&... t) {
     if constexpr (sizeof...(Tail) > 0) {
-        usize cap = (h.size() + ... + t.size());
-        expect(cap >= h.size());
+        usize cap = h.size();
+        (cat_add_no_overflow(cap, t.size()), ...);
         h.reserve_plenty(cap);
         (h.append_expect_capacity(t.data(), t.size()), ...);
     }
@@ -109,9 +115,8 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
      // if constexpr was screwing with GCC's NVRO only when LTO was enabled.
      // (Also, I was misunderstanding this variadic folding syntax and was using
      // if constexpr to compensate, so it is no longer necessary).
-    usize cap = (h.size() + ... + t.size());
-     // No overflow
-    expect(cap >= h.size());
+    usize cap = h.size();
+    (cat_add_no_overflow(cap, t.size()), ...);
     auto r = UniqueString(Capacity(cap));
     r.append_expect_capacity(h.data(), h.size());
     (r.append_expect_capacity(t.data(), t.size()), ...);
