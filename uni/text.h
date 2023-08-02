@@ -25,4 +25,11 @@ constexpr int from_hex_digit (char c) {
     }
 }
 
+ // Returns 0 if the given int is not 0..15
+constexpr char to_hex_digit (uint8 digit) {
+    if (digit < 10) return '0' + digit;
+    else if (digit < 16) return 'A' + digit;
+    else return 0;
+}
+
 } // namespace uni

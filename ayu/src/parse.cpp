@@ -33,15 +33,8 @@ struct Parser {
         end(s.end())
     { }
 
-     // Error reporting
-    char show_hex_digit (int d) {
-        if (d > 9) return 'A' + d;
-        else return '0' + d;
-    }
-
-    template <class... Args>
     [[noreturn, gnu::cold]]
-    void error (Args&&... args) {
+    void error (Str mess) {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
         uint line = 1;
@@ -54,7 +47,7 @@ struct Parser {
         }
         uint col = p - last_lf;
         raise(e_ParseFailed, cat(
-            std::forward<Args>(args)..., " at ", filename, ':', line, ':', col
+            mess, " at ", filename, ':', line, ':', col
         ));
     }
 
@@ -182,7 +175,7 @@ struct Parser {
                     error("\" cannot occur inside a word (are you missing the first \"?)");
                 }
                 case ANY_RESERVED_SYMBOL: {
-                    error(*p, " is a reserved symbol and can't be used outside of strings.");
+                    error(cat(*p, " is a reserved symbol and can't be used outside of strings."));
                 }
                 default: goto done;
             }
@@ -308,7 +301,7 @@ struct Parser {
             switch (*p) {
                 case ':': p++; break;
                 case ANY_RESERVED_SYMBOL: {
-                    error(*p, " is a reserved symbol and can't be used outside of strings.");
+                    error(cat(*p, " is a reserved symbol and can't be used outside of strings."));
                 }
                 default: error("Missing : after name in object.");
             }
@@ -329,7 +322,7 @@ struct Parser {
     void set_shortcut (AnyString&& name, Tree value) {
         for (auto& p : shortcuts) {
             if (p.first == name) {
-                error("Duplicate declaration of shortcut &", name);
+                error(cat("Duplicate declaration of shortcut &", name));
             }
         }
         shortcuts.emplace_back(move(name), move(value));
@@ -338,27 +331,28 @@ struct Parser {
         for (auto& p : shortcuts) {
             if (p.first == name) return p.second;
         }
-        error("Unknown shortcut *", name);
+        error(cat("Unknown shortcut *", name));
     }
 
     Tree got_decl () {
         p++;  // for the &
-        Tree name = parse_term();
-        if (name.form != STRING) {
+        Tree name_t = parse_term();
+        if (name_t.form != STRING) {
             error("Can't use non-string as shortcut name.");
         }
+        auto name = AnyString(move(name_t));
         skip_ws();
         if (p < end && *p == ':') {
             p++;
             skip_ws();
             Tree value = parse_term();
-            set_shortcut(AnyString(move(name)), value);
+            set_shortcut(move(name), move(value));
             skip_commas();
             return parse_term();
         }
         else {
             Tree value = parse_term();
-            set_shortcut(AnyString(move(name)), value);
+            set_shortcut(move(name), value);
             return value;
         }
     }
@@ -408,11 +402,15 @@ struct Parser {
             case ':':
             case ',':
             case ']':
-            case '}': error("Unexpected ", *p);
+            case '}': error(cat("Unexpected ", *p));
             case '.': error("Number cannot begin with .");
-            case ANY_RESERVED_SYMBOL:
-                error(*p, " is a reserved symbol and can't be used outside of strings.");
-            default: error("Unrecognized character ", *p);
+            case ANY_RESERVED_SYMBOL: error(cat(
+                *p, " is a reserved symbol and can't be used outside of strings."
+            ));
+            default: error(cat(
+                "Unrecognized character <", to_hex_digit(uint8(*p) >> 4),
+                to_hex_digit(*p & 0xf), '>'
+            ));
         }
     }
 
