@@ -206,10 +206,12 @@ int remove_utf8 (const char* filename) noexcept {
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
 
-static tap::TestSet tests ("dirt/ayu/compat", []{
+static tap::TestSet tests ("dirt/uni/utf", []{
     using namespace tap;
     is(from_utf16(u"ユニコード"), "ユニコード", "from_utf16");
     is(to_utf16("ユニコード"), u"ユニコード", "to_utf16");
+    is(to_utf16("🌱"), u"🌱", "to_utf16 with two-unit character");
+    is(from_utf16(u"🌱"), "🌱", "from_utf16 with two-unit character");
      // Assuming little-endian
     is(
         reinterpret_cast<const char*>(to_utf16("ユニコード").c_str()),
