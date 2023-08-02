@@ -28,14 +28,13 @@ inline namespace buffers {
 
         static constexpr usize capacity_for_size (usize size) {
             usize min_bytes = sizeof(usize) == 8 ? 24 : 16;
-            usize min_cap = min_bytes / sizeof(T);
-            if (!min_cap) min_cap = 1;
              // Give up on rounding up non-power-of-two sizes.
             usize mask = sizeof(T) == 1 ? 7
                        : sizeof(T) == 2 ? 3
                        : sizeof(T) == 4 ? 1
                        : 0;
-            return size <= min_cap ? min_cap : ((size + mask) & ~mask);
+            usize cap = (size + mask) & ~mask;
+            return cap >= min_bytes ? cap : min_bytes;
         }
 
         [[gnu::malloc, gnu::returns_nonnull]] static
