@@ -33,10 +33,6 @@ struct Parser {
         end(s.end())
     { }
 
-     // Utility
-    ALWAYS_INLINE
-    int look (int i = 0) { return p+i >= end ? EOF : uint8(p[i]); }
-
      // Error reporting
     char show_hex_digit (int d) {
         if (d > 9) return 'A' + d;
@@ -64,45 +60,47 @@ struct Parser {
 
     void skip_comment () {
         p += 2;  // for two -s
-        for (;;) switch (look()) {
-            case EOF: return;
-            case '\n': p++; return;
-            default: p++; break;
+        for (; p < end; p++) {
+            if (*p == '\n') {
+                p++; return;
+            }
         }
     }
     void skip_ws () {
-        for (;;) switch (look()) {
-            case ANY_WS: p++; break;
-            case '-': {
-                if (look(1) == '-') {
-                    skip_comment();
-                    break;
+        for (; p < end; p++) {
+            switch (*p) {
+                case ANY_WS: break;
+                case '-': {
+                    if (p + 1 < end && p[1] == '-') {
+                        skip_comment();
+                        return skip_ws();
+                    }
+                    else return;
                 }
-                else return;
+                default: return;
             }
-            default: return;
         }
     }
     void skip_commas () {
-        for (;;) switch (look()) {
-            case ANY_WS:
-            case ',': p++; break;
-            case '-': {
-                if (look(1) == '-') {
-                    skip_comment();
-                    break;
+        for (; p < end; p++) {
+            switch (*p) {
+                case ANY_WS: case ',': break;
+                case '-': {
+                    if (p + 1 < end && p[1] == '-') {
+                        skip_comment();
+                        return skip_commas();
+                    }
+                    else return;
                 }
-                else return;
+                default: return;
             }
-            default: return;
         }
     }
 
     UniqueString got_string () {
         p++;  // for the "
         UniqueString r;
-        for (;;) {
-            if (p >= end) goto not_terminated;
+        while (p < end) {
             char c = *p++;
             switch (c) {
                 case '"': return r;
@@ -120,14 +118,13 @@ struct Parser {
                         case 't': c = '\t'; break;
                         case 'x': {
                             if (p + 2 >= end) goto invalid_x;
-                            int n0; n0 = from_hex_digit(p[0]);
+                            int n0 = from_hex_digit(p[0]);
                             if (n0 < 0) goto invalid_x;
-                            int n1; n1 = from_hex_digit(p[1]);
+                            int n1 = from_hex_digit(p[1]);
                             if (n1 < 0) goto invalid_x;
                             c = n0 << 4 | n1;
                             p += 2;
                             break;
-                            invalid_x: error("Invalid \\x escape sequence.");
                         }
                         case 'u': {
                             UniqueString16 units;
@@ -135,13 +132,13 @@ struct Parser {
                              // that we can fuse UTF-16 surrogates.
                             for (;;) {
                                 if (p + 4 >= end) goto invalid_u;
-                                int n0; n0 = from_hex_digit(p[0]);
+                                int n0 = from_hex_digit(p[0]);
                                 if (n0 < 0) goto invalid_u;
-                                int n1; n1 = from_hex_digit(p[1]);
+                                int n1 = from_hex_digit(p[1]);
                                 if (n1 < 0) goto invalid_u;
-                                int n2; n2 = from_hex_digit(p[2]);
+                                int n2 = from_hex_digit(p[2]);
                                 if (n0 < 0) goto invalid_u;
-                                int n3; n3 = from_hex_digit(p[3]);
+                                int n3 = from_hex_digit(p[3]);
                                 if (n1 < 0) goto invalid_u;
                                 units.push_back(n0 << 12 | n1 << 8 | n2 << 4 | n3);
                                 p += 4;
@@ -152,7 +149,6 @@ struct Parser {
                             }
                             r.append(from_utf16(units));
                             continue; // Skip the push_back
-                            invalid_u: error("Invalid \\u escape sequence.");
                         }
                         default: p--; error("Unrecognized escape sequence.");
                     }
@@ -163,29 +159,33 @@ struct Parser {
             r.push_back(c);
         }
         not_terminated: error("String not terminated by end of input.");
+        invalid_x: error("Invalid \\x escape sequence.");
+        invalid_u: error("Invalid \\u escape sequence.");
     }
 
     Str got_word () {
         const char* start = p;
         p++;  // For the first character
-        for (;;) switch (look()) {
-            case ANY_LETTER: case ANY_DECIMAL_DIGIT: case ANY_WORD_SYMBOL:
-                p++; break;
-            case ':': {
-                 // Allow :: for c++ types
-                if (look(1) == ':') {
-                    p += 2;
-                    break;
+        while (p < end) {
+            switch (*p) {
+                case ANY_LETTER: case ANY_DECIMAL_DIGIT: case ANY_WORD_SYMBOL:
+                    p++; break;
+                case ':': {
+                     // Allow :: for c++ types
+                    if (p < end && p[1] == ':') {
+                        p += 2;
+                        break;
+                    }
+                    else goto done;
                 }
-                else goto done;
+                case '"': {
+                    error("\" cannot occur inside a word (are you missing the first \"?)");
+                }
+                case ANY_RESERVED_SYMBOL: {
+                    error(*p, " is a reserved symbol and can't be used outside of strings.");
+                }
+                default: goto done;
             }
-            case '"': {
-                error("\" cannot occur inside a word (are you missing the first \"?)");
-            }
-            case ANY_RESERVED_SYMBOL: {
-                error(*p, " is a reserved symbol and can't be used outside of strings.");
-            }
-            default: goto done;
         }
         done:
         if (p - start == 2 && start[0] == '/' && start[1] == '/') {
@@ -277,24 +277,24 @@ struct Parser {
     TreeArray got_array () {
         UniqueArray<Tree> r;
         p++;  // for the [
-        for (;;) {
+        while (p < end) {
             skip_commas();
-            switch (look()) {
-                case EOF: error("Array is not terminated.");
+            switch (*p) {
                 case ':': error("Cannot have : in an array.");
                 case ']': p++; return r;
                 default: r.push_back(parse_term()); break;
             }
         }
+        error("Array is not terminated.");
     }
 
     TreeObject got_object () {
         UniqueArray<TreePair> r;
         p++;  // for the {
-        for (;;) {
+        while (p < end) {
             skip_commas();
-            switch (look()) {
-                case EOF: error("Object is not terminated.");
+            if (p >= end) goto not_terminated;
+            switch (*p) {
                 case ':': error("Missing key before : in object.");
                 case '}': p++; return r;
                 default: break;
@@ -304,8 +304,8 @@ struct Parser {
                 error("Can't use non-string as key in object.");
             }
             skip_ws();
-            switch (look()) {
-                case EOF: error("Object is not terminated.");
+            if (p >= end) goto not_terminated;
+            switch (*p) {
                 case ':': p++; break;
                 case ANY_RESERVED_SYMBOL: {
                     error(*p, " is a reserved symbol and can't be used outside of strings.");
@@ -313,7 +313,8 @@ struct Parser {
                 default: error("Missing : after name in object.");
             }
             skip_ws();
-            switch (look()) {
+            if (p >= end) goto not_terminated;
+            switch (*p) {
                 case ',':
                 case '}': error("Missing value after : in object.");
                 default: {
@@ -322,7 +323,7 @@ struct Parser {
                 }
             }
         }
-        return r;
+        not_terminated: error("Object is not terminated.");
     }
 
     void set_shortcut (AnyString&& name, Tree value) {
@@ -342,41 +343,28 @@ struct Parser {
 
     Tree got_decl () {
         p++;  // for the &
-        switch (look()) {
-            case ANY_LETTER:
-            case '_':
-            case '"': break;
-            default: error("Expected shortcut name after ", '&');
-        }
         Tree name = parse_term();
         if (name.form != STRING) {
             error("Can't use non-string as shortcut name.");
         }
         skip_ws();
-        switch (look()) {
-            case ':': {
-                p++;
-                skip_ws();
-                set_shortcut(AnyString(move(name)), parse_term());
-                skip_commas();
-                return parse_term();
-            }
-            default: {
-                Tree value = parse_term();
-                set_shortcut(AnyString(move(name)), value);
-                return value;
-            }
+        if (p < end && *p == ':') {
+            p++;
+            skip_ws();
+            Tree value = parse_term();
+            set_shortcut(AnyString(move(name)), value);
+            skip_commas();
+            return parse_term();
+        }
+        else {
+            Tree value = parse_term();
+            set_shortcut(AnyString(move(name)), value);
+            return value;
         }
     }
 
     Tree got_shortcut () {
         p++;  // for the *
-        switch (look()) {
-            case ANY_LETTER:
-            case '_':
-            case '"': break;
-            default: error("Expected shortcut name after ", '*');
-        }
         Tree name = parse_term();
         if (name.form != STRING) {
             error("Can't use non-string as shortcut name.");
@@ -385,8 +373,8 @@ struct Parser {
     }
 
     Tree parse_term () {
-        switch (look()) {
-            case EOF: error("Expected term but ran into end of file.");
+        if (p >= end) error("Expected term but ran into end of file.");
+        switch (*p) {
             case ANY_WORD_STARTER: {
                 Str word = got_word();
                 if (word.size() == 4) {
