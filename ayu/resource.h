@@ -75,7 +75,7 @@ enum ResourceState {
     RELOAD_COMMITTING,
 };
  // Get the string name of a resource state.
-StaticString show_ResourceState (ResourceState);
+StaticString show_ResourceState (ResourceState) noexcept;
 
  // The Resource class refers to a resource with reference semantics.
  // This class itself is cheap to copy.
@@ -101,9 +101,9 @@ struct Resource {
     Resource (Null, Dynamic&& value);
 
      // Returns the resource's name as an IRI
-    const IRI& name () const;
+    const IRI& name () const noexcept;
      // See enum ResourceState
-    ResourceState state () const;
+    ResourceState state () const noexcept;
 
      // If the resource is UNLOADED, automatically loads the resource from disk.
      // Will throw if autoloading the resource but the file does not exist.
@@ -111,7 +111,7 @@ struct Resource {
      // Gets the value without autoloading.  If the result is empty, do not
      // write to it.  Nothing bad will happen immediately, but the value will
      // be overwritten when the resource is loaded.
-    Dynamic& get_value () const;
+    Dynamic& get_value () const noexcept;
      // If the resource is UNLOADED, sets is state to LOADED without loading
      // from disk, and sets its value.  Throws InvalidResourceState if the
      // resource's state is anything but UNLOADED, LOADED, or LOAD_CONSTRUCTING.
@@ -124,7 +124,7 @@ struct Resource {
     Reference ref () const;
      // Gets a reference to the value without automatically loading.  If the
      // resource is UNLOADED, returns an empty Reference.
-    Reference get_ref () const;
+    Reference get_ref () const noexcept;
 
      // Syntax sugar
     explicit operator bool () const { return data; }
@@ -221,7 +221,7 @@ AnyString resource_filename (Resource);
 
  // Returns a list of all resources with state != UNLOADED.  This includes
  // resources that are in the process of being loaded, reloaded, or unloaded.
-UniqueArray<Resource> loaded_resources ();
+UniqueArray<Resource> loaded_resources () noexcept;
 
 ///// RESOURCE ERROR CODES
 

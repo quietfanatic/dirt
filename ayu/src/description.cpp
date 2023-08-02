@@ -32,10 +32,8 @@ static void init_names () {
     }
 }
 
-const Description* register_description (const Description* desc) {
-    if (registry().initted) {
-        raise(e_General, "register_description called after init time");
-    }
+const Description* register_description (const Description* desc) noexcept {
+    require(!registry().initted);
     auto [p, e] = registry().by_cpp_type.emplace(*desc->cpp_type, desc);
     return p->second;
 }
@@ -76,7 +74,7 @@ StaticString get_description_name (const Description* desc) {
         : StaticString(desc->cpp_type->name());
 }
 
-UniqueString get_demangled_name (const std::type_info& t) {
+UniqueString get_demangled_name (const std::type_info& t) noexcept {
 #if __has_include(<cxxabi.h>)
     int status;
     char* demangled = abi::__cxa_demangle(t.name(), nullptr, nullptr, &status);

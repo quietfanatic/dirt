@@ -35,34 +35,34 @@ struct IndexLocation : LocationData {
 
 } using namespace in;
 
-inline Location::Location (Location p, AnyString k) :
+inline Location::Location (Location p, AnyString k) noexcept :
     data(new KeyLocation(expect(move(p)), move(k)))
 { }
-inline Location::Location (Location p, usize i) :
+inline Location::Location (Location p, usize i) noexcept :
     data(new IndexLocation(expect(move(p)), i))
 { }
 
-inline const Location* Location::parent () const {
+inline const Location* Location::parent () const noexcept {
     switch (data->form) {
         case KEY: return &static_cast<KeyLocation*>(data.p)->parent;
         case INDEX: return &static_cast<IndexLocation*>(data.p)->parent;
         default: return null;
     }
 }
-inline const AnyString* Location::key () const {
+inline const AnyString* Location::key () const noexcept {
     switch (data->form) {
         case KEY: return &static_cast<KeyLocation*>(data.p)->key;
         default: return null;
     }
 }
-inline const uint32* Location::index () const {
+inline const uint32* Location::index () const noexcept {
     switch (data->form) {
         case INDEX: return &static_cast<IndexLocation*>(data.p)->index;
         default: return null;
     }
 }
 
-inline Location Location::root () const {
+inline Location Location::root () const noexcept {
     const Location* l = this;
     while (l->parent()) l = l->parent();
     return *l;

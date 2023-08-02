@@ -18,14 +18,13 @@ void Command::register_command () const {
     ));
 }
 
-const Command* lookup_command (Str name) {
+const Command* lookup_command (Str name) noexcept {
     auto iter = commands_by_name().find(name);
     if (iter != commands_by_name().end()) return iter->second;
     else return nullptr;
 }
 const Command* require_command (Str name) {
-    auto iter = commands_by_name().find(name);
-    if (iter != commands_by_name().end()) return iter->second;
+    if (auto r = lookup_command(name)) return r;
     else ayu::raise(e_CommandNotFound, name);
 }
 

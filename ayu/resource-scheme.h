@@ -67,7 +67,7 @@ struct ResourceScheme {
      // These are called in the constructor (by default) and destructor, so you
      // don't have to call them yourself.
     void activate () const;
-    void deactivate () const;
+    void deactivate () const noexcept;
 };
 
 ResourceScheme* get_resource_scheme (Str name);

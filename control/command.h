@@ -55,7 +55,7 @@ struct Command {
 };
 
  // Returns nullptr if not found
-const Command* lookup_command (Str name);
+const Command* lookup_command (Str name) noexcept;
  // Throws CommandNotFound if not found
 const Command* require_command (Str name);
 

@@ -17,13 +17,13 @@ static GLFunctionRegistry& registry () {
     return r;
 }
 
-void register_gl_function (void* p, const char* name) {
+void register_gl_function (void* p, const char* name) noexcept {
     static GLFunctionRegistry& reg = registry();
     require(!reg.initted);
     reg.to_init.emplace_back(p, name);
 }
 
-void init_gl_functions () {
+void init_gl_functions () noexcept {
     static GLFunctionRegistry& reg = registry();
     if (reg.initted) return;
     reg.initted = true;

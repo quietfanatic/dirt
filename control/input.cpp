@@ -7,7 +7,7 @@
 
 namespace control {
 
-bool input_matches_event (const Input& input, SDL_Event* event) {
+bool input_matches_event (const Input& input, SDL_Event* event) noexcept {
     switch (event->type) {
         case SDL_KEYDOWN: {
             if (event->key.repeat) return false;
@@ -40,7 +40,7 @@ static void send_key_event (int type, int code, int window) {
     SDL_PushEvent(&event);
 }
 
-void send_input_as_event (const Input& input, int window) {
+void send_input_as_event (const Input& input, int window) noexcept {
     if (input.ctrl) send_key_event(SDL_KEYDOWN, SDLK_LCTRL, window);
     if (input.alt) send_key_event(SDL_KEYDOWN, SDLK_LALT, window);
     if (input.shift) send_key_event(SDL_KEYDOWN, SDLK_LSHIFT, window);
@@ -76,7 +76,7 @@ void send_input_as_event (const Input& input, int window) {
     if (input.ctrl) send_key_event(SDL_KEYUP, SDLK_LCTRL, window);
 }
 
-Input input_from_integer (int i) {
+Input input_from_integer (int i) noexcept {
     switch (i) {
         case 0: case 1: case 2: case 3: case 4:
         case 5: case 6: case 7: case 8: case 9:
@@ -89,7 +89,7 @@ Input input_from_integer (int i) {
     }
 }
 
-int input_to_integer (const Input& input) {
+int input_to_integer (const Input& input) noexcept {
     if (input.type != KEY) return -1;
     switch (input.code) {
         case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:

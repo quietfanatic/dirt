@@ -9,12 +9,12 @@
 
 namespace glow {
 
-void init () {
+void init () noexcept {
     init_gl_functions();
 }
 
 [[gnu::cold]]
-void requirement_failed_sdl (std::source_location loc) {
+void requirement_failed_sdl (std::source_location loc) noexcept {
     warn_utf8(uni::cat(
         "ERROR: require_sdl() failed at", loc.file_name(),
         ':', loc.line(), "\n       in ", loc.function_name(),

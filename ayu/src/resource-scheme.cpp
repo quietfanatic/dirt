@@ -16,7 +16,7 @@ void ResourceScheme::activate () const {
         raise(e_ResourceSchemeNameDuplicate, scheme_name);
     }
 }
-void ResourceScheme::deactivate () const {
+void ResourceScheme::deactivate () const noexcept {
     auto& schemes = universe().schemes;
     schemes.erase(scheme_name);
 }

@@ -25,15 +25,15 @@ struct Input {
     int32 code = 0;
 };
 
-bool input_matches_event (const Input& i, SDL_Event* event);
+bool input_matches_event (const Input& i, SDL_Event* event) noexcept;
 
  // Mainly for testing
-void send_input_as_event (const Input& i, int windowID);
+void send_input_as_event (const Input& i, int windowID) noexcept;
 
  // 0..9 map to the number keys, and other numbers are raw scancodes.
  // Does not work for mouse buttons.
-Input input_from_integer (int d);
-int input_to_integer (const Input& i);
+Input input_from_integer (int d) noexcept;
+int input_to_integer (const Input& i) noexcept;
 
  // Symbolic name in all lowercase (Ignores modifier keys).
  // May not work on obscure keys.

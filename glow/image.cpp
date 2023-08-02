@@ -7,7 +7,7 @@
 
 namespace glow {
 
-Image::Image (IVec s) :
+Image::Image (IVec s) noexcept :
     size((require(area(s) >= 0), s)), pixels(new RGBA8 [area(size)])
 { }
 

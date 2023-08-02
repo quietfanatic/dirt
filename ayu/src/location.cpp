@@ -22,21 +22,21 @@ struct ReferenceLocation : LocationData {
     { }
 };
 
-Location::Location (Resource res) :
+Location::Location (Resource res) noexcept :
     data(new ResourceLocation(move(res)))
 { }
-Location::Location (Reference ref) :
+Location::Location (Reference ref) noexcept :
     data(new ReferenceLocation(move(ref)))
 { }
 
-const Resource* Location::resource () const {
+const Resource* Location::resource () const noexcept {
     switch (data->form) {
         case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
         default: return null;
     }
 }
 
-const Reference* Location::reference () const {
+const Reference* Location::reference () const noexcept {
     switch (data->form) {
         case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
         default: return null;

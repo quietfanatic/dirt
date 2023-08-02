@@ -3,8 +3,8 @@
 #include "common.h"
 
 namespace glow {
-    void register_gl_function (void*, const char*);
-    void init_gl_functions ();
+    void register_gl_function (void*, const char*) noexcept;
+    void init_gl_functions () noexcept;
 
     constexpr ayu::ErrorCode e_GLError = "glow::GLError";
 

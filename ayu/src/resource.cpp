@@ -86,7 +86,7 @@ static void verify_tree_for_scheme (
 
 } using namespace in;
 
-StaticString show_ResourceState (ResourceState state) {
+StaticString show_ResourceState (ResourceState state) noexcept {
     switch (state) {
         case UNLOADED: return "UNLOADED";
         case LOADED: return "LOADED";
@@ -142,8 +142,8 @@ Resource::Resource (const IRI& name, Dynamic&& value) :
     }
 }
 
-const IRI& Resource::name () const { return data->name; }
-ResourceState Resource::state () const { return data->state; }
+const IRI& Resource::name () const noexcept { return data->name; }
+ResourceState Resource::state () const noexcept { return data->state; }
 
 Dynamic& Resource::value () const {
     if (data->state == UNLOADED) {
@@ -151,7 +151,7 @@ Dynamic& Resource::value () const {
     }
     return data->value;
 }
-Dynamic& Resource::get_value () const {
+Dynamic& Resource::get_value () const noexcept {
     return data->value;
 }
 void Resource::set_value (Dynamic&& value) const {
@@ -179,7 +179,7 @@ void Resource::set_value (Dynamic&& value) const {
 Reference Resource::ref () const {
     return value().ptr();
 }
-Reference Resource::get_ref () const {
+Reference Resource::get_ref () const noexcept {
     if (data->state == UNLOADED) return Reference();
     else return get_value().ptr();
 }
@@ -524,7 +524,7 @@ bool source_exists (Resource res) {
     else return false;
 }
 
-UniqueArray<Resource> loaded_resources () {
+UniqueArray<Resource> loaded_resources () noexcept {
     UniqueArray<Resource> r;
     for (auto& [name, rd] : universe().resources)
     if (rd->state != UNLOADED) {

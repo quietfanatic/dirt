@@ -58,7 +58,7 @@ void ActiveLoop::start () {
     }
 }
 
-void ActiveLoop::stop () {
+void ActiveLoop::stop () noexcept {
     stop_requested = true;
 }
 

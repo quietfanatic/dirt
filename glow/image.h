@@ -27,7 +27,7 @@ struct Image {
      // Create from already-allocated pixels.
     Image (IVec s, RGBA8*&& p) : size(s), pixels(p) { p = nullptr; }
      // Allocate new pixels array
-    explicit Image (IVec size);
+    explicit Image (IVec size) noexcept;
 
     Image (Image&& o) : size(o.size), pixels(o.pixels) {
         const_cast<RGBA8*&>(o.pixels) = null;

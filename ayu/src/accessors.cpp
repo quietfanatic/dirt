@@ -95,7 +95,7 @@ Mu* ReferenceFuncAcr1::_address (const Accessor* acr, Mu& from) {
     return ref.address();
 }
 
-ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) :
+ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
     Accessor(
         &_vt,
          // Readonly if either accessor is readonly
@@ -148,7 +148,7 @@ Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
     }
     else return null;
 }
-void ChainAcr::_destroy (Accessor* acr) {
+void ChainAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const ChainAcr*>(acr);
     self->inner->dec(); self->outer->dec();
 }
@@ -168,7 +168,7 @@ Mu* AttrFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const AttrFuncAcr*>(acr);
     return self->fp(v, self->key).address();
 }
-void AttrFuncAcr::_destroy (Accessor* acr) {
+void AttrFuncAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const AttrFuncAcr*>(acr);
     self->~AttrFuncAcr();
 }

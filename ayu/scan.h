@@ -32,7 +32,7 @@ Location reference_to_location (const Reference&);
  // to stay up-to-date.
 struct KeepLocationCache {
     KeepLocationCache () noexcept;
-    ~KeepLocationCache () noexcept;
+    ~KeepLocationCache ();
 };
 
 ///// Scanning operations

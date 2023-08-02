@@ -33,7 +33,7 @@ struct ActiveLoop {
      // Loops over update and draw until stop is called
     void start ();
      // Makes start() return.
-    void stop ();
+    void stop () noexcept;
 };
 
 } // namespace wind

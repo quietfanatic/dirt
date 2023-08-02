@@ -68,7 +68,7 @@ namespace ayu_desc {
 }
 
 namespace ayu::in {
-    const Description* register_description (const Description*);
+    const Description* register_description (const Description*) noexcept;
     const Description* get_description_for_type_info (const std::type_info&) noexcept;
     const Description* need_description_for_type_info (const std::type_info&);
     const Description* get_description_for_name (Str) noexcept;
@@ -76,7 +76,7 @@ namespace ayu::in {
 
     StaticString get_description_name (const Description*);
 
-    UniqueString get_demangled_name (const std::type_info&);
+    UniqueString get_demangled_name (const std::type_info&) noexcept;
 
     template <class T> requires (!std::is_reference_v<T>)
     constexpr const Description* const* get_indirect_description () {

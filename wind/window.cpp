@@ -8,7 +8,7 @@
 
 namespace wind {
 
-Window::Window (const GLAttributes& attrs) : Window(
+Window::Window (const GLAttributes& attrs) noexcept : Window(
     "",
     SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
     0, 0,
@@ -19,7 +19,7 @@ Window::Window (const GLAttributes& attrs) : Window(
 Window::Window (
     const char* title, geo::IVec size,
     const GLAttributes& attrs
-) : Window(
+) noexcept : Window(
     title,
     SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
     size.x, size.y,
@@ -30,7 +30,7 @@ Window::Window (
 Window::Window (
     const char* title, int x, int y, int w, int h, uint32 flags,
     const GLAttributes& attrs
-) {
+) noexcept {
     glow::require_sdl(!SDL_InitSubSystem(SDL_INIT_VIDEO));
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE, attrs.red);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, attrs.green);

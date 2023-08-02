@@ -6,12 +6,14 @@
 namespace glow {
 using namespace uni;
 
-void init ();
+void init () noexcept;
 
 struct GlowError : ayu::Error { };
 
 [[noreturn]]
-void requirement_failed_sdl (std::source_location loc = std::source_location::current());
+void requirement_failed_sdl (
+    std::source_location loc = std::source_location::current()
+) noexcept;
 
 template <class T>
 [[gnu::always_inline]]

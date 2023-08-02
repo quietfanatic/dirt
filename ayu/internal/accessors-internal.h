@@ -84,7 +84,7 @@ struct Accessor;
  // instantiations it results in massive code size bloating.
 struct AccessorVT {
     static Mu* default_address (const Accessor*, Mu&) { return null; }
-    static void default_destroy (Accessor*) { }
+    static void default_destroy (Accessor*) noexcept { }
     template <class T>
     static Type const_type (const Accessor*, Mu*) {
         return Type::CppType<T>();
@@ -95,7 +95,7 @@ struct AccessorVT {
     Mu*(* address )(const Accessor*, Mu&) = &default_address;
     Mu*(* inverse_address )(const Accessor*, Mu&) = null;
      // Plays role of virtual ~Accessor();
-    void(* destroy_this )(Accessor*) = &default_destroy;
+    void(* destroy_this )(Accessor*) noexcept = &default_destroy;
 };
 
  // The base class for all accessors.  Try to keep this small.
@@ -474,10 +474,10 @@ struct VariableAcr1 : Accessor {
      // This ACR cannot be addressable, because then Reference::chain and co.
      //  may take the address of value but then release this ACR object,
      //  invalidating value.
-    static void _destroy_this (Accessor*);
+    static void _destroy (Accessor*) noexcept;
     static constexpr AccessorVT _vt = {
         &AccessorVT::const_type<To>, &_access, &AccessorVT::default_address,
-        null, &_destroy_this
+        null, &_destroy
     };
 };
 template <class From, class To>
@@ -498,7 +498,7 @@ void VariableAcr1<To>::_access (
     cb(reinterpret_cast<Mu&>(self->value));
 }
 template <class To>
-void VariableAcr1<To>::_destroy_this (Accessor* acr) {
+void VariableAcr1<To>::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const VariableAcr2<Mu, To>*>(acr);
     self->~VariableAcr2<Mu, To>();
 }
@@ -509,10 +509,10 @@ template <class To>
 struct ConstantAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static void _destroy_this (Accessor*);
+    static void _destroy (Accessor*) noexcept;
     static constexpr AccessorVT _vt = {
         &AccessorVT::const_type<To>, &_access, &AccessorVT::default_address,
-        null, &_destroy_this
+        null, &_destroy
     };
 };
 template <class From, class To>
@@ -533,7 +533,7 @@ void ConstantAcr1<To>::_access (
     cb(reinterpret_cast<Mu&>(const_cast<To&>(self->value)));
 }
 template <class To>
-void ConstantAcr1<To>::_destroy_this (Accessor* acr) {
+void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const ConstantAcr2<Mu, To>*>(acr);
     self->~ConstantAcr2<Mu, To>();
 }

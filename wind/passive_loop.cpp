@@ -37,7 +37,7 @@ void PassiveLoop::start () {
     }
 }
 
-void PassiveLoop::stop () {
+void PassiveLoop::stop () noexcept {
     stop_requested = true;
 }
 
