@@ -101,7 +101,11 @@ void cat_append (UniqueString& h, const Tail&... t) {
         usize cap = h.size();
         (cat_add_no_overflow(cap, t.size()), ...);
         h.reserve_plenty(cap);
-        (h.append_expect_capacity(t.data(), t.size()), ...);
+        char* pos = h.end();
+        ((
+            pos = t.size() + (char*)std::memcpy(pos, t.data(), t.size())
+        ), ...);
+        h.unsafe_set_size(pos - h.begin());
     }
 }
 
@@ -118,8 +122,11 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
     usize cap = h.size();
     (cat_add_no_overflow(cap, t.size()), ...);
     auto r = UniqueString(Capacity(cap));
-    r.append_expect_capacity(h.data(), h.size());
-    (r.append_expect_capacity(t.data(), t.size()), ...);
+    char* pos = h.size() + (char*)std::memcpy(r.data(), h.data(), h.size());
+    ((
+        pos = t.size() + (char*)std::memcpy(pos, t.data(), t.size())
+    ), ...);
+    r.unsafe_set_size(pos - r.begin());
     return r;
 }
 
