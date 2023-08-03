@@ -87,7 +87,7 @@ struct Error : std::exception {
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
-void raise (ErrorCode code, UniqueString&& details);
+void raise (ErrorCode code, MoveRef<UniqueString> details);
 
 [[noreturn, gnu::cold]] NOINLINE
 void raise_io_error (ErrorCode code, StaticString details, Str filename, int errnum);

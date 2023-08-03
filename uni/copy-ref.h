@@ -128,4 +128,48 @@ using CRef = std::conditional_t<
     CopyRef<T>, ConstRef<T>
 >;
 
+ // MoveRef is a tiny class that temporarily disables an object's destructor
+ // when passing it to a function.  Unlike ordinary C++'s rvalue references,
+ // using an object after casting it to a MoveRef is undefined behavior, which
+ // is more like an actual linear type.  You must move this back into the
+ // original object type before it's destroyed, otherwise, the object's
+ // destructor will not be called.
+template <class T>
+struct MoveRef {
+     // Disable default constructor and copying
+    MoveRef () = delete;
+    MoveRef (const MoveRef&) = delete;
+    MoveRef& operator= (const MoveRef&) = delete;
+     // Implicit coercion from T&&, the object is now leakable.
+    ALWAYS_INLINE MoveRef (T&& t) {
+        new (&*this) T(move(t));
+         // Don't destroy t, the caller will destroy it.
+    }
+     // Help the coercer a bit
+    template <class Arg>
+    ALWAYS_INLINE MoveRef (Arg&& arg) :
+        MoveRef(static_cast<T&&>(std::forward<Arg>(arg)))
+    { }
+     // Move back to a T value.  The object is no longer leakable.
+    ALWAYS_INLINE T operator* () && {
+        T r = move(reinterpret_cast<T&>(*this));
+        reinterpret_cast<T&>(*this).~T();
+#ifndef NDEBUG
+         // Rudimentary leak detection
+        std::memset(repr, 0xbd, sizeof(T));
+#endif
+        return r;
+    }
+    ~MoveRef () {
+#ifndef NDEBUG
+        for (usize i = 0; i < sizeof(T); i++) {
+            require(repr[i] == char(0xbd));
+        }
+#endif
+    }
+
+  private:
+    alignas(T) char repr [sizeof(T)];
+};
+
 } // uni

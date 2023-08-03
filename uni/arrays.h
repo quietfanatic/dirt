@@ -42,6 +42,7 @@
  // will occur (hopefully after a debug-only assertion).
 #pragma once
 
+#include <cstring> // memcpy and friends
 #include <filesystem> // for conversion to path
 #include <functional> // std::hash
 #include <iterator>

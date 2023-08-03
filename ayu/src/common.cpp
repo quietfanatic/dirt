@@ -30,10 +30,10 @@ const char* Error::what () const noexcept {
 }
 Error::~Error () { }
 
-void raise (ErrorCode code, UniqueString&& details) {
+void raise (ErrorCode code, MoveRef<UniqueString> details) {
     Error e;
     e.code = code;
-    e.details = move(details);
+    e.details = *move(details);
     throw e;
 }
 
