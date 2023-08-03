@@ -128,18 +128,36 @@ using CRef = std::conditional_t<
     CopyRef<T>, ConstRef<T>
 >;
 
- // MoveRef is a tiny class that temporarily disables an object's destructor
- // when passing it to a function.  Unlike ordinary C++'s rvalue references,
- // using an object after casting it to a MoveRef is undefined behavior, which
- // is more like an actual linear type.  You must move this back into the
- // original object type before it's destroyed, otherwise, the object's
- // destructor will not be called.
+ // MoveRef<T> is a wrapper class that behaves like T&&, but is more optimizable
+ // (and slightly more dangerous).
+ //
+ // Whenever a MoveRef<T> is created, it MUST be moved from EXACTLY ONCE with
+ // the syntax *move(ref) (watch out for exception unwinding).
+ //
+ // Technical differences between MoveRef<T> and T&&:
+ //   - Using a MoveRef<T> after it has been moved from is Undefined Behavior.
+ //   - Failing to move from a MoveRef<T> before it goes out of scope is
+ //     Undefined Behavior (but this is usually detected in debug builds).
+ //   - When a function takes a MoveRef<T>, it guarantees that it will take
+ //     ownership of the T, so the caller can optimize away the destructor.
+ // In contrast:
+ //   - Moving from a T&& is required to leave it in a defined state, so after
+ //     moving from it, it can still be used and must still be destroyed.
+ //   - When a function takes a T&&, there's no guarantee it will actually move
+ //     from the T, so the caller can't optimize away the destructor, even if
+ //     the programmer knows it could.
+
 template <class T>
 struct MoveRef {
      // Disable default constructor and copying
     MoveRef () = delete;
     MoveRef (const MoveRef&) = delete;
     MoveRef& operator= (const MoveRef&) = delete;
+     // But allow moving from MoveRef to MoveRef
+    MoveRef (MoveRef&& o) {
+        std::memcpy(repr, o.repr, sizeof(T));
+        o.deactivate();
+    }
      // Implicit coercion from T&&, the object is now leakable.
     ALWAYS_INLINE MoveRef (T&& t) {
         new (&*this) T(move(t));
@@ -150,26 +168,37 @@ struct MoveRef {
     ALWAYS_INLINE MoveRef (Arg&& arg) :
         MoveRef(static_cast<T&&>(std::forward<Arg>(arg)))
     { }
+     // Temporarily access.
+    ALWAYS_INLINE const T& operator* () const& {
+        return reinterpret_cast<const T&>(*this);
+    }
+    ALWAYS_INLINE const T* operator-> () const {
+        return reinterpret_cast<const T*>(this);
+    }
      // Move back to a T value.  The object is no longer leakable.
     ALWAYS_INLINE T operator* () && {
         T r = move(reinterpret_cast<T&>(*this));
         reinterpret_cast<T&>(*this).~T();
-#ifndef NDEBUG
-         // Rudimentary leak detection
-        std::memset(repr, 0xbd, sizeof(T));
-#endif
+        deactivate();
         return r;
     }
     ~MoveRef () {
 #ifndef NDEBUG
+         // Rudimentary leak detection; see deactivate()
         for (usize i = 0; i < sizeof(T); i++) {
-            require(repr[i] == char(0xbd));
+            expect(repr[i] == char(0xbd));
         }
 #endif
     }
 
   private:
     alignas(T) char repr [sizeof(T)];
+
+    void deactivate () {
+#ifndef NDEBUG
+        std::memset(repr, 0xbd, sizeof(T));
+#endif
+    }
 };
 
 } // uni

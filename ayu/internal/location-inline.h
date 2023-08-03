@@ -21,15 +21,15 @@ struct LocationData : RefCounted {
 struct KeyLocation : LocationData {
     Location parent;
     AnyString key;
-    KeyLocation (Location p, AnyString k) :
-        LocationData(KEY), parent(move(p)), key(move(k))
+    KeyLocation (MoveRef<Location> p, MoveRef<AnyString> k) :
+        LocationData(KEY), parent(*move(p)), key(*move(k))
     { }
 };
 struct IndexLocation : LocationData {
     Location parent;
     uint32 index;
-    IndexLocation (Location p, usize i) :
-        LocationData(INDEX), parent(move(p)), index(i)
+    IndexLocation (MoveRef<Location> p, usize i) :
+        LocationData(INDEX), parent(*move(p)), index(i)
     { expect(index == i); }
 };
 

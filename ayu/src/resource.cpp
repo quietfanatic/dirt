@@ -44,21 +44,21 @@ static void raise_ResourceTypeRejected (
 
 [[noreturn, gnu::cold]]
 static void raise_would_break (
-    ErrorCode code, UniqueArray<std::pair<Location, Location>> breaks
+    ErrorCode code, CopyRef<UniqueArray<std::pair<Location, Location>>> breaks
 ) {
     UniqueString mess = cat(
         (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
-        "loading resources would break ", breaks.size(), " reference(s): \n"
+        "loading resources would break ", breaks->size(), " reference(s): \n"
     );
-    for (usize i = 0; i < breaks.size(); ++i) {
+    for (usize i = 0; i < breaks->size(); ++i) {
         if (i > 5) break;
         mess = cat(move(mess),
             "    ", location_to_iri(breaks[i].first).spec(),
             " -> ", location_to_iri(breaks[i].second).spec(), '\n'
         );
     }
-    if (breaks.size() > 5) {
-        mess = cat(move(mess), "    ...and ", breaks.size() - 5, " others.\n");
+    if (breaks->size() > 5) {
+        mess = cat(move(mess), "    ...and ", breaks->size() - 5, " others.\n");
     }
     raise(code, move(mess));
 }
@@ -130,13 +130,14 @@ Resource::Resource (Str ref) :
     Resource(IRI(ref, current_base_iri()))
 { }
 
-Resource::Resource (const IRI& name, Dynamic&& value) :
+Resource::Resource (const IRI& name, MoveRef<Dynamic> value) :
     Resource(name)
 {
-    if (!value.has_value()) {
+    Dynamic v = *move(value);
+    if (!v.has_value()) {
         raise_ResourceValueEmpty("construct", *this);
     }
-    if (data->state == UNLOADED) set_value(move(value));
+    if (data->state == UNLOADED) set_value(move(v));
     else {
         raise_ResourceStateInvalid("construct", *this);
     }
@@ -154,14 +155,15 @@ Dynamic& Resource::value () const {
 Dynamic& Resource::get_value () const noexcept {
     return data->value;
 }
-void Resource::set_value (Dynamic&& value) const {
-    if (!value.has_value()) {
+void Resource::set_value (MoveRef<Dynamic> value) const {
+    Dynamic v = *move(value);
+    if (!v.has_value()) {
         raise_ResourceValueEmpty("set_value", *this);
     }
     if (data->name) {
         auto scheme = universe().require_scheme(data->name);
-        if (!scheme->accepts_type(value.type)) {
-            raise_ResourceTypeRejected("set_value", *this, value.type);
+        if (!scheme->accepts_type(v.type)) {
+            raise_ResourceTypeRejected("set_value", *this, v.type);
         }
     }
     switch (data->state) {
@@ -173,7 +175,7 @@ void Resource::set_value (Dynamic&& value) const {
             break;
         default: raise_ResourceStateInvalid("set_value", *this);
     }
-    data->value = move(value);
+    data->value = move(v);
 }
 
 Reference Resource::ref () const {

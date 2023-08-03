@@ -26,15 +26,15 @@ struct Parser {
      // or so).
     UniqueArray<TreePair> shortcuts;
 
-    Parser (Str s, AnyString filename) :
-        filename(move(filename)),
+    Parser (Str s, MoveRef<AnyString> filename) :
+        filename(*move(filename)),
         begin(s.begin()),
         p(s.begin()),
         end(s.end())
     { }
 
     [[noreturn, gnu::cold]]
-    void error (Str mess) {
+    void error (MoveRef<UniqueString> mess) {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
         uint line = 1;
@@ -47,7 +47,7 @@ struct Parser {
         }
         uint col = p - last_lf;
         raise(e_ParseFailed, cat(
-            mess, " at ", filename, ':', line, ':', col
+            *move(mess), " at ", filename, ':', line, ':', col
         ));
     }
 
@@ -351,13 +351,13 @@ struct Parser {
 
     ///// SHORTCUTS
 
-    void set_shortcut (AnyString&& name, Tree value) {
+    void set_shortcut (MoveRef<AnyString> name, Tree value) {
         for (auto& p : shortcuts) {
-            if (p.first == name) {
-                error(cat("Duplicate declaration of shortcut &", name));
+            if (p.first == *name) {
+                error(cat("Duplicate declaration of shortcut &", *move(name)));
             }
         }
-        shortcuts.emplace_back(move(name), move(value));
+        shortcuts.emplace_back(*move(name), move(value));
     }
     TreeRef get_shortcut (Str name) {
         for (auto& p : shortcuts) {

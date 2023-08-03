@@ -11,14 +11,14 @@ namespace ayu {
 
 struct ResourceLocation : LocationData {
     Resource resource;
-    ResourceLocation (Resource res) :
-        LocationData(RESOURCE), resource(res)
+    ResourceLocation (MoveRef<Resource> res) :
+        LocationData(RESOURCE), resource(*move(res))
     { }
 };
 struct ReferenceLocation : LocationData {
     Reference reference;
-    ReferenceLocation (Reference ref) :
-        LocationData(REFERENCE), reference(move(ref))
+    ReferenceLocation (MoveRef<Reference> ref) :
+        LocationData(REFERENCE), reference(*move(ref))
     { }
 };
 
