@@ -1607,16 +1607,20 @@ struct ArrayInterface {
         T* dat = SharableBuffer<T>::allocate(cap);
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
-        if (self.unique()) {
-            if constexpr (
-                std::is_trivially_move_constructible_v<T> &&
-                std::is_trivially_destructible_v<T>
-            ) {
-                dat = (T*)std::memcpy(
-                    (void*)dat, self.impl.data, s * sizeof(T)
-                );
-            }
-            else try {
+         // It's unlikely that any type will have one of copy or move be trivial
+         // and not the other, so don't bother optimizing for those cases.
+        if constexpr (
+            std::is_trivially_copy_constructible_v<T> &&
+            std::is_trivially_move_constructible_v<T> &&
+            std::is_trivially_destructible_v<T>
+        ) {
+            dat = (T*)std::memcpy(
+                (void*)dat, self.impl.data, s * sizeof(T)
+            );
+            self.remove_ref();
+        }
+        else if (self.unique()) {
+            try {
                 for (usize i = 0; i < s; ++i) {
                     new ((void*)&dat[i]) T(move(self.impl.data[i]));
                     self.impl.data[i].~T();
@@ -1629,14 +1633,16 @@ struct ArrayInterface {
             }
              // DON'T call remove_ref here because it'll double-destroy
              // self.impl.data[*]
-            SharableBuffer<T>::deallocate(self.impl.data);
+            if (self.impl.data) {
+                SharableBuffer<T>::deallocate(self.impl.data);
+            }
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
             try {
                 copy_fill(dat, self.impl.data, s);
             }
             catch (...) {
-                SharableBuffer<T>::deallocate(self.impl.data);
+                SharableBuffer<T>::deallocate(dat);
                  // TODO: pragma this
                 throw;  // -Wno-terminate to suppress warning
             }
@@ -1854,16 +1860,11 @@ constexpr auto operator<=> (
     if constexpr (requires { ad == bd; }) {
         if (as == bs && ad == bd) return 0 <=> 0;
     }
-    if constexpr (std::is_scalar_v<T>) {
-        return std::memcmp(ad, bd, as) <=> 0;
+    for (usize i = 0; i < as && i < bs; ++i) {
+        auto res = ad[i] <=> bd[i];
+        if (res != (0 <=> 0)) return res;
     }
-    else {
-        for (usize i = 0; i < as && i < bs; ++i) {
-            auto res = ad[i] <=> bd[i];
-            if (res != (0 <=> 0)) return res;
-        }
-        return as <=> bs;
-    }
+    return as <=> bs;
 }
 template <ArrayClass ac, class T, usize len>
 ALWAYS_INLINE constexpr
@@ -1875,16 +1876,11 @@ auto operator<=> (
     usize bs = len - 1;
     const T* ad = a.data();
     const auto& bd = b;
-    if constexpr (std::is_scalar_v<T>) {
-        return std::memcmp(ad, bd, bs) <=> 0;
+    for (usize i = 0; i < as && i < bs; ++i) {
+        auto res = ad[i] <=> bd[i];
+        if (res != (0 <=> 0)) return res;
     }
-    else {
-        for (usize i = 0; i < as && i < bs; ++i) {
-            auto res = ad[i] <=> bd[i];
-            if (res != (0 <=> 0)) return res;
-        }
-        return as <=> bs;
-    }
+    return as <=> bs;
 }
 
 } // arrays
