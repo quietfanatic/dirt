@@ -199,7 +199,7 @@ struct Parser {
         auto word_start = p;
         p++; // Already parsed initial character
         p = find_word_end();
-        return Str(word_start, p);
+        return expect(Str(word_start, p));
     }
 
     ///// NUMBERS

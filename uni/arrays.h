@@ -283,7 +283,9 @@ struct ArrayInterface {
             o.impl = {};
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
-            set_copy(o.impl.data, o.size());
+             // In cases where a copy may or may not be required, noinline the
+             // copy to get the slow path out of the way.
+            set_copy_noinline(o.impl.data, o.size());
         }
         else never();
     }
@@ -393,12 +395,7 @@ struct ArrayInterface {
     explicit(!std::is_same_v<T2, T>)
     ArrayInterface (const T2(& o )[len]) requires (!is_String) {
         if constexpr (supports_owned) {
-            if constexpr (len == 0) impl = {};
-            else if constexpr (len <= min_capacity) {
-                 // Inline copy for small fixed-length arrays
-                set_owned(allocate_copy(o, len), len);
-            }
-            else set_copy(o, len);
+            set_copy(o, len);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
@@ -426,12 +423,7 @@ struct ArrayInterface {
             set_unowned(o, len-1);
         }
         else if constexpr (supports_owned) {
-            if constexpr (len-1 == 0) impl = {};
-            else if constexpr (len-1 <= min_capacity) {
-                 // Inline copy for small fixed-length arrays
-                set_owned(allocate_copy(o, len-1), len-1);
-            }
-            else set_copy(o, len-1);
+            set_copy(o, len-1);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
@@ -449,12 +441,7 @@ struct ArrayInterface {
         is_String && !std::is_const_v<T2>
     ) {
         if constexpr (supports_owned) {
-            if constexpr (len == 0) impl = {};
-            else if constexpr (len <= min_capacity) {
-                 // Inline copy for small fixed-length arrays
-                set_owned(allocate_copy(o, len), len);
-            }
-            else set_copy(o, len);
+            set_copy(o, len);
         }
         else {
             static_assert(std::is_same_v<T2, T>,
@@ -585,13 +572,21 @@ struct ArrayInterface {
         set_unique(SharableBuffer<T>::allocate(cap.cap), 0);
     }
 
-     // Finally, std::initializer_list
+     // std::initializer_list isn't very good for owned types because it
+     // requires copying all the items.
     ALWAYS_INLINE
     ArrayInterface (std::initializer_list<T> l) requires (supports_owned || is_Slice) {
         if constexpr (is_Slice) {
             set_unowned(std::data(l), std::size(l));
         }
         else set_copy(std::data(l), std::size(l));
+    }
+     // So use this named constructor instead.
+    template <class... Args> ALWAYS_INLINE static
+    ArrayInterface Make (Args&&... args) requires (supports_owned) {
+        ArrayInterface r (Capacity(sizeof...(args)));
+        (r.emplace_back_expect_capacity(std::forward<Args>(args)), ...);
+        return r;
     }
 
     ///// ASSIGNMENT OPERATORS
@@ -1423,23 +1418,17 @@ struct ArrayInterface {
         if (s == 0) {
             impl = {}; return;
         }
-        T* dat;
-        if constexpr (ArrayContiguousIteratorFor<Ptr, T>) {
-            dat = allocate_copy_noinline(std::to_address(move(ptr)), s);
+        set_unique(allocate_copy(ptr, s), s);
+    }
+     // This noinline is a slight lie, it's actually allocate_copy that's
+     // noinline
+    void set_copy_noinline (const T* ptr, usize s) requires (
+        std::is_copy_constructible_v<T>
+    ) {
+        if (s == 0) {
+            impl = {}; return;
         }
-        else {
-             // don't noinline if we can't depolymorph ptr
-            dat = SharableBuffer<T>::allocate(s);
-            try {
-                copy_fill(dat, move(ptr), s);
-            }
-            catch (...) {
-                SharableBuffer<T>::deallocate(dat);
-                throw;
-            }
-        }
-        set_unique(dat, s);
-        expect(!header().ref_count);
+        set_unique(allocate_copy_noinline(ptr, s), s);
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     void set_copy (Begin b, End e) requires (
@@ -1472,6 +1461,7 @@ struct ArrayInterface {
             }
         }
     }
+
     ALWAYS_INLINE constexpr
     void set_size (usize s) {
         if constexpr (is_Any) {
@@ -1567,28 +1557,25 @@ struct ArrayInterface {
         }
     }
 
-    [[gnu::malloc, gnu::returns_nonnull]] static
-    T* allocate_copy (const T* d, usize s)
+    template <ArrayIterator Ptr> [[gnu::malloc, gnu::returns_nonnull]] static
+    T* allocate_copy (Ptr ptr, usize s)
+        noexcept(std::is_nothrow_copy_constructible_v<T>)
         requires (std::is_copy_constructible_v<T>)
     {
         expect(s > 0);
         T* dat = SharableBuffer<T>::allocate(s);
         try {
-            return copy_fill(dat, d, s);
+            return copy_fill(dat, ptr, s);
         }
         catch (...) {
             SharableBuffer<T>::deallocate(dat);
             throw;
         }
     }
-     // This is frequently referenced on non-fast-paths, so it's worth
-     // noinlining it in many cases.
+
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* allocate_copy_noinline (const T* d, usize s)
-        noexcept(std::is_nothrow_copy_constructible_v<T>)
-        requires (std::is_copy_constructible_v<T>)
-    {
-        return allocate_copy(d, s);
+    T* allocate_copy_noinline (const T* ptr, usize s) {
+        return allocate_copy(ptr, s);
     }
 
      // Used by reserve and related functions
