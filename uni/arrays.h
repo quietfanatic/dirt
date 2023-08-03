@@ -522,7 +522,7 @@ struct ArrayInterface {
                 throw;
             }
         }
-        set_unique(dat, s);
+        set_owned_unique(dat, s);
     }
 
      // This constructor constructs a repeating sequence of one element.  It's
@@ -553,7 +553,7 @@ struct ArrayInterface {
                 throw;
             }
         }
-        set_unique(dat, s);
+        set_owned_unique(dat, s);
     }
 
      // Construct with uninitialized data if the elements support that
@@ -562,7 +562,7 @@ struct ArrayInterface {
         supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         if (!u.size) { impl = {}; return; }
-        set_unique(SharableBuffer<T>::allocate(u.size), u.size);
+        set_owned_unique(SharableBuffer<T>::allocate(u.size), u.size);
     }
      // Construct with specific capacity
     ALWAYS_INLINE explicit
@@ -570,7 +570,7 @@ struct ArrayInterface {
         supports_owned
     ) {
         if (!cap.cap) { impl = {}; return; }
-        set_unique(SharableBuffer<T>::allocate(cap.cap), 0);
+        set_owned_unique(SharableBuffer<T>::allocate(cap.cap), 0);
     }
 
      // std::initializer_list isn't very good for owned types because it
@@ -730,8 +730,8 @@ struct ArrayInterface {
      // a NUL element after the end.  Does not change the size of the array, but
      // may change its capacity.  For StaticArray and Slice, since they can't be
      // mutated, this require()s that the array is explicitly NUL-terminated.
-     // (noinlining this because it shouldn't be on a hot path.)
-    NOINLINE constexpr
+     // Noinline because this should not be on a hot path.
+    constexpr
     const T* c_str () requires (requires (T v) { !v; v = T(); }) {
         if (size() > 0 && !impl.data[size()-1]) {
         }
@@ -974,7 +974,7 @@ struct ArrayInterface {
     void reserve (usize cap) requires (supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) {
-            set_unique(reallocate(impl, cap), size());
+            set_owned_unique(reallocate(impl, cap), size());
         }
     }
 
@@ -982,10 +982,8 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void reserve_plenty (usize cap) requires (supports_owned) {
         expect(cap <= max_size_);
-        if (!unique() || cap > capacity())
-            [[unlikely]]
-        {
-            set_unique(reallocate(impl, cap, capacity() * 2), size());
+        if (!unique() || cap > capacity()) [[unlikely]] {
+            set_owned_unique(reallocate(impl, cap, capacity() * 2), size());
         }
     }
 
@@ -997,7 +995,7 @@ struct ArrayInterface {
         if (!unique() ||
             SharableBuffer<T>::capacity_for_size(size()) < capacity()
         ) {
-            set_unique(reallocate(impl, size()), size());
+            set_owned_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -1008,7 +1006,7 @@ struct ArrayInterface {
     ALWAYS_INLINE
     void make_unique () requires (supports_owned) {
         if (!unique()) {
-            set_unique(reallocate(impl, size()), size());
+            set_owned_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -1237,7 +1235,7 @@ struct ArrayInterface {
         if constexpr (noexcept(T(std::forward<Args>(args)...))) {
             T* dat = do_split(impl, offset, 1);
             T* r = new ((void*)&dat[offset]) T(std::forward<Args>(args)...);
-            set_unique(dat, size() + 1);
+            set_owned_unique(dat, size() + 1);
             return *r;
         }
         else {
@@ -1248,7 +1246,7 @@ struct ArrayInterface {
                 r = new ((void*)&dat[offset]) T(move(v));
             }
             catch (...) { never(); }
-            set_unique(dat, size() + 1);
+            set_owned_unique(dat, size() + 1);
             return *r;
         }
     }
@@ -1291,7 +1289,7 @@ struct ArrayInterface {
                 copy_fill(dat + offset, move(p), s);
             }
             catch (...) { require(false); }
-            set_unique(dat, size() + s);
+            set_owned_unique(dat, size() + s);
         }
     }
     template <ArrayIterator Ptr> ALWAYS_INLINE
@@ -1332,7 +1330,7 @@ struct ArrayInterface {
         }
         else {
             T* dat = do_split(impl, offset, u.size);
-            set_unique(dat, size() + u.size);
+            set_owned_unique(dat, size() + u.size);
         }
     }
     ALWAYS_INLINE
@@ -1351,7 +1349,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_unique(do_erase(impl, offset, count), size() - count);
+            set_owned_unique(do_erase(impl, offset, count), size() - count);
         }
     }
     ALWAYS_INLINE
@@ -1360,7 +1358,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_unique(do_erase(impl, pos - impl.data, count), size() - count);
+            set_owned_unique(do_erase(impl, pos - impl.data, count), size() - count);
         }
     }
     ALWAYS_INLINE
@@ -1370,7 +1368,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_unique(do_erase(impl, b - impl.data, e - b), size() - (e - b));
+            set_owned_unique(do_erase(impl, b - impl.data, e - b), size() - (e - b));
         }
     }
 
@@ -1396,9 +1394,9 @@ struct ArrayInterface {
         impl.data = d;
     }
     ALWAYS_INLINE constexpr
-    void set_unique (T* d, usize s) {
+    void set_owned_unique (T* d, usize s) {
         set_owned(d, s);
-        expect(!s || !header().ref_count);
+        expect(!header().ref_count);
     }
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
@@ -1419,7 +1417,7 @@ struct ArrayInterface {
         if (s == 0) {
             impl = {}; return;
         }
-        set_unique(allocate_copy(ptr, s), s);
+        set_owned_unique(allocate_copy(ptr, s), s);
     }
      // This noinline is a slight lie, it's actually allocate_copy that's
      // noinline
@@ -1429,7 +1427,7 @@ struct ArrayInterface {
         if (s == 0) {
             impl = {}; return;
         }
-        set_unique(allocate_copy_noinline(ptr, s), s);
+        set_owned_unique(allocate_copy_noinline(ptr, s), s);
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     void set_copy (Begin b, End e) requires (

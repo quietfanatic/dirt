@@ -62,22 +62,22 @@ struct CopyRef {
     { }
      // Implicit coercion to const T&
     ALWAYS_INLINE operator const T& () const {
-        return reinterpret_cast<const T&>(*this);
+        return *reinterpret_cast<const T*>(repr);
     }
      // Wasn't sure whether to overload this or not, but if the class implements
      // this, you probably want to use whatever *T returns instead of
      // CopyRef<T>.
     ALWAYS_INLINE const T& operator* () const {
-        return reinterpret_cast<const T&>(*this);
+        return *reinterpret_cast<const T*>(repr);
     }
      // Sadly we can't overload ., so here's the next best alternative
     ALWAYS_INLINE const T* operator-> () const {
-        return reinterpret_cast<const T*>(this);
+        return reinterpret_cast<const T*>(repr);
     }
      // Allow assigning
     ALWAYS_INLINE CopyRef<T>& operator= (const CopyRef<T>& o) {
          // Can't default this because you can't assign arrays.
-        std::memcpy(this, &o, sizeof(T));
+        std::memcpy(repr, o.repr, sizeof(T));
         return *this;
     }
      // Forbid assigning from a T, as that's probably a mistake (T's copy
@@ -87,12 +87,12 @@ struct CopyRef {
      // Because C++ doesn't have Perl's ref->[i] and ref->(foo) syntax, and
      // nobody wants to write (*ref)[i]
     template <class Ix>
-    ALWAYS_INLINE auto operator [] (Ix i) const {
-        return reinterpret_cast<const T&>(*this)[i];
+    ALWAYS_INLINE auto operator [] (Ix&& i) const {
+        return (**this)[std::forward<Ix>(i)];
     }
     template <class... Args>
     ALWAYS_INLINE auto operator () (Args&&... args) const {
-        return reinterpret_cast<const T&>(*this)(std::forward<Args>(args)...);
+        return (**this)(std::forward<Args>(args)...);
     }
   private:
     alignas(T) char repr [sizeof(T)];
@@ -132,12 +132,28 @@ using CRef = std::conditional_t<
  // (and slightly more dangerous).
  //
  // Whenever a MoveRef<T> is created, it MUST be moved from EXACTLY ONCE with
- // the syntax *move(ref) (watch out for exception unwinding).
+ // the syntax *move(ref).  Be aware of:
+ //   - Exception unwinding; if a function throws an exception while a MoveRef
+ //     is active, the MoveRef will be dropped.
+ //   - Argument evaluation order; the compiler is free to evaluate function
+ //     arguments in any order.  If you have an expression like
+ //         shortcuts.emplace_back(*move(name), parse_term())
+ //     the compiler might run parse_term() before *move(name), and if
+ //     parse_term() throws an exception, the MoveRef will be dropped.
+ //
+ // To be safe, it's a good idea to immediately move out of a MoveRef at the
+ // beginning of a function.
+ //     void set_shortcut(MoveRef<AnyString> name_) {
+ //         auto name = *move(name_);
+ //         ...
+ //     }
  //
  // Technical differences between MoveRef<T> and T&&:
- //   - Using a MoveRef<T> after it has been moved from is Undefined Behavior.
+ //   - Using a MoveRef<T> after it has been moved from is an error (assert in
+ //     debug builds, undefined behavior in release builds).
+ //     (detected at runtime in debug builds).
  //   - Failing to move from a MoveRef<T> before it goes out of scope is
- //     Undefined Behavior (but this is usually detected in debug builds).
+ //     an error (assert in debug builds, undefined behavior in release builds).
  //   - When a function takes a MoveRef<T>, it guarantees that it will take
  //     ownership of the T, so the caller can optimize away the destructor.
  // In contrast:
@@ -146,21 +162,43 @@ using CRef = std::conditional_t<
  //   - When a function takes a T&&, there's no guarantee it will actually move
  //     from the T, so the caller can't optimize away the destructor, even if
  //     the programmer knows it could.
+ // Passing by value is actually very similar to passing by T&&; the caller is
+ // responsible for constructing and destructing the T, and the callee may or
+ // may not move from it.
+ //
+ // When to use MoveRef<T> vs. T&&:
+ //   - If the function will be inlined, the compiler can optimize passing T&&
+ //     and T (value) pretty well, so there isn't much need to use MoveRef<T>.
+ //   - If the function will not be inlined (it's NOINLINE or crosses a module
+ //     boundary) then the compiler will probably optimize MoveRef<T> better.
+ //   - MoveRef<T> uses pass-by-value ABI, so if your object is larger than
+ //     about two pointers, It may be better to use T&& instead.
+ //   - If T's destructor can't be optimized away (like if it's NOINLINE) then
+ //     MoveRef<T> won't help as much.
+ //
+ // MoveRef has a different sizeof and type traits between debug and release
+ // builds, so don't store it anywhere and don't pass it to generic templates.
 
 template <class T>
 struct MoveRef {
-     // Disable default constructor and copying
+#ifndef NDEBUG
+     // In debug builds, forbid copying and moving
     MoveRef () = delete;
     MoveRef (const MoveRef&) = delete;
+#else
+     // In release builds, make the type trivially copyable so the ABI passes it
+     // in registers.
+    MoveRef () = default;
+    MoveRef (const MoveRef&) = default;
+#endif
+    MoveRef (MoveRef&&) = delete;
     MoveRef& operator= (const MoveRef&) = delete;
-     // But allow moving from MoveRef to MoveRef
-    MoveRef (MoveRef&& o) {
-        std::memcpy(repr, o.repr, sizeof(T));
-        o.deactivate();
-    }
      // Implicit coercion from T&&, the object is now leakable.
     ALWAYS_INLINE MoveRef (T&& t) {
-        new (&*this) T(move(t));
+#ifndef NDEBUG
+        active = true;
+#endif
+        new (repr) T(move(t));
          // Don't destroy t, the caller will destroy it.
     }
      // Help the coercer a bit
@@ -170,35 +208,41 @@ struct MoveRef {
     { }
      // Temporarily access.
     ALWAYS_INLINE const T& operator* () const& {
-        return reinterpret_cast<const T&>(*this);
+#ifndef NDEBUG
+        expect(active);
+#endif
+        return *reinterpret_cast<const T*>(repr);
     }
-    ALWAYS_INLINE const T* operator-> () const {
-        return reinterpret_cast<const T*>(this);
+    ALWAYS_INLINE const T* operator-> () const& {
+#ifndef NDEBUG
+        expect(active);
+#endif
+        return reinterpret_cast<const T*>(repr);
     }
-     // Move back to a T value.  The object is no longer leakable.
+     // Move back to a T value.  The object is no longer leakable.  Coercion
+     // with "operator T () &&" doesn't seem to work.
     ALWAYS_INLINE T operator* () && {
-        T r = move(reinterpret_cast<T&>(*this));
-        reinterpret_cast<T&>(*this).~T();
-        deactivate();
+#ifndef NDEBUG
+        expect(active);
+#endif
+        T r = move(reinterpret_cast<T&>(repr));
+        reinterpret_cast<T&>(repr).~T();
+#ifndef NDEBUG
+        active = false;
+#endif
         return r;
     }
-    ~MoveRef () {
 #ifndef NDEBUG
-         // Rudimentary leak detection; see deactivate()
-        for (usize i = 0; i < sizeof(T); i++) {
-            expect(repr[i] == char(0xbd));
-        }
-#endif
+    ~MoveRef () {
+        expect(!active);
     }
+#endif
 
   private:
     alignas(T) char repr [sizeof(T)];
-
-    void deactivate () {
 #ifndef NDEBUG
-        std::memset(repr, 0xbd, sizeof(T));
+    bool active;
 #endif
-    }
 };
 
 } // uni

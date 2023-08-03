@@ -294,7 +294,7 @@ struct IRIParser {
     NOINLINE
     void parse_authority (char* out, const char* in, const char* in_end) {
         expect(out[-1] == ':');
-        expect(in + 2 <= in_end && in[0] == '/' && in[1] == '/');
+        expect(in + 2 <= in_end && Str(in, 2) == "//");
         *out++ = '/'; *out++ = '/';
         in += 2;
         while (in < in_end) switch (*in) {
@@ -357,17 +357,15 @@ struct IRIParser {
     }
 
     void finish_segment (char* out, const char* in, const char* in_end) {
-        if (out[-1] == '.') {
-            if (out[-2] == '/') {
-                out--;
+        if (Str(out-3, 3) == "/..") {
+            out -= 3;
+            if (out - output.begin() == authority_end) {
+                return fail(Error::PathOutsideRoot);
             }
-            else if (out[-2] == '.' && out[-3] == '/') {
-                out -= 3;
-                if (out - output.begin() == authority_end) {
-                    return fail(Error::PathOutsideRoot);
-                }
-                while (out[-1] != '/') out--;
-            }
+            while (out[-1] != '/') out--;
+        }
+        else if (Str(out-2, 2) == "/.") {
+            out--;
         }
         if (in < in_end) switch (*in) {
             case '/':

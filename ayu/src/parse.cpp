@@ -15,10 +15,10 @@ namespace in {
 
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
-    AnyString filename;
-    const char* begin;
     const char* p;
     const char* end;
+    const char* begin;
+    AnyString filename;
 
      // std::unordered_map is supposedly slow, so we'll use an array instead.
      // We'll rethink if we ever need to parse a document with a large amount
@@ -27,10 +27,10 @@ struct Parser {
     UniqueArray<TreePair> shortcuts;
 
     Parser (Str s, MoveRef<AnyString> filename) :
-        filename(*move(filename)),
-        begin(s.begin()),
         p(s.begin()),
-        end(s.end())
+        end(s.end()),
+        begin(s.begin()),
+        filename(*move(filename))
     { }
 
     [[noreturn, gnu::cold]]
@@ -60,20 +60,18 @@ struct Parser {
 
     void skip_comment () {
         p += 2;  // for two -s
-        for (; p < end; p++) {
-            if (*p == '\n') {
-                p++; return;
-            }
+        while (p < end) {
+            if (*p++ == '\n') break;
         }
     }
-    void skip_ws () {
-        for (; p < end; p++) {
+    NOINLINE void skip_ws () {
+        while (p < end) {
             switch (*p) {
-                case ANY_WS: break;
+                case ANY_WS: p++; break;
                 case '-': {
                     if (p + 1 < end && p[1] == '-') {
                         skip_comment();
-                        return skip_ws();
+                        break;
                     }
                     else return;
                 }
@@ -81,14 +79,14 @@ struct Parser {
             }
         }
     }
-    void skip_commas () {
-        for (; p < end; p++) {
+    NOINLINE void skip_commas () {
+        while (p < end) {
             switch (*p) {
-                case ANY_WS: case ',': break;
+                case ANY_WS: case ',': p++; break;
                 case '-': {
                     if (p + 1 < end && p[1] == '-') {
                         skip_comment();
-                        return skip_commas();
+                        break;
                     }
                     else return;
                 }
@@ -113,7 +111,7 @@ struct Parser {
     }
 
     UniqueString got_u_escape () {
-        UniqueString16 units;
+        UniqueString16 units (Capacity(1));
          // Process multiple \uXXXX sequences at once so
          // that we can fuse UTF-16 surrogates.
         for (;;) {
@@ -139,7 +137,11 @@ struct Parser {
 
     NOINLINE UniqueString got_string () {
         p++;  // for the "
-        UniqueString r;
+        if (*p == '"') {
+            p++;
+            return "";
+        }
+        UniqueString r (Capacity(1));
         while (p < end) {
             char c = *p++;
             switch (c) {
@@ -266,29 +268,27 @@ struct Parser {
     }
 
     Tree got_plus () {
+        auto word_start = p;
         p++;  // For the +
         auto word_end = find_word_end();
-        if (word_end - p == 3) {
-            if (p[0] == 'n' && p[1] == 'a' && p[2] == 'n') {
-                p = word_end;
-                return Tree(std::numeric_limits<double>::quiet_NaN());
-            }
-            if (p[0] == 'i' && p[1] == 'n' && p[2] == 'f') {
-                p = word_end;
-                return Tree(std::numeric_limits<double>::infinity());
-            }
+        if (Str(word_start, word_end) == "+nan") {
+            p = word_end;
+            return Tree(std::numeric_limits<double>::quiet_NaN());
+        }
+        else if (Str(word_start, word_end) == "+inf") {
+            p = word_end;
+            return Tree(std::numeric_limits<double>::infinity());
         }
         return parse_number_based(word_end, false);
     }
 
     Tree got_minus () {
+        auto word_start = p;
         p++;  // For the -
         auto word_end = find_word_end();
-        if (word_end - p == 3) {
-            if (p[0] == 'i' && p[1] == 'n' && p[2] == 'f') {
-                p = word_end;
-                return Tree(-std::numeric_limits<double>::infinity());
-            }
+        if (Str(word_start, word_end) == "-inf") {
+            p = word_end;
+            return Tree(-std::numeric_limits<double>::infinity());
         }
         return parse_number_based(word_end, true);
     }
@@ -351,21 +351,6 @@ struct Parser {
 
     ///// SHORTCUTS
 
-    void set_shortcut (MoveRef<AnyString> name, Tree value) {
-        for (auto& p : shortcuts) {
-            if (p.first == *name) {
-                error(cat("Duplicate declaration of shortcut &", *move(name)));
-            }
-        }
-        shortcuts.emplace_back(*move(name), move(value));
-    }
-    TreeRef get_shortcut (Str name) {
-        for (auto& p : shortcuts) {
-            if (p.first == name) return p.second;
-        }
-        error(cat("Unknown shortcut *", name));
-    }
-
     NOINLINE AnyString parse_shortcut_name (char sigil) {
         switch (*p) {
             case ANY_WORD_STARTER: {
@@ -381,6 +366,23 @@ struct Parser {
         nope: error(cat("Expected string for shortcut name after ", sigil));
     }
 
+    NOINLINE Tree& set_shortcut (MoveRef<AnyString> name_) {
+        auto name = *move(name_);
+        for (auto& p : shortcuts) {
+            if (p.first == name) {
+                error(cat("Multiple declarations of shortcut &", move(name)));
+            }
+        }
+        return shortcuts.emplace_back(move(name), parse_term()).second;
+    }
+
+    TreeRef get_shortcut (Str name) {
+        for (auto& p : shortcuts) {
+            if (p.first == name) return p.second;
+        }
+        error(cat("Unknown shortcut *", name));
+    }
+
     Tree got_decl () {
         p++;  // for the &
         AnyString name = parse_shortcut_name('&');
@@ -388,15 +390,12 @@ struct Parser {
         if (p < end && *p == ':') {
             p++;
             skip_ws();
-            Tree value = parse_term();
-            set_shortcut(move(name), move(value));
+            set_shortcut(move(name));
             skip_commas();
             return parse_term();
         }
         else {
-            Tree value = parse_term();
-            set_shortcut(move(name), value);
-            return value;
+            return set_shortcut(move(name));
         }
     }
 
@@ -449,10 +448,9 @@ struct Parser {
 
     Tree parse () {
          // Skip BOM
-        if (p + 2 < end && p[0] == char(0xef)
-                        && p[1] == char(0xbb)
-                        && p[2] == char(0xbf)
-        ) p += 3;
+        if (p + 2 < end && Str(p, 3) == "\xef\xbb\xbf") {
+            p += 3;
+        }
         skip_ws();
         Tree r = parse_term();
         skip_ws();
