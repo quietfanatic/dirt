@@ -51,6 +51,11 @@ struct Parser {
         ));
     }
 
+    [[noreturn, gnu::cold]]
+    void error_reserved (char sym) {
+        error(cat(sym, " is a reserved symbol and can't be used outside of strings"));
+    }
+
     ///// NON-SEMANTIC CONTENT
 
     void skip_comment () {
@@ -222,7 +227,8 @@ struct Parser {
 
     template <bool hex>
     Tree parse_number (const char* word_end, bool minus) {
-        switch (p < word_end ? p[0] : 0) {
+        if (p >= word_end) error_invalid_number();
+        switch (p[0]) {
             case ANY_DECIMAL_DIGIT: break;
             case ANY_HEX_LETTER: if (hex) break; else error_invalid_number();
             case '.': error("Number cannot start with .");
@@ -252,7 +258,7 @@ struct Parser {
 
     NOINLINE Tree parse_number_based (const char* word_end, bool minus) {
          // Detect hex prefix
-        if (p + 1 < word_end && p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) {
+        if (p + 1 < word_end && (Str(p, 2) == "0x" || Str(p, 2) == "0X")) {
             p += 2;
             return parse_number<true>(word_end, minus);
         }
@@ -326,9 +332,7 @@ struct Parser {
             if (p >= end) goto not_terminated;
             switch (*p) {
                 case ':': p++; break;
-                case ANY_RESERVED_SYMBOL: {
-                    error(cat(*p, " is a reserved symbol and can't be used outside of strings"));
-                }
+                case ANY_RESERVED_SYMBOL: error_reserved(*p);
                 default: error("Missing : after name in object");
             }
             skip_ws();
@@ -433,9 +437,7 @@ struct Parser {
             case ']':
             case '}': error(cat("Unexpected ", *p));
             case '.': error("Number cannot begin with .");
-            case ANY_RESERVED_SYMBOL: error(cat(
-                *p, " is a reserved symbol and can't be used outside of strings"
-            ));
+            case ANY_RESERVED_SYMBOL: error_reserved(*p);
             default: error(cat(
                 "Unrecognized character <", to_hex_digit(uint8(*p) >> 4),
                 to_hex_digit(*p & 0xf), '>'
@@ -469,10 +471,9 @@ Tree tree_from_string (Str s, AnyString filename) {
 UniqueString string_from_file (AnyString filename) {
     FILE* f = fopen_utf8(filename.c_str(), "rb");
     if (!f) {
-        int errnum = errno;
-        raise(e_OpenFailed, cat(
-            "Failed to open for reading ", filename, ": ", std::strerror(errnum)
-        ));
+        raise_io_error(e_OpenFailed,
+            "Failed to open for reading ", filename, errno
+        );
     }
 
     fseek(f, 0, SEEK_END);
@@ -485,17 +486,13 @@ UniqueString string_from_file (AnyString filename) {
         int errnum = errno;
         fclose(f);
         SharableBuffer<char>::deallocate(buf);
-        raise(e_ReadFailed, cat(
-            "Failed to read from ", filename, ": ", std::strerror(errnum)
-        ));
+        raise_io_error(e_ReadFailed, "Failed to read from ", filename, errnum);
     }
 
     if (fclose(f) != 0) {
         int errnum = errno;
         SharableBuffer<char>::deallocate(buf);
-        raise(e_CloseFailed, cat(
-            "Failed to close ", filename, ": ", std::strerror(errnum)
-        ));
+        raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
     }
     return UniqueString::UnsafeConstructOwned(buf, size);
 }

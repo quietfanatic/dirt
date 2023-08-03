@@ -89,6 +89,9 @@ struct Error : std::exception {
 [[noreturn, gnu::cold]] NOINLINE
 void raise (ErrorCode code, UniqueString&& details);
 
+[[noreturn, gnu::cold]] NOINLINE
+void raise_io_error (ErrorCode code, StaticString details, Str filename, int errnum);
+
  // Unspecified error
 constexpr ErrorCode e_General = "General";
  // Non-AYU error, std::rethrow(e.external) to unwrap

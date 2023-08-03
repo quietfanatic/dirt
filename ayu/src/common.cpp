@@ -37,6 +37,12 @@ void raise (ErrorCode code, UniqueString&& details) {
     throw e;
 }
 
+void raise_io_error (ErrorCode code, StaticString details, Str filename, int errnum) {
+    raise(code, cat(
+        details, filename, ": ", std::strerror(errnum)
+    ));
+}
+
 [[gnu::cold]]
 void unrecoverable_exception (Str when) noexcept {
     try {
