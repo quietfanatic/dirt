@@ -34,7 +34,7 @@ struct Parser {
     { }
 
     [[noreturn, gnu::cold]]
-    void error (MoveRef<UniqueString> mess) {
+    void error (Str mess) {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
         uint line = 1;
@@ -47,7 +47,7 @@ struct Parser {
         }
         uint col = p - last_lf;
         raise(e_ParseFailed, cat(
-            *move(mess), " at ", filename, ':', line, ':', col
+            mess, " at ", filename, ':', line, ':', col
         ));
     }
 
