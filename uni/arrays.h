@@ -1397,7 +1397,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void set_unique (T* d, usize s) {
         set_owned(d, s);
-        expect(unique());
+        expect(!s || !header().ref_count);
     }
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
