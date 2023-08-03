@@ -35,11 +35,11 @@ struct IndexLocation : LocationData {
 
 } using namespace in;
 
-inline Location::Location (Location p, AnyString k) noexcept :
-    data(new KeyLocation(expect(move(p)), move(k)))
+inline Location::Location (MoveRef<Location> p, MoveRef<AnyString> k) noexcept :
+    data(new KeyLocation(expect(*move(p)), *move(k)))
 { }
-inline Location::Location (Location p, usize i) noexcept :
-    data(new IndexLocation(expect(move(p)), i))
+inline Location::Location (MoveRef<Location> p, usize i) noexcept :
+    data(new IndexLocation(expect(*move(p)), i))
 { }
 
 inline const Location* Location::parent () const noexcept {

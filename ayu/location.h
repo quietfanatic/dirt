@@ -40,8 +40,8 @@ struct Location {
     explicit Location (Reference) noexcept;
      // Constructs a location based on another one with an added attribute key
      // or element index.
-    Location (Location parent, AnyString key) noexcept;
-    Location (Location parent, usize index) noexcept;
+    Location (MoveRef<Location> parent, MoveRef<AnyString> key) noexcept;
+    Location (MoveRef<Location> parent, usize index) noexcept;
 
      // Returns null if this is not a resource root.
     const Resource* resource () const noexcept;

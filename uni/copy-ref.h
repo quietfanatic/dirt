@@ -193,19 +193,15 @@ struct MoveRef {
 #endif
     MoveRef (MoveRef&&) = delete;
     MoveRef& operator= (const MoveRef&) = delete;
-     // Implicit coercion from T&&, the object is now leakable.
-    ALWAYS_INLINE MoveRef (T&& t) {
+     // Construction
+    template <class... Args>
+    ALWAYS_INLINE MoveRef (Args&&... args) {
 #ifndef NDEBUG
         active = true;
 #endif
-        new (repr) T(move(t));
+        new (repr) T(std::forward<Args>(args)...);
          // Don't destroy t, the caller will destroy it.
     }
-     // Help the coercer a bit
-    template <class Arg>
-    ALWAYS_INLINE MoveRef (Arg&& arg) :
-        MoveRef(static_cast<T&&>(std::forward<Arg>(arg)))
-    { }
      // Temporarily access.
     ALWAYS_INLINE const T& operator* () const& {
 #ifndef NDEBUG
