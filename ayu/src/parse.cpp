@@ -49,9 +49,19 @@ struct Parser {
         ));
     }
 
-    [[noreturn, gnu::cold]]
-    void error_reserved (const char* in) {
-        error(in, cat(*in, " is a reserved symbol and can't be used outside of strings"));
+    [[gnu::cold]]
+    void check_error_chars (const char* in) {
+        if (*in <= ' ' || *in >= 127) {
+            error(in, cat(
+                "Unrecognized byte <", to_hex_digit(uint8(*in) >> 4),
+                to_hex_digit(*in & 0xf), '>'
+            ));
+        }
+        switch (*in) {
+            case ANY_RESERVED_SYMBOL:
+                error(in, cat("Reserved symbol ", *in));
+            default: return;
+        }
     }
 
     ///// NON-SEMANTIC CONTENT
@@ -140,28 +150,29 @@ struct Parser {
 
     NOINLINE const char* got_string (const char* in, AnyString& r) {
         in++;  // for the "
-         // Determine upper bound of required capacity
-        usize cap = 0;
-        bool escaped = false;
-        for (const char* p = in; p < end; p++) {
+         // Find the end of the string and determine upper bound of required
+         // capacity.
+        usize n_escapes = 0;
+        const char* p = in;
+        while (p < end) {
             switch (*p) {
-                case '"':
-                    if (!escaped) goto start;
-                    break;
+                case '"': goto start;
                 case '\\':
-                    if (!escaped) cap++;
-                    escaped = !escaped;
+                    n_escapes++;
+                    p += 2;
                     break;
-                default:
-                    cap++;
-                    escaped = false;
-                    break;
+                default: p++; break;
             }
         }
         error(in, "String not terminated by end of input");
-         // Preallocate
         start:
-        auto out = UniqueString(Capacity(cap));
+         // If there aren't any escapes we can just memcpy the whole string
+        if (!n_escapes) {
+            new (&r) AnyString(in, p);
+            return p+1; // For the "
+        }
+         // Otherwise preallocate
+        auto out = UniqueString(Capacity(p - in - n_escapes));
          // Now read the string
         while (in < end) {
             char c = *in++;
@@ -185,7 +196,7 @@ struct Parser {
                         case 'u':
                             in = got_u_escape(in, out);
                             continue; // Skip the push_back
-                        default: in--; error(in, "Unrecognized escape sequence");
+                        default: in--; error(in, "Unknown escape sequence");
                     }
                     break;
                 }
@@ -197,6 +208,7 @@ struct Parser {
     }
 
     NOINLINE const char* find_word_end (const char* in) {
+        in++; // First character already known to be part of word
         while (in < end) {
             switch (*in) {
                 case ANY_LETTER: case ANY_DECIMAL_DIGIT: case ANY_WORD_SYMBOL:
@@ -282,7 +294,7 @@ struct Parser {
     }
 
     const char* got_plus (const char* in, Tree& r) {
-        auto word_end = find_word_end(in+1);
+        auto word_end = find_word_end(in);
         if (Str(in, word_end) == "+nan") {
             new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
             return word_end;
@@ -295,7 +307,7 @@ struct Parser {
     }
 
     const char* got_minus (const char* in, Tree& r) {
-        auto word_end = find_word_end(in+1);
+        auto word_end = find_word_end(in);
         if (Str(in, word_end) == "-inf") {
             new (&r) Tree(-std::numeric_limits<double>::infinity());
             return word_end;
@@ -343,10 +355,10 @@ struct Parser {
             }
             in = skip_ws(in);
             if (in >= end) goto not_terminated;
-            switch (*in) {
-                case ':': in++; break;
-                case ANY_RESERVED_SYMBOL: error_reserved(in);
-                default: error(in, "Missing : after name in object");
+            if (*in == ':') in++;
+            else [[unlikely]] {
+                check_error_chars(in);
+                error(in, "Missing : after name in object");
             }
             in = skip_ws(in);
             if (in >= end) goto not_terminated;
@@ -369,7 +381,7 @@ struct Parser {
         if (in >= end) goto nope;
         switch (*in) {
             case ANY_WORD_STARTER: {
-                auto word_end = find_word_end(in+1);
+                auto word_end = find_word_end(in);
                 auto word = Str(in, word_end);
                 if (word == "null" || word == "true" || word == "false") {
                     goto nope;
@@ -440,7 +452,7 @@ struct Parser {
         if (in >= end) error(in, "Expected term but ran into end of file");
         switch (*in) {
             case ANY_WORD_STARTER: {
-                auto word_end = find_word_end(in+1);
+                auto word_end = find_word_end(in);
                 auto word = Str(in, word_end);
                 if (word == "null") new (&r) Tree(null);
                 else if (word == "true") new (&r) Tree(true);
@@ -454,6 +466,7 @@ struct Parser {
              // Comments starting with -- should already have been skipped by a
              // previous skip_ws().
             case '-': return got_minus(in, r);
+            case '.': error(in, "Number cannot begin with .");
 
             case '"': {
                 AnyString str;
@@ -466,17 +479,9 @@ struct Parser {
 
             case '&': return got_decl(in, r);
             case '*': return got_shortcut(in, r);
-
-            case ':':
-            case ',':
-            case ']':
-            case '}': error(in, cat("Unexpected ", *in));
-            case '.': error(in, "Number cannot begin with .");
-            case ANY_RESERVED_SYMBOL: error_reserved(in);
-            default: error(in, cat(
-                "Unrecognized character <", to_hex_digit(uint8(*in) >> 4),
-                to_hex_digit(*in & 0xf), '>'
-            ));
+            default:
+                check_error_chars(in);
+                error(in, cat("Unexpected ", *in));
         }
     }
 
