@@ -95,7 +95,7 @@ ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, usize b) {
     a += b;
 }
 
-template <class... Tail> inline
+template <class... Tail> ALWAYS_INLINE
 void cat_append (UniqueString& h, const Tail&... t) {
     if constexpr (sizeof...(Tail) > 0) {
         usize cap = h.size();
@@ -109,7 +109,7 @@ void cat_append (UniqueString& h, const Tail&... t) {
     }
 }
 
-template <class Head, class... Tail> inline
+template <class Head, class... Tail> ALWAYS_INLINE
 UniqueString cat_construct (Head&& h, const Tail&... t) {
      // Record of investigations: I was poking around in the disassembly on an
      // optimized build, and found that this function was producing a call to
