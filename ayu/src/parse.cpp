@@ -133,21 +133,44 @@ struct Parser {
             }
             else break;
         }
-        out.append(from_utf16(units));
+        out.append_expect_capacity(from_utf16(units));
         return in;
         invalid_u: error(in, "Invalid \\u escape sequence");
     }
 
     NOINLINE const char* got_string (const char* in, AnyString& r) {
         in++;  // for the "
-        if (*in == '"') return in+1;
-        UniqueString out (Capacity(1));
+         // Determine upper bound of required capacity
+        usize cap = 0;
+        bool escaped = false;
+        for (const char* p = in; p < end; p++) {
+            switch (*p) {
+                case '"':
+                    if (!escaped) goto start;
+                    break;
+                case '\\':
+                    if (!escaped) cap++;
+                    escaped = !escaped;
+                    break;
+                default:
+                    cap++;
+                    escaped = false;
+                    break;
+            }
+        }
+        error(in, "String not terminated by end of input");
+         // Preallocate
+        start:
+        auto out = UniqueString(Capacity(cap));
+         // Now read the string
         while (in < end) {
             char c = *in++;
             switch (c) {
-                case '"': goto done;
+                case '"':
+                    new (&r) AnyString(move(out));
+                    return in;
                 case '\\': {
-                    if (in >= end) goto not_terminated;
+                    expect(in < end);
                     switch (*in++) {
                         case '"': c = '"'; break;
                         case '\\': c = '\\'; break;
@@ -168,12 +191,9 @@ struct Parser {
                 }
                 default: [[likely]] break;
             }
-            out.push_back(c);
+            out.push_back_expect_capacity(c);
         }
-        done:
-        new (&r) AnyString(move(out));
-        return in;
-        not_terminated: error(in, "String not terminated by end of input");
+        never();
     }
 
     NOINLINE const char* find_word_end (const char* in) {
