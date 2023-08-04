@@ -42,6 +42,7 @@
  // will occur (hopefully after a debug-only assertion).
 #pragma once
 
+#include <bit> // bit_ceil
 #include <cstring> // memcpy and friends
 #include <filesystem> // for conversion to path
 #include <functional> // std::hash
@@ -731,7 +732,7 @@ struct ArrayInterface {
      // may change its capacity.  For StaticArray and Slice, since they can't be
      // mutated, this require()s that the array is explicitly NUL-terminated.
      // Noinline because this should not be on a hot path.
-    constexpr
+    NOINLINE constexpr
     const T* c_str () requires (requires (T v) { !v; v = T(); }) {
         if (size() > 0 && !impl.data[size()-1]) {
         }
@@ -847,8 +848,9 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     usize capacity () const {
         if (owned()) {
-            expect(header().capacity >= min_capacity);
-            return header().capacity;
+            usize cap = header().capacity;
+            expect(cap >= min_capacity);
+            return cap;
         }
         else return 0;
     }
@@ -983,7 +985,7 @@ struct ArrayInterface {
     void reserve_plenty (usize cap) requires (supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) [[unlikely]] {
-            set_owned_unique(reallocate(impl, cap, capacity() * 2), size());
+            set_owned_unique(reallocate_plenty(impl, cap), size());
         }
     }
 
@@ -1578,15 +1580,10 @@ struct ArrayInterface {
     }
 
      // Used by reserve and related functions
-    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* reallocate (Impl impl, usize cap, usize cap2 = 0)
+    [[gnu::malloc, gnu::returns_nonnull]] static
+    T* reallocate (Impl impl, usize cap)
         noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
-         // Stuff non-fast-path reserve_plenty logic in here
-        if (cap2 > cap) {
-            cap = cap2;
-            if (cap > max_size_) [[unlikely]] cap = max_size_;
-        }
         Self& self = reinterpret_cast<Self&>(impl);
         usize s = self.size();
         expect(cap >= s);
@@ -1636,6 +1633,19 @@ struct ArrayInterface {
         }
         else require(std::is_copy_constructible_v<T>);
         return dat;
+    }
+
+    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
+    T* reallocate_plenty (Impl impl, usize cap)
+        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+    {
+        if (cap < 4) cap = 4;
+        else if (cap > max_capacity >> 1) [[unlikely]] {
+            require(cap < max_capacity);
+            cap = max_capacity;
+        }
+        else cap = std::bit_ceil(uint32(cap));
+        return reallocate(impl, cap);
     }
 
      // Used by emplace and insert.  Opens a gap but doesn't put anything in it.

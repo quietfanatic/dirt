@@ -27,19 +27,25 @@ inline namespace buffers {
         }
 
         static constexpr usize capacity_for_size (usize size) {
-            usize min_bytes = sizeof(usize) == 8 ? 24 : 16;
+             // However big the elements are, allocate space for at least 4 of
+             // them.
+            if (!size) size = 1;
+             // Working with malloc on glibc x64, it seems that malloc gives
+             // sizes 24, 40, 56, 88, 104, ...
+             // In other words, 16n + 8.  And our header size just so happens to
+             // be 8 bytes.  Nice!
              // Give up on rounding up non-power-of-two sizes.
-            usize mask = sizeof(T) == 1 ? 7
-                       : sizeof(T) == 2 ? 3
-                       : sizeof(T) == 4 ? 1
+            usize mask = sizeof(T) == 1 ? 15
+                       : sizeof(T) == 2 ? 7
+                       : sizeof(T) == 4 ? 3
+                       : sizeof(T) == 8 ? 1
                        : 0;
-            usize cap = (size + mask) & ~mask;
-            return cap >= min_bytes ? cap : min_bytes;
+            return (size + mask) & ~mask;
         }
 
         [[gnu::malloc, gnu::returns_nonnull]] static
         T* allocate (usize size) {
-            require(size <= (uint32(-1) >> 1));
+            if (size > uint32(-1) >> 1) [[unlikely]] require(false);
             usize cap = capacity_for_size(size);
              // On 32-bit platforms we need to make sure we don't overflow usize
             uint64 bytes = sizeof(SharedBufferHeader) + (uint64)cap * sizeof(T);
