@@ -15,7 +15,6 @@ namespace in {
 
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
-    const char* p;
     const char* end;
     const char* begin;
     AnyString filename;
@@ -27,128 +26,129 @@ struct Parser {
     UniqueArray<TreePair> shortcuts;
 
     Parser (Str s, MoveRef<AnyString> filename) :
-        p(s.begin()),
         end(s.end()),
         begin(s.begin()),
         filename(*move(filename))
     { }
 
     [[noreturn, gnu::cold]]
-    void error (Str mess) {
+    void error (const char* in, Str mess) {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
         uint line = 1;
         const char* last_lf = begin - 1;
-        for (const char* p2 = begin; p2 != p; p2++) {
+        for (const char* p2 = begin; p2 != in; p2++) {
             if (*p2 == '\n') {
                 line++;
                 last_lf = p2;
             }
         }
-        uint col = p - last_lf;
+        uint col = in - last_lf;
         raise(e_ParseFailed, cat(
             mess, " at ", filename, ':', line, ':', col
         ));
     }
 
     [[noreturn, gnu::cold]]
-    void error_reserved (char sym) {
-        error(cat(sym, " is a reserved symbol and can't be used outside of strings"));
+    void error_reserved (const char* in) {
+        error(in, cat(*in, " is a reserved symbol and can't be used outside of strings"));
     }
 
     ///// NON-SEMANTIC CONTENT
 
-    void skip_comment () {
-        p += 2;  // for two -s
-        while (p < end) {
-            if (*p++ == '\n') break;
+    const char* skip_comment (const char* in) {
+        in += 2;  // for two -s
+        while (in < end) {
+            if (*in++ == '\n') break;
         }
+        return in;
     }
-    NOINLINE void skip_ws () {
-        while (p < end) {
-            switch (*p) {
-                case ANY_WS: p++; break;
+    NOINLINE const char* skip_ws (const char* in) {
+        while (in < end) {
+            switch (*in) {
+                case ANY_WS: in++; break;
                 case '-': {
-                    if (p + 1 < end && p[1] == '-') {
-                        skip_comment();
+                    if (in + 1 < end && in[1] == '-') {
+                        in = skip_comment(in);
                         break;
                     }
-                    else return;
+                    else return in;
                 }
-                default: return;
+                default: return in;
             }
         }
+        return in;
     }
-    NOINLINE void skip_commas () {
-        while (p < end) {
-            switch (*p) {
-                case ANY_WS: case ',': p++; break;
+    NOINLINE const char* skip_commas (const char* in) {
+        while (in < end) {
+            switch (*in) {
+                case ANY_WS: case ',': in++; break;
                 case '-': {
-                    if (p + 1 < end && p[1] == '-') {
-                        skip_comment();
+                    if (in + 1 < end && in[1] == '-') {
+                        in = skip_comment(in);
                         break;
                     }
-                    else return;
+                    else return in;
                 }
-                default: return;
+                default: return in;
             }
         }
+        return in;
     }
 
     ///// STRINGS
 
-    char got_x_escape () {
+    const char* got_x_escape (const char* in, char& r) {
         {
-            if (p + 2 >= end) goto invalid_x;
-            int n0 = from_hex_digit(p[0]);
+            if (in + 2 >= end) goto invalid_x;
+            int n0 = from_hex_digit(in[0]);
             if (n0 < 0) goto invalid_x;
-            int n1 = from_hex_digit(p[1]);
+            int n1 = from_hex_digit(in[1]);
             if (n1 < 0) goto invalid_x;
-            p += 2;
-            return n0 << 4 | n1;
+            in += 2;
+            r = n0 << 4 | n1;
+            return in;
         }
-        invalid_x: error("Invalid \\x escape sequence");
+        invalid_x: error(in, "Invalid \\x escape sequence");
     }
 
-    UniqueString got_u_escape () {
+    const char* got_u_escape (const char* in, UniqueString& out) {
         UniqueString16 units (Capacity(1));
          // Process multiple \uXXXX sequences at once so
          // that we can fuse UTF-16 surrogates.
         for (;;) {
-            if (p + 4 >= end) goto invalid_u;
-            int n0 = from_hex_digit(p[0]);
+            if (in + 4 >= end) goto invalid_u;
+            int n0 = from_hex_digit(in[0]);
             if (n0 < 0) goto invalid_u;
-            int n1 = from_hex_digit(p[1]);
+            int n1 = from_hex_digit(in[1]);
             if (n1 < 0) goto invalid_u;
-            int n2 = from_hex_digit(p[2]);
+            int n2 = from_hex_digit(in[2]);
             if (n0 < 0) goto invalid_u;
-            int n3 = from_hex_digit(p[3]);
+            int n3 = from_hex_digit(in[3]);
             if (n1 < 0) goto invalid_u;
             units.push_back(n0 << 12 | n1 << 8 | n2 << 4 | n3);
-            p += 4;
-            if (p + 2 < end && p[0] == '\\' && p[1] == 'u') {
-                p += 2;
+            in += 4;
+            if (in + 2 < end && in[0] == '\\' && in[1] == 'u') {
+                in += 2;
             }
             else break;
         }
-        return from_utf16(units);
-        invalid_u: error("Invalid \\u escape sequence");
+        out.append(from_utf16(units));
+        return in;
+        invalid_u: error(in, "Invalid \\u escape sequence");
     }
 
-    NOINLINE UniqueString got_string () {
-        p++;  // for the "
-        if (*p == '"') {
-            p++;
-            return "";
-        }
-        UniqueString r (Capacity(1));
-        while (p < end) {
-            char c = *p++;
+    NOINLINE const char* got_string (const char* in, AnyString& r) {
+        in++;  // for the "
+        if (*in == '"') return in+1;
+        UniqueString out (Capacity(1));
+        while (in < end) {
+            char c = *in++;
             switch (c) {
-                case '"': return r;
+                case '"': goto done;
                 case '\\': {
-                    if (p >= end) goto not_terminated;
-                    switch (*p++) {
+                    if (in >= end) goto not_terminated;
+                    switch (*in++) {
                         case '"': c = '"'; break;
                         case '\\': c = '\\'; break;
                          // Dunno why this is in json
@@ -158,288 +158,304 @@ struct Parser {
                         case 'n': c = '\n'; break;
                         case 'r': c = '\r'; break;
                         case 't': c = '\t'; break;
-                        case 'x': c = got_x_escape(); break;
+                        case 'x': in = got_x_escape(in, c); break;
                         case 'u':
-                            r.append(got_u_escape());
+                            in = got_u_escape(in, out);
                             continue; // Skip the push_back
-                        default: p--; error("Unrecognized escape sequence");
+                        default: in--; error(in, "Unrecognized escape sequence");
                     }
                     break;
                 }
                 default: [[likely]] break;
             }
-            r.push_back(c);
+            out.push_back(c);
         }
-        not_terminated: error("String not terminated by end of input");
+        done:
+        new (&r) AnyString(move(out));
+        return in;
+        not_terminated: error(in, "String not terminated by end of input");
     }
 
-    NOINLINE const char* find_word_end () {
-        const char* r = p;
-        while (r < end) {
-            switch (*r) {
+    NOINLINE const char* find_word_end (const char* in) {
+        while (in < end) {
+            switch (*in) {
                 case ANY_LETTER: case ANY_DECIMAL_DIGIT: case ANY_WORD_SYMBOL:
-                    r++; break;
+                    in++; break;
                 case ':': {
                      // Allow :: for c++ types
-                    if (r < end && r[1] == ':') {
-                        r += 2;
+                    if (in < end && in[1] == ':') {
+                        in += 2;
                         break;
                     }
-                    else return r;
+                    else return in;
                 }
                 case '"': {
-                    p = r;
-                    error("\" cannot occur inside a word (are you missing the first \"?)");
+                    error(in, "\" cannot occur inside a word (are you missing the first \"?)");
                 }
-                default: return r;
+                default: return in;
             }
         }
-        return r;
-    }
-
-    Str got_word () {
-        auto word_start = p;
-        p++; // Already parsed initial character
-        p = find_word_end();
-        return expect(Str(word_start, p));
+        return in;
     }
 
     ///// NUMBERS
 
     [[noreturn, gnu::cold]]
-    void error_invalid_number () { error("Couldn't parse number"); }
+    void error_invalid_number (const char* in) { error(in, "Couldn't parse number"); }
 
     template <bool hex>
-    Tree parse_floating (const char* word_end, bool minus) {
+    const char* parse_floating (const char* in, Tree& r, const char* word_end, bool minus) {
         double floating;
         auto [num_end, ec] = std::from_chars(
-            p, word_end, floating,
+            in, word_end, floating,
             hex ? std::chars_format::hex
                 : std::chars_format::general
         );
-        expect(num_end > p);
+        expect(num_end > in);
         if (num_end == word_end) {
-            p = num_end;
-            Tree r (minus ? -floating : floating);
+            new (&r) Tree(minus ? -floating : floating);
             if (hex) r.flags |= PREFER_HEX;
-            return r;
+            return num_end;
         }
-        else error_invalid_number();
+        else error_invalid_number(in);
     }
 
     template <bool hex>
-    Tree parse_number (const char* word_end, bool minus) {
-        if (p >= word_end) error_invalid_number();
-        switch (p[0]) {
+    const char* parse_number (const char* in, Tree& r, const char* word_end, bool minus) {
+        if (in >= word_end) error_invalid_number(in);
+        switch (in[0]) {
             case ANY_DECIMAL_DIGIT: break;
-            case ANY_HEX_LETTER: if (hex) break; else error_invalid_number();
-            case '.': error("Number cannot start with .");
-            default: error_invalid_number();
+            case ANY_HEX_LETTER: if (hex) break; else error_invalid_number(in);
+            case '.': error(in, "Number cannot start with .");
+            default: error_invalid_number(in);
         }
         int64 integer;
         auto [num_end, ec] = std::from_chars(
-            p, word_end, integer, hex ? 16 : 10
+            in, word_end, integer, hex ? 16 : 10
         );
-        expect(num_end > p);
+        expect(num_end > in);
         if (num_end == word_end) {
-            p = num_end;
-            Tree r = minus && integer == 0
-                ? Tree(-0.0)
-                : Tree(minus ? -integer : integer);
+            if (minus) {
+                if (integer == 0) new (&r) Tree(-0.0);
+                else new (&r) Tree(-integer);
+            }
+            else new (&r) Tree(integer);
             if (hex) r.flags |= PREFER_HEX;
-            return r;
+            return num_end;
         }
          // Forbid . without a digit after
         else if (num_end < word_end && num_end[0] == '.') {
             if (num_end + 1 >= word_end ||
                 !(hex ? std::isxdigit(num_end[1]) : std::isdigit(num_end[1]))
-            ) error("Number cannot end with .");
+            ) error(in, "Number cannot end with .");
         }
-        return parse_floating<hex>(word_end, minus);
+        return parse_floating<hex>(in, r, word_end, minus);
     }
 
-    NOINLINE Tree parse_number_based (const char* word_end, bool minus) {
+    NOINLINE const char* parse_number_based (const char* in, Tree& r, const char* word_end, bool minus) {
          // Detect hex prefix
-        if (p + 1 < word_end && (Str(p, 2) == "0x" || Str(p, 2) == "0X")) {
-            p += 2;
-            return parse_number<true>(word_end, minus);
+        if (in + 1 < word_end && (Str(in, 2) == "0x" || Str(in, 2) == "0X")) {
+            in += 2;
+            return parse_number<true>(in, r, word_end, minus);
         }
-        else return parse_number<false>(word_end, minus);
+        else return parse_number<false>(in, r, word_end, minus);
     }
 
-    Tree got_plus () {
-        auto word_start = p;
-        p++;  // For the +
-        auto word_end = find_word_end();
-        if (Str(word_start, word_end) == "+nan") {
-            p = word_end;
-            return Tree(std::numeric_limits<double>::quiet_NaN());
+    const char* got_plus (const char* in, Tree& r) {
+        auto word_end = find_word_end(in+1);
+        if (Str(in, word_end) == "+nan") {
+            new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
+            return word_end;
         }
-        else if (Str(word_start, word_end) == "+inf") {
-            p = word_end;
-            return Tree(std::numeric_limits<double>::infinity());
+        else if (Str(in, word_end) == "+inf") {
+            new (&r) Tree(std::numeric_limits<double>::infinity());
+            return word_end;
         }
-        return parse_number_based(word_end, false);
+        return parse_number_based(in+1, r, word_end, false);
     }
 
-    Tree got_minus () {
-        auto word_start = p;
-        p++;  // For the -
-        auto word_end = find_word_end();
-        if (Str(word_start, word_end) == "-inf") {
-            p = word_end;
-            return Tree(-std::numeric_limits<double>::infinity());
+    const char* got_minus (const char* in, Tree& r) {
+        auto word_end = find_word_end(in+1);
+        if (Str(in, word_end) == "-inf") {
+            new (&r) Tree(-std::numeric_limits<double>::infinity());
+            return word_end;
         }
-        return parse_number_based(word_end, true);
+        return parse_number_based(in+1, r, word_end, true);
     }
 
-    Tree got_digit () {
-        return parse_number_based(find_word_end(), false);
+    const char* got_digit (const char* in, Tree& r) {
+        return parse_number_based(in, r, find_word_end(in), false);
     }
 
     ///// COMPOUND
 
-    TreeArray got_array () {
-        UniqueArray<Tree> r;
-        p++;  // for the [
-        while (p < end) {
-            skip_commas();
-            switch (*p) {
-                case ':': error("Cannot have : in an array");
-                case ']': p++; return r;
-                default: r.push_back(parse_term()); break;
+    const char* got_array (const char* in, Tree& r) {
+        UniqueArray<Tree> a;
+        in++;  // for the [
+        while (in < end) {
+            in = skip_commas(in);
+            switch (*in) {
+                case ':': error(in, "Cannot have : in an array");
+                case ']': new (&r) Tree(move(a)); return in + 1;
+                default:
+                    in = parse_term(in, a.emplace_back());
+                    break;
             }
         }
-        error("Array is not terminated");
+        error(in, "Array is not terminated");
     }
 
-    TreeObject got_object () {
-        UniqueArray<TreePair> r;
-        p++;  // for the {
-        while (p < end) {
-            skip_commas();
-            if (p >= end) goto not_terminated;
-            switch (*p) {
-                case ':': error("Missing key before : in object");
-                case '}': p++; return r;
+    const char* got_object (const char* in, Tree& r) {
+        UniqueArray<TreePair> o;
+        in++;  // for the {
+        while (in < end) {
+            in = skip_commas(in);
+            if (in >= end) goto not_terminated;
+            switch (*in) {
+                case ':': error(in, "Missing key before : in object");
+                case '}': new (&r) Tree(move(o)); return in + 1;
                 default: break;
             }
-            Tree key = parse_term();
+            Tree key;
+            in = parse_term(in, key);
             if (key.form != STRING) {
-                error("Can't use non-string as key in object");
+                error(in, "Can't use non-string as key in object");
             }
-            skip_ws();
-            if (p >= end) goto not_terminated;
-            switch (*p) {
-                case ':': p++; break;
-                case ANY_RESERVED_SYMBOL: error_reserved(*p);
-                default: error("Missing : after name in object");
+            in = skip_ws(in);
+            if (in >= end) goto not_terminated;
+            switch (*in) {
+                case ':': in++; break;
+                case ANY_RESERVED_SYMBOL: error_reserved(in);
+                default: error(in, "Missing : after name in object");
             }
-            skip_ws();
-            if (p >= end) goto not_terminated;
-            switch (*p) {
+            in = skip_ws(in);
+            if (in >= end) goto not_terminated;
+            switch (*in) {
                 case ',':
-                case '}': error("Missing value after : in object");
+                case '}': error(in, "Missing value after : in object");
                 default: {
-                    r.emplace_back(AnyString(move(key)), parse_term());
+                    Tree& value = o.emplace_back(move(key), Tree()).second;
+                    in = parse_term(in, value);
                     break;
                 }
             }
         }
-        not_terminated: error("Object is not terminated");
+        not_terminated: error(in, "Object is not terminated");
     }
 
     ///// SHORTCUTS
 
-    NOINLINE AnyString parse_shortcut_name (char sigil) {
-        switch (*p) {
+    NOINLINE const char* parse_shortcut_name (const char* in, AnyString& r) {
+        if (in >= end) goto nope;
+        switch (*in) {
             case ANY_WORD_STARTER: {
-                Str word = got_word();
+                auto word_end = find_word_end(in+1);
+                auto word = Str(in, word_end);
                 if (word == "null" || word == "true" || word == "false") {
                     goto nope;
                 }
-                return StaticString(word);
+                new (&r) AnyString(StaticString(word));
+                return word_end;
             }
-            case '"': return got_string(); break;
+            case '"': {
+                return got_string(in, r);
+            }
             default: goto nope;
         }
-        nope: error(cat("Expected string for shortcut name after ", sigil));
+        nope: error(in, cat("Expected string for shortcut name after ", in[-1]));
     }
 
-    NOINLINE Tree& set_shortcut (MoveRef<AnyString> name_) {
+    NOINLINE const char* set_shortcut (const char* in, MoveRef<AnyString> name_, MoveRef<Tree> value_) {
         auto name = *move(name_);
-        for (auto& p : shortcuts) {
-            if (p.first == name) {
-                error(cat("Multiple declarations of shortcut &", move(name)));
+        auto value = *move(value_);
+        for (auto& sc : shortcuts) {
+            if (sc.first == name) {
+                error(in, cat("Multiple declarations of shortcut &", name));
             }
         }
-        return shortcuts.emplace_back(move(name), parse_term()).second;
+        shortcuts.emplace_back(move(name), move(value));
+        return in;
     }
 
-    TreeRef get_shortcut (Str name) {
-        for (auto& p : shortcuts) {
-            if (p.first == name) return p.second;
+    const char* get_shortcut (const char* in, Tree& r, Str name) {
+        for (auto& sc : shortcuts) {
+            if (sc.first == name) {
+                new (&r) Tree(sc.second);
+                return in;
+            }
         }
-        error(cat("Unknown shortcut *", name));
+        error(in, cat("Unknown shortcut *", name));
     }
 
-    Tree got_decl () {
-        p++;  // for the &
-        AnyString name = parse_shortcut_name('&');
-        skip_ws();
-        if (p < end && *p == ':') {
-            p++;
-            skip_ws();
-            set_shortcut(move(name));
-            skip_commas();
-            return parse_term();
+    const char* got_decl (const char* in, Tree& r) {
+        in++;  // for the &
+        AnyString name;
+        in = parse_shortcut_name(in, name);
+        in = skip_ws(in);
+        if (in < end && *in == ':') {
+            in++;
+            in = skip_ws(in);
+            Tree value;
+            in = parse_term(in, value);
+            in = set_shortcut(in, move(name), move(value));
+            in = skip_commas(in);
+            return parse_term(in, r);
         }
         else {
-            return set_shortcut(move(name));
+            in = parse_term(in, r);
+            return set_shortcut(in, move(name), r);
         }
     }
 
-    Tree got_shortcut () {
-        p++;  // for the *
-        AnyString name = parse_shortcut_name('*');
-        return get_shortcut(name);
+    const char* got_shortcut (const char* in, Tree& r) {
+        in++;  // for the *
+        AnyString name;
+        in = parse_shortcut_name(in, name);
+        return get_shortcut(in, r, name);
     }
 
     ///// TERM
 
-    Tree parse_term () {
-        if (p >= end) error("Expected term but ran into end of file");
-        switch (*p) {
+    const char* parse_term (const char* in, Tree& r) {
+        if (in >= end) error(in, "Expected term but ran into end of file");
+        switch (*in) {
             case ANY_WORD_STARTER: {
-                Str word = got_word();
-                if (word == "null") return Tree(null);
-                else if (word == "true") return Tree(true);
-                else if (word == "false") return Tree(false);
-                else return Tree(word);
+                auto word_end = find_word_end(in+1);
+                auto word = Str(in, word_end);
+                if (word == "null") new (&r) Tree(null);
+                else if (word == "true") new (&r) Tree(true);
+                else if (word == "false") new (&r) Tree(false);
+                else new (&r) Tree(word);
+                return word_end;
             }
 
-            case ANY_DECIMAL_DIGIT: return got_digit();
-            case '+': return got_plus();
+            case ANY_DECIMAL_DIGIT: return got_digit(in, r);
+            case '+': return got_plus(in, r);
              // Comments starting with -- should already have been skipped by a
              // previous skip_ws().
-            case '-': return got_minus();
+            case '-': return got_minus(in, r);
 
-            case '"': return Tree(got_string());
-            case '[': return Tree(got_array());
-            case '{': return Tree(got_object());
+            case '"': {
+                AnyString str;
+                in = got_string(in, str);
+                new (&r) Tree(move(str));
+                return in;
+            }
+            case '[': return got_array(in, r);
+            case '{': return got_object(in, r);
 
-            case '&': return got_decl();
-            case '*': return got_shortcut();
+            case '&': return got_decl(in, r);
+            case '*': return got_shortcut(in, r);
 
             case ':':
             case ',':
             case ']':
-            case '}': error(cat("Unexpected ", *p));
-            case '.': error("Number cannot begin with .");
-            case ANY_RESERVED_SYMBOL: error_reserved(*p);
-            default: error(cat(
-                "Unrecognized character <", to_hex_digit(uint8(*p) >> 4),
-                to_hex_digit(*p & 0xf), '>'
+            case '}': error(in, cat("Unexpected ", *in));
+            case '.': error(in, "Number cannot begin with .");
+            case ANY_RESERVED_SYMBOL: error_reserved(in);
+            default: error(in, cat(
+                "Unrecognized character <", to_hex_digit(uint8(*in) >> 4),
+                to_hex_digit(*in & 0xf), '>'
             ));
         }
     }
@@ -447,14 +463,16 @@ struct Parser {
     ///// TOP
 
     Tree parse () {
+        const char* in = begin;
          // Skip BOM
-        if (p + 2 < end && Str(p, 3) == "\xef\xbb\xbf") {
-            p += 3;
+        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
+            in += 3;
         }
-        skip_ws();
-        Tree r = parse_term();
-        skip_ws();
-        if (p != end) error("Extra stuff at end of document");
+        in = skip_ws(in);
+        Tree r;
+        in = parse_term(in, r);
+        in = skip_ws(in);
+        if (in != end) error(in, "Extra stuff at end of document");
         return r;
     }
 };

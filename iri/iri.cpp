@@ -255,9 +255,9 @@ struct IRIParser {
         expect(prefix.size() > 0 && prefix.size() <= maximum_length);
         expect(!output.owned());
         output = UniqueString(Capacity(prefix.size() + cap));
-        output.append_expect_capacity(prefix);
+        std::memcpy(output.data(), prefix.data(), prefix.size());
         return (this->*next)(
-            output.begin() + prefix.size(), input.begin(), input.end()
+            output.data() + prefix.size(), input.begin(), input.end()
         );
     }
 
