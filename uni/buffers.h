@@ -32,7 +32,7 @@ inline namespace buffers {
             if (!size) size = 1;
              // Working with malloc on glibc x64, it seems that malloc gives
              // sizes 24, 40, 56, 88, 104, ...
-             // In other words, 16n + 8.  And our header size just so happens to
+             // In other words, 8 + 16n.  And our header size just so happens to
              // be 8 bytes.  Nice!
              // Give up on rounding up non-power-of-two sizes.
             usize mask = sizeof(T) == 1 ? 15

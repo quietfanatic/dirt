@@ -731,24 +731,11 @@ struct ArrayInterface {
      // a NUL element after the end.  Does not change the size of the array, but
      // may change its capacity.  For StaticArray and Slice, since they can't be
      // mutated, this require()s that the array is explicitly NUL-terminated.
-     // Noinline because this should not be on a hot path.
-    NOINLINE constexpr
+    constexpr
     const T* c_str () requires (requires (T v) { !v; v = T(); }) {
-        if (size() > 0 && !impl.data[size()-1]) {
+        if (!size() || !!impl.data[size()-1]) {
+            set_owned_unique(do_c_str(impl), size());
         }
-        else if constexpr (supports_owned) {
-             // Using just reserve here instead of reserve_plenty, because
-             // it's unlikely that you're going to add more onto the end
-             // after requesting a NUL-terminated string.
-             // Theoretically, for shared strings we could tack on a NUL byte
-             // even if the shared string isn't unique, as long as that's the
-             // only shared modification we do.  However, this would disallow
-             // having shared strings with the same buffer and different
-             // lengths, which isn't worth it.
-            reserve(size() + 1);
-            impl.data[size()] = T();
-        }
-        else require(false);
         return impl.data;
     }
 
@@ -1616,9 +1603,7 @@ struct ArrayInterface {
             }
              // DON'T call remove_ref here because it'll double-destroy
              // self.impl.data[*]
-            if (self.impl.data) {
-                SharableBuffer<T>::deallocate(self.impl.data);
-            }
+            SharableBuffer<T>::deallocate(self.impl.data);
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
             try {
@@ -1781,6 +1766,16 @@ struct ArrayInterface {
             return dat;
         }
         else never();
+    }
+
+    [[gnu::returns_nonnull]] NOINLINE static
+    T* do_c_str (Impl impl)
+        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+    {
+        Self& self = reinterpret_cast<Self&>(impl);
+        self.reserve(self.size() + 1);
+        new (&self.impl.data[self.size()]) T();
+        return self.impl.data;
     }
 };
 
