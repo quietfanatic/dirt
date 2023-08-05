@@ -24,17 +24,4 @@ UniqueString16 to_utf16 (Str) noexcept;
  // Convert a native-endian UTF-16 string into a UTF-8 string.
 UniqueString from_utf16 (Str16) noexcept;
 
-///// UTF-8 IO FUNCTIONS
-
- // fopen but UTF-8 even on Windows.  Use fwrite to write UTF-8 text.
-std::FILE* fopen_utf8 (const char* filename, const char* mode = "rb") noexcept;
-
- // Print UTF-8 formatted text to stdout and flushes
-void print_utf8 (Str s) noexcept;
- // Prints to stderr and flushes.
-void warn_utf8 (Str s) noexcept;
-
- // Delete a file
-int remove_utf8 (const char* filename) noexcept;
-
 } // namespace uni

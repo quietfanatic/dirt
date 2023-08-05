@@ -6,7 +6,6 @@
 #pragma once
 
 #include "../iri/iri.h"
-#include "../uni/utf.h"
 #include "common.h"
 #include "type.h"
 

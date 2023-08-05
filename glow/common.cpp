@@ -4,7 +4,7 @@
 #include <iostream>
 #include <SDL2/SDL_error.h>
 #include "../uni/strings.h"
-#include "../uni/utf.h"
+#include "../uni/io.h"
 #include "gl.h"
 
 namespace glow {

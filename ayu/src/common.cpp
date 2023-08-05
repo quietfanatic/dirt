@@ -1,6 +1,6 @@
 #include "../internal/common-internal.h"
 
-#include "../../uni/utf.h"
+#include "../../uni/io.h"
 #include "../serialize-to-tree.h"
 
 namespace ayu {
