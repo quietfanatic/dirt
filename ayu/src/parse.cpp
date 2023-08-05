@@ -335,32 +335,30 @@ struct Parser {
     NOINLINE const char* got_array (const char* in, Tree& r) {
         UniqueArray<Tree> a;
         in++;  // for the [
+        in = skip_ws(in);
         while (in < end) {
-            in = skip_commas(in);
-            if (in >= end) goto not_terminated;
             if (*in == ']') {
                 new (&r) Tree(move(a));
                 return in + 1;
             }
             in = parse_term(in, a.emplace_back());
+            in = skip_commas(in);
         }
-        not_terminated:
         error(in, "Missing ] before end of input");
     }
 
     NOINLINE const char* got_object (const char* in, Tree& r) {
         UniqueArray<TreePair> o;
         in++;  // for the {
+        in = skip_ws(in);
         while (in < end) {
-            in = skip_commas(in);
-            if (in >= end) goto not_terminated;
             if (*in == '}') {
                 new (&r) Tree(move(o));
                 return in + 1;
             }
             Tree key;
             in = parse_term(in, key);
-            if (key.form != STRING) {
+            if (key.rep != REP_SHAREDSTRING) {
                 error(in, "Can't use non-string as key in object");
             }
             in = skip_ws(in);
@@ -374,6 +372,7 @@ struct Parser {
             if (in >= end) goto not_terminated;
             Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
             in = parse_term(in, value);
+            in = skip_commas(in);
         }
         not_terminated: error(in, "Missing } before end of input");
     }
@@ -547,9 +546,11 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
     y("\"asdf\\u0037asdf\"", Tree("asdf7asdf"));
     y("\"asdf\\uD83C\\uDF31asdf\"", Tree("asdf🌱asdf"));
     y("[]", Tree(TreeArray{}));
-    y("[,,,,,]", Tree(TreeArray{}));
+    n("[,]");
+    n("[,,,,,]");
     y("[0 1 foo]", Tree(TreeArray{Tree(0), Tree(1), Tree("foo")}));
     y("{}", Tree(TreeObject{}));
+    n("{,}");
     y("{\"asdf\":\"foo\"}", Tree(TreeObject{TreePair{"asdf", Tree("foo")}}));
     y("{\"asdf\":0}", Tree(TreeObject{TreePair{"asdf", Tree(0)}}));
     y("{asdf:0}", Tree(TreeObject{TreePair{"asdf", Tree(0)}}));
