@@ -90,10 +90,26 @@ struct Parser {
         }
         return in;
     }
-    NOINLINE const char* skip_commas (const char* in) {
+    NOINLINE const char* skip_comma (const char* in) {
         while (in < end) {
             switch (*in) {
-                case ANY_WS: case ',': in++; break;
+                case ANY_WS: in++; break;
+                case ',': in++; goto next;
+                case '-': {
+                    if (in + 1 < end && in[1] == '-') {
+                        in = skip_comment(in);
+                        break;
+                    }
+                    else return in;
+                }
+                default: return in;
+            }
+        }
+        return in;
+        next:
+        while (in < end) {
+            switch (*in) {
+                case ANY_WS: in++; break;
                 case '-': {
                     if (in + 1 < end && in[1] == '-') {
                         in = skip_comment(in);
@@ -342,7 +358,7 @@ struct Parser {
                 return in + 1;
             }
             in = parse_term(in, a.emplace_back());
-            in = skip_commas(in);
+            in = skip_comma(in);
         }
         error(in, "Missing ] before end of input");
     }
@@ -372,7 +388,7 @@ struct Parser {
             if (in >= end) goto not_terminated;
             Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
             in = parse_term(in, value);
-            in = skip_commas(in);
+            in = skip_comma(in);
         }
         not_terminated: error(in, "Missing } before end of input");
     }
@@ -422,7 +438,7 @@ struct Parser {
             Tree value;
             in = parse_term(in, value);
             in = set_shortcut(in, move(name), move(value));
-            in = skip_commas(in);
+            in = skip_comma(in);
             return parse_term(in, r);
         }
         else {
@@ -571,6 +587,9 @@ static tap::TestSet tests ("dirt/ayu/parse", []{
             })
         })
     );
+    y("[0,1,]", Tree(TreeArray{Tree(0), Tree(1)}));
+    n("[0,,1,]");
+    n("[0,1,,]");
     y("&foo 1", Tree(1));
     y("&foo:1 *foo", Tree(1));
     y("&\"null\":4 *\"null\"", Tree(4));
