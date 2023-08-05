@@ -244,7 +244,6 @@ struct Parser {
             hex ? std::chars_format::hex
                 : std::chars_format::general
         );
-        expect(num_end > in);
         if (num_end == word_end) {
             new (&r) Tree(minus ? -floating : floating);
             if (hex) r.flags |= PREFER_HEX;
@@ -255,18 +254,18 @@ struct Parser {
 
     template <bool hex>
     const char* parse_number (const char* in, Tree& r, const char* word_end, bool minus) {
-        if (in >= word_end) error_invalid_number(in);
-        switch (in[0]) {
-            case ANY_DECIMAL_DIGIT: break;
-            case ANY_HEX_LETTER: if (hex) break; else error_invalid_number(in);
-            case '.': error(in, "Number cannot start with .");
-            default: error_invalid_number(in);
-        }
-        int64 integer;
+         // Using an unsigned integer parser will reject words that start with a
+         // + or -.
+        uint64 integer;
         auto [num_end, ec] = std::from_chars(
             in, word_end, integer, hex ? 16 : 10
         );
-        expect(num_end > in);
+        if (ec != std::errc()) {
+            if (in < word_end && in[0] == '.') {
+                error(in, "Number cannot start with .");
+            }
+            error_invalid_number(num_end);
+        }
         if (num_end == word_end) {
             if (minus) {
                 if (integer == 0) new (&r) Tree(-0.0);
@@ -276,10 +275,10 @@ struct Parser {
             if (hex) r.flags |= PREFER_HEX;
             return num_end;
         }
-         // Forbid . without a digit after
-        else if (num_end < word_end && num_end[0] == '.') {
+         // Forbid ending with a .
+        if (num_end[0] == '.') {
             if (num_end + 1 >= word_end ||
-                !(hex ? std::isxdigit(num_end[1]) : std::isdigit(num_end[1]))
+                (num_end[1] & ~('a' & ~'A')) == (hex ? 'P' : 'E')
             ) error(in, "Number cannot end with .");
         }
         return parse_floating<hex>(in, r, word_end, minus);
