@@ -3,8 +3,10 @@
 #pragma once
 
 #include "common.h"
+#include "errors.h"
+#include "strings.h"
 
-namespace ayu {
+namespace uni {
 
 UniqueString string_from_file (AnyString filename);
 

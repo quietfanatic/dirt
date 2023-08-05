@@ -2,6 +2,8 @@
  // without bloating the binary size with lots of rarely-used RTTI,
  // constructors, and destructors.
 
+#pragma once
+
 #include <exception>
 
 #include "common.h"

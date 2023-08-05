@@ -3,7 +3,7 @@
 #include <cstring>
 #include <charconv>
 
-#include "../file.h"
+#include "../../uni/io.h"
 #include "../type.h"
 #include "char-cases-private.h"
 

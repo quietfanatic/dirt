@@ -4,9 +4,9 @@
 #include <charconv>
 #include <limits>
 
+#include "../../uni/io.h"
 #include "../../uni/text.h"
 #include "../../uni/utf.h"
-#include "../file.h"
 #include "../tree.h"
 #include "char-cases-private.h"
 

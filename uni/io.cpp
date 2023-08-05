@@ -1,8 +1,8 @@
-#include "../file.h"
+#include "io.h"
 
-#include "../../uni/utf.h"
+#include "utf.h"
 
-namespace ayu {
+namespace uni {
 
 namespace in {
 
@@ -62,4 +62,4 @@ void string_to_file (Str content, AnyString filename) {
     }
 }
 
-} // ayu
+} // uni
