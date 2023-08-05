@@ -171,10 +171,10 @@ static_assert(sizeof(Tree) == sizeof(TreeRef));
 bool operator == (TreeRef a, TreeRef b) noexcept;
 
  // Tried to get something out of a tree that was the wrong form.
-constexpr ErrorCode e_TreeWrongForm = "TreeWrongForm";
+constexpr ErrorCode e_TreeWrongForm = "ayu::e_TreeWrongForm";
  // Tried to get something (probably a number) out of a tree but its value was
  // out of range for the requested type.  Example, uint8(Tree(257)).
-constexpr ErrorCode e_TreeCantRepresent = "TreeCantRepresent";
+constexpr ErrorCode e_TreeCantRepresent = "ayu::e_TreeCantRepresent";
 
 }  // namespace ayu
 

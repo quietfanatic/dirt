@@ -39,9 +39,9 @@ struct Error : std::exception {
 void raise (ErrorCode code, MoveRef<UniqueString> details);
 
  // Unspecified error
-constexpr ErrorCode e_General = "General";
+constexpr ErrorCode e_General = "uni::e_General";
  // Non-AYU error, std::rethrow(e.external) to unwrap
-constexpr ErrorCode e_External = "External";
+constexpr ErrorCode e_External = "uni::e_External";
 
  // Call this when an exception is thrown in a place where cleaning up is
  // impossible.

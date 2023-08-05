@@ -73,11 +73,11 @@ struct ResourceScheme {
 ResourceScheme* get_resource_scheme (Str name);
 
  // The name for a resource scheme was not a valid IRI scheme.
-constexpr ErrorCode e_ResourceSchemeNameInvalid = "ResourceSchemeNameInvalid";
+constexpr ErrorCode e_ResourceSchemeNameInvalid = "ayu::e_ResourceSchemeNameInvalid";
  // Tried to register a scheme name that was already registered.
-constexpr ErrorCode e_ResourceSchemeNameDuplicate = "ResourceSchemeNameDuplicate";
+constexpr ErrorCode e_ResourceSchemeNameDuplicate = "ayu::e_ResourceSchemeNameDuplicate";
  // Tried to find a resoursce scheme that didn't exist.
-constexpr ErrorCode e_ResourceSchemeNotFound = "ResourceSchemeNotFound";
+constexpr ErrorCode e_ResourceSchemeNotFound = "ayu::e_ResourceSchemeNotFound";
 
  // Maps resource names to the contents of a folder.
 struct FileResourceScheme : ResourceScheme {

@@ -82,8 +82,8 @@ struct Statement {
     explicit operator bool () const { return !!command; }
 };
 
-constexpr ayu::ErrorCode e_CommandNameDuplicate = "control::CommandNameDuplicate";
-constexpr ayu::ErrorCode e_CommandNotFound = "control::CommandNotFound";
-constexpr ayu::ErrorCode e_StatementArgsTypeIncorrect = "control::StatementArgsTypeIncorrect";
+constexpr ayu::ErrorCode e_CommandNameDuplicate = "control::e_CommandNameDuplicate";
+constexpr ayu::ErrorCode e_CommandNotFound = "control::e_CommandNotFound";
+constexpr ayu::ErrorCode e_StatementArgsTypeIncorrect = "control::e_StatementArgsTypeIncorrect";
 
 } // namespace control

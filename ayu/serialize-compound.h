@@ -58,34 +58,34 @@ Reference item_elem (
 
  // The set_keys operation (which is also part of the item_from_tree process)
  // failed because a key that the item required was not given.
-constexpr ErrorCode e_AttrMissing = "AttrMissing";
+constexpr ErrorCode e_AttrMissing = "ayu::e_AttrMissing";
  // The set_keys operation (which is also part of the item_from_tree process)
  // failed because a key was given that the item did not accept.
-constexpr ErrorCode e_AttrRejected = "AttrRejected";
+constexpr ErrorCode e_AttrRejected = "ayu::e_AttrRejected";
  // The keys() descriptor of an item produced a type that didn't serialize to an
  // array of strings.
-constexpr ErrorCode e_KeysTypeInvalid = "KeysTypeInvalid";
+constexpr ErrorCode e_KeysTypeInvalid = "ayu::e_KeysTypeInvalid";
  // Called item_attr on an item but it didn't have the requested attr.  This
  // can happen in item_to_tree or item_from_tree if an item's keys() descriptor
  // produces or accepts a key that its attr_func() descriptor then rejects.
-constexpr ErrorCode e_AttrNotFound = "AttrNotFound";
+constexpr ErrorCode e_AttrNotFound = "ayu::e_AttrNotFound";
  // Tried to treat an item like an object that doesn't support it.  This can be
  // thrown by any of the keys or attr operations and also by item_from_tree
  // (when given an object tree for the item).
-constexpr ErrorCode e_AttrsNotSupported = "AttrsNotSupported";
+constexpr ErrorCode e_AttrsNotSupported = "ayu::e_AttrsNotSupported";
 
  // The set_length operation (which is also part of the item_from_tree process)
  // failed because the provided length was not accepted by the item.
-constexpr ErrorCode e_LengthRejected = "LengthRejected";
+constexpr ErrorCode e_LengthRejected = "ayu::e_LengthRejected";
  // Called item_elem on an item but it didn't have the requested elem (the given
  // index was out of bounds).  This can happen in item_to_tree or item_from_tree
  // if an item's elem_func() descriptor doesn't accept all of the indexes its
  // length() descriptor said it would.
-constexpr ErrorCode e_ElemNotFound = "ElemNotFound";
+constexpr ErrorCode e_ElemNotFound = "ayu::e_ElemNotFound";
  // Tried to treat an item like an array that doesn't support it.  This can be
  // thrown by any of the length or elem operations and also by item_from_tree
  // (when given an array tree for the item).
-constexpr ErrorCode e_ElemsNotSupported = "ElemsNotSupported";
+constexpr ErrorCode e_ElemsNotSupported = "ayu::e_ElemsNotSupported";
 
  // You might want to use these error types in your descriptions.
 [[noreturn]]

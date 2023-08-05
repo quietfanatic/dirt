@@ -94,7 +94,7 @@ IRI location_to_iri (LocationRef) noexcept;
  // plain invalid.
 Location location_from_iri (const IRI& iri);
 
-constexpr ErrorCode e_LocationIRIInvalid = "LocationIRIInvalid";
+constexpr ErrorCode e_LocationIRIInvalid = "ayu::e_LocationIRIInvalid";
 
 ///// BASE MANAGEMENT
 

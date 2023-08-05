@@ -295,9 +295,9 @@ inline bool operator != (const Reference& a, const Reference& b) {
 ///// Reference error codes
 
  // Tried to write through a readonly reference.
-constexpr ErrorCode e_ReferenceReadonly = "ReferenceReadonly";
+constexpr ErrorCode e_ReferenceReadonly = "ayu::e_ReferenceReadonly";
  // Tried to get the address of a reference, but it doesn't support addressing.
-constexpr ErrorCode e_ReferenceUnaddressable = "RefereneUnaddressable";
+constexpr ErrorCode e_ReferenceUnaddressable = "ayu::e_RefereneUnaddressable";
 
 } // ayu
 

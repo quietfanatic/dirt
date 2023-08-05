@@ -226,26 +226,26 @@ UniqueArray<Resource> loaded_resources () noexcept;
 ///// RESOURCE ERROR CODES
 
  // Tried to use an invalid IRI as a resource name
-constexpr ErrorCode e_ResourceNameInvalid = "ResourceNameInvalid";
+constexpr ErrorCode e_ResourceNameInvalid = "ayu::e_ResourceNameInvalid";
  // The ResourceScheme associated with the resource name rejected the name.
-constexpr ErrorCode e_ResourceNameRejected = "ResourceNameRejected";
+constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";
  // The ResourceScheme associated with the resource did not accept the type
  // provided for the resource.  This can happen either while loading from a
  // file, or when setting a resource's value programmatically.
-constexpr ErrorCode e_ResourceTypeRejected = "ResourceTypeRejected";
+constexpr ErrorCode e_ResourceTypeRejected = "ayu::e_ResourceTypeRejected";
  // Tried to create a resource with an empty Dynamic, or load from a tree that
  // didn't correspond to a valid Dynamic.
-constexpr ErrorCode e_ResourceValueInvalid = "ResourceValueInvalid";
+constexpr ErrorCode e_ResourceValueInvalid = "ayu::e_ResourceValueInvalid";
  // Tried to perform an operation on a resource, but its state() was not valid
  // for that operations.
-constexpr ErrorCode e_ResourceStateInvalid = "ResourceStateInvalid";
+constexpr ErrorCode e_ResourceStateInvalid = "ayu::e_ResourceStateInvalid";
  // Tried to unload a resource, but there's still a reference somewhere pointing
  // to an item inside it.
-constexpr ErrorCode e_ResourceUnloadWouldBreak = "ResourceUnloadWouldBreak";
+constexpr ErrorCode e_ResourceUnloadWouldBreak = "ayu::e_ResourceUnloadWouldBreak";
  // Tried to reload a resource, but there was a reference pointing to an item
  // inside of it which couldn't be updated for some reason.
-constexpr ErrorCode e_ResourceReloadWouldBreak = "ResourceReloadWouldBreak";
+constexpr ErrorCode e_ResourceReloadWouldBreak = "ayu::e_ResourceReloadWouldBreak";
  // Failed to delete a resource's source file.
-constexpr ErrorCode e_ResourceRemoveSourceFailed = "ResourceRemoveSourceFailed";
+constexpr ErrorCode e_ResourceRemoveSourceFailed = "ayu::e_ResourceRemoveSourceFailed";
 
 } // namespace ayu

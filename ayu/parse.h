@@ -12,6 +12,6 @@ Tree tree_from_string (Str, AnyString filename = "");
 
 Tree tree_from_file (AnyString filename);
 
-constexpr ErrorCode e_ParseFailed = "ParseFailed";
+constexpr ErrorCode e_ParseFailed = "ayu::e_ParseFailed";
 
 } // namespace ayu

@@ -22,7 +22,7 @@ enum : PrintOptions {
 
 UniqueString tree_to_string (TreeRef, PrintOptions opts = 0);
 
-constexpr ErrorCode e_PrintOptionsInvalid = "PrintOptionsInvalid";
+constexpr ErrorCode e_PrintOptionsInvalid = "ayu::e_PrintOptionsInvalid";
 
 void tree_to_file (TreeRef, AnyString filename, PrintOptions opts = 0);
 

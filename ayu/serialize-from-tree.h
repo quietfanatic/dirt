@@ -73,12 +73,12 @@ inline void item_from_file (
  // Called item_from_tree on an item that doesn't have any way of doing the
  // from_tree operation.  item_from_tree can also throw errors with the codes in
  // serialize-compound.h.
-constexpr ErrorCode e_FromTreeNotSupported = "FromTreeNotSupported";
+constexpr ErrorCode e_FromTreeNotSupported = "ayu::e_FromTreeNotSupported";
  // An item did not accept the form of tree given to it.
-constexpr ErrorCode e_FromTreeFormRejected = "FromTreeFormRejected";
+constexpr ErrorCode e_FromTreeFormRejected = "ayu::e_FromTreeFormRejected";
  // Tried to deserialize an item that only has a values() descriptor, but a
  // value was not found that matched the given tree.
-constexpr ErrorCode e_FromTreeValueNotFound = "FromTreeValueNotFound";
+constexpr ErrorCode e_FromTreeValueNotFound = "ayu::e_FromTreeValueNotFound";
 
  // You may want to use this in your from_tree descriptor.
 [[noreturn]]

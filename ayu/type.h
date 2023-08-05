@@ -177,16 +177,16 @@ inline bool operator != (Type a, Type b) {
 
  // Tried to map a C++ type to an AYU type, but AYU doesn't know about that type
  // (it has no AYU_DESCRIBE description).
-constexpr ErrorCode e_TypeUnknown = "TypeUnknown";
+constexpr ErrorCode e_TypeUnknown = "ayu::e_TypeUnknown";
  // Tried to look up a type be name but there is no registered type with that
  // name.
-constexpr ErrorCode e_TypeNotFound = "TypeNotFound";
+constexpr ErrorCode e_TypeNotFound = "ayu::e_TypeNotFound";
  // Tried to default construct a type that has no default constructor.
-constexpr ErrorCode e_TypeCantDefaultConstruct = "TypeCantDefaultConstruct";
+constexpr ErrorCode e_TypeCantDefaultConstruct = "ayu::e_TypeCantDefaultConstruct";
  // Tried to construct or destroy a type that has no destructor.
-constexpr ErrorCode e_TypeCantDestroy = "TypeCantDestroy";
+constexpr ErrorCode e_TypeCantDestroy = "ayu::e_TypeCantDestroy";
  // Tried to cast between types that can't be casted between.
-constexpr ErrorCode e_TypeCantCast = "TypeCantCast";
+constexpr ErrorCode e_TypeCantCast = "ayu::e_TypeCantCast";
 
 } // namespace ayu
 
