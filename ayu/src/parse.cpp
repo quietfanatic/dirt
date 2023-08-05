@@ -149,7 +149,7 @@ struct Parser {
         invalid_u: error(in, "Invalid \\u escape sequence");
     }
 
-    NOINLINE const char* got_string (const char* in, AnyString& r) {
+    NOINLINE const char* got_string (const char* in, Tree& r) {
         in++;  // for the "
          // Find the end of the string and determine upper bound of required
          // capacity.
@@ -169,7 +169,7 @@ struct Parser {
         start:
          // If there aren't any escapes we can just memcpy the whole string
         if (!n_escapes) {
-            new (&r) AnyString(in, p);
+            new (&r) Tree(StaticString(in, p));
             return p+1; // For the "
         }
          // Otherwise preallocate
@@ -179,7 +179,7 @@ struct Parser {
             char c = *in++;
             switch (c) {
                 case '"':
-                    new (&r) AnyString(move(out));
+                    new (&r) Tree(move(out));
                     return in;
                 case '\\': {
                     expect(in < end);
@@ -231,6 +231,16 @@ struct Parser {
         return in;
     }
 
+    NOINLINE const char* got_word (const char* in, Tree& r) {
+        auto word_end = find_word_end(in);
+        auto word = Str(in, word_end);
+        if (word == "null") new (&r) Tree(null);
+        else if (word == "true") new (&r) Tree(true);
+        else if (word == "false") new (&r) Tree(false);
+        else new (&r) Tree(word);
+        return word_end;
+    }
+
     ///// NUMBERS
 
     [[noreturn, gnu::cold]]
@@ -245,8 +255,8 @@ struct Parser {
                 : std::chars_format::general
         );
         if (num_end == word_end) {
-            new (&r) Tree(minus ? -floating : floating);
-            if (hex) r.flags |= PREFER_HEX;
+            TreeFlags f = hex ? PREFER_HEX : 0;
+            new (&r) Tree(minus ? -floating : floating, f);
             return num_end;
         }
         else error_invalid_number(in);
@@ -267,12 +277,12 @@ struct Parser {
             error_invalid_number(num_end);
         }
         if (num_end == word_end) {
+            TreeFlags f = hex ? PREFER_HEX : 0;
             if (minus) {
-                if (integer == 0) new (&r) Tree(-0.0);
-                else new (&r) Tree(-integer);
+                if (integer == 0) new (&r) Tree(-0.0, f);
+                else new (&r) Tree(-integer, f);
             }
-            else new (&r) Tree(integer);
-            if (hex) r.flags |= PREFER_HEX;
+            else new (&r) Tree(integer, f);
             return num_end;
         }
          // Forbid ending with a .
@@ -293,7 +303,7 @@ struct Parser {
         else return parse_number<false>(in, r, word_end, minus);
     }
 
-    const char* got_plus (const char* in, Tree& r) {
+    NOINLINE const char* got_plus (const char* in, Tree& r) {
         auto word_end = find_word_end(in);
         if (Str(in, word_end) == "+nan") {
             new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
@@ -306,7 +316,7 @@ struct Parser {
         return parse_number_based(in+1, r, word_end, false);
     }
 
-    const char* got_minus (const char* in, Tree& r) {
+    NOINLINE const char* got_minus (const char* in, Tree& r) {
         auto word_end = find_word_end(in);
         if (Str(in, word_end) == "-inf") {
             new (&r) Tree(-std::numeric_limits<double>::infinity());
@@ -315,13 +325,13 @@ struct Parser {
         return parse_number_based(in+1, r, word_end, true);
     }
 
-    const char* got_digit (const char* in, Tree& r) {
+    NOINLINE const char* got_digit (const char* in, Tree& r) {
         return parse_number_based(in, r, find_word_end(in), false);
     }
 
     ///// COMPOUND
 
-    const char* got_array (const char* in, Tree& r) {
+    NOINLINE const char* got_array (const char* in, Tree& r) {
         UniqueArray<Tree> a;
         in++;  // for the [
         while (in < end) {
@@ -337,7 +347,7 @@ struct Parser {
         error(in, "Array is not terminated");
     }
 
-    const char* got_object (const char* in, Tree& r) {
+    NOINLINE const char* got_object (const char* in, Tree& r) {
         UniqueArray<TreePair> o;
         in++;  // for the {
         while (in < end) {
@@ -378,23 +388,13 @@ struct Parser {
     ///// SHORTCUTS
 
     NOINLINE const char* parse_shortcut_name (const char* in, AnyString& r) {
-        if (in >= end) goto nope;
-        switch (*in) {
-            case ANY_WORD_STARTER: {
-                auto word_end = find_word_end(in);
-                auto word = Str(in, word_end);
-                if (word == "null" || word == "true" || word == "false") {
-                    goto nope;
-                }
-                new (&r) AnyString(StaticString(word));
-                return word_end;
-            }
-            case '"': {
-                return got_string(in, r);
-            }
-            default: goto nope;
+        Tree name;
+        auto end = parse_term(in, name);
+        if (name.form != STRING) {
+            error(in, cat("Expected string for shortcut name after ", in[-1]));
         }
-        nope: error(in, cat("Expected string for shortcut name after ", in[-1]));
+        new (&r) AnyString(move(name));
+        return end;
     }
 
     NOINLINE const char* set_shortcut (const char* in, MoveRef<AnyString> name_, MoveRef<Tree> value_) {
@@ -419,7 +419,7 @@ struct Parser {
         error(in, cat("Unknown shortcut *", name));
     }
 
-    const char* got_decl (const char* in, Tree& r) {
+    NOINLINE const char* got_decl (const char* in, Tree& r) {
         in++;  // for the &
         AnyString name;
         in = parse_shortcut_name(in, name);
@@ -439,7 +439,7 @@ struct Parser {
         }
     }
 
-    const char* got_shortcut (const char* in, Tree& r) {
+    NOINLINE const char* got_shortcut (const char* in, Tree& r) {
         in++;  // for the *
         AnyString name;
         in = parse_shortcut_name(in, name);
@@ -448,40 +448,30 @@ struct Parser {
 
     ///// TERM
 
-    const char* parse_term (const char* in, Tree& r) {
+    NOINLINE const char* got_error (const char* in, Tree&) {
         if (in >= end) error(in, "Expected term but ran into end of file");
-        switch (*in) {
-            case ANY_WORD_STARTER: {
-                auto word_end = find_word_end(in);
-                auto word = Str(in, word_end);
-                if (word == "null") new (&r) Tree(null);
-                else if (word == "true") new (&r) Tree(true);
-                else if (word == "false") new (&r) Tree(false);
-                else new (&r) Tree(word);
-                return word_end;
-            }
+        check_error_chars(in);
+        error(in, cat("Unexpected ", *in));
+    }
 
-            case ANY_DECIMAL_DIGIT: return got_digit(in, r);
+    NOINLINE const char* parse_term (const char* in, Tree& r) {
+        if (in >= end) return got_error(in, r);
+        switch (*in) {
+            case ANY_WORD_STARTER: return got_word(in, r);
+            case ANY_DECIMAL_DIGIT:
+            case '.': return got_digit(in, r);
             case '+': return got_plus(in, r);
              // Comments starting with -- should already have been skipped by a
              // previous skip_ws().
             case '-': return got_minus(in, r);
-            case '.': error(in, "Number cannot begin with .");
 
-            case '"': {
-                AnyString str;
-                in = got_string(in, str);
-                new (&r) Tree(move(str));
-                return in;
-            }
+            case '"': return got_string(in, r);
             case '[': return got_array(in, r);
             case '{': return got_object(in, r);
 
             case '&': return got_decl(in, r);
             case '*': return got_shortcut(in, r);
-            default:
-                check_error_chars(in);
-                error(in, cat("Unexpected ", *in));
+            default: return got_error(in, r);
         }
     }
 

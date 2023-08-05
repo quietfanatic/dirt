@@ -7,6 +7,7 @@
 #include <exception>
 #include "internal/common-internal.h"
 #include "../uni/copy-ref.h"
+#include "../uni/utf.h"
 
 namespace ayu {
 
@@ -88,10 +89,10 @@ struct Tree {
     }
 
     ///// CONVERSION TO TREE
-    explicit constexpr Tree (Null);
+    explicit constexpr Tree (Null, TreeFlags = 0);
      // Disable implicit coercion of the argument to bool
     template <class T> requires (std::is_same_v<T, bool>)
-    explicit constexpr Tree (T);
+    explicit constexpr Tree (T, TreeFlags = 0);
      // Templatize this instead of providing an overload for each int type, to
      // shorten error messages about "no candidate found".
     template <class T> requires (
@@ -99,20 +100,20 @@ struct Tree {
         std::is_integral_v<T> &&
         !std::is_same_v<T, bool> && !std::is_same_v<T, char>
     )
-    explicit constexpr Tree (T);
+    explicit constexpr Tree (T, TreeFlags = 0);
      // May as well do this too
     template <class T> requires (std::is_floating_point_v<T>)
-    explicit constexpr Tree (T);
+    explicit constexpr Tree (T, TreeFlags = 0);
 
      // plain (not signed or unsigned) chars are represented as strings
      // This is not optimal but who serializes individual 8-bit code units
-    explicit Tree (char v) : Tree(SharedString(1,v)) { }
-    explicit constexpr Tree (AnyString);
-    explicit Tree (Str16); // Converts to UTF8
+    explicit Tree (char v, TreeFlags f = 0) : Tree(SharedString(1,v), f) { }
+    explicit constexpr Tree (AnyString, TreeFlags = 0);
+    explicit Tree (Str16 v, TreeFlags f = 0) : Tree(from_utf16(v), f) { }
 
-    explicit constexpr Tree (TreeArray);
-    explicit constexpr Tree (TreeObject);
-    explicit Tree (std::exception_ptr);
+    explicit constexpr Tree (TreeArray, TreeFlags = 0);
+    explicit constexpr Tree (TreeObject, TreeFlags = 0);
+    explicit Tree (std::exception_ptr, TreeFlags = 0);
 
     ///// CONVERSION FROM TREE
      // These throw if the tree is not the right form or if

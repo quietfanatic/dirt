@@ -1,7 +1,5 @@
 #pragma once
 #include <cstring>
-#include "../common.h"
-#include "../../uni/utf.h"
 
 namespace ayu {
 namespace in {
@@ -34,49 +32,48 @@ void raise_TreeCantRepresent (StaticString, TreeRef);
 constexpr Tree::Tree () :
     form(UNDEFINED), rep(0), flags(0), length(0), data{.as_int64 = 0}
 { }
-constexpr Tree::Tree (Null) :
-    form(NULLFORM), rep(in::REP_NULL), flags(0), length(0), data{.as_int64 = 0}
+constexpr Tree::Tree (Null, TreeFlags f) :
+    form(NULLFORM), rep(in::REP_NULL), flags(f), length(0), data{.as_int64 = 0}
 { }
  // Use .as_int64 to write all of data
 template <class T> requires (std::is_same_v<T, bool>)
-constexpr Tree::Tree (T v) :
-    form(BOOL), rep(in::REP_BOOL), flags(0), length(0), data{.as_int64 = v}
+constexpr Tree::Tree (T v, TreeFlags f) :
+    form(BOOL), rep(in::REP_BOOL), flags(f), length(0), data{.as_int64 = v}
 { }
 template <class T> requires (
     std::is_integral_v<T> &&
     !std::is_same_v<T, bool> && !std::is_same_v<T, char>
 )
-constexpr Tree::Tree (T v) :
-    form(NUMBER), rep(in::REP_INT64), flags(0), length(0), data{.as_int64 = int64(v)}
+constexpr Tree::Tree (T v, TreeFlags f) :
+    form(NUMBER), rep(in::REP_INT64), flags(f), length(0), data{.as_int64 = int64(v)}
 { }
 template <class T> requires (std::is_floating_point_v<T>)
-constexpr Tree::Tree (T v) :
-    form(NUMBER), rep(in::REP_DOUBLE), flags(0), length(0), data{.as_double = v}
+constexpr Tree::Tree (T v, TreeFlags f) :
+    form(NUMBER), rep(in::REP_DOUBLE), flags(f), length(0), data{.as_double = v}
 { }
-constexpr Tree::Tree (AnyString v) :
+constexpr Tree::Tree (AnyString v, TreeFlags f) :
     form(STRING), rep(v.owned() ? in::REP_SHAREDSTRING : in::REP_STATICSTRING),
-    flags(0), length(v.size()), data{.as_char_ptr = v.data()}
+    flags(f), length(v.size()), data{.as_char_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
     v.unsafe_set_empty();
 }
-inline Tree::Tree (Str16 v) : Tree(from_utf16(v)) { }
-constexpr Tree::Tree (TreeArray v) :
-    form(ARRAY), rep(in::REP_ARRAY), flags(0),
+constexpr Tree::Tree (TreeArray v, TreeFlags f) :
+    form(ARRAY), rep(in::REP_ARRAY), flags(f),
     length(v.size()), data{.as_array_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
     v.unsafe_set_empty();
 }
-constexpr Tree::Tree (TreeObject v) :
-    form(OBJECT), rep(in::REP_OBJECT), flags(0),
+constexpr Tree::Tree (TreeObject v, TreeFlags f) :
+    form(OBJECT), rep(in::REP_OBJECT), flags(f),
     length(v.size()), data{.as_object_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
     v.unsafe_set_empty();
 }
-inline Tree::Tree (std::exception_ptr v) :
-    form(ERROR), rep(in::REP_ERROR), flags(0), length(1), data{}
+inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
+    form(ERROR), rep(in::REP_ERROR), flags(f), length(1), data{}
 {
     auto e = SharedArray<std::exception_ptr>(1, move(v));
     const_cast<const std::exception_ptr*&>(data.as_error_ptr) = e.data();
