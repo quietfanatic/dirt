@@ -8,7 +8,6 @@
 #include <source_location>
 #include <string>
 #include <string_view>
-#include <utility>
 #include "../uni/arrays.h"
 #include "../uni/assertions.h"
 #include "../uni/callback-ref.h"
@@ -38,7 +37,16 @@ struct Type; // type.h
 
 using TreeArray = SharedArray<Tree>;
 using TreeArraySlice = Slice<Tree>;
-using TreePair = std::pair<AnyString, Tree>;
+ // Since GCC 12.0, std::pair has extra concept shenanigans that cause weird
+ // complicated errors when used with ArrayInterface, so we're throwing it in
+ // the trash.
+//using TreePair = std::pair<AnyString, Tree>;
+template <class A, class B>
+struct Pair {
+    A first;
+    B second;
+};
+using TreePair = Pair<AnyString, Tree>;
 using TreeObject = SharedArray<TreePair>;
 using TreeObjectSlice = Slice<TreePair>;
 

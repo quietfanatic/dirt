@@ -367,7 +367,7 @@ struct Parser {
                 case ',':
                 case '}': error(in, "Missing value after : in object");
                 default: {
-                    Tree& value = o.emplace_back(move(key), Tree()).second;
+                    Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
                     in = parse_term(in, value);
                     break;
                 }

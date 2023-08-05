@@ -13,9 +13,14 @@ constexpr IRI::IRI (IRI&& o) :
     authority_end(o.authority_end),
     path_end(o.path_end),
     query_end(o.query_end)
-{ new (&o) IRI(); }
+{
+    const_cast<uint16&>(o.scheme_end) = 0;
+    const_cast<uint16&>(o.authority_end) = 0;
+    const_cast<uint16&>(o.path_end) = 0;
+    const_cast<uint16&>(o.query_end) = 0;
+}
 constexpr IRI& IRI::operator = (const IRI& o) {
-    if (this == &o) return *this;;
+    if (this == &o) return *this;
     this->~IRI();
     new (this) IRI(o);
     return *this;

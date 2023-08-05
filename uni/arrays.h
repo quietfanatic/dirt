@@ -1557,7 +1557,10 @@ struct ArrayInterface {
         }
         catch (...) {
             SharableBuffer<T>::deallocate(dat);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wterminate"
             throw;
+#pragma GCC diagnostic pop
         }
     }
 
@@ -1611,8 +1614,10 @@ struct ArrayInterface {
             }
             catch (...) {
                 SharableBuffer<T>::deallocate(dat);
-                 // TODO: pragma this
-                throw;  // -Wno-terminate to suppress warning
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wterminate"
+                throw;
+#pragma GCC diagnostic pop
             }
             --self.header().ref_count;
         }
