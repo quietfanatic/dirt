@@ -4,6 +4,7 @@
 #include "../dynamic.h"
 #include "../describe.h"
 #include "../describe-standard.h"
+#include "../file.h"
 #include "../parse.h"
 #include "../print.h"
 #include "../reference.h"

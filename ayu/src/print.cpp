@@ -3,7 +3,7 @@
 #include <cstring>
 #include <charconv>
 
-#include "../../uni/utf.h"
+#include "../file.h"
 #include "../type.h"
 #include "char-cases-private.h"
 
@@ -339,25 +339,6 @@ UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
     Printer printer (opts);
     char* p = printer.print_tree(printer.start, t);
     return UniqueString(printer.start, p);
-}
-
- // Forget C++ IO and its crummy diagnostics
-void string_to_file (Str content, AnyString filename) {
-    FILE* f = fopen_utf8(filename.c_str(), "wb");
-    if (!f) {
-        raise_io_error(e_OpenFailed,
-            "Failed to open for writing ", filename, errno
-        );
-    }
-    usize did_write = fwrite(content.data(), 1, content.size(), f);
-    if (did_write != content.size()) {
-        int errnum = errno;
-        fclose(f);
-        raise_io_error(e_WriteFailed, "Failed to write to ", filename, errnum);
-    }
-    if (fclose(f) != 0) {
-        raise_io_error(e_CloseFailed, "Failed to close ", filename, errno);
-    }
 }
 
 void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {

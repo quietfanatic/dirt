@@ -89,18 +89,10 @@ struct Error : std::exception {
 [[noreturn, gnu::cold]] NOINLINE
 void raise (ErrorCode code, MoveRef<UniqueString> details);
 
-[[noreturn, gnu::cold]] NOINLINE
-void raise_io_error (ErrorCode code, StaticString details, Str filename, int errnum);
-
  // Unspecified error
 constexpr ErrorCode e_General = "General";
  // Non-AYU error, std::rethrow(e.external) to unwrap
 constexpr ErrorCode e_External = "External";
- // TODO: Move these into an IO module
-constexpr ErrorCode e_OpenFailed = "OpenFailed";
-constexpr ErrorCode e_ReadFailed = "ReadFailed";
-constexpr ErrorCode e_WriteFailed = "WriteFailed";
-constexpr ErrorCode e_CloseFailed = "CloseFailed";
 
  // Called when an exception is thrown in a place where the library can't
  // properly clean up after itself, such as when a resource value throws

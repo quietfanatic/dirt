@@ -6,7 +6,8 @@
 
 #include "../../uni/text.h"
 #include "../../uni/utf.h"
-#include "../print.h" // for error reporting
+#include "../file.h"
+#include "../tree.h"
 #include "char-cases-private.h"
 
 namespace ayu {
@@ -507,35 +508,6 @@ struct Parser {
  // Finally:
 Tree tree_from_string (Str s, AnyString filename) {
     return Parser(s, move(filename)).parse();
-}
-
-UniqueString string_from_file (AnyString filename) {
-    FILE* f = fopen_utf8(filename.c_str(), "rb");
-    if (!f) {
-        raise_io_error(e_OpenFailed,
-            "Failed to open for reading ", filename, errno
-        );
-    }
-
-    fseek(f, 0, SEEK_END);
-    usize size = ftell(f);
-    rewind(f);
-
-    char* buf = SharableBuffer<char>::allocate(size);
-    usize did_read = fread(buf, 1, size, f);
-    if (did_read != size) {
-        int errnum = errno;
-        fclose(f);
-        SharableBuffer<char>::deallocate(buf);
-        raise_io_error(e_ReadFailed, "Failed to read from ", filename, errnum);
-    }
-
-    if (fclose(f) != 0) {
-        int errnum = errno;
-        SharableBuffer<char>::deallocate(buf);
-        raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
-    }
-    return UniqueString::UnsafeConstructOwned(buf, size);
 }
 
 Tree tree_from_file (AnyString filename) {

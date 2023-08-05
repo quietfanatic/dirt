@@ -10,8 +10,6 @@ namespace ayu {
  // Throws if the parse fails.
 Tree tree_from_string (Str, AnyString filename = "");
 
-UniqueString string_from_file (AnyString filename);
-
 Tree tree_from_file (AnyString filename);
 
 constexpr ErrorCode e_ParseFailed = "ParseFailed";
