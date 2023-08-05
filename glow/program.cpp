@@ -26,8 +26,9 @@ void Shader::compile () {
          // TODO: Use UniqueString
         std::string info_log (loglen, 0);
         glGetShaderInfoLog(id, loglen, nullptr, info_log.data());
+        auto self = this;
         ayu::raise(e_ShaderCompileFailed, cat(
-            "Failed to compile GL shader at ", ayu::item_to_string(this),
+            "Failed to compile GL shader at ", ayu::item_to_string(&self),
             ":\n", info_log
         ));
     }
@@ -69,8 +70,9 @@ void Program::link () {
     if (!status || loglen > 16) {
         std::string info_log (loglen, 0);
         glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
+        auto self = this;
         ayu::raise(e_ProgramLinkFailed, cat(
-            "Failed to link GL program at ", ayu::item_to_string(this),
+            "Failed to link GL program at ", ayu::item_to_string(&self),
             ":\n", info_log
         ));
     }
