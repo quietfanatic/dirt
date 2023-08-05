@@ -6,7 +6,7 @@ namespace glow {
     void register_gl_function (void*, const char*) noexcept;
     void init_gl_functions () noexcept;
 
-    constexpr ayu::ErrorCode e_GLError = "glow::GLError";
+    constexpr uni::ErrorCode e_GLError = "glow::GLError";
 
      // TODO: warn instead of throwing
     void throw_on_glGetError (

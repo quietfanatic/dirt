@@ -41,7 +41,7 @@ void throw_on_glGetError (
     std::source_location srcloc
 ) {
     GLenum err = p_glGetError<>();
-    if (err) ayu::raise(e_GLError, cat(
+    if (err) raise(e_GLError, cat(
         "GL error code ", err, " from ", function_name,
         " in ", srcloc.function_name(), " at ", srcloc.file_name(), ':', srcloc.line()
     ));
