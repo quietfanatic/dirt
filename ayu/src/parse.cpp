@@ -165,11 +165,11 @@ struct Parser {
                 default: p++; break;
             }
         }
-        error(in, "String not terminated by end of input");
+        error(in, "Missing \" before end of input");
         start:
          // If there aren't any escapes we can just memcpy the whole string
         if (!n_escapes) {
-            new (&r) Tree(StaticString(in, p));
+            new (&r) Tree(UniqueString(in, p));
             return p+1; // For the "
         }
          // Otherwise preallocate
@@ -243,8 +243,14 @@ struct Parser {
 
     ///// NUMBERS
 
-    [[noreturn, gnu::cold]]
-    void error_invalid_number (const char* in) { error(in, "Couldn't parse number"); }
+    [[noreturn, gnu::cold]] NOINLINE
+    void error_invalid_number (const char* in, const char* num_end) {
+        if (in < end) {
+            if (in[0] == '.') error(in, "Number can't start with .");
+            check_error_chars(num_end);
+        }
+        error(in, "Couldn't parse number");
+    }
 
     template <bool hex>
     const char* parse_floating (const char* in, Tree& r, const char* word_end, bool minus) {
@@ -259,7 +265,7 @@ struct Parser {
             new (&r) Tree(minus ? -floating : floating, f);
             return num_end;
         }
-        else error_invalid_number(in);
+        else error_invalid_number(in, num_end);
     }
 
     template <bool hex>
@@ -270,12 +276,7 @@ struct Parser {
         auto [num_end, ec] = std::from_chars(
             in, word_end, integer, hex ? 16 : 10
         );
-        if (ec != std::errc()) {
-            if (in < word_end && in[0] == '.') {
-                error(in, "Number cannot start with .");
-            }
-            error_invalid_number(num_end);
-        }
+        if (ec != std::errc()) error_invalid_number(in, num_end);
         if (num_end == word_end) {
             TreeFlags f = hex ? PREFER_HEX : 0;
             if (minus) {
@@ -336,15 +337,15 @@ struct Parser {
         in++;  // for the [
         while (in < end) {
             in = skip_commas(in);
-            switch (*in) {
-                case ':': error(in, "Cannot have : in an array");
-                case ']': new (&r) Tree(move(a)); return in + 1;
-                default:
-                    in = parse_term(in, a.emplace_back());
-                    break;
+            if (in >= end) goto not_terminated;
+            if (*in == ']') {
+                new (&r) Tree(move(a));
+                return in + 1;
             }
+            in = parse_term(in, a.emplace_back());
         }
-        error(in, "Array is not terminated");
+        not_terminated:
+        error(in, "Missing ] before end of input");
     }
 
     NOINLINE const char* got_object (const char* in, Tree& r) {
@@ -353,10 +354,9 @@ struct Parser {
         while (in < end) {
             in = skip_commas(in);
             if (in >= end) goto not_terminated;
-            switch (*in) {
-                case ':': error(in, "Missing key before : in object");
-                case '}': new (&r) Tree(move(o)); return in + 1;
-                default: break;
+            if (*in == '}') {
+                new (&r) Tree(move(o));
+                return in + 1;
             }
             Tree key;
             in = parse_term(in, key);
@@ -372,26 +372,19 @@ struct Parser {
             }
             in = skip_ws(in);
             if (in >= end) goto not_terminated;
-            switch (*in) {
-                case ',':
-                case '}': error(in, "Missing value after : in object");
-                default: {
-                    Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
-                    in = parse_term(in, value);
-                    break;
-                }
-            }
+            Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
+            in = parse_term(in, value);
         }
-        not_terminated: error(in, "Object is not terminated");
+        not_terminated: error(in, "Missing } before end of input");
     }
 
     ///// SHORTCUTS
 
-    NOINLINE const char* parse_shortcut_name (const char* in, AnyString& r) {
+    const char* parse_shortcut_name (const char* in, AnyString& r) {
         Tree name;
         auto end = parse_term(in, name);
-        if (name.form != STRING) {
-            error(in, cat("Expected string for shortcut name after ", in[-1]));
+        if (name.rep != REP_SHAREDSTRING) [[unlikely]] {
+            error(in, "Can't use non-string as shortcut name");
         }
         new (&r) AnyString(move(name));
         return end;
@@ -449,9 +442,9 @@ struct Parser {
     ///// TERM
 
     NOINLINE const char* got_error (const char* in, Tree&) {
-        if (in >= end) error(in, "Expected term but ran into end of file");
+        if (in >= end) error(in, "Expected term but ran into end of input");
         check_error_chars(in);
-        error(in, cat("Unexpected ", *in));
+        error(in, cat("Expected term but got ", *in));
     }
 
     NOINLINE const char* parse_term (const char* in, Tree& r) {
