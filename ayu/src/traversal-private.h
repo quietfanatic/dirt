@@ -98,7 +98,7 @@ struct Traversal {
             child.desc = DescriptionPrivate::get(ref.type());
             child.addressable = false;
             child.children_addressable =
-                ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+                ref.acr->flags & AcrFlags::PassThroughAddressable;
             if (!child.only_addressable || child.children_addressable) {
                 ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
@@ -113,7 +113,7 @@ struct Traversal {
         Traversal& child, const Accessor* acr, AccessMode mode, CB cb
     ) const {
         child.parent = this;
-        child.readonly = readonly | !!(acr->accessor_flags & ACR_READONLY);
+        child.readonly = readonly | !!(acr->flags & AcrFlags::Readonly);
         child.only_addressable = only_addressable;
         child.acr = acr;
         child.desc = DescriptionPrivate::get(acr->type(address));
@@ -126,7 +126,7 @@ struct Traversal {
         else {
             child.addressable = false;
             child.children_addressable =
-                acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+                acr->flags & AcrFlags::PassThroughAddressable;
             if (!child.only_addressable || child.children_addressable) {
                 acr->access(mode, *address, [&child, cb](Mu& v){
                     child.address = &v;
@@ -155,7 +155,7 @@ struct Traversal {
             child.readonly = readonly || ref.readonly();
             child.addressable = false;
             child.children_addressable =
-                ref.acr->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE;
+                ref.acr->flags & AcrFlags::PassThroughAddressable;
             if (!child.only_addressable || child.children_addressable) {
                 ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;

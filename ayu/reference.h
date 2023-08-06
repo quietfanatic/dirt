@@ -71,7 +71,7 @@ struct Reference {
     Reference (Type t, Mu* p) : host(t, p), acr(null) { }
      // For use in attr_func and elem_func.
     template <class From, class Acr> requires (
-        std::is_same_v<typename Acr::AccessorFromType, From>
+        std::is_same_v<typename Acr::AcrFromType, From>
     )
     Reference (From& h, Acr&& a) : Reference(&h, new Acr(move(a))) { }
      // Copy and move construction and assignment
@@ -104,7 +104,7 @@ struct Reference {
      // Writing through this reference throws if this is true
     bool readonly () const {
         bool r = host.type.readonly();
-        if (acr) r |= !!(acr->accessor_flags & in::ACR_READONLY);
+        if (acr) r |= !!(acr->flags & in::AcrFlags::Readonly);
         return r;
     }
 
@@ -146,7 +146,7 @@ struct Reference {
 
      // Read with callback
     void read (CallbackRef<void(Mu&)> cb) const {
-        access(in::ACR_READ, cb);
+        access(in::AccessMode::Read, cb);
     }
      // Cast and read with callback
     void read_as (Type t, CallbackRef<void(Mu&)> cb) const {
@@ -160,7 +160,9 @@ struct Reference {
         read_as(Type::CppType<T>(), cb.template reinterpret<void(Mu&)>());
     }
      // Write with callback
-    void write (CallbackRef<void(Mu&)> cb) const { access(in::ACR_WRITE, cb); }
+    void write (CallbackRef<void(Mu&)> cb) const {
+        access(in::AccessMode::Write, cb);
+    }
      // Cast and write with callback
     void write_as (Type t, CallbackRef<void(Mu&)> cb) const {
         write([this, t, cb](Mu& v){
@@ -174,7 +176,9 @@ struct Reference {
         write_as(Type::CppType<T>(), cb.template reinterpret<void(Mu&)>());
     }
      // Modify in-place with callback
-    void modify (CallbackRef<void(Mu&)> cb) const { access(in::ACR_MODIFY, cb); }
+    void modify (CallbackRef<void(Mu&)> cb) const {
+        access(in::AccessMode::Modify, cb);
+    }
      // Cast and modify in-place with callback
     void modify_as (Type t, CallbackRef<void(Mu&)> cb) const {
         write([this, t, cb](Mu& v){
@@ -255,7 +259,7 @@ struct Reference {
     Reference chain_elem_func (Reference(*)(Mu&, usize), usize) const;
      // Kinda internal, TODO move to internal namespace
     void access (in::AccessMode mode, CallbackRef<void(Mu&)> cb) const {
-        if (mode != in::ACR_READ) require_writeable();
+        if (mode != in::AccessMode::Read) require_writeable();
         if (acr) {
             acr->access(mode, *host.address, cb);
         }

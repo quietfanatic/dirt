@@ -290,7 +290,7 @@ template <class T>
 struct KeysDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
 struct KeysDcrWith : KeysDcr<T> {
-    static_assert(std::is_same_v<typename Acr::AccessorFromType, T>);
+    static_assert(std::is_same_v<typename Acr::AcrFromType, T>);
     Acr acr;
     constexpr KeysDcrWith (const Acr& a) :
         acr(constexpr_acr(a))
@@ -306,8 +306,8 @@ template <class T>
 struct LengthDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
 struct LengthDcrWith : LengthDcr<T> {
-    static_assert(std::is_same_v<typename Acr::AccessorFromType, T>);
-    static_assert(std::is_same_v<typename Acr::AccessorToType, usize>);
+    static_assert(std::is_same_v<typename Acr::AcrFromType, T>);
+    static_assert(std::is_same_v<typename Acr::AcrToType, usize>);
     Acr acr;
     constexpr LengthDcrWith (const Acr& a) :
         acr(constexpr_acr(a))
@@ -323,7 +323,7 @@ template <class T>
 struct DelegateDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
 struct DelegateDcrWith : DelegateDcr<T> {
-    static_assert(std::is_same_v<typename Acr::AccessorFromType, T>);
+    static_assert(std::is_same_v<typename Acr::AcrFromType, T>);
     Acr acr;
     constexpr DelegateDcrWith (const Acr& a) :
         acr(constexpr_acr(a))

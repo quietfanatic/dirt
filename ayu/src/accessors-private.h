@@ -13,9 +13,7 @@ struct ChainAcr : Accessor {
     static void _destroy (Accessor*) noexcept;
      // Theoretically we could define inverse_address for this, but we'll never
      // need it, since this will never be constructed with an addressable a.
-    static constexpr AccessorVT _vt = {
-        &_type, &_access, &_address, null, &_destroy
-    };
+    static constexpr AcrVT _vt = {&_type, &_access, &_address, null, &_destroy};
 };
 
 struct AttrFuncAcr : Accessor {
@@ -28,9 +26,7 @@ struct AttrFuncAcr : Accessor {
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
     static void _destroy (Accessor* acr) noexcept;
-    static constexpr AccessorVT _vt = {
-        &_type, &_access, &_address, null, &_destroy
-    };
+    static constexpr AcrVT _vt = {&_type, &_access, &_address, null, &_destroy};
 };
 
 struct ElemFuncAcr : Accessor {
@@ -42,7 +38,7 @@ struct ElemFuncAcr : Accessor {
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
-    static constexpr AccessorVT _vt = {&_type, &_access, &_address};
+    static constexpr AcrVT _vt = {&_type, &_access, &_address};
 };
 
 } // namespace ayu::in

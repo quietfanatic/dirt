@@ -54,7 +54,7 @@ void ConstRefFuncAcr0::_access (
     const Accessor* acr, [[maybe_unused]] AccessMode mode,
     Mu& from, CallbackRef<void(Mu&)> cb
 ) {
-    expect(mode == ACR_READ);
+    expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstRefFuncAcr2<Mu, Mu>*>(acr);
     cb(const_cast<Mu&>((self->f)(from)));
 }
@@ -71,7 +71,7 @@ void ConstantPointerAcr0::_access (
     const Accessor* acr, [[maybe_unused]] AccessMode mode,
     Mu&, CallbackRef<void(Mu&)> cb
 ) {
-    expect(mode == ACR_READ);
+    expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstantPointerAcr2<Mu, Mu>*>(acr);
     cb(*const_cast<Mu*>(self->pointer));
 }
@@ -92,6 +92,7 @@ Mu* ReferenceFuncAcr1::_address (const Accessor* acr, Mu& from) {
     auto self = static_cast<const ReferenceFuncAcr2<Mu>*>(acr);
     auto ref = self->f(from);
     expect(ref.type());
+     // TODO: expect this
     return ref.address();
 }
 
@@ -99,11 +100,11 @@ ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
     Accessor(
         &_vt,
          // Readonly if either accessor is readonly
-        ((outer->accessor_flags & ACR_READONLY) |
-         (inner->accessor_flags & ACR_READONLY)) |
+        ((outer->flags & AcrFlags::Readonly) |
+         (inner->flags & AcrFlags::Readonly)) |
          // Pass through addressable if both are PTA
-        ((outer->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) &
-         (inner->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE))
+        ((outer->flags & AcrFlags::PassThroughAddressable) &
+         (inner->flags & AcrFlags::PassThroughAddressable))
     ), outer(outer), inner(inner)
 {
     outer->inc(); inner->inc();
@@ -128,16 +129,16 @@ void ChainAcr::_access (
 ;    // Have to use modify instead of write for the first mode, or other
      // parts of the item will get clobbered.  Hope this isn't necessary
      // very often.
-    auto outer_mode = mode == ACR_WRITE ? ACR_MODIFY : mode;
+    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
     return self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
         self->inner->access(mode, w, cb);
     });
 }
 Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainAcr*>(acr);
-    if (self->outer->accessor_flags & ACR_PASS_THROUGH_ADDRESSABLE) {
+    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
         Mu* r = null;
-        self->outer->access(ACR_READ, v, [&r, self](Mu& w){
+        self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
             r = self->inner->address(w);
         });
         return r;

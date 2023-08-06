@@ -24,7 +24,7 @@ bool scan_trav (
                  // Initialize to false because in only_addressable mode, the
                  // callback may not be called.
                 bool r = false;
-                ser_attr(trav, k, ACR_READ,
+                ser_attr(trav, k, AccessMode::Read,
                     [&r, loc, &k, &cb](const Traversal& child)
                 {
                     r = scan_trav(child, Location(loc, k), cb);
@@ -37,7 +37,7 @@ bool scan_trav (
             usize len = ser_get_length(trav);
             for (usize i = 0; i < len; i++) {
                 bool r = false;
-                ser_elem(trav, i, ACR_READ,
+                ser_elem(trav, i, AccessMode::Read,
                     [&r, loc, i, &cb](const Traversal& child)
                 {
                     r = scan_trav(child, Location(loc, i), cb);
@@ -49,7 +49,7 @@ bool scan_trav (
         default: {
             if (auto acr = trav.desc->delegate_acr()) {
                 bool r = false;
-                trav.follow_delegate(acr, ACR_READ,
+                trav.follow_delegate(acr, AccessMode::Read,
                     [&r, loc, &cb](const Traversal& child)
                 {
                     r = scan_trav(child, loc, cb);
@@ -101,7 +101,7 @@ bool scan_pointers (
     CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
     bool r = false;
-    Traversal::start(base_item, base_loc, true, ACR_READ,
+    Traversal::start(base_item, base_loc, true, AccessMode::Read,
         [&r, base_loc, cb](const Traversal& trav)
     {
         r = scan_trav(
@@ -121,7 +121,7 @@ bool scan_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
     bool r = false;
-    Traversal::start(base_item, base_loc, false, ACR_READ,
+    Traversal::start(base_item, base_loc, false, AccessMode::Read,
         [&r, base_loc, cb](const Traversal& trav)
     {
         r = scan_trav(

@@ -54,7 +54,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
             }
             ser_set_keys(trav, move(keys));
             for (auto& [key, value] : object) {
-                ser_attr(trav, key, ACR_WRITE,
+                ser_attr(trav, key, AccessMode::Write,
                     [value{TreeRef(value)}](const Traversal& child)
                 {
                     ser_from_tree(child, value);
@@ -69,7 +69,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
             auto array = TreeArraySlice(*tree);
             ser_set_length(trav, array.size());
             for (usize i = 0; i < array.size(); i++) {
-                ser_elem(trav, i, ACR_WRITE,
+                ser_elem(trav, i, AccessMode::Write,
                     [elem{TreeRef(array[i])}](const Traversal& child)
                 {
                     ser_from_tree(child, elem);
@@ -94,7 +94,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
     }
      // Nothing matched, so use delegate
     if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, ACR_WRITE, [tree](const Traversal& child){
+        trav.follow_delegate(acr, AccessMode::Write, [tree](const Traversal& child){
             ser_from_tree(child, tree);
         });
         goto done;
@@ -160,7 +160,7 @@ void IFTContext::do_swizzles () {
             if (auto address = op.item.address()) {
                 op.f(*address, op.tree);
             }
-            else op.item.access(ACR_MODIFY, [&op](Mu& v){
+            else op.item.access(AccessMode::Modify, [&op](Mu& v){
                 op.f(v, op.tree);
             });
         }
@@ -176,7 +176,7 @@ void IFTContext::do_inits () {
             if (auto address = op.item.address()) {
                 op.f(*address);
             }
-            else op.item.access(ACR_MODIFY, [&op](Mu& v){
+            else op.item.access(AccessMode::Modify, [&op](Mu& v){
                 op.f(v);
             });
              // Initting might even add more swizzle ops.
@@ -201,13 +201,13 @@ void item_from_tree (
          // Delay swizzle and inits to the outer item_from_tree call.  Basically
          // this just means keep the current context instead of making a new
          // one.
-        Traversal::start(item, loc, false, ACR_WRITE,
+        Traversal::start(item, loc, false, AccessMode::Write,
             [tree](const Traversal& trav)
         { ser_from_tree(trav, tree); });
     }
     else {
         IFTContext context;
-        Traversal::start(item, loc, false, ACR_WRITE,
+        Traversal::start(item, loc, false, AccessMode::Write,
             [tree](const Traversal& trav)
         { ser_from_tree(trav, tree); });
         context.do_swizzles();

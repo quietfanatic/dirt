@@ -25,12 +25,12 @@ Tree ser_to_tree (const Traversal& trav) try {
         ser_collect_keys(trav, keys);
         auto object = TreeObject(Capacity(keys.size()));
         for (auto& key : keys) {
-            ser_attr(trav, key, ACR_READ,
+            ser_attr(trav, key, AccessMode::Read,
                 [&object, &key](const Traversal& child)
             {
-                if (child.op == ATTR && child.acr->attr_flags & ATTR_INVISIBLE) {
-                    return;
-                }
+                if (child.op == ATTR &&
+                    child.acr->attr_flags & AttrFlags::Invisible
+                ) return;
                 Tree value = ser_to_tree(child);
                  // Get flags from acr
                 if (child.op == ATTR) {
@@ -48,10 +48,12 @@ Tree ser_to_tree (const Traversal& trav) try {
         usize len = ser_get_length(trav);
         auto array = TreeArray(Capacity(len));
         for (usize i = 0; i < len; i++) {
-            ser_elem(trav, i, ACR_READ, [&array](const Traversal& child){
-                if (child.op == ELEM && child.acr->attr_flags & ATTR_INVISIBLE) {
-                    return;
-                }
+            ser_elem(
+                trav, i, AccessMode::Read, [&array](const Traversal& child)
+            {
+                if (child.op == ELEM &&
+                    child.acr->attr_flags & AttrFlags::Invisible
+                ) return;
                 Tree elem = ser_to_tree(child);
                 if (child.op == ELEM) {
                     elem.flags |= child.acr->tree_flags();
@@ -63,9 +65,9 @@ Tree ser_to_tree (const Traversal& trav) try {
     }
     if (auto acr = trav.desc->delegate_acr()) {
         Tree r;
-        trav.follow_delegate(acr, ACR_READ, [&r](const Traversal& child){
-            new (&r) Tree(ser_to_tree(child));
-        });
+        trav.follow_delegate(
+            acr, AccessMode::Read, [&r](const Traversal& child)
+        { new (&r) Tree(ser_to_tree(child)); });
         r.flags |= acr->tree_flags();
         return r;
     }
@@ -92,9 +94,9 @@ catch (const std::exception&) {
 Tree item_to_tree (const Reference& item, LocationRef loc) {
     PushBaseLocation pbl(*loc ? *loc : Location(item));
     Tree r;
-    Traversal::start(item, loc, false, ACR_READ, [&r](const Traversal& trav){
-        new (&r) Tree(ser_to_tree(trav));
-    });
+    Traversal::start(
+        item, loc, false, AccessMode::Read, [&r](const Traversal& trav)
+    { new (&r) Tree(ser_to_tree(trav)); });
     return r;
 }
 

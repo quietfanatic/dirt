@@ -104,5 +104,8 @@ ALWAYS_INLINE constexpr T& operator ^= (T& a, T b) { \
 } \
 ALWAYS_INLINE constexpr T operator ~ (T a) { \
     return T(~std::underlying_type_t<T>(a)); \
+} \
+ALWAYS_INLINE constexpr bool operator ! (T a) { \
+    return !std::underlying_type_t<T>(a); \
 }
 #endif

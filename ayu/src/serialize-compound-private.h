@@ -72,7 +72,7 @@ bool ser_maybe_attr (
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (acr->attr_flags & ATTR_INCLUDE) {
+            if (acr->attr_flags & AttrFlags::Include) {
                  // Change mode to modify so we don't clobber the other attrs of
                  // the included item.  Hopefully it won't matter, because
                  // inheriting through a non-addressable reference will be
@@ -84,7 +84,8 @@ bool ser_maybe_attr (
                  // TODO: This may not behave properly with only_addressable.
                 bool found = false;
                 trav.follow_attr(
-                    acr, attr->key, mode == ACR_WRITE ? ACR_MODIFY : mode,
+                    acr, attr->key,
+                    mode == AccessMode::Write ? AccessMode::Modify : mode,
                     [&found, &key, mode, &cb](const Traversal& child)
                 {
                     found = ser_maybe_attr(child, key, mode, cb);
@@ -104,7 +105,7 @@ bool ser_maybe_attr (
     else if (auto acr = trav.desc->delegate_acr()) {
         bool r = false;
         trav.follow_delegate(
-            acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
+            acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
             [&r, &key, mode, &cb](const Traversal& child)
         {
             r = ser_maybe_attr(child, key, mode, cb);
@@ -145,7 +146,7 @@ bool ser_maybe_elem (
     else if (auto acr = trav.desc->delegate_acr()) {
         bool found = false;
         trav.follow_delegate(
-            acr, mode == ACR_WRITE ? ACR_MODIFY : mode,
+            acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
             [&found, index, mode, &cb](const Traversal& child)
         {
             found = ser_maybe_elem(child, index, mode, cb);

@@ -218,7 +218,7 @@ struct _AYU_DescribeBase {
     static constexpr auto attr (
         StaticString key,
         const Acr& accessor,
-        in::AttrFlags flags = in::AttrFlags(0)
+        in::AttrFlags = {}
     );
      // Use this for items that may have a variable number of attributes.
      // `accessor` must be the output of one of the accessor functions (see
@@ -309,8 +309,7 @@ struct _AYU_DescribeBase {
      //     later attrs.  You probably want this elem to be optional too.
     template <class Acr>
     static constexpr auto elem (
-        const Acr& accessor,
-        in::AttrFlags flags = in::AttrFlags(0)
+        const Acr& accessor, in::AttrFlags = {}
     );
     template <class Acr>
      // Use this for array-like items of variable length (or fixed-size items
@@ -418,15 +417,13 @@ struct _AYU_DescribeBase {
      //     };
     template <class T2, class M>
     static constexpr auto member (
-        M T2::* mp,
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        M T2::* mp, in::AcrFlags = {}
     );
      // Give access to a const non-static data member.  This accessor will be
      // readonly, and is addressable and reverse_addressable.
     template <class T2, class M>
     static constexpr auto const_member (
-        const M T2::* mp,
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        const M T2::* mp, in::AcrFlags = {}
     );
      // Give access to a base class.  This can be any type where a C++ reference
      // to the derived class can be implicitly cast to a reference to the base
@@ -436,7 +433,7 @@ struct _AYU_DescribeBase {
     template <class B>
         requires (requires (T* t, B* b) { b = t; t = static_cast<T*>(b); })
     static constexpr auto base (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // Give access to a child item by means of a function that returns a
      // non-const C++ reference to the item.  This accessor is addressable, but
@@ -453,15 +450,14 @@ struct _AYU_DescribeBase {
      // the reference is valid.
     template <class M>
     static constexpr auto ref_func (
-        M&(* f )(T&),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        M&(* f )(T&), in::AcrFlags = {}
     );
      // Just like ref_func, but creates a readonly accessor.  Just like with
      // ref_func, be careful when returning a reference to a temporary.
     template <class M>
     static constexpr auto const_ref_func (
         const M&(* f )(const T&),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // This makes a read-write accessor based on two functions, one of which
      // returns a const ref to the child, and the other of which takes a const
@@ -471,7 +467,7 @@ struct _AYU_DescribeBase {
     static constexpr auto const_ref_funcs (
         const M&(* g )(const T&),
         void(* s )(T&, const M&),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // This makes a readonly accessor from a function that returns a child item
      // by value.  It is not addressable.
@@ -479,7 +475,7 @@ struct _AYU_DescribeBase {
         requires (requires (M m) { M(move(m)); })
     static constexpr auto value_func (
         M(* f )(const T&),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // This makes a read-write accessor from two functions that read and write
      // a child item by value.  It is not addressable.
@@ -488,7 +484,7 @@ struct _AYU_DescribeBase {
     static constexpr auto value_funcs (
         M(* g )(const T&),
         void(* s )(T&, M),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // This makes a read-write accessor from two functions, the first of which
      // returns a child item by value, the second of which takes a child item by
@@ -500,7 +496,7 @@ struct _AYU_DescribeBase {
     static constexpr auto mixed_funcs (
         M(* g )(const T&),
         void(* s )(T&, const M&),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // This makes an accessor to any child item such that the parent and child
      // types can be assigned to eachother with operator=.  It is not
@@ -511,7 +507,7 @@ struct _AYU_DescribeBase {
     template <class M>
         requires (requires (T t, M m) { t = m; m = t; })
     static constexpr auto assignable (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags = {}
     );
      // This makes a readonly accessor which always returns a constant.  The
      // provided constant must be constexpr copy or move constructible.  This
@@ -520,8 +516,7 @@ struct _AYU_DescribeBase {
     template <class M>
         requires (requires (M m) { M(move(m)); })
     static constexpr auto constant (
-        M&& v,
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        M&& v, in::AcrFlags = {}
     );
      // Makes a readonly accessor which always returns a constant.  The pointed-
      // to constant does not need to be constexpr or even copy-constructible,
@@ -529,8 +524,7 @@ struct _AYU_DescribeBase {
      // functions.  This accessor is addressable.
     template <class M>
     static constexpr auto constant_pointer (
-        const M* p,
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        const M* p, in::AcrFlags = {}
     );
      // Like constant(), but provides read-write access to a variable which is
      // embedded in the accessor with move().  This accessor is not
@@ -545,8 +539,7 @@ struct _AYU_DescribeBase {
     template <class M>
         requires (requires (M m) { M(move(m)); m.~M(); })
     static auto variable (
-        M&& v,
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        M&& v, in::AcrFlags = {}
     );
      // An accessor that gives access to a child item by means of an
      // ayu::Reference instead of a C++ reference.  This is the only accessor
@@ -562,8 +555,7 @@ struct _AYU_DescribeBase {
      // If the returned Reference was made with an accessor that has different
      // flags than this one, which flags are used is Unspecified Behavior.
     static constexpr auto reference_func (
-        Reference(* f )(T&),
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        Reference(* f )(T&), in::AcrFlags = {}
     );
 
     ///// METHOD ACCESSORS
@@ -580,7 +572,7 @@ struct _AYU_DescribeBase {
      // ref_method
     template <class M, M&(T3::* get )()>
     static constexpr auto ref_method (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return ref_func<M>(
             [](const T& v) -> M& { return (v.*get)(); }, flags
@@ -589,7 +581,7 @@ struct _AYU_DescribeBase {
      // const_ref_method
     template <class M, const M&(T3::* get )()const>
     static constexpr auto const_ref_method (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return const_ref_func<M>(
             [](const T& v) -> const M& { return (v.*get)(); }, flags
@@ -598,7 +590,7 @@ struct _AYU_DescribeBase {
      // const_ref_methods
     template <class M, const M&(T3::* get )()const, void(T3::* set )(const M&)>
     static constexpr auto const_ref_methods (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return const_ref_funcs<M>(
             [](const T& v) -> const M& { return (v.*get)(); },
@@ -609,7 +601,7 @@ struct _AYU_DescribeBase {
      // value_method
     template <class M, M(T3::* get )()const>
     static constexpr auto value_method (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return value_func<M>(
             [](const T& v) -> M { return (v.*get)(); }, flags
@@ -618,7 +610,7 @@ struct _AYU_DescribeBase {
      // value_methods
     template <class M, M(T3::* get )()const, void(T3::* set )(M)>
     static constexpr auto value_methods (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return value_funcs<M>(
             [](const T& v) -> M { return (v.*get)(); },
@@ -629,7 +621,7 @@ struct _AYU_DescribeBase {
      // mixed_methods
     template <class M, M(T3::* get )()const, void(T3::* set )(const M&)>
     static constexpr auto mixed_methods (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return mixed_funcs<M>(
             [](const T& v) -> M { return (v.*get)(); },
@@ -640,7 +632,7 @@ struct _AYU_DescribeBase {
      // reference_method.  I doubt you'll ever need this but here it is.
     template <Reference (T3::* get )()>
     static constexpr auto reference_method (
-        in::AccessorFlags flags = in::AccessorFlags(0)
+        in::AcrFlags flags = {}
     ) {
         return reference_func(
             [](const T& v) -> Reference { return (v.*get)(); }, flags
@@ -655,16 +647,16 @@ struct _AYU_DescribeBase {
 
     ///// INTERNAL
 
-    static constexpr in::AttrFlags optional = in::ATTR_OPTIONAL;
-    static constexpr in::AttrFlags include = in::ATTR_INCLUDE;
-    static constexpr in::AttrFlags invisible = in::ATTR_INVISIBLE;
-    static constexpr in::AccessorFlags readonly = in::ACR_READONLY;
-    static constexpr in::AccessorFlags prefer_hex = in::ACR_PREFER_HEX;
-    static constexpr in::AccessorFlags prefer_compact = in::ACR_PREFER_COMPACT;
-    static constexpr in::AccessorFlags prefer_expanded = in::ACR_PREFER_EXPANDED;
-    static constexpr in::AccessorFlags pass_through_addressable =
-        in::ACR_PASS_THROUGH_ADDRESSABLE;
-    static constexpr in::AccessorFlags unaddressable = in::ACR_UNADDRESSABLE;
+    static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
+    static constexpr in::AttrFlags include = in::AttrFlags::Include;
+    static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
+    static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;
+    static constexpr in::AcrFlags prefer_hex = in::AcrFlags::PreferHex;
+    static constexpr in::AcrFlags prefer_compact = in::AcrFlags::PreferCompact;
+    static constexpr in::AcrFlags prefer_expanded = in::AcrFlags::PreferExpanded;
+    static constexpr in::AcrFlags pass_through_addressable =
+        in::AcrFlags::PassThroughAddressable;
+    static constexpr in::AcrFlags unaddressable = in::AcrFlags::Unaddressable;
     template <class... Dcrs>
     static constexpr auto _ayu_describe (
         StaticString name, const Dcrs&... dcrs

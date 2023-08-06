@@ -100,9 +100,7 @@ constexpr auto _AYU_DescribeBase<T>::attrs (const Attrs&... as) {
 template <class T>
 template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::attr (
-    StaticString key,
-    const Acr& acr,
-    in::AttrFlags flags
+    StaticString key, const Acr& acr, in::AttrFlags flags
 ) {
      // Implicit member().
     if constexpr (std::is_member_object_pointer_v<Acr>) {
@@ -110,7 +108,7 @@ constexpr auto _AYU_DescribeBase<T>::attr (
     }
     else {
         static_assert(
-            std::is_same_v<typename Acr::AccessorFromType, T>,
+            std::is_same_v<typename Acr::AcrFromType, T>,
             "Second argument to attr() is not an accessor of this type"
         );
         auto r = in::AttrDcrWith<T, Acr>(key, acr);
@@ -126,15 +124,14 @@ constexpr auto _AYU_DescribeBase<T>::elems (const Elems&... es) {
 template <class T>
 template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::elem (
-    const Acr& acr,
-    in::AttrFlags flags
+    const Acr& acr, in::AttrFlags flags
 ) {
     if constexpr (std::is_member_object_pointer_v<Acr>) {
         return elem(_AYU_DescribeBase<T>::member(acr), flags);
     }
     else {
         static_assert(
-            std::is_same_v<typename Acr::AccessorFromType, T>,
+            std::is_same_v<typename Acr::AcrFromType, T>,
             "First argument to elem() is not an accessor of this type"
         );
         auto r = in::ElemDcrWith<T, Acr>(acr);
@@ -169,24 +166,24 @@ constexpr auto _AYU_DescribeBase<T>::delegate (const Acr& acr) {
 template <class T>
 template <class T2, class M>
 constexpr auto _AYU_DescribeBase<T>::member (
-    M T2::* mp,
-    in::AccessorFlags flags
+    M T2::* mp, in::AcrFlags flags
 ) {
     return in::MemberAcr2<T, M>(mp, flags);
 }
 template <class T>
 template <class T2, class M>
 constexpr auto _AYU_DescribeBase<T>::const_member (
-    const M T2::* mp,
-    in::AccessorFlags flags
+    const M T2::* mp, in::AcrFlags flags
 ) {
-    return in::MemberAcr2<T, M>(const_cast<M T::*>(mp), flags | in::ACR_READONLY);
+    return in::MemberAcr2<T, M>(
+        const_cast<M T::*>(mp), flags | in::AcrFlags::Readonly
+    );
 }
 template <class T>
 template <class B>
     requires (requires (T* t, B* b) { b = t; t = static_cast<T*>(b); })
 constexpr auto _AYU_DescribeBase<T>::base (
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::BaseAcr2<T, B>(flags);
 }
@@ -194,7 +191,7 @@ template <class T>
 template <class M>
 constexpr auto _AYU_DescribeBase<T>::ref_func (
     M&(* f )(T&),
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::RefFuncAcr2<T, M>(f, flags);
 }
@@ -202,7 +199,7 @@ template <class T>
 template <class M>
 constexpr auto _AYU_DescribeBase<T>::const_ref_func (
     const M&(* f )(const T&),
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::ConstRefFuncAcr2<T, M>(f, flags);
 }
@@ -211,7 +208,7 @@ template <class M>
 constexpr auto _AYU_DescribeBase<T>::const_ref_funcs (
     const M&(* g )(const T&),
     void(* s )(T&, const M&),
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::RefFuncsAcr2<T, M>(g, s, flags);
 }
@@ -220,7 +217,7 @@ template <class M>
     requires (requires (M m) { M(move(m)); })
 constexpr auto _AYU_DescribeBase<T>::value_func (
     M(* f )(const T&),
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::ValueFuncAcr2<T, M>(f, flags);
 }
@@ -230,7 +227,7 @@ template <class M>
 constexpr auto _AYU_DescribeBase<T>::value_funcs (
     M(* g )(const T&),
     void(* s )(T&, M),
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::ValueFuncsAcr2<T, M>(g, s, flags);
 }
@@ -240,7 +237,7 @@ template <class M>
 constexpr auto _AYU_DescribeBase<T>::mixed_funcs (
     M(* g )(const T&),
     void(* s )(T&, const M&),
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::MixedFuncsAcr2<T, M>(g, s, flags);
 }
@@ -249,7 +246,7 @@ template <class T>
 template <class M>
     requires (requires (T t, M m) { t = m; m = t; })
 constexpr auto _AYU_DescribeBase<T>::assignable (
-    in::AccessorFlags flags
+    in::AcrFlags flags
 ) {
     return in::AssignableAcr2<T, M>(flags);
 }
@@ -258,16 +255,14 @@ template <class T>
 template <class M>
     requires (requires (M m) { M(move(m)); })
 constexpr auto _AYU_DescribeBase<T>::constant (
-    M&& v,
-    in::AccessorFlags flags
+    M&& v, in::AcrFlags flags
 ) {
     return in::ConstantAcr2<T, M>(move(v), flags);
 }
 template <class T>
 template <class M>
 constexpr auto _AYU_DescribeBase<T>::constant_pointer (
-    const M* p,
-    in::AccessorFlags flags
+    const M* p, in::AcrFlags flags
 ) {
     return in::ConstantPointerAcr2<T, M>(p, flags);
 }
@@ -278,16 +273,14 @@ template <class T>
 template <class M>
     requires (requires (M m) { M(move(m)); m.~M(); })
 auto _AYU_DescribeBase<T>::variable (
-    M&& v,
-    in::AccessorFlags flags
+    M&& v, in::AcrFlags flags
 ) {
     return in::VariableAcr2<T, M>(move(v), flags);
 }
 
 template <class T>
 constexpr auto _AYU_DescribeBase<T>::reference_func (
-    Reference(* f )(T&),
-    in::AccessorFlags flags
+    Reference(* f )(T&), in::AcrFlags flags
 ) {
     return in::ReferenceFuncAcr2<T>(f, flags);
 }
