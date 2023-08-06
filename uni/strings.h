@@ -157,7 +157,7 @@ inline UniqueString cat () { return ""; }
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
 namespace tap {
-template <uni::ArrayClass ac>
+template <class ac>
 struct Show<uni::ArrayInterface<ac, char>> {
     std::string show (const uni::ArrayInterface<ac, char>& v) {
         return std::string(uni::cat("\"", v, "\""));

@@ -7,27 +7,69 @@
 namespace uni {
 inline namespace arrays {
 
-///// ARRAY TYPES 
-enum class ArrayClass {
-    AnyA,
-    AnyS,
-    StaticA,
-    StaticS,
-    SharedA,
-    SharedS,
-    UniqueA,
-    UniqueS,
-    SliceA,
-    SliceS
-};
+///// ARRAY TYPES
+
+namespace ArrayClass {
+    struct Defaults {
+        static constexpr bool is_String = false;
+        static constexpr bool is_Any = false;
+        static constexpr bool is_Shared = false;
+        static constexpr bool is_Unique = false;
+        static constexpr bool is_Static = false;
+        static constexpr bool is_Slice = false;
+        static constexpr bool supports_share = false;
+        static constexpr bool supports_owned = false;
+        static constexpr bool supports_static = false;
+        static constexpr bool trivially_copyable = false;
+    };
+    struct AnyArray : Defaults {
+        static constexpr bool is_Any = true;
+        static constexpr bool supports_share = true;
+        static constexpr bool supports_owned = true;
+        static constexpr bool supports_static = true;
+    };
+    struct AnyString : AnyArray {
+        static constexpr bool is_String = true;
+    };
+    struct SharedArray : Defaults {
+        static constexpr bool is_Shared = true;
+        static constexpr bool supports_share = true;
+        static constexpr bool supports_owned = true;
+    };
+    struct SharedString : SharedArray {
+        static constexpr bool is_String = true;
+    };
+    struct UniqueArray : Defaults {
+        static constexpr bool is_Unique = true;
+        static constexpr bool supports_owned = true;
+    };
+    struct UniqueString : UniqueArray {
+        static constexpr bool is_String = true;
+    };
+    struct StaticArray : Defaults {
+        static constexpr bool is_Static = true;
+        static constexpr bool supports_static = true;
+        static constexpr bool trivially_copyable = true;
+    };
+    struct StaticString : StaticArray {
+        static constexpr bool is_String = true;
+    };
+    struct Slice : Defaults {
+        static constexpr bool is_Slice = true;
+        static constexpr bool trivially_copyable = true;
+    };
+    struct Str : Slice {
+        static constexpr bool is_String = true;
+    };
+}
 
 ///// ARRAY IMPLEMENTATIONS
 
-template <ArrayClass, class>
+template <class, class>
 struct ArrayImplementation;
 
 template <class T>
-struct ArrayImplementation<ArrayClass::AnyA, T> {
+struct ArrayImplementation<ArrayClass::AnyArray, T> {
      // The first bit is owned, the rest is size (shifted left by 1).
      // owned = sizex2_with_owned & 1
      // size = sizex2_with_owned >> 1
@@ -35,53 +77,52 @@ struct ArrayImplementation<ArrayClass::AnyA, T> {
     uint32 sizex2_with_owned;
     T* data;
 };
-
 template <class T>
-struct ArrayImplementation<ArrayClass::AnyS, T> {
+struct ArrayImplementation<ArrayClass::AnyString, T> {
     uint32 sizex2_with_owned;
     T* data;
 };
 
 template <class T>
-struct ArrayImplementation<ArrayClass::SharedA, T> {
+struct ArrayImplementation<ArrayClass::SharedArray, T> {
     uint32 size;
     T* data;
 };
 template <class T>
-struct ArrayImplementation<ArrayClass::SharedS, T> {
-    uint32 size;
-    T* data;
-};
-
-template <class T>
-struct ArrayImplementation<ArrayClass::UniqueA, T> {
-    uint32 size;
-    T* data;
-};
-template <class T>
-struct ArrayImplementation<ArrayClass::UniqueS, T> {
+struct ArrayImplementation<ArrayClass::SharedString, T> {
     uint32 size;
     T* data;
 };
 
 template <class T>
-struct ArrayImplementation<ArrayClass::StaticA, T> {
+struct ArrayImplementation<ArrayClass::UniqueArray, T> {
+    uint32 size;
+    T* data;
+};
+template <class T>
+struct ArrayImplementation<ArrayClass::UniqueString, T> {
+    uint32 size;
+    T* data;
+};
+
+template <class T>
+struct ArrayImplementation<ArrayClass::StaticArray, T> {
     usize size;
     const T* data;
 };
 template <class T>
-struct ArrayImplementation<ArrayClass::StaticS, T> {
+struct ArrayImplementation<ArrayClass::StaticString, T> {
     usize size;
     const T* data;
 };
 
 template <class T>
-struct ArrayImplementation<ArrayClass::SliceA, T> {
+struct ArrayImplementation<ArrayClass::Slice, T> {
     usize size;
     const T* data;
 };
 template <class T>
-struct ArrayImplementation<ArrayClass::SliceS, T> {
+struct ArrayImplementation<ArrayClass::Str, T> {
     usize size;
     const T* data;
 };

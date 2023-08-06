@@ -60,38 +60,38 @@ inline namespace arrays {
 ///// THIS HEADER PROVIDES
 
  // The base interface for all array classes.
-template <ArrayClass ac, class T>
+template <class ac, class T>
 struct ArrayInterface;
 
  // A generic dynamically-sized array class which can either own shared
  // (refcounted) data or reference static data.  Has semi-implicit
  // copy-on-write behavior (at no cost if you don't use it).
 template <class T>
-using AnyArray = ArrayInterface<ArrayClass::AnyA, T>;
+using AnyArray = ArrayInterface<ArrayClass::AnyArray, T>;
 
  // An array that can only reference shared data.  There isn't much reason to
  // use this instead of AnyArray, but it's here as an intermediate between AnyArray
  // and UniqueArray.  This should probably be renamed because its name suggests
  // it might be have shared mutability, but it does not.
 template <class T>
-using SharedArray = ArrayInterface<ArrayClass::SharedA, T>;
+using SharedArray = ArrayInterface<ArrayClass::SharedArray, T>;
 
  // An array that guarantees unique ownership, allowing mutation without
  // copy-on-write.  This has the same role as std::vector.
 template <class T>
-using UniqueArray = ArrayInterface<ArrayClass::UniqueA, T>;
+using UniqueArray = ArrayInterface<ArrayClass::UniqueArray, T>;
 
  // An array that can only reference static data (or at least data that outlives
  // it).  The data cannot be modified.  The difference between this and Slice is
  // that an AnyArray can be constructed from a StaticArray without allocating a new
  // buffer.
 template <class T>
-using StaticArray = ArrayInterface<ArrayClass::StaticA, T>;
+using StaticArray = ArrayInterface<ArrayClass::StaticArray, T>;
 
  // A non-owning view of contiguous elements.  This has the same role as
  // std::span (but without fixed extents).
 template <class T>
-using Slice = ArrayInterface<ArrayClass::SliceA, T>;
+using Slice = ArrayInterface<ArrayClass::Slice, T>;
 
  // The string types are almost exactly the same as the equivalent array types,
  // but they have slightly different rules for array construction; they can be
@@ -101,15 +101,15 @@ using Slice = ArrayInterface<ArrayClass::SliceA, T>;
  // get a NUL-terminated string out, either explicitly NUL-terminate them or use
  // c_str().
 template <class T>
-using GenericAnyString = ArrayInterface<ArrayClass::AnyS, T>;
+using GenericAnyString = ArrayInterface<ArrayClass::AnyString, T>;
 template <class T>
-using GenericSharedString = ArrayInterface<ArrayClass::SharedS, T>;
+using GenericSharedString = ArrayInterface<ArrayClass::SharedString, T>;
 template <class T>
-using GenericUniqueString = ArrayInterface<ArrayClass::UniqueS, T>;
+using GenericUniqueString = ArrayInterface<ArrayClass::UniqueString, T>;
 template <class T>
-using GenericStaticString = ArrayInterface<ArrayClass::StaticS, T>;
+using GenericStaticString = ArrayInterface<ArrayClass::StaticString, T>;
 template <class T>
-using GenericStr = ArrayInterface<ArrayClass::SliceS, T>;
+using GenericStr = ArrayInterface<ArrayClass::Str, T>;
 
 using AnyString = GenericAnyString<char>;
 using SharedString = GenericSharedString<char>;
@@ -197,43 +197,22 @@ struct Capacity { usize cap; };
 ///// ARRAY INTERFACE
 // The shared interface for all the array classes
 
-template <ArrayClass ac, class T>
+template <class ac, class T>
 struct ArrayInterface {
     static_assert(
         alignof(T) <= 8, "Arrays with elements that have align > 8 are NYI."
     );
+    using Class = ac;
     using Self = ArrayInterface<ac, T>;
     using Impl = ArrayImplementation<ac, T>;
   private:
     Impl impl;
-    template <ArrayClass, class>
+    template <class, class>
     friend struct ArrayInterface;
   public:
 
-    ///// PSEUDO-CONCEPTS
-    static constexpr bool is_ArrayInterface = true;
-    static constexpr bool is_String = ac == ArrayClass::AnyS ||
-                                      ac == ArrayClass::SharedS ||
-                                      ac == ArrayClass::UniqueS ||
-                                      ac == ArrayClass::StaticS ||
-                                      ac == ArrayClass::SliceS;
-    static constexpr bool is_Any = ac == ArrayClass::AnyA ||
-                                   ac == ArrayClass::AnyS;
-    static constexpr bool is_Shared = ac == ArrayClass::SharedA ||
-                                      ac == ArrayClass::SharedS;
-    static constexpr bool is_Unique = ac == ArrayClass::UniqueA ||
-                                      ac == ArrayClass::UniqueS;
-    static constexpr bool is_Static = ac == ArrayClass::StaticA ||
-                                      ac == ArrayClass::StaticS;
-    static constexpr bool is_Slice = ac == ArrayClass::SliceA ||
-                                     ac == ArrayClass::SliceS;
-    static constexpr bool supports_share = is_Any || is_Shared;
-    static constexpr bool supports_owned = supports_share || is_Unique;
-    static constexpr bool supports_static = is_Any || is_Static;
-    static constexpr bool trivially_copyable = is_Static || is_Slice;
-
     static_assert(
-        !(supports_share && !std::is_copy_constructible_v<T>),
+        !(ac::supports_share && !std::is_copy_constructible_v<T>),
         "Cannot have a copy-on-write array/string with a non-copyable element type."
     );
 
@@ -245,16 +224,17 @@ struct ArrayInterface {
     using const_reference = const T&;
     using pointer = T*;
     using const_pointer = const T*;
-    using iterator = std::conditional_t<is_Unique, T*, const T*>;
+    using iterator = std::conditional_t<ac::is_Unique, T*, const T*>;
     using const_iterator = const T*;
-    using mut_iterator = std::conditional_t<supports_owned, T*, void>;
+    using mut_iterator = std::conditional_t<ac::supports_owned, T*, void>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const T*>;
     using mut_reverse_iterator =
-        std::conditional_t<supports_owned, std::reverse_iterator<T*>, void>;
+        std::conditional_t<ac::supports_owned, std::reverse_iterator<T*>, void>;
 
-    using SelfSlice = std::conditional_t<
-        is_String, ArrayInterface<ArrayClass::SliceS, T>, Slice<T>
+    using SelfSlice = std::conditional_t<ac::is_String,
+        ArrayInterface<ArrayClass::Str, T>,
+        ArrayInterface<ArrayClass::Slice, T>
     >;
 
     ///// CONSTRUCTION
@@ -264,23 +244,24 @@ struct ArrayInterface {
 
      // Move construct.
     ALWAYS_INLINE constexpr
-    ArrayInterface (ArrayInterface&& o) requires (!trivially_copyable) {
+    ArrayInterface (ArrayInterface&& o) requires (!ac::trivially_copyable) {
         impl = o.impl;
         o.impl = {};
     }
      // We need to default the move constructor too, not just the copy
      // constructor, or the Itanium C++ ABI won't pass this in registers.
-    ArrayInterface (ArrayInterface&& o) requires (trivially_copyable) = default;
+    ArrayInterface (ArrayInterface&& o) requires (ac::trivially_copyable)
+        = default;
      // Move conversion.  Tries to make the moved-to array have the same
      // ownership mode as the moved-from array, and if that isn't supported,
      // copies the buffer.  Although move conversion will never fail for
      // copyable element types, it's disabled for StaticArray and Slice, and the
      // copy constructor from AnyArray to StaticArray can fail.
-    template <ArrayClass ac2> ALWAYS_INLINE constexpr
+    template <class ac2> ALWAYS_INLINE constexpr
     ArrayInterface (ArrayInterface<ac2, T>&& o) requires (
-        !trivially_copyable && !o.trivially_copyable
+        !ac::trivially_copyable && !ac2::trivially_copyable
     ) {
-        if (supports_share || o.unique()) {
+        if (ac::supports_share || o.unique()) {
             set_owned(o.impl.data, o.size());
             o.impl = {};
         }
@@ -295,11 +276,13 @@ struct ArrayInterface {
      // Copy construct.  Always copies the buffer for UniqueArray, never copies
      // the buffer for other array classes.
     ALWAYS_INLINE constexpr
-    ArrayInterface (const ArrayInterface& o) requires (!trivially_copyable) {
-        if constexpr (is_Unique) {
+    ArrayInterface (const ArrayInterface& o) requires (
+        !ac::trivially_copyable
+    ) {
+        if constexpr (ac::is_Unique) {
             set_copy(o.impl.data, o.size());
         }
-        else if constexpr (supports_share) {
+        else if constexpr (ac::supports_share) {
             impl = o.impl;
             add_ref();
         }
@@ -309,7 +292,7 @@ struct ArrayInterface {
     }
      // Copy constructor is defaulted for StaticArray and Slice so that they can
      // have the is_trivially_copy_constructible trait.
-    ArrayInterface (const ArrayInterface&) requires (trivially_copyable)
+    ArrayInterface (const ArrayInterface&) requires (ac::trivially_copyable)
         = default;
 
      // Copy convert.  Tries to make this array have the same ownership mode as
@@ -317,20 +300,20 @@ struct ArrayInterface {
      // that isn't supported, borrows.  This is explicit for converting to
      // StaticArray, because it's not guaranteed that the data is actually
      // static.
-    template <ArrayClass ac2> ALWAYS_INLINE constexpr
-    explicit(is_Static && !ArrayInterface<ac2, T>::is_Static)
+    template <class ac2> ALWAYS_INLINE constexpr
+    explicit(ac::is_Static && !ac2::is_Static)
     ArrayInterface (const ArrayInterface<ac2, T>& o) {
-        if constexpr (supports_share && o.supports_share) {
+        if constexpr (ac::supports_share && ac2::supports_share) {
             if (o.owned()) {
                 set_owned(o.impl.data, o.size());
                 add_ref();
                 return;
             }
         }
-        if constexpr (supports_static && o.supports_static) {
+        if constexpr (ac::supports_static && ac2::supports_static) {
             set_unowned(o.impl.data, o.size());
         }
-        else if constexpr (supports_owned) {
+        else if constexpr (ac::supports_owned) {
             set_copy(o.impl.data, o.size());
         }
         else {
@@ -341,9 +324,9 @@ struct ArrayInterface {
      // Copy construction from other array-like types.  Explicit except for
      // Slice/Str.
     template <OtherArrayLike O> ALWAYS_INLINE constexpr
-    explicit(is_Static || !(is_Slice && ArrayLikeFor<O, T>))
-    ArrayInterface (const O& o) requires (!is_Static) {
-        if constexpr (supports_owned) {
+    explicit(ac::is_Static || !(ac::is_Slice && ArrayLikeFor<O, T>))
+    ArrayInterface (const O& o) requires (!ac::is_Static) {
+        if constexpr (ac::supports_owned) {
             set_copy(o.data(), o.size());
         }
         else {
@@ -362,7 +345,7 @@ struct ArrayInterface {
      // SPECIAL CASE allow construcing a Str from a char8 OtherArrayLike
     template <OtherArrayLikeFor<char8_t> O> ALWAYS_INLINE constexpr explicit
     ArrayInterface (const O& o) requires (
-        is_String && is_Slice && std::is_same_v<T, char>
+        ac::is_String && ac::is_Slice && std::is_same_v<T, char>
     ) {
         static_assert(ArrayContiguousIterator<decltype(o.data())>,
             "Cannot construct Slice from array-like type if its data() "
@@ -376,14 +359,14 @@ struct ArrayInterface {
     template <class O> constexpr
     ArrayInterface (O o) requires (
          // Some awkward requiresing to avoid decaying raw arrays.
-        is_String && std::is_pointer_v<std::remove_cvref_t<O>> &&
+        ac::is_String && std::is_pointer_v<std::remove_cvref_t<O>> &&
         std::is_same_v<std::remove_cvref_t<std::remove_pointer_t<O>>, T>
     ) {
         const T* p = o;
         expect(p);
         usize s = 0;
         while (p[s]) ++s;
-        if constexpr (supports_owned) {
+        if constexpr (ac::supports_owned) {
             set_copy(p, s);
         }
         else {
@@ -395,8 +378,8 @@ struct ArrayInterface {
      // possible and borrows otherwise.
     template <class T2, usize len> ALWAYS_INLINE constexpr
     explicit(!std::is_same_v<T2, T>)
-    ArrayInterface (const T2(& o )[len]) requires (!is_String) {
-        if constexpr (supports_owned) {
+    ArrayInterface (const T2(& o )[len]) requires (!ac::is_String) {
+        if constexpr (ac::supports_owned) {
             set_copy(o, len);
         }
         else {
@@ -412,7 +395,7 @@ struct ArrayInterface {
      // be safe to borrow from.
     template <class T2, usize len> ALWAYS_INLINE constexpr
     explicit(!std::is_same_v<T2, T>)
-    ArrayInterface (const T2(& o )[len]) requires (is_String) {
+    ArrayInterface (const T2(& o )[len]) requires (ac::is_String) {
          // String literals should always be NUL-terminated (and the NUL is
          // included in len).
         static_assert(len > 0,
@@ -421,10 +404,10 @@ struct ArrayInterface {
             "isn't room for a NUL terminator"
         );
         expect(!o[len-1]);
-        if constexpr (supports_static && std::is_same_v<T2, T>) {
+        if constexpr (ac::supports_static && std::is_same_v<T2, T>) {
             set_unowned(o, len-1);
         }
-        else if constexpr (supports_owned) {
+        else if constexpr (ac::supports_owned) {
             set_copy(o, len-1);
         }
         else {
@@ -440,9 +423,9 @@ struct ArrayInterface {
     template <class T2, usize len> ALWAYS_INLINE constexpr
     explicit(!std::is_same_v<T2, T>)
     ArrayInterface (T2(& o )[len]) requires (
-        is_String && !std::is_const_v<T2>
+        ac::is_String && !std::is_const_v<T2>
     ) {
-        if constexpr (supports_owned) {
+        if constexpr (ac::supports_owned) {
             set_copy(o, len);
         }
         else {
@@ -457,7 +440,7 @@ struct ArrayInterface {
      // Construct from a pointer(-like iterator) and a size
     template <ArrayIterator Ptr> ALWAYS_INLINE explicit constexpr
     ArrayInterface (Ptr p, usize s) {
-        if constexpr (supports_owned) {
+        if constexpr (ac::supports_owned) {
             set_copy(move(p), s);
         }
         else {
@@ -476,7 +459,7 @@ struct ArrayInterface {
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     ALWAYS_INLINE explicit constexpr
     ArrayInterface (Begin b, End e) {
-        if constexpr (supports_owned) {
+        if constexpr (ac::supports_owned) {
             set_copy(move(b), move(e));
         }
         else {
@@ -499,7 +482,7 @@ struct ArrayInterface {
      // available for owned classes.
     explicit
     ArrayInterface (usize s) requires (
-        supports_owned && std::is_default_constructible_v<T>
+        ac::supports_owned && std::is_default_constructible_v<T>
     ) {
         if (!s) {
             impl = {}; return;
@@ -530,7 +513,7 @@ struct ArrayInterface {
      // only available for owned classes.
     explicit
     ArrayInterface (usize s, const T& v) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         if (!s) { impl = {}; return; }
         T* dat = SharableBuffer<T>::allocate(s);
@@ -560,7 +543,7 @@ struct ArrayInterface {
      // Construct with uninitialized data if the elements support that
     ALWAYS_INLINE explicit
     ArrayInterface (Uninitialized u) requires (
-        supports_owned && std::is_trivially_default_constructible_v<T>
+        ac::supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         if (!u.size) { impl = {}; return; }
         set_owned_unique(SharableBuffer<T>::allocate(u.size), u.size);
@@ -568,7 +551,7 @@ struct ArrayInterface {
      // Construct with specific capacity
     ALWAYS_INLINE explicit
     ArrayInterface (Capacity cap) requires (
-        supports_owned
+        ac::supports_owned
     ) {
         if (!cap.cap) { impl = {}; return; }
         set_owned_unique(SharableBuffer<T>::allocate(cap.cap), 0);
@@ -577,15 +560,17 @@ struct ArrayInterface {
      // std::initializer_list isn't very good for owned types because it
      // requires copying all the items.
     ALWAYS_INLINE
-    ArrayInterface (std::initializer_list<T> l) requires (supports_owned || is_Slice) {
-        if constexpr (is_Slice) {
+    ArrayInterface (std::initializer_list<T> l) requires (
+        ac::supports_owned || ac::is_Slice
+    ) {
+        if constexpr (ac::is_Slice) {
             set_unowned(std::data(l), std::size(l));
         }
         else set_copy(std::data(l), std::size(l));
     }
      // So use this named constructor instead.
     template <class... Args> ALWAYS_INLINE static
-    ArrayInterface Make (Args&&... args) requires (supports_owned) {
+    ArrayInterface Make (Args&&... args) requires (ac::supports_owned) {
         ArrayInterface r (Capacity(sizeof...(args)));
         (r.emplace_back_expect_capacity(std::forward<Args>(args)), ...);
         return r;
@@ -602,7 +587,7 @@ struct ArrayInterface {
 
     ALWAYS_INLINE constexpr
     ArrayInterface& operator= (ArrayInterface&& o) requires (
-        !trivially_copyable
+        !ac::trivially_copyable
     ) {
         if (&o == this) [[unlikely]] return *this;
         this->~ArrayInterface();
@@ -610,31 +595,32 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE constexpr
     ArrayInterface& operator= (const ArrayInterface& o) requires (
-        !trivially_copyable
+        !ac::trivially_copyable
     ) {
         if (&o == this) [[unlikely]] return *this;
         return *this = ArrayInterface(o);
     }
     constexpr
     ArrayInterface& operator= (const ArrayInterface&) requires (
-        trivially_copyable
+        ac::trivially_copyable
     ) = default;
 
     ///// COERCION
 
      // Okay okay
     ALWAYS_INLINE constexpr
-    operator std::basic_string_view<T> () const requires (is_String) {
+    operator std::basic_string_view<T> () const requires (ac::is_String) {
         return std::basic_string_view<T>(impl.data, size());
     }
     ALWAYS_INLINE constexpr
-    operator std::basic_string<T> () const requires (is_String) {
+    operator std::basic_string<T> () const requires (ac::is_String) {
         return std::string(impl.data, size());
     }
      // Sigh
     ALWAYS_INLINE constexpr
     operator std::filesystem::path () const requires (
-        is_String && sizeof(T) == sizeof(char) && requires (char c, T v) { c = v; }
+        ac::is_String && sizeof(T) == sizeof(char) &&
+        requires (char c, T v) { c = v; }
     ) {
         return std::filesystem::path(
             reinterpret_cast<const char8_t*>(begin()),
@@ -644,8 +630,8 @@ struct ArrayInterface {
 
     ///// DESTRUCTOR
     ALWAYS_INLINE constexpr
-    ~ArrayInterface () requires (!trivially_copyable) { remove_ref(); }
-    ~ArrayInterface () requires (trivially_copyable) = default;
+    ~ArrayInterface () requires (!ac::trivially_copyable) { remove_ref(); }
+    ~ArrayInterface () requires (ac::trivially_copyable) = default;
 
     ///// BYPASSING REFERENCE COUNTING
      // These manipulate the array without touching any reference counts,
@@ -660,6 +646,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void unsafe_set_owned (T* d, usize s) {
 #ifndef NDEBUG
+         // All these expects bog the optimizer down.
         if (d) {
             expect(s <= max_size_);
             expect(s <= SharableBuffer<T>::header(d)->capacity);
@@ -699,7 +686,7 @@ struct ArrayInterface {
      // Get the size of the array in elements
     ALWAYS_INLINE constexpr
     usize size () const {
-        if constexpr (is_Any) {
+        if constexpr (ac::is_Any) {
             return impl.sizex2_with_owned >> 1;
         }
         else return impl.size;
@@ -710,7 +697,7 @@ struct ArrayInterface {
      // 64-bit platforms.  If you need to process arrays larger than 2 billion
      // elements, you're probably already managing your own memory anyway.
     static constexpr usize max_size_ =
-        supports_owned ? uint32(-1) >> 1 : usize(-1) >> 1;
+        ac::supports_owned ? uint32(-1) >> 1 : usize(-1) >> 1;
     ALWAYS_INLINE constexpr
     usize max_size () const { return max_size_; }
 
@@ -719,10 +706,10 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     const T* data () const { return impl.data; }
     ALWAYS_INLINE
-    T* data () requires (is_Unique) { return impl.data; }
+    T* data () requires (ac::is_Unique) { return impl.data; }
      // Get mutable data pointer, triggering copy-on-write if needed.
     ALWAYS_INLINE
-    T* mut_data () requires (supports_owned) {
+    T* mut_data () requires (ac::supports_owned) {
         make_unique();
         return impl.data;
     }
@@ -754,13 +741,13 @@ struct ArrayInterface {
         return impl.data[i];
     }
     ALWAYS_INLINE
-    T& at (usize i) requires (is_Unique) {
+    T& at (usize i) requires (ac::is_Unique) {
         return const_cast<T&>(
             const_cast<const ArrayInterface<ac, T>&>(*this).at(i)
         );
     }
     ALWAYS_INLINE
-    T& mut_at (usize i) requires (supports_owned) {
+    T& mut_at (usize i) requires (ac::supports_owned) {
         make_unique();
         return const_cast<T&>(at(i));
     }
@@ -770,7 +757,7 @@ struct ArrayInterface {
         return impl.data[i];
     }
     ALWAYS_INLINE
-    T& operator [] (usize i) requires (is_Unique) {
+    T& operator [] (usize i) requires (ac::is_Unique) {
         return const_cast<T&>(
             const_cast<const ArrayInterface<ac, T>&>(*this)[i]
         );
@@ -780,13 +767,13 @@ struct ArrayInterface {
         return (*this)[i];
     }
     ALWAYS_INLINE
-    T& get (usize i) requires (is_Unique) {
+    T& get (usize i) requires (ac::is_Unique) {
         return const_cast<T&>(
             const_cast<const ArrayInterface<ac, T>&>(*this)[i]
         );
     }
     ALWAYS_INLINE
-    T& mut_get (usize i) requires (supports_owned) {
+    T& mut_get (usize i) requires (ac::supports_owned) {
         make_unique();
         return const_cast<T&>((*this)[i]);
     }
@@ -794,9 +781,9 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     const T& front () const { return (*this)[0]; }
     ALWAYS_INLINE constexpr
-    T& front () requires (is_Unique) { return (*this)[0]; }
+    T& front () requires (ac::is_Unique) { return (*this)[0]; }
     ALWAYS_INLINE
-    T& mut_front () requires (supports_owned) {
+    T& mut_front () requires (ac::supports_owned) {
         make_unique();
         return (*this)[0];
     }
@@ -804,9 +791,9 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     const T& back () const { return (*this)[size() - 1]; }
     ALWAYS_INLINE constexpr
-    T& back () requires (is_Unique) { return (*this)[size() - 1]; }
+    T& back () requires (ac::is_Unique) { return (*this)[size() - 1]; }
     ALWAYS_INLINE
-    T& mut_back () requires (supports_owned) {
+    T& mut_back () requires (ac::supports_owned) {
         make_unique();
         return (*this)[size() - 1];
     }
@@ -844,22 +831,24 @@ struct ArrayInterface {
 
      // The minimum capacity of a shared buffer (enough elements to fill 24 (on
      // 64-bit) or 16 (on 32-bit) bytes).
-    static constexpr usize min_capacity = SharableBuffer<T>::capacity_for_size(1);
-    static constexpr usize max_capacity = SharableBuffer<T>::capacity_for_size(max_size_);
+    static constexpr usize min_capacity =
+        SharableBuffer<T>::capacity_for_size(1);
+    static constexpr usize max_capacity =
+        SharableBuffer<T>::capacity_for_size(max_size_);
 
      // Returns if this string is owned (has a shared or unique buffer).  If
      // this returns true, then there is a SharedBufferHeader behind data().
      // Returns false for empty arrays.
     ALWAYS_INLINE constexpr
     bool owned () const {
-        if constexpr (is_Any) {
+        if constexpr (ac::is_Any) {
             if (impl.sizex2_with_owned & 1) {
                 expect(impl.data);
                 return true;
             }
             else return false;
         }
-        else if constexpr (supports_owned) {
+        else if constexpr (ac::supports_owned) {
             if (impl.data) return true;
             else {
                 expect(!impl.size);
@@ -874,8 +863,8 @@ struct ArrayInterface {
      // particular, it will return true for most empty arrays (capacity == 0).
     ALWAYS_INLINE constexpr
     bool unique () const {
-        if constexpr (is_Unique) return true;
-        else if constexpr (supports_owned) {
+        if constexpr (ac::is_Unique) return true;
+        else if constexpr (ac::supports_owned) {
             if (owned()) {
                 return header().ref_count == 0;
             }
@@ -894,9 +883,9 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     const T* cbegin () const { return impl.data; }
     ALWAYS_INLINE constexpr
-    T* begin () requires (is_Unique) { return impl.data; }
+    T* begin () requires (ac::is_Unique) { return impl.data; }
     ALWAYS_INLINE
-    T* mut_begin () requires (supports_owned) {
+    T* mut_begin () requires (ac::supports_owned) {
         make_unique();
         return impl.data;
     }
@@ -906,9 +895,9 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     const T* cend () const { return impl.data + size(); }
     ALWAYS_INLINE constexpr
-    T* end () requires (is_Unique) { return impl.data + size(); }
+    T* end () requires (ac::is_Unique) { return impl.data + size(); }
     ALWAYS_INLINE
-    T* mut_end () requires (supports_owned) {
+    T* mut_end () requires (ac::supports_owned) {
         make_unique();
         return impl.data + size();
     }
@@ -922,11 +911,11 @@ struct ArrayInterface {
         return std::make_reverse_iterator(impl.data + size());
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> rbegin () requires (is_Unique) {
+    std::reverse_iterator<T*> rbegin () requires (ac::is_Unique) {
         return std::make_reverse_iterator(impl.data + size());
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> mut_rbegin () requires (supports_owned) {
+    std::reverse_iterator<T*> mut_rbegin () requires (ac::supports_owned) {
         make_unique();
         return std::make_reverse_iterator(impl.data + size());
     }
@@ -940,11 +929,11 @@ struct ArrayInterface {
         return std::make_reverse_iterator(impl.data);
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> rend () requires (is_Unique) {
+    std::reverse_iterator<T*> rend () requires (ac::is_Unique) {
         return std::make_reverse_iterator(impl.data);
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> mut_rend () requires (supports_owned) {
+    std::reverse_iterator<T*> mut_rend () requires (ac::supports_owned) {
         make_unique();
         return std::make_reverse_iterator(impl.data);
     }
@@ -960,7 +949,7 @@ struct ArrayInterface {
      // to do that).  Calling with a capacity of 1 has the effect of requesting
      // the minimum owned capacity.
     ALWAYS_INLINE constexpr
-    void reserve (usize cap) requires (supports_owned) {
+    void reserve (usize cap) requires (ac::supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) {
             set_owned_unique(reallocate(impl, cap), size());
@@ -969,7 +958,7 @@ struct ArrayInterface {
 
      // Like reserve(), but if reallocation is needed, it doubles the capacity.
     ALWAYS_INLINE constexpr
-    void reserve_plenty (usize cap) requires (supports_owned) {
+    void reserve_plenty (usize cap) requires (ac::supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) [[unlikely]] {
             set_owned_unique(reallocate_plenty(impl, cap), size());
@@ -980,7 +969,7 @@ struct ArrayInterface {
      // reallocate so that capacity is equal to length (rounded up to allocation
      // granularity).
     ALWAYS_INLINE constexpr
-    void shrink_to_fit () requires (supports_owned) {
+    void shrink_to_fit () requires (ac::supports_owned) {
         if (!unique() ||
             SharableBuffer<T>::capacity_for_size(size()) < capacity()
         ) {
@@ -993,7 +982,7 @@ struct ArrayInterface {
      // assigning it back to self.
      // TODO: Add make_not_shared () for passing between threads
     ALWAYS_INLINE
-    void make_unique () requires (supports_owned) {
+    void make_unique () requires (ac::supports_owned) {
         if (!unique()) {
             set_owned_unique(reallocate(impl, size()), size());
         }
@@ -1008,14 +997,14 @@ struct ArrayInterface {
      // lengths).
     ALWAYS_INLINE
     void resize (usize new_size) requires (
-        supports_owned && std::is_default_constructible_v<T>
+        ac::supports_owned && std::is_default_constructible_v<T>
     ) {
         usize old_size = size();
         if (new_size < old_size) shrink(new_size);
         else if (new_size > old_size) grow(new_size);
     }
     void grow (usize new_size) requires (
-        supports_owned && std::is_default_constructible_v<T>
+        ac::supports_owned && std::is_default_constructible_v<T>
     ) {
         usize old_size = size();
         if (new_size <= old_size) [[unlikely]] return;
@@ -1071,7 +1060,7 @@ struct ArrayInterface {
     constexpr
     Self shrunk (usize new_size) const& {
         if (new_size >= size()) [[unlikely]] return *this;
-        if constexpr (is_Unique) {
+        if constexpr (ac::is_Unique) {
              // Copying then shrinking UniqueArray wastes a lot of work.
             return Self(data(), new_size);
         }
@@ -1088,7 +1077,7 @@ struct ArrayInterface {
 
      // Construct an element on the end of the array, increasing its size by 1.
     template <class... Args>
-    T& emplace_back (Args&&... args) requires (supports_owned) {
+    T& emplace_back (Args&&... args) requires (ac::supports_owned) {
         reserve_plenty(size() + 1);
         T& r = *new ((void*)&impl.data[size()]) T(std::forward<Args>(args)...);
         add_size(1);
@@ -1097,7 +1086,9 @@ struct ArrayInterface {
 
      // emplace_back but skip the capacity and uniqueness check.
     template <class... Args>
-    T& emplace_back_expect_capacity (Args&&... args) requires (supports_owned) {
+    T& emplace_back_expect_capacity (Args&&... args) requires (
+        ac::supports_owned
+    ) {
         expect(size() + 1 <= max_size_);
         expect(unique() && capacity() > size());
         T& r = *new ((void*)&impl.data[size()]) T(std::forward<Args>(args)...);
@@ -1107,20 +1098,20 @@ struct ArrayInterface {
 
      // Copy-construct onto the end of the array, increasing its size by 1.
     ALWAYS_INLINE
-    T& push_back (const T& v) requires (supports_owned) {
+    T& push_back (const T& v) requires (ac::supports_owned) {
         return emplace_back(v);
     }
      // Move-construct onto the end of the array, increasing its size by 1.
     ALWAYS_INLINE
-    T& push_back (T&& v) requires (supports_owned) {
+    T& push_back (T&& v) requires (ac::supports_owned) {
         return emplace_back(move(v));
     }
     ALWAYS_INLINE
-    T& push_back_expect_capacity (const T& v) requires (supports_owned) {
+    T& push_back_expect_capacity (const T& v) requires (ac::supports_owned) {
         return emplace_back_expect_capacity(v);
     }
     ALWAYS_INLINE
-    T& push_back_expect_capacity (T&& v) requires (supports_owned) {
+    T& push_back_expect_capacity (T&& v) requires (ac::supports_owned) {
         return emplace_back_expect_capacity(move(v));
     }
 
@@ -1133,7 +1124,7 @@ struct ArrayInterface {
      // Append multiple elements by copying them.
     template <ArrayIterator Ptr>
     void append (Ptr p, usize s) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         reserve_plenty(size() + s);
         copy_fill(impl.data + size(), move(p), s);
@@ -1141,13 +1132,13 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE
     void append (SelfSlice o) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         append(o.data(), o.size());
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     void append (Begin b, End e) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         if constexpr (requires { usize(e - b); }) {
             return append(move(b), usize(e - b));
@@ -1166,7 +1157,7 @@ struct ArrayInterface {
      // Append uninitialized data
     ALWAYS_INLINE
     void append (Uninitialized u) requires (
-        supports_owned && std::is_trivially_default_constructible_v<T>
+        ac::supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         reserve_plenty(size() + u.size);
         add_size(u.size);
@@ -1175,7 +1166,7 @@ struct ArrayInterface {
      // Append but skip the capacity check
     template <ArrayIterator Ptr>
     void append_expect_capacity (Ptr p, usize s) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         expect(size() + s <= max_size_);
         expect(unique());
@@ -1185,13 +1176,13 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE
     void append_expect_capacity (SelfSlice o) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         append_expect_capacity(o.data(), o.size());
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     void append_expect_capacity (Begin b, End e) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         if constexpr (requires { usize(e - b); }) {
             return append_expect_capacity(move(b), usize(e - b));
@@ -1209,7 +1200,7 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE
     void append_expect_capacity (Uninitialized u) requires (
-        supports_owned && std::is_trivially_default_constructible_v<T>
+        ac::supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         add_size(u.size);
     }
@@ -1219,7 +1210,7 @@ struct ArrayInterface {
      // constructs the element in-place, otherwise constructs it elsewhere then
      // moves it into the slot.
     template <class... Args>
-    T& emplace (usize offset, Args&&... args) requires (supports_owned) {
+    T& emplace (usize offset, Args&&... args) requires (ac::supports_owned) {
         expect(offset < size());
         if constexpr (noexcept(T(std::forward<Args>(args)...))) {
             T* dat = do_split(impl, offset, 1);
@@ -1240,24 +1231,24 @@ struct ArrayInterface {
         }
     }
     template <class... Args> ALWAYS_INLINE
-    T& emplace (const T* pos, Args&&... args) requires (supports_owned) {
+    T& emplace (const T* pos, Args&&... args) requires (ac::supports_owned) {
         return emplace(pos - impl.data, std::forward<Args>(args)...);
     }
      // Single-element insert, equivalent to emplace.
     ALWAYS_INLINE
-    T& insert (usize offset, const T& v) requires (supports_owned) {
+    T& insert (usize offset, const T& v) requires (ac::supports_owned) {
         return emplace(offset, v);
     }
     ALWAYS_INLINE
-    T& insert (const T* pos, const T& v) requires (supports_owned) {
+    T& insert (const T* pos, const T& v) requires (ac::supports_owned) {
         return emplace(pos - impl.data, v);
     }
     ALWAYS_INLINE
-    T& insert (usize offset, T&& v) requires (supports_owned) {
+    T& insert (usize offset, T&& v) requires (ac::supports_owned) {
         return emplace(offset, move(v));
     }
     ALWAYS_INLINE
-    T& insert (const T* pos, T&& v) requires (supports_owned) {
+    T& insert (const T* pos, T&& v) requires (ac::supports_owned) {
         return emplace(pos - impl.data, move(v));
     }
 
@@ -1266,7 +1257,7 @@ struct ArrayInterface {
      // the mostly-strong exception guarantee.
     template <ArrayIterator Ptr>
     void insert (usize offset, Ptr p, usize s) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         expect(offset < size());
         if (s == 0) {
@@ -1283,13 +1274,13 @@ struct ArrayInterface {
     }
     template <ArrayIterator Ptr> ALWAYS_INLINE
     void insert (const T* pos, Ptr p, usize s) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         insert(pos - impl.data, move(p), s);
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
     void insert (usize offset, Begin b, End e) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         usize s;
         if constexpr (requires { usize(e - b); }) {
@@ -1305,13 +1296,13 @@ struct ArrayInterface {
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End> ALWAYS_INLINE
     void insert (const T* pos, Begin b, End e) requires (
-        supports_owned && std::is_copy_constructible_v<T>
+        ac::supports_owned && std::is_copy_constructible_v<T>
     ) {
         insert(pos - impl.data, move(b), move(e));
     }
     ALWAYS_INLINE
     void insert (usize offset, Uninitialized u) requires (
-        supports_owned && std::is_trivially_default_constructible_v<T>
+        ac::supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         expect(offset < size());
         if (u.size == 0) {
@@ -1324,7 +1315,7 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE
     void insert (const T* pos, Uninitialized u) requires (
-        supports_owned && std::is_trivially_default_constructible_v<T>
+        ac::supports_owned && std::is_trivially_default_constructible_v<T>
     ) {
         insert(pos - impl.data, u);
     }
@@ -1333,7 +1324,7 @@ struct ArrayInterface {
      // removed ones, they will be move-assigned onto the erased elements,
      // otherwise the erased elements will be destroyed.
     ALWAYS_INLINE
-    void erase (usize offset, usize count = 1) requires (supports_owned) {
+    void erase (usize offset, usize count = 1) requires (ac::supports_owned) {
         if (count == 0) {
             make_unique();
         }
@@ -1342,7 +1333,7 @@ struct ArrayInterface {
         }
     }
     ALWAYS_INLINE
-    void erase (const T* pos, usize count = 1) requires (supports_owned) {
+    void erase (const T* pos, usize count = 1) requires (ac::supports_owned) {
         if (count == 0) {
             make_unique();
         }
@@ -1351,7 +1342,7 @@ struct ArrayInterface {
         }
     }
     ALWAYS_INLINE
-    void erase (const T* b, const T* e) requires (supports_owned) {
+    void erase (const T* b, const T* e) requires (ac::supports_owned) {
         expect(e >= b);
         if (e - b == 0) {
             make_unique();
@@ -1366,15 +1357,16 @@ struct ArrayInterface {
   private:
     ALWAYS_INLINE
     SharedBufferHeader& header () const {
-        expect(supports_owned);
+         // TODO static_assert
+        expect(ac::supports_owned);
         return *SharableBuffer<T>::header(impl.data);
     }
 
     ALWAYS_INLINE constexpr
     void set_owned (T* d, usize s) {
-        static_assert(supports_owned);
+        static_assert(ac::supports_owned);
         expect(s <= max_size_);
-        if constexpr (is_Any) {
+        if constexpr (ac::is_Any) {
              // If data is null, clear the owned bit so we can get away with
              // only doing one branch in owned() instead of two.
             impl.sizex2_with_owned = s << 1 | !!d;
@@ -1389,8 +1381,8 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
-        static_assert(supports_static || is_Slice);
-        if constexpr (is_Any) {
+        static_assert(ac::supports_static || ac::is_Slice);
+        if constexpr (ac::is_Any) {
             impl.sizex2_with_owned = s << 1;
             impl.data = const_cast<T*>(d);
         }
@@ -1452,7 +1444,7 @@ struct ArrayInterface {
 
     ALWAYS_INLINE constexpr
     void set_size (usize s) {
-        if constexpr (is_Any) {
+        if constexpr (ac::is_Any) {
             impl.sizex2_with_owned = s << 1 | (impl.sizex2_with_owned & 1);
         }
         else impl.size = s;
@@ -1460,7 +1452,7 @@ struct ArrayInterface {
      // Just an optimization for AnyArray
     ALWAYS_INLINE constexpr
     void add_size (usize change) {
-        if constexpr (is_Any) {
+        if constexpr (ac::is_Any) {
             impl.sizex2_with_owned += change << 1;
         }
         else impl.size += change;
@@ -1468,7 +1460,7 @@ struct ArrayInterface {
 
     ALWAYS_INLINE constexpr
     void add_ref () {
-        if constexpr (supports_share) {
+        if constexpr (ac::supports_share) {
             if (owned()) {
                 ++header().ref_count;
             }
@@ -1478,10 +1470,10 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void remove_ref () {
         if (owned()) {
-            if constexpr (is_Unique) {
+            if constexpr (ac::is_Unique) {
                 expect(header().ref_count == 0);
             }
-            else if constexpr (supports_owned) {
+            else if constexpr (ac::supports_owned) {
                 if (header().ref_count) {
                     --header().ref_count;
                     return;
@@ -1491,7 +1483,7 @@ struct ArrayInterface {
              // destructors.  We don't want to inline an entire loop of
              // destructor calls in every place we remove a reference.
             if constexpr (
-                supports_share && !std::is_trivially_destructible_v<T>
+                ac::supports_share && !std::is_trivially_destructible_v<T>
             ) destroy_noinline(impl);
             else destroy(impl);
         }
@@ -1572,7 +1564,7 @@ struct ArrayInterface {
      // Used by reserve and related functions
     [[gnu::malloc, gnu::returns_nonnull]] static
     T* reallocate (Impl impl, usize cap)
-        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
         usize s = self.size();
@@ -1627,7 +1619,7 @@ struct ArrayInterface {
 
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
     T* reallocate_plenty (Impl impl, usize cap)
-        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         if (cap < 4) cap = 4;
         else if (cap > max_capacity >> 1) [[unlikely]] {
@@ -1642,7 +1634,7 @@ struct ArrayInterface {
      // The caller must placement-new elements in the gap.
     [[gnu::returns_nonnull]] NOINLINE static
     T* do_split (Impl impl, usize split, usize shift)
-        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
         expect(split <= self.size());
@@ -1721,7 +1713,7 @@ struct ArrayInterface {
 
     [[gnu::returns_nonnull]] NOINLINE static
     T* do_erase (Impl impl, usize offset, usize count)
-        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
         usize old_size = self.size();
@@ -1775,7 +1767,7 @@ struct ArrayInterface {
 
     [[gnu::returns_nonnull]] NOINLINE static
     T* do_c_str (Impl impl)
-        noexcept(is_Unique || std::is_nothrow_copy_constructible_v<T>)
+        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
         self.reserve(self.size() + 1);
@@ -1788,7 +1780,7 @@ struct ArrayInterface {
 
  // Make this template as generic as possible but nail one side down to
  // ArrayInterface.
-template <ArrayClass ac, class T, class B>
+template <class ac, class T, class B>
 constexpr bool operator== (
     const ArrayInterface<ac, T>& a, const B& b
 ) requires (
@@ -1817,11 +1809,11 @@ constexpr bool operator== (
     }
 }
  // Allow comparing to raw char arrays for string types only.
-template <ArrayClass ac, class T, usize len>
+template <class ac, class T, usize len>
 ALWAYS_INLINE constexpr
 bool operator== (
     const ArrayInterface<ac, T>& a, const T(& b )[len]
-) requires (ArrayInterface<ac, T>::is_String) {
+) requires (ac::is_String) {
     expect(!b[len-1]);
     usize as = a.size();
     usize bs = len - 1;
@@ -1843,7 +1835,7 @@ bool operator== (
 
  // I can't be bothered to learn what <=> is supposed to return.  They should
  // have just made it int.
-template <ArrayClass ac, class T, class B>
+template <class ac, class T, class B>
 constexpr auto operator<=> (
     const ArrayInterface<ac, T>& a, const B& b
 ) requires (
@@ -1862,11 +1854,11 @@ constexpr auto operator<=> (
     }
     return as <=> bs;
 }
-template <ArrayClass ac, class T, usize len>
+template <class ac, class T, usize len>
 ALWAYS_INLINE constexpr
 auto operator<=> (
     const ArrayInterface<ac, T>& a, const T(& b )[len]
-) requires (ArrayInterface<ac, T>::is_String) {
+) requires (ac::is_String) {
     expect(!b[len-1]);
     usize as = a.size();
     usize bs = len - 1;
@@ -1883,7 +1875,7 @@ auto operator<=> (
 } // uni
 
 namespace std {
-template <uni::ArrayClass ac, class T>
+template <class ac, class T>
 struct hash<uni::ArrayInterface<ac, T>> {
     uni::usize operator() (const uni::ArrayInterface<ac, T>& a) const {
          // Just do an x33 hash (djb2) on whatever std::hash returns for the
