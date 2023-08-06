@@ -3,6 +3,7 @@
 #include <cstring>
 #include <charconv>
 
+#include "../../uni/buffers.h"
 #include "../../uni/io.h"
 #include "../type.h"
 #include "char-cases-private.h"
@@ -11,40 +12,28 @@ namespace ayu {
 namespace in {
 
 struct Printer {
-    PrintOptions opts;
-    char* start;
     char* end;
+    PrintOptions opts;
+    UniqueString output;
 
     Printer (PrintOptions f) :
         opts(f),
-        start((char*)malloc(256)),
-        end(start + 256)
-    { }
+        output(Capacity(256))
+    { end = output.data() + 256; }
 
-    ~Printer () { free(start); }
+    ~Printer () { }
 
     [[gnu::noinline]]
-    char* extend (char* p, usize more) {
-        usize new_size = end - start;
-        while (new_size < p - start + more) {
-            new_size *= 2;
-        }
-        char* old_start = start;
-        start = (char*)realloc(start, new_size);
-        end = start + new_size;
-        return p - old_start + start;
-    }
-    [[gnu::noinline]]
-    char* extend_1 (char* p) {
-        usize new_size = (end - start) * 2;
-        char* old_start = start;
-        start = (char*)realloc(start, new_size);
-        end = start + new_size;
-        return p - old_start + start;
+    char* extend (char* p, usize more = 1) {
+        char* old_start = output.data();
+        output.unsafe_set_size(p - old_start);
+        output.reserve_plenty(p - old_start + more);
+        end = output.data() + output.capacity();
+        return p - old_start + output.data();
     }
 
     char* pchar (char* p, char c) {
-        if (p == end) [[unlikely]] p = extend_1(p);
+        if (p == end) [[unlikely]] p = extend(p);
         *p = c;
         return p+1;
     }
@@ -180,7 +169,7 @@ struct Printer {
         }
     }
 
-    char* print_subtree (char* p, TreeRef t, uint ind) {
+    char* print_tree (char* p, TreeRef t, uint ind) {
         switch (t->rep) {
             case REP_NULL: return pstr(p, "null");
             case REP_BOOL: {
@@ -255,7 +244,7 @@ struct Printer {
                             p = pchar(p, opts & JSON ? ',' : ' ');
                         }
                     }
-                    p = print_subtree(p, elem, ind + expand);
+                    p = print_tree(p, elem, ind + expand);
                     if (show_indices) {
                         p = pstr(p, "  -- ");
                         p = print_uint64(p, &elem - &a.front(), false);
@@ -296,7 +285,7 @@ struct Printer {
                     p = print_string(p, attr.first, false);
                     p = pchar(p, ':');
                     if (expand) p = pchar(p, ' ');
-                    p = print_subtree(p, attr.second, ind + expand);
+                    p = print_tree(p, attr.second, ind + expand);
                 }
                 if (expand) p = print_newline(p, ind);
                 return pchar(p, '}');
@@ -316,10 +305,13 @@ struct Printer {
             default: never();
         }
     }
-    char* print_tree (char* p, TreeRef t) {
-        p = print_subtree(p, t, 0);
+
+    UniqueString print (TreeRef t) {
+        char* p = print_tree(output.data(), t, 0);
         if (opts & PRETTY) p = pchar(p, '\n');
-        return p;
+        output.unsafe_set_size(p - output.data());
+        if (output.size() < 128) output.shrink_to_fit();
+        return move(output);
     }
 };
 
@@ -337,16 +329,14 @@ UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & PRETTY)) opts |= COMPACT;
     Printer printer (opts);
-    char* p = printer.print_tree(printer.start, t);
-    return UniqueString(printer.start, p);
+    return printer.print(t);
 }
 
 void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & COMPACT)) opts |= PRETTY;
-    Printer printer (opts);
-    char* p = printer.print_tree(printer.start, t);
-    string_to_file(Str(printer.start, p), move(filename));
+    auto output = Printer(opts).print(t);
+    string_to_file(output, move(filename));
 }
 
 } using namespace ayu;

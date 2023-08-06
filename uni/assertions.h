@@ -35,7 +35,7 @@ void never () {
     *(int*)null = 0;
 #endif
 #else
-    *(int*)null = 0;
+    abort_requirement_failed();
 #endif
 }
 
