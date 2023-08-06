@@ -68,7 +68,7 @@ static void verify_tree_for_scheme (
     const ResourceScheme* scheme,
     const Tree& tree
 ) {
-    if (tree.form == NULLFORM) {
+    if (tree.form == Form::Null) {
         raise_ResourceValueEmpty("load", res);
     }
     auto a = TreeArraySlice(tree);

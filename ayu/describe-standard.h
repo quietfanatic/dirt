@@ -299,7 +299,7 @@ AYU_DESCRIBE_TEMPLATE(
     }),
      // Deserialize as either a string or an array
     desc::from_tree([](char(& v )[n], const ayu::Tree& tree){
-        if (tree.form == ayu::STRING) {
+        if (tree.form == ayu::Form::String) {
             auto s = uni::Str(tree);
             if (s.size() != n) {
                 ayu::raise_LengthRejected(
@@ -310,7 +310,7 @@ AYU_DESCRIBE_TEMPLATE(
                 v[i] = s[i];
             }
         }
-        else if (tree.form == ayu::ARRAY) {
+        else if (tree.form == ayu::Form::Array) {
             auto a = ayu::TreeArraySlice(tree);
             if (a.size() != n) {
                 ayu::raise_LengthRejected(

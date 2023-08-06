@@ -80,8 +80,8 @@ constexpr ErrorCode e_FromTreeFormRejected = "ayu::e_FromTreeFormRejected";
  // value was not found that matched the given tree.
 constexpr ErrorCode e_FromTreeValueNotFound = "ayu::e_FromTreeValueNotFound";
 
- // You may want to use this in your from_tree descriptor.
+ // You can use this in your from_tree descriptor.
 [[noreturn]]
-void raise_FromTreeFormRejected (Type item_type, TreeForm got_form);
+void raise_FromTreeFormRejected (Type item_type, Form got_form);
 
 } // ayu

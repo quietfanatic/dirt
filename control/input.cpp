@@ -193,7 +193,7 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
     auto a = ayu::TreeArraySlice(tree);
     input = {};
     for (auto& e : a) {
-        if (e.form == ayu::NUMBER) {
+        if (e.form == ayu::Form::Number) {
             if (input.type != NONE) {
                 ayu::raise(ayu::e_General, "Too many descriptors for Input");
             }

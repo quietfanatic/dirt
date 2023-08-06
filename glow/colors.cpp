@@ -11,16 +11,21 @@ AYU_DESCRIBE(glow::RGBA8,
         return r;
     }),
     from_tree([](RGBA8& v, const ayu::Tree& t){
-        if (t.form == ayu::NUMBER) {
-            v = RGBA8(int32(t));
-        }
-        else if (t.form == ayu::ARRAY) {
-            auto a = ayu::TreeArraySlice(t);
-            if (a.size() != 4) {
-                ayu::raise_LengthRejected(ayu::Type::CppType<RGBA8>(), 4, 4, a.size());
+        switch (t.form) {
+            case ayu::Form::Number: v = RGBA8(int32(t)); break;
+            case ayu::Form::Array: {
+                auto a = ayu::TreeArraySlice(t);
+                if (a.size() != 4) {
+                    ayu::raise_LengthRejected(
+                        ayu::Type::CppType<RGBA8>(), 4, 4, a.size()
+                    );
+                }
+                v = RGBA8(uint8(a[0]), uint8(a[1]), uint8(a[2]), uint8(a[3]));
+                break;
             }
-            v = RGBA8(uint8(a[0]), uint8(a[1]), uint8(a[2]), uint8(a[3]));
+            default: ayu::raise_FromTreeFormRejected(
+                ayu::Type::CppType<RGBA8>(), t.form
+            );
         }
-        else ayu::raise_FromTreeFormRejected(ayu::Type::CppType<RGBA8>(), t.form);
     })
 )

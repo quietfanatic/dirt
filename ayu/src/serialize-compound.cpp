@@ -50,9 +50,9 @@ void in::ser_collect_keys (
                  // We might be able to optimize this more, but it's not that
                  // important.
                 auto keys_tree = item_to_tree(Pointer(keys_type, &v));
-                if (keys_tree.form != ARRAY) goto keys_type_invalid;
+                if (keys_tree.form != Form::Array) goto keys_type_invalid;
                 for (const Tree& key : TreeArraySlice(keys_tree)) {
-                    if (key.form != STRING) goto keys_type_invalid;
+                    if (key.form != Form::String) goto keys_type_invalid;
                     ser_collect_key(keys, AnyString(move(key)));
                 }
                 return;

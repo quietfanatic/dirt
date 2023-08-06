@@ -86,8 +86,8 @@ static Tree Reference_to_tree (const Reference& v) {
 }
 static void Reference_from_tree (Reference& v, const Tree& tree) {
     switch (tree.form) {
-        case NULLFORM: break;
-        case STRING: if (!Str(tree)) raise(e_General,
+        case Form::Null: break;
+        case Form::String: if (!Str(tree)) raise(e_General,
             "Cannot make Reference from empty IRI.  To make the null Reference, use null."
         ); break;
         default: raise_FromTreeFormRejected(Type::CppType<Reference>(), tree.form);
@@ -95,7 +95,7 @@ static void Reference_from_tree (Reference& v, const Tree& tree) {
     v = Reference();
 }
 static void Reference_swizzle (Reference& v, const Tree& tree) {
-    if (tree.form == NULLFORM) return;
+    if (tree.form == Form::Null) return;
     auto iri = IRI(Str(tree), current_base_iri());
     auto loc = location_from_iri(iri);
     v = reference_from_location(loc);

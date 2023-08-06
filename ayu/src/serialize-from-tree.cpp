@@ -44,7 +44,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
         goto done;
     }
      // Now the behavior depends on what kind of tree we've been given
-    if (tree->form == OBJECT) {
+    if (tree->form == Form::Object) {
         if (trav.desc->accepts_object()) {
             expect(tree->rep == REP_OBJECT);
             auto object = TreeObjectSlice(*tree);
@@ -63,7 +63,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
             goto done;
         }
     }
-    else if (tree->form == ARRAY) {
+    else if (tree->form == Form::Array) {
         if (trav.desc->accepts_array()) {
             expect(tree->rep == REP_ARRAY);
             auto array = TreeArraySlice(*tree);
@@ -78,7 +78,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
             goto done;
         }
     }
-    else if (tree->form == ERROR) {
+    else if (tree->form == Form::Error) {
          // Dunno how we got this far but whatever
         std::rethrow_exception(std::exception_ptr(*tree));
     }
@@ -105,9 +105,9 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
      // If we got here, we failed to find any method to from_tree this item.
      // Go through maybe a little too much effort to figure out what went wrong.
     {
-        bool object_rejected = tree->form == OBJECT &&
+        bool object_rejected = tree->form == Form::Object &&
             (trav.desc->values() || trav.desc->accepts_array());
-        bool array_rejected = tree->form == ARRAY &&
+        bool array_rejected = tree->form == Form::Array &&
             (trav.desc->values() || trav.desc->accepts_object());
         bool other_rejected =
             trav.desc->accepts_array() || trav.desc->accepts_object();
@@ -194,7 +194,7 @@ void item_from_tree (
     ItemFromTreeFlags flags
 ) {
     PushBaseLocation pbl(*loc ? *loc : Location(item));
-    if (tree->form == UNDEFINED) {
+    if (tree->form == Form::Undefined) {
         raise(e_FromTreeFormRejected, "Undefined tree given to item_from_tree");
     }
     if (flags & DELAY_SWIZZLE && IFTContext::current) {
@@ -216,7 +216,7 @@ void item_from_tree (
 }
 
 [[gnu::cold]]
-void raise_FromTreeFormRejected (Type t, TreeForm f) {
+void raise_FromTreeFormRejected (Type t, Form f) {
     raise(e_FromTreeFormRejected, cat(
         "Item of type ", t.name(),
         " does not support from_tree with a tree of form ",

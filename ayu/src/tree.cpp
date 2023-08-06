@@ -40,8 +40,9 @@ void delete_Tree_data (TreeRef t) noexcept {
     }
 }
 
-void raise_TreeWrongForm (TreeRef t, TreeForm form) {
+void raise_TreeWrongForm (TreeRef t, Form form) {
     if (t->rep == REP_ERROR) std::rethrow_exception(std::exception_ptr(*t));
+     // TODO: require
     else if (t->form == form) never();
     else raise(e_TreeWrongForm, cat(
         "Tried to use tree of form ", item_to_string(&t->form),
@@ -113,16 +114,16 @@ bool operator == (TreeRef a, TreeRef b) noexcept {
 
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::TreeForm,
+AYU_DESCRIBE(ayu::Form,
     values(
-        value("undefined", UNDEFINED),
-        value("null", NULLFORM),
-        value("bool", BOOL),
-        value("number", NUMBER),
-        value("string", STRING),
-        value("array", ARRAY),
-        value("object", OBJECT),
-        value("error", ERROR)
+        value("undefined", Form::Undefined),
+        value("null", Form::Null),
+        value("bool", Form::Bool),
+        value("number", Form::Number),
+        value("string", Form::String),
+        value("array", Form::Array),
+        value("object", Form::Object),
+        value("error", Form::Error)
     )
 )
 

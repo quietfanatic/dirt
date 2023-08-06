@@ -12,33 +12,33 @@
 namespace ayu {
 
  // For unambiguity, types of trees are called forms.
-enum TreeForm : uint8 {
-    UNDEFINED = 0,
-    NULLFORM,
-    BOOL,
-    NUMBER,
-    STRING,
-    ARRAY,
-    OBJECT,
+enum class Form : uint8 {
+    Undefined = 0,
+    Null,
+    Bool,
+    Number,
+    String,
+    Array,
+    Object,
      // A form that carries a stored exception, used for error reporting.
-     // If you try to do anything with it, it will probably throw its contents.
-    ERROR
+     // if you try to do anything with it, it will probably throw its contents.
+    Error
 };
 
  // Options that control how a Tree is printed.  These do not have any effect on
  // the semantics of the Tree, and they do not affect subtrees.
 using TreeFlags = uint16;
 enum : TreeFlags {
-     // For NUMBER: Print the number as hexadecimal.
+     // For Number: Print the number as hexadecimal.
     PREFER_HEX = 1 << 0,
-     // For ARRAY or OBJECT: When pretty-printing, print this item compactly,
+     // For Array or Object: When pretty-printing, print this item compactly,
      // all on one line (unless one of its children is expanded).
      // For STRING: When printing in non-JSON mode, encode newlines and tabs as
      // \n and \t.
     PREFER_COMPACT = 1 << 1,
-     // For ARRAY or OBJECT: When pretty-printing, print fully expanded with one
+     // For Array or Object: When pretty-printing, print fully expanded with one
      // element/attribute per line.
-     // For STRING: When printing in non-JSON mode, print newlines and tabs
+     // For String: When printing in non-JSON mode, print newlines and tabs
      // as-is without escaping them.
      // If neither PREFER_EXPANDED nor PREFER_COMPACT is set, the printer will
      // use some heuristics to decide which way to print it.  If both are set,
@@ -49,7 +49,7 @@ enum : TreeFlags {
 };
 
 struct Tree {
-    const TreeForm form;
+    const Form form;
     const int8 rep;
      // Only the flags can be modified after construction.
     TreeFlags flags;
@@ -65,7 +65,7 @@ struct Tree {
         const std::exception_ptr* as_error_ptr;
     } data;
 
-    constexpr bool has_value () const { return form != UNDEFINED; }
+    constexpr bool has_value () const { return form != Form::Undefined; }
 
      // Default construction.  The only valid operation on an UNDEFINED tree is
      // has_value().
