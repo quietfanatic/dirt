@@ -82,3 +82,27 @@ using std::move;
     #endif
 #endif
 
+#ifndef DECLARE_ENUM_BITWISE_OPERATORS
+#define DECLARE_ENUM_BITWISE_OPERATORS(T) \
+ALWAYS_INLINE constexpr T operator | (T a, T b) { \
+    return T(std::underlying_type_t<T>(a) | std::underlying_type_t<T>(b)); \
+} \
+ALWAYS_INLINE constexpr T& operator |= (T& a, T b) { \
+    return a = T(std::underlying_type_t<T>(a) | std::underlying_type_t<T>(b)); \
+} \
+ALWAYS_INLINE constexpr T operator & (T a, T b) { \
+    return T(std::underlying_type_t<T>(a) & std::underlying_type_t<T>(b)); \
+} \
+ALWAYS_INLINE constexpr T& operator &= (T& a, T b) { \
+    return a = T(std::underlying_type_t<T>(a) & std::underlying_type_t<T>(b)); \
+} \
+ALWAYS_INLINE constexpr T operator ^ (T a, T b) { \
+    return T(std::underlying_type_t<T>(a) ^ std::underlying_type_t<T>(b)); \
+} \
+ALWAYS_INLINE constexpr T& operator ^= (T& a, T b) { \
+    return a = T(std::underlying_type_t<T>(a) ^ std::underlying_type_t<T>(b)); \
+} \
+ALWAYS_INLINE constexpr T operator ~ (T a) { \
+    return T(~std::underlying_type_t<T>(a)); \
+}
+#endif

@@ -29,7 +29,7 @@ void raise_TreeCantRepresent (StaticString, TreeRef);
 } // in
 
 constexpr Tree::Tree () :
-    form(Form::Undefined), rep(0), flags(0), length(0), data{.as_int64 = 0}
+    form(Form::Undefined), rep(0), flags(), length(0), data{.as_int64 = 0}
 { }
 constexpr Tree::Tree (Null, TreeFlags f) :
     form(Form::Null), rep(in::Rep::Null), flags(f), length(0), data{.as_int64 = 0}

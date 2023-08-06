@@ -6,9 +6,7 @@ using namespace glow;
 
 AYU_DESCRIBE(glow::RGBA8,
     to_tree([](const RGBA8& v){
-        auto r = ayu::Tree(uint32(v));
-        r.flags |= ayu::PREFER_HEX;
-        return r;
+        return ayu::Tree(uint32(v), ayu::TreeFlags::PreferHex);
     }),
     from_tree([](RGBA8& v, const ayu::Tree& t){
         switch (t.form) {

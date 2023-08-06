@@ -27,15 +27,15 @@ enum class Form : uint8 {
 
  // Options that control how a Tree is printed.  These do not have any effect on
  // the semantics of the Tree, and they do not affect subtrees.
-using TreeFlags = uint16;
-enum : TreeFlags {
+namespace _ {
+enum TreeFlags : uint16 {
      // For Number: Print the number as hexadecimal.
-    PREFER_HEX = 1 << 0,
+    PreferHex = 0x1,
      // For Array or Object: When pretty-printing, print this item compactly,
      // all on one line (unless one of its children is expanded).
      // For STRING: When printing in non-JSON mode, encode newlines and tabs as
      // \n and \t.
-    PREFER_COMPACT = 1 << 1,
+    PreferCompact = 0x2,
      // For Array or Object: When pretty-printing, print fully expanded with one
      // element/attribute per line.
      // For String: When printing in non-JSON mode, print newlines and tabs
@@ -43,10 +43,12 @@ enum : TreeFlags {
      // If neither PREFER_EXPANDED nor PREFER_COMPACT is set, the printer will
      // use some heuristics to decide which way to print it.  If both are set,
      // which one takes priority is unspecified.
-    PREFER_EXPANDED = 1 << 2,
+    PreferExpanded = 0x4,
 
-    VALID_TREE_FLAG_BITS = PREFER_HEX | PREFER_COMPACT | PREFER_EXPANDED
+    ValidBits = PreferHex | PreferCompact | PreferExpanded
 };
+DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
+} using _::TreeFlags;
 
 struct Tree {
     const Form form;
@@ -89,10 +91,10 @@ struct Tree {
     }
 
     ///// CONVERSION TO TREE
-    explicit constexpr Tree (Null, TreeFlags = 0);
+    explicit constexpr Tree (Null, TreeFlags = {});
      // Disable implicit coercion of the argument to bool
     template <class T> requires (std::is_same_v<T, bool>)
-    explicit constexpr Tree (T, TreeFlags = 0);
+    explicit constexpr Tree (T, TreeFlags = {});
      // Templatize this instead of providing an overload for each int type, to
      // shorten error messages about "no candidate found".
     template <class T> requires (
@@ -100,20 +102,20 @@ struct Tree {
         std::is_integral_v<T> &&
         !std::is_same_v<T, bool> && !std::is_same_v<T, char>
     )
-    explicit constexpr Tree (T, TreeFlags = 0);
+    explicit constexpr Tree (T, TreeFlags = {});
      // May as well do this too
     template <class T> requires (std::is_floating_point_v<T>)
-    explicit constexpr Tree (T, TreeFlags = 0);
+    explicit constexpr Tree (T, TreeFlags = {});
 
      // plain (not signed or unsigned) chars are represented as strings
      // This is not optimal but who serializes individual 8-bit code units
-    explicit Tree (char v, TreeFlags f = 0) : Tree(SharedString(1,v), f) { }
-    explicit constexpr Tree (AnyString, TreeFlags = 0);
-    explicit Tree (Str16 v, TreeFlags f = 0) : Tree(from_utf16(v), f) { }
+    explicit Tree (char v, TreeFlags f = {}) : Tree(SharedString(1,v), f) { }
+    explicit constexpr Tree (AnyString, TreeFlags = {});
+    explicit Tree (Str16 v, TreeFlags f = {}) : Tree(from_utf16(v), f) { }
 
-    explicit constexpr Tree (TreeArray, TreeFlags = 0);
-    explicit constexpr Tree (TreeObject, TreeFlags = 0);
-    explicit Tree (std::exception_ptr, TreeFlags = 0);
+    explicit constexpr Tree (TreeArray, TreeFlags = {});
+    explicit constexpr Tree (TreeObject, TreeFlags = {});
+    explicit Tree (std::exception_ptr, TreeFlags = {});
 
     ///// CONVERSION FROM TREE
      // These throw if the tree is not the right form or if

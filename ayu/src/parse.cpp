@@ -277,7 +277,7 @@ struct Parser {
                 : std::chars_format::general
         );
         if (num_end == word_end) {
-            TreeFlags f = hex ? PREFER_HEX : 0;
+            TreeFlags f = hex ? TreeFlags::PreferHex : TreeFlags();
             new (&r) Tree(minus ? -floating : floating, f);
             return num_end;
         }
@@ -294,7 +294,7 @@ struct Parser {
         );
         if (ec != std::errc()) error_invalid_number(in, num_end);
         if (num_end == word_end) {
-            TreeFlags f = hex ? PREFER_HEX : 0;
+            TreeFlags f = hex ? TreeFlags::PreferHex : TreeFlags();
             if (minus) {
                 if (integer == 0) new (&r) Tree(-0.0, f);
                 else new (&r) Tree(-integer, f);

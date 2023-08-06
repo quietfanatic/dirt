@@ -177,7 +177,7 @@ struct Printer {
                 return pstr(p, s);
             }
             case Rep::Int64: {
-                bool hex = !(opts & JSON) && t->flags & PREFER_HEX;
+                bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
                 return print_int64(p, t->data.as_int64, hex);
             }
             case Rep::Double: {
@@ -198,7 +198,7 @@ struct Printer {
                     return pchar(p, '0');
                 }
                 else {
-                    bool hex = !(opts & JSON) && t->flags & PREFER_HEX;
+                    bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
                     return print_double(p, v, hex);
                 }
             }
@@ -209,8 +209,8 @@ struct Printer {
                  // characters than the compact form, so expand it when not
                  // pretty-printing.
                 bool expand = !(opts & PRETTY) ? true
-                            : t->flags & PREFER_EXPANDED ? true
-                            : t->flags & PREFER_COMPACT ? false
+                            : t->flags & TreeFlags::PreferExpanded ? true
+                            : t->flags & TreeFlags::PreferCompact ? false
                             : t->length > 50;
                 return print_string(p, Str(*t), expand);
             }
@@ -222,8 +222,8 @@ struct Printer {
 
                  // Print "small" arrays compactly.
                 bool expand = !(opts & PRETTY) ? false
-                            : t->flags & PREFER_EXPANDED ? true
-                            : t->flags & PREFER_COMPACT ? false
+                            : t->flags & TreeFlags::PreferExpanded ? true
+                            : t->flags & TreeFlags::PreferCompact ? false
                             : a.size() <= 2 ? false
                             : approx_width(t) > 50;
 
@@ -261,8 +261,8 @@ struct Printer {
 
                  // TODO: Decide what to do if both PREFER flags are set
                 bool expand = !(opts & PRETTY) ? false
-                            : t->flags & PREFER_EXPANDED ? true
-                            : t->flags & PREFER_COMPACT ? false
+                            : t->flags & TreeFlags::PreferExpanded ? true
+                            : t->flags & TreeFlags::PreferCompact ? false
                             : o.size() <= 1 ? false
                             : approx_width(t) > 50;
 

@@ -118,10 +118,10 @@ struct Accessor {
     { }
 
     TreeFlags tree_flags () const {
-        TreeFlags r = 0;
-        if (accessor_flags & ACR_PREFER_HEX) r |= PREFER_HEX;
-        if (accessor_flags & ACR_PREFER_COMPACT) r |= PREFER_COMPACT;
-        if (accessor_flags & ACR_PREFER_EXPANDED) r |= PREFER_EXPANDED;
+        TreeFlags r = {};
+        if (accessor_flags & ACR_PREFER_HEX) r |= TreeFlags::PreferHex;
+        if (accessor_flags & ACR_PREFER_COMPACT) r |= TreeFlags::PreferCompact;
+        if (accessor_flags & ACR_PREFER_EXPANDED) r |= TreeFlags::PreferExpanded;
         return r;
     }
 
