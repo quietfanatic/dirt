@@ -46,7 +46,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
      // Now the behavior depends on what kind of tree we've been given
     if (tree->form == Form::Object) {
         if (trav.desc->accepts_object()) {
-            expect(tree->rep == REP_OBJECT);
+            expect(tree->rep == Rep::Object);
             auto object = TreeObjectSlice(*tree);
             auto keys = UniqueArray<AnyString>(Capacity(object.size()));
             for (auto& [key, value] : object) {
@@ -65,7 +65,7 @@ void ser_from_tree (const Traversal& trav, TreeRef tree) {
     }
     else if (tree->form == Form::Array) {
         if (trav.desc->accepts_array()) {
-            expect(tree->rep == REP_ARRAY);
+            expect(tree->rep == Rep::Array);
             auto array = TreeArraySlice(*tree);
             ser_set_length(trav, array.size());
             for (usize i = 0; i < array.size(); i++) {

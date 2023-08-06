@@ -4,20 +4,19 @@
 namespace ayu {
 namespace in {
 
-using TreeRep = int8;
-enum : TreeRep {
-    REP_UNDEFINED = 0,
-    REP_NULL = 1,
-    REP_BOOL = 2,
-    REP_INT64 = 3,
-    REP_DOUBLE = 4,
-    REP_STATICSTRING = 5,
+namespace Rep { enum : int8 {
+    Undefined = 0,
+    Null = 1,
+    Bool = 2,
+    Int64 = 3,
+    Double = 4,
+    StaticString = 5,
      // Types requiring reference counting
-    REP_SHAREDSTRING = -1,
-    REP_ARRAY = -2,
-    REP_OBJECT = -3,
-    REP_ERROR = -4,
-};
+    SharedString = -1,
+    Array = -2,
+    Object = -3,
+    Error = -4,
+}; }
 
 NOINLINE
 void delete_Tree_data (TreeRef) noexcept;
@@ -33,47 +32,47 @@ constexpr Tree::Tree () :
     form(Form::Undefined), rep(0), flags(0), length(0), data{.as_int64 = 0}
 { }
 constexpr Tree::Tree (Null, TreeFlags f) :
-    form(Form::Null), rep(in::REP_NULL), flags(f), length(0), data{.as_int64 = 0}
+    form(Form::Null), rep(in::Rep::Null), flags(f), length(0), data{.as_int64 = 0}
 { }
  // Use .as_int64 to write all of data
 template <class T> requires (std::is_same_v<T, bool>)
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Bool), rep(in::REP_BOOL), flags(f), length(0), data{.as_int64 = v}
+    form(Form::Bool), rep(in::Rep::Bool), flags(f), length(0), data{.as_int64 = v}
 { }
 template <class T> requires (
     std::is_integral_v<T> &&
     !std::is_same_v<T, bool> && !std::is_same_v<T, char>
 )
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Number), rep(in::REP_INT64), flags(f), length(0), data{.as_int64 = int64(v)}
+    form(Form::Number), rep(in::Rep::Int64), flags(f), length(0), data{.as_int64 = int64(v)}
 { }
 template <class T> requires (std::is_floating_point_v<T>)
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Number), rep(in::REP_DOUBLE), flags(f), length(0), data{.as_double = v}
+    form(Form::Number), rep(in::Rep::Double), flags(f), length(0), data{.as_double = v}
 { }
 constexpr Tree::Tree (AnyString v, TreeFlags f) :
-    form(Form::String), rep(v.owned() ? in::REP_SHAREDSTRING : in::REP_STATICSTRING),
+    form(Form::String), rep(v.owned() ? in::Rep::SharedString : in::Rep::StaticString),
     flags(f), length(v.size()), data{.as_char_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
     v.unsafe_set_empty();
 }
 constexpr Tree::Tree (TreeArray v, TreeFlags f) :
-    form(Form::Array), rep(in::REP_ARRAY), flags(f),
+    form(Form::Array), rep(in::Rep::Array), flags(f),
     length(v.size()), data{.as_array_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
     v.unsafe_set_empty();
 }
 constexpr Tree::Tree (TreeObject v, TreeFlags f) :
-    form(Form::Object), rep(in::REP_OBJECT), flags(f),
+    form(Form::Object), rep(in::Rep::Object), flags(f),
     length(v.size()), data{.as_object_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
     v.unsafe_set_empty();
 }
 inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
-    form(Form::Error), rep(in::REP_ERROR), flags(f), length(1), data{}
+    form(Form::Error), rep(in::Rep::Error), flags(f), length(1), data{}
 {
     auto e = SharedArray<std::exception_ptr>(1, move(v));
     const_cast<const std::exception_ptr*&>(data.as_error_ptr) = e.data();
@@ -116,17 +115,17 @@ constexpr Tree::~Tree () {
 }
 
 constexpr Tree::operator Null () const {
-    if (rep != in::REP_NULL) in::raise_TreeWrongForm(*this, Form::Null);
+    if (rep != in::Rep::Null) in::raise_TreeWrongForm(*this, Form::Null);
     return null;
 }
 constexpr Tree::operator bool () const {
-    if (rep != in::REP_BOOL) in::raise_TreeWrongForm(*this, Form::Bool);
+    if (rep != in::Rep::Bool) in::raise_TreeWrongForm(*this, Form::Bool);
     return data.as_bool;
 }
 constexpr Tree::operator char () const {
     switch (rep) { \
-        case in::REP_STATICSTRING:
-        case in::REP_SHAREDSTRING:
+        case in::Rep::StaticString:
+        case in::Rep::SharedString:
             if (length != 1) in::raise_TreeCantRepresent("char", *this);
             return data.as_char_ptr[0];
         default: in::raise_TreeWrongForm(*this, Form::String);
@@ -135,12 +134,12 @@ constexpr Tree::operator char () const {
 #define AYU_INTEGRAL_CONVERSION(T) \
 constexpr Tree::operator T () const { \
     switch (rep) { \
-        case in::REP_INT64: { \
+        case in::Rep::Int64: { \
             int64 v = data.as_int64; \
             if (int64(T(v)) == v) return v; \
             else in::raise_TreeCantRepresent(#T, *this); \
         } \
-        case in::REP_DOUBLE: { \
+        case in::Rep::Double: { \
             double v = data.as_double; \
             if (double(T(v)) == v) return v; \
             else in::raise_TreeCantRepresent(#T, *this); \
@@ -160,25 +159,25 @@ AYU_INTEGRAL_CONVERSION(uint64)
 constexpr Tree::operator double () const {
     switch (rep) {
          // Special case: allow null to represent +nan for JSON compatibility
-        case in::REP_NULL: return +uni::nan;
-        case in::REP_INT64: return data.as_int64;
-        case in::REP_DOUBLE: return data.as_double;
+        case in::Rep::Null: return +uni::nan;
+        case in::Rep::Int64: return data.as_int64;
+        case in::Rep::Double: return data.as_double;
         default: in::raise_TreeWrongForm(*this, Form::Number);
     }
 }
 constexpr Tree::operator Str () const {
     switch (rep) {
-        case in::REP_STATICSTRING:
-        case in::REP_SHAREDSTRING:
+        case in::Rep::StaticString:
+        case in::Rep::SharedString:
             return Str(data.as_char_ptr, length);
         default: in::raise_TreeWrongForm(*this, Form::String);
     }
 }
 constexpr Tree::operator AnyString () const& {
     switch (rep) {
-        case in::REP_STATICSTRING:
+        case in::Rep::StaticString:
             return StaticString(data.as_char_ptr, length);
-        case in::REP_SHAREDSTRING: {
+        case in::Rep::SharedString: {
             if (data.as_char_ptr) {
                 ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
             }
@@ -191,9 +190,9 @@ constexpr Tree::operator AnyString () const& {
 }
 inline Tree::operator AnyString () && {
     switch (rep) {
-        case in::REP_STATICSTRING:
+        case in::Rep::StaticString:
             return StaticString(data.as_char_ptr, length);
-        case in::REP_SHAREDSTRING: {
+        case in::Rep::SharedString: {
             auto r = SharedString::UnsafeConstructOwned(
                 const_cast<char*>(data.as_char_ptr), length
             );
@@ -207,11 +206,11 @@ inline Tree::operator UniqueString16 () const {
     return to_utf16(Str(*this));
 }
 constexpr Tree::operator TreeArraySlice () const {
-    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, Form::Array);
+    if (rep != in::Rep::Array) in::raise_TreeWrongForm(*this, Form::Array);
     return TreeArraySlice(data.as_array_ptr, length);
 }
 constexpr Tree::operator TreeArray () const& {
-    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, Form::Array);
+    if (rep != in::Rep::Array) in::raise_TreeWrongForm(*this, Form::Array);
     if (data.as_array_ptr) {
         ++SharableBuffer<Tree>::header(data.as_array_ptr)->ref_count;
     }
@@ -220,7 +219,7 @@ constexpr Tree::operator TreeArray () const& {
     );
 }
 inline Tree::operator TreeArray () && {
-    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, Form::Array);
+    if (rep != in::Rep::Array) in::raise_TreeWrongForm(*this, Form::Array);
     auto r = TreeArray::UnsafeConstructOwned(
         const_cast<Tree*>(data.as_array_ptr), length
     );
@@ -228,11 +227,11 @@ inline Tree::operator TreeArray () && {
     return r;
 }
 constexpr Tree::operator TreeObjectSlice () const {
-    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, Form::Object);
+    if (rep != in::Rep::Object) in::raise_TreeWrongForm(*this, Form::Object);
     return TreeObjectSlice(data.as_object_ptr, length);
 }
 constexpr Tree::operator TreeObject () const& {
-    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, Form::Object);
+    if (rep != in::Rep::Object) in::raise_TreeWrongForm(*this, Form::Object);
     if (data.as_object_ptr) {
         ++SharableBuffer<TreePair>::header(data.as_object_ptr)->ref_count;
     }
@@ -241,7 +240,7 @@ constexpr Tree::operator TreeObject () const& {
     );
 }
 inline Tree::operator TreeObject () && {
-    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, Form::Object);
+    if (rep != in::Rep::Object) in::raise_TreeWrongForm(*this, Form::Object);
     auto r = TreeObject::UnsafeConstructOwned(
         const_cast<TreePair*>(data.as_object_ptr), length
     );
@@ -249,19 +248,19 @@ inline Tree::operator TreeObject () && {
     return r;
 }
 inline Tree::operator std::exception_ptr () const {
-    if (rep != in::REP_ERROR) in::raise_TreeWrongForm(*this, Form::Error);
+    if (rep != in::Rep::Error) in::raise_TreeWrongForm(*this, Form::Error);
     return *data.as_error_ptr;
 }
 
 constexpr const Tree* Tree::attr (Str key) const {
-    if (rep != in::REP_OBJECT) in::raise_TreeWrongForm(*this, Form::Object);
+    if (rep != in::Rep::Object) in::raise_TreeWrongForm(*this, Form::Object);
     for (auto& p : TreeObjectSlice(*this)) {
         if (p.first == key) return &p.second;
     }
     return null;
 }
 constexpr const Tree* Tree::elem (usize index) const {
-    if (rep != in::REP_ARRAY) in::raise_TreeWrongForm(*this, Form::Array);
+    if (rep != in::Rep::Array) in::raise_TreeWrongForm(*this, Form::Array);
     auto a = TreeArraySlice(*this);
     if (index < a.size()) return &a[index];
     else return null;

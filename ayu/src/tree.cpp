@@ -12,25 +12,25 @@ void delete_Tree_data (TreeRef t) noexcept {
      // We're using Unique* instead of Shared* because we've already run down
      // the reference count.
     switch (t->rep) {
-        case REP_SHAREDSTRING: {
+        case Rep::SharedString: {
             UniqueString::UnsafeConstructOwned(
                 (char*)t->data.as_char_ptr, t->length
             );
             break;
         }
-        case REP_ARRAY: {
+        case Rep::Array: {
             UniqueArray<Tree>::UnsafeConstructOwned(
                 (Tree*)t->data.as_array_ptr, t->length
             );
             break;
         }
-        case REP_OBJECT: {
+        case Rep::Object: {
             UniqueArray<TreePair>::UnsafeConstructOwned(
                 (TreePair*)t->data.as_object_ptr, t->length
             );
             break;
         }
-        case REP_ERROR: {
+        case Rep::Error: {
             UniqueArray<std::exception_ptr>::UnsafeConstructOwned(
                 (std::exception_ptr*)t->data.as_error_ptr, t->length
             );
@@ -41,7 +41,7 @@ void delete_Tree_data (TreeRef t) noexcept {
 }
 
 void raise_TreeWrongForm (TreeRef t, Form form) {
-    if (t->rep == REP_ERROR) std::rethrow_exception(std::exception_ptr(*t));
+    if (t->rep == Rep::Error) std::rethrow_exception(std::exception_ptr(*t));
      // TODO: require
     else if (t->form == form) never();
     else raise(e_TreeWrongForm, cat(
@@ -61,15 +61,15 @@ void raise_TreeCantRepresent (StaticString type_name, TreeRef t) {
 bool operator == (TreeRef a, TreeRef b) noexcept {
     if (a->rep != b->rep) {
          // Special case int/float comparisons
-        if (a->rep == REP_INT64 && b->rep == REP_DOUBLE) {
+        if (a->rep == Rep::Int64 && b->rep == Rep::Double) {
             return int64(*a) == double(*b);
         }
-        else if (a->rep == REP_DOUBLE && b->rep == REP_INT64) {
+        else if (a->rep == Rep::Double && b->rep == Rep::Int64) {
             return double(*a) == int64(*b);
         }
          // Comparison between different-lifetime strings
-        else if ((a->rep == REP_STATICSTRING && b->rep == REP_SHAREDSTRING)
-              || (a->rep == REP_SHAREDSTRING && b->rep == REP_STATICSTRING)
+        else if ((a->rep == Rep::StaticString && b->rep == Rep::SharedString)
+              || (a->rep == Rep::SharedString && b->rep == Rep::StaticString)
         ) {
             return Str(*a) == Str(*b);
         }
@@ -77,22 +77,22 @@ bool operator == (TreeRef a, TreeRef b) noexcept {
         return false;
     }
     else switch (a->rep) {
-        case REP_NULL: return true;
-        case REP_BOOL: return bool(*a) == bool(*b);
-        case REP_INT64: return int64(*a) == int64(*b);
-        case REP_DOUBLE: {
+        case Rep::Null: return true;
+        case Rep::Bool: return bool(*a) == bool(*b);
+        case Rep::Int64: return int64(*a) == int64(*b);
+        case Rep::Double: {
             auto av = double(*a);
             auto bv = double(*b);
             return av == bv || (av != av && bv != bv);
         }
-        case REP_STATICSTRING:
-        case REP_SHAREDSTRING: {
+        case Rep::StaticString:
+        case Rep::SharedString: {
             return Str(*a) == Str(*b);
         }
-        case REP_ARRAY: {
+        case Rep::Array: {
             return TreeArraySlice(*a) == TreeArraySlice(*b);
         }
-        case REP_OBJECT: {
+        case Rep::Object: {
              // Allow attributes to be in different orders
             auto ao = TreeObjectSlice(*a);
             auto bo = TreeObjectSlice(*b);
@@ -107,7 +107,7 @@ bool operator == (TreeRef a, TreeRef b) noexcept {
             }
             return true;
         }
-        case REP_ERROR: return false;
+        case Rep::Error: return false;
         default: never();
     }
 }

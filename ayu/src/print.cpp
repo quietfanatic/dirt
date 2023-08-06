@@ -148,16 +148,16 @@ struct Printer {
 
     static usize approx_width (TreeRef t) {
         switch (t->rep) {
-            case REP_STATICSTRING:
-            case REP_SHAREDSTRING: return t->length;
-            case REP_ARRAY: {
+            case Rep::StaticString:
+            case Rep::SharedString: return t->length;
+            case Rep::Array: {
                 usize r = 2;
                 for (usize i = 0; i < t->length; ++i) {
                     r += 1 + approx_width(t->data.as_array_ptr[i]);
                 }
                 return r;
             }
-            case REP_OBJECT: {
+            case Rep::Object: {
                 usize r = 2;
                 for (usize i = 0; i < t->length; ++i) {
                     r += 2 + t->data.as_object_ptr[i].first.size() +
@@ -171,16 +171,16 @@ struct Printer {
 
     char* print_tree (char* p, TreeRef t, uint ind) {
         switch (t->rep) {
-            case REP_NULL: return pstr(p, "null");
-            case REP_BOOL: {
+            case Rep::Null: return pstr(p, "null");
+            case Rep::Bool: {
                 auto s = t->data.as_bool ? Str("true") : Str("false");
                 return pstr(p, s);
             }
-            case REP_INT64: {
+            case Rep::Int64: {
                 bool hex = !(opts & JSON) && t->flags & PREFER_HEX;
                 return print_int64(p, t->data.as_int64, hex);
             }
-            case REP_DOUBLE: {
+            case Rep::Double: {
                 double v = t->data.as_double;
                 if (v != v) {
                     return pstr(p, opts & JSON ? "null" : "+nan");
@@ -202,8 +202,8 @@ struct Printer {
                     return print_double(p, v, hex);
                 }
             }
-            case REP_STATICSTRING:
-            case REP_SHAREDSTRING: {
+            case Rep::StaticString:
+            case Rep::SharedString: {
                  // The expanded form of a string uses raw newlines and tabs
                  // instead of escaping them.  Ironically, this takes fewer
                  // characters than the compact form, so expand it when not
@@ -214,7 +214,7 @@ struct Printer {
                             : t->length > 50;
                 return print_string(p, Str(*t), expand);
             }
-            case REP_ARRAY: {
+            case Rep::Array: {
                 auto a = TreeArraySlice(*t);
                 if (a.empty()) {
                     return pstr(p, "[]");
@@ -253,7 +253,7 @@ struct Printer {
                 if (expand) p = print_newline(p, ind);
                 return pchar(p, ']');
             }
-            case REP_OBJECT: {
+            case Rep::Object: {
                 auto o = TreeObjectSlice(*t);
                 if (o.empty()) {
                     return pstr(p, "{}");
@@ -290,7 +290,7 @@ struct Printer {
                 if (expand) p = print_newline(p, ind);
                 return pchar(p, '}');
             }
-            case REP_ERROR: {
+            case Rep::Error: {
                 try {
                     std::rethrow_exception(std::exception_ptr(*t));
                 }

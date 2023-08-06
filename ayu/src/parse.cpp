@@ -374,7 +374,7 @@ struct Parser {
             }
             Tree key;
             in = parse_term(in, key);
-            if (key.rep != REP_SHAREDSTRING) {
+            if (key.rep != Rep::SharedString) {
                 error(in, "Can't use non-string as key in object");
             }
             in = skip_ws(in);
@@ -398,7 +398,7 @@ struct Parser {
     const char* parse_shortcut_name (const char* in, AnyString& r) {
         Tree name;
         auto end = parse_term(in, name);
-        if (name.rep != REP_SHAREDSTRING) [[unlikely]] {
+        if (name.rep != Rep::SharedString) [[unlikely]] {
             error(in, "Can't use non-string as shortcut name");
         }
         new (&r) AnyString(move(name));
