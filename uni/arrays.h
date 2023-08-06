@@ -1089,7 +1089,6 @@ struct ArrayInterface {
     T& emplace_back_expect_capacity (Args&&... args) requires (
         ac::supports_owned
     ) {
-        expect(size() + 1 <= max_size_);
         expect(unique() && capacity() > size());
         T& r = *new ((void*)&impl.data[size()]) T(std::forward<Args>(args)...);
         add_size(1);
