@@ -204,17 +204,17 @@ struct MoveRef {
          // Don't destroy t, the caller will destroy it.
     }
      // Temporarily access.
-    ALWAYS_INLINE const T& operator* () const& {
+    ALWAYS_INLINE T& operator* () & {
 #ifndef NDEBUG
         expect(active);
 #endif
-        return *reinterpret_cast<const T*>(repr);
+        return *reinterpret_cast<T*>(repr);
     }
-    ALWAYS_INLINE const T* operator-> () const& {
+    ALWAYS_INLINE T* operator-> () & {
 #ifndef NDEBUG
         expect(active);
 #endif
-        return reinterpret_cast<const T*>(repr);
+        return reinterpret_cast<T*>(repr);
     }
      // Move back to a T value.  The object is no longer leakable.  Coercion
      // with "operator T () &&" doesn't seem to work.
