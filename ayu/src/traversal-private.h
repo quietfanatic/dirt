@@ -225,46 +225,47 @@ struct Traversal {
 
      // noexcept because any user code called from here should be confirmed to
      // already work without throwing.
-    inline Reference to_reference () const noexcept {
+    Reference to_reference () const noexcept {
         if (addressable) {
             return Pointer(Type(desc, readonly), address);
         }
-        else return to_reference_unaddressable();
-    }
-    NOINLINE Reference to_reference_unaddressable () const noexcept {
-        if (op == START) {
+        else if (op == START) {
             return *reference;
         }
         else if (parent->addressable) {
-            switch (op) {
-                case DELEGATE: case ATTR: case ELEM: {
-                    auto type = Type(parent->desc, parent->readonly);
-                    return Reference(Pointer(type, parent->address), acr);
-                }
-                case ATTR_FUNC:
-                    return attr_func(*parent->address, *key);
-                case ELEM_FUNC:
-                    return elem_func(*parent->address, index);
-                default: never();
-            }
+            return to_reference_parent_addressable();
         }
-        else {
-            Reference parent_ref = parent->to_reference();
-            const Accessor* child_acr;
-            switch (op) {
-                case DELEGATE: case ATTR: case ELEM:
-                    child_acr = new ChainAcr(parent_ref.acr, acr);
-                    break;
-                case ATTR_FUNC:
-                    child_acr = new AttrFuncAcr(*attr_func, *key);
-                    break;
-                case ELEM_FUNC:
-                    child_acr = new ElemFuncAcr(*elem_func, index);
-                    break;
-                default: never();
+        else return to_reference_chain();
+    }
+    Reference to_reference_parent_addressable () const noexcept {
+        switch (op) {
+            case DELEGATE: case ATTR: case ELEM: {
+                auto type = Type(parent->desc, parent->readonly);
+                return Reference(Pointer(type, parent->address), acr);
             }
-            return Reference(parent_ref.host, child_acr);
+            case ATTR_FUNC:
+                return attr_func(*parent->address, *key);
+            case ELEM_FUNC:
+                return elem_func(*parent->address, index);
+            default: never();
         }
+    }
+    NOINLINE Reference to_reference_chain () const noexcept {
+        Reference parent_ref = parent->to_reference();
+        const Accessor* child_acr;
+        switch (op) {
+            case DELEGATE: case ATTR: case ELEM:
+                child_acr = new ChainAcr(parent_ref.acr, acr);
+                break;
+            case ATTR_FUNC:
+                child_acr = new AttrFuncAcr(*attr_func, *key);
+                break;
+            case ELEM_FUNC:
+                child_acr = new ElemFuncAcr(*elem_func, index);
+                break;
+            default: never();
+        }
+        return Reference(parent_ref.host, child_acr);
     }
 
     Location to_location () const noexcept {
@@ -273,20 +274,21 @@ struct Traversal {
              // This * took a half a day of debugging to add. :(
             else return Location(*reference);
         }
-        else {
-            Location parent_loc = parent->to_location();
-            switch (op) {
-                case DELEGATE: return parent_loc;
-                case ATTR: case ATTR_FUNC:
-                    return Location(move(parent_loc), *key);
-                case ELEM: case ELEM_FUNC:
-                    return Location(move(parent_loc), index);
-                default: never();
-            }
+        else return to_location_chain();
+    }
+    NOINLINE Location to_location_chain () const noexcept {
+        Location parent_loc = parent->to_location();
+        switch (op) {
+            case DELEGATE: return parent_loc;
+            case ATTR: case ATTR_FUNC:
+                return Location(move(parent_loc), *key);
+            case ELEM: case ELEM_FUNC:
+                return Location(move(parent_loc), index);
+            default: never();
         }
     }
 
-    [[noreturn]] void wrap_exception () const {
+    [[noreturn, gnu::cold]] void wrap_exception () const {
         try { throw; }
         catch (Error& e) {
             if (!e.has_travloc) {
