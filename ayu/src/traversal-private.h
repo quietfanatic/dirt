@@ -274,9 +274,12 @@ struct Traversal {
             if (!e.has_travloc) {
                 e.has_travloc = true;
                 Location here = to_location();
-                e.details = cat(move(e.details),
-                    " (", item_to_string(&here), ')'
-                );
+                {
+                    DiagnosticSerialization ds;
+                    e.details = cat(move(e.details),
+                        " (", item_to_string(&here), ')'
+                    );
+                }
             }
             throw e;
         }
@@ -284,10 +287,13 @@ struct Traversal {
             Error e;
             e.code = e_External;
             Location here = to_location();
-            e.details = cat(
-                get_demangled_name(typeid(ex)), ": ", ex.what(),
-                " (", item_to_string(&here), ')'
-            );
+            {
+                DiagnosticSerialization ds;
+                e.details = cat(
+                    get_demangled_name(typeid(ex)), ": ", ex.what(),
+                    " (", item_to_string(&here), ')'
+                );
+            }
             e.has_travloc = true;
             e.external = std::current_exception();
             throw e;
