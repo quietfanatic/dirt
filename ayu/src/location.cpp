@@ -28,8 +28,8 @@ struct ReferenceLocation : LocationData {
 Location::Location (Resource res) noexcept :
     data(new ResourceLocation(move(res)))
 { }
-Location::Location (Reference ref) noexcept :
-    data(new ReferenceLocation(move(ref)))
+Location::Location (const Reference& ref) noexcept :
+    data(new ReferenceLocation(ref))
 { }
 
 const Resource* Location::resource () const noexcept {

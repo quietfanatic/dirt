@@ -31,10 +31,13 @@ struct IFTContext {
 
     UniqueArray<SwizzleOp> swizzle_ops;
     UniqueArray<InitOp> init_ops;
-    void do_swizzles ();
-    void do_inits ();
 };
 
+void item_from_tree_context (const Reference&, TreeRef, LocationRef);
+void item_from_tree_start (const Reference&, TreeRef, LocationRef);
+void item_from_tree_swizzle_init (IFTContext&);
+void item_from_tree_swizzle (IFTContext&);
+void item_from_tree_init (IFTContext&);
 void ser_from_tree (const Traversal&, TreeRef);
 void ser_from_tree_from_tree (const Traversal&, TreeRef, FromTreeFunc<Mu>*);
 void ser_from_tree_object (const Traversal&, TreeRef);
@@ -43,7 +46,7 @@ void ser_from_tree_values (const Traversal&, TreeRef, const ValuesDcrPrivate*);
 void ser_from_tree_after_values (const Traversal&, TreeRef);
 void ser_from_tree_delegate (const Traversal&, TreeRef, const Accessor*);
 void ser_from_tree_finish (const Traversal&, TreeRef);
-void ser_from_tree_swizzle_init (const Traversal&, TreeRef);
+void ser_from_tree_add_swizzle_init (const Traversal&, TreeRef);
 [[noreturn]] void ser_from_tree_fail (const Traversal&, TreeRef);
 
 } using namespace in;
@@ -52,29 +55,78 @@ void item_from_tree (
     const Reference& item, TreeRef tree, LocationRef loc,
     ItemFromTreeFlags flags
 ) {
-    PushBaseLocation pbl(*loc ? *loc : Location(item));
     if (tree->form == Form::Undefined) {
         raise(e_FromTreeFormRejected, "Undefined tree given to item_from_tree");
     }
     if (flags & DELAY_SWIZZLE && IFTContext::current) {
          // Delay swizzle and inits to the outer item_from_tree call.  Basically
-         // this just means keep the current context instead of making a new
-         // one.
-        Traversal::start(item, loc, false, AccessMode::Write,
-            [tree](const Traversal& trav)
-        { ser_from_tree(trav, tree); });
+         // this just means keep the current context instead of making a new one.
+        item_from_tree_start(item, tree, loc);
     }
-    else {
-        IFTContext context;
-        Traversal::start(item, loc, false, AccessMode::Write,
-            [tree](const Traversal& trav)
-        { ser_from_tree(trav, tree); });
-        context.do_swizzles();
-        context.do_inits();
-    }
+    else item_from_tree_context(item, tree, loc);
 }
 
 namespace in {
+
+NOINLINE
+void item_from_tree_context (
+    const Reference& item, TreeRef tree, LocationRef loc
+) {
+    IFTContext context;
+    item_from_tree_start(item, tree, loc);
+    item_from_tree_swizzle_init(context);
+    expect(!context.swizzle_ops.owned());
+    expect(!context.init_ops.owned());
+}
+
+NOINLINE
+void item_from_tree_start (
+    const Reference& item, TreeRef tree, LocationRef loc
+) {
+    PushBaseLocation pbl(*loc ? *loc : Location(item));
+    Traversal::start(item, loc, false, AccessMode::Write,
+        [tree](const Traversal& trav)
+    { ser_from_tree(trav, tree); });
+}
+
+NOINLINE
+void item_from_tree_swizzle_init (IFTContext& ctx) {
+    if (ctx.swizzle_ops) item_from_tree_swizzle(ctx);
+    else if (ctx.init_ops) item_from_tree_init(ctx);
+}
+
+NOINLINE
+void item_from_tree_swizzle (IFTContext& ctx) {
+    expect(ctx.swizzle_ops);
+     // Do an explicit move construct to clear the source array
+    for (auto ops = move(ctx.swizzle_ops); auto& op : ops) {
+        expect(op.loc);
+        PushBaseLocation pbl (op.loc);
+         // TODO: wrap error messages
+        op.item.access(AccessMode::Modify, [&op](Mu& v){
+            op.f(v, op.tree);
+        });
+    }
+     // Swizzling might add more swizzle ops; this will happen if we're
+     // swizzling a pointer which points to a separate resource; that resource
+     // will be load()ed in op.f().
+    item_from_tree_swizzle_init(ctx);
+}
+
+NOINLINE
+void item_from_tree_init (IFTContext& ctx) {
+    expect(ctx.init_ops);
+    for (auto ops = move(ctx.init_ops); auto& op : ops) {
+        expect(op.loc);
+        PushBaseLocation pbl (op.loc);
+        op.item.access(AccessMode::Modify, [&op](Mu& v){
+            op.f(v);
+        });
+    }
+     // Initting might add more swizzle or init ops.  It'd be weird, but it's
+     // allowed for an init() to load another resource.
+    item_from_tree_swizzle_init(ctx);
+}
 
 NOINLINE
 void ser_from_tree (const Traversal& trav, TreeRef tree) {
@@ -167,7 +219,7 @@ void ser_from_tree_after_values (
     }
      // Still nothing?  Allow swizzle with no from_tree.
     else if (trav.desc->swizzle()) {
-        ser_from_tree_swizzle_init(trav, tree);
+        ser_from_tree_add_swizzle_init(trav, tree);
     }
     else ser_from_tree_fail(trav, tree);
 }
@@ -188,13 +240,13 @@ void ser_from_tree_finish (const Traversal& trav, TreeRef tree) {
      // beginning to make sure that children get swizzled and initted before
      // their parent.
     if (!!trav.desc->swizzle_offset | !!trav.desc->init_offset) {
-        ser_from_tree_swizzle_init(trav, tree);
+        ser_from_tree_add_swizzle_init(trav, tree);
     }
      // Done
 }
 
 NOINLINE
-void ser_from_tree_swizzle_init (const Traversal& trav, TreeRef tree) {
+void ser_from_tree_add_swizzle_init (const Traversal& trav, TreeRef tree) {
      // We're duplicating the work to get the ref and loc if there's both a
      // swizzle and an init, but almost no types are going to have both.
     if (auto swizzle = trav.desc->swizzle()) {
@@ -236,40 +288,6 @@ void ser_from_tree_fail (const Traversal& trav, TreeRef tree) {
     else raise(e_FromTreeNotSupported, cat(
         "Item of type ", Type(trav.desc).name(), " does not support from_tree."
     ));
-}
-
-void IFTContext::do_swizzles () {
-     // Swizzling might add more swizzle ops; this will happen if we're
-     // swizzling a pointer which points to a separate resource; that resource
-     // will be load()ed in op.f().
-    while (!swizzle_ops.empty()) {
-         // Explicitly assign to clear swizzle_ops
-        auto swizzles = move(swizzle_ops);
-        for (auto& op : swizzles) {
-            expect(op.loc);
-            PushBaseLocation pbl (op.loc);
-             // TODO: wrap error messages
-            op.item.access(AccessMode::Modify, [&op](Mu& v){
-                op.f(v, op.tree);
-            });
-        }
-    }
-}
-void IFTContext::do_inits () {
-     // Initting might add some more init ops.  It'd be weird, but it's allowed
-     // for an init() to load another resource.
-    while (!init_ops.empty()) {
-        auto inits = move(init_ops);
-        for (auto& op : inits) {
-            expect(op.loc);
-            PushBaseLocation pbl (op.loc);
-            op.item.access(AccessMode::Modify, [&op](Mu& v){
-                op.f(v);
-            });
-             // Initting might even add more swizzle ops.
-            do_swizzles();
-        }
-    }
 }
 
 IFTContext* IFTContext::current = null;

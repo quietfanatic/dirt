@@ -37,7 +37,7 @@ struct Location {
      // Constructs a root location from an anonymous item.  as_iri() will return
      // "anonymous-item:", and reference_from_location will return this
      // Reference.
-    explicit Location (Reference) noexcept;
+    explicit Location (const Reference&) noexcept;
      // Constructs a location based on another one with an added attribute key
      // or element index.
     Location (MoveRef<Location> parent, MoveRef<AnyString> key) noexcept;
