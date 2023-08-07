@@ -9,19 +9,19 @@ constexpr auto _AYU_DescribeBase<T>::name (StaticString(* f )()) {
 }
 
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::to_tree (Tree(* f )(const T&)) {
+constexpr auto _AYU_DescribeBase<T>::to_tree (ToTreeFunc<T>* f) {
     return in::ToTreeDcr<T>{{}, f};
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::from_tree (void(* f )(T&, const Tree&)) {
+constexpr auto _AYU_DescribeBase<T>::from_tree (FromTreeFunc<T>* f) {
     return in::FromTreeDcr<T>{{}, f};
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::swizzle (void(* f )(T&, const Tree&)) {
+constexpr auto _AYU_DescribeBase<T>::swizzle (SwizzleFunc<T>* f) {
     return in::SwizzleDcr<T>{{}, f};
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::init (void(* f )(T&)) {
+constexpr auto _AYU_DescribeBase<T>::init (InitFunc<T>* f) {
     return in::InitDcr<T>{{}, f};
 }
 
@@ -43,8 +43,8 @@ constexpr auto _AYU_DescribeBase<T>::values (const Values&... vs) {
 template <class T>
 template <class... Values>
 constexpr auto _AYU_DescribeBase<T>::values_custom (
-    bool(* compare )(const T&, const T&),
-    void(* assign )(T&, const T&),
+    CompareFunc<T>* compare,
+    AssignFunc<T>* assign,
     const Values&... vs
 ) {
     return in::ValuesDcrWith<T, Values...>(compare, assign, vs...);

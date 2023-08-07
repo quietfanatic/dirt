@@ -6,8 +6,7 @@ namespace ayu {
 namespace in {
 
 struct SwizzleOp {
-    using FP = void(*)(Mu&, const Tree&);
-    FP f;
+    SwizzleFunc<Mu>* f;
     Reference item;
      // This can't be TreeRef because the referenced Tree could go away after a
      // nested from_tree is called with DELAY_SWIZZLE
@@ -15,8 +14,7 @@ struct SwizzleOp {
     Location loc;
 };
 struct InitOp {
-    using FP = void(*)(Mu&);
-    FP f;
+    InitFunc<Mu>* f;
     Reference item;
     Location loc;
 };

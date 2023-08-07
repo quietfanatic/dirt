@@ -152,23 +152,31 @@ struct NameDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
+using ToTreeFunc = Tree(const T&);
+template <class T>
 struct ToTreeDcr : AttachedDescriptor<T> {
-    Tree(* f )(const T&);
+    ToTreeFunc<T>* f;
 };
 
+template <class T>
+using FromTreeFunc = void(T&, const Tree&);
 template <class T>
 struct FromTreeDcr : AttachedDescriptor<T> {
-    void(* f )(T&, const Tree&);
+    FromTreeFunc<T>* f;
 };
 
+template <class T>
+using SwizzleFunc = void(T&, const Tree&);
 template <class T>
 struct SwizzleDcr : AttachedDescriptor<T> {
-    void(* f )(T&, const Tree&);
+    SwizzleFunc<T>* f;
 };
 
 template <class T>
+using InitFunc = void(T&);
+template <class T>
 struct InitDcr : AttachedDescriptor<T> {
-    void(* f )(T&);
+    InitFunc<T>* f;
 };
 
 template <class T>
@@ -186,9 +194,13 @@ struct ValueDcrWithValue : ValueDcr<T> {
 };
 
 template <class T>
+using CompareFunc = bool(const T&, const T&);
+template <class T>
+using AssignFunc = void(T&, const T&);
+template <class T>
 struct ValuesDcr : AttachedDescriptor<T> {
-    bool(* compare )(const T&, const T&);
-    void(* assign )(T&, const T&);
+    CompareFunc<T>* compare;
+    AssignFunc<T>* assign;
     uint16 n_values;
 };
 template <class T, class... Values>
