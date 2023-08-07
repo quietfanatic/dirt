@@ -18,7 +18,7 @@ namespace in {
 struct Parser {
     const char* end;
     const char* begin;
-    AnyString filename;
+    const AnyString& filename;
 
      // std::unordered_map is supposedly slow, so we'll use an array instead.
      // We'll rethink if we ever need to parse a document with a large amount
@@ -26,10 +26,10 @@ struct Parser {
      // or so).
     UniqueArray<TreePair> shortcuts;
 
-    Parser (Str s, MoveRef<AnyString> filename) :
+    Parser (Str s, const AnyString& filename) :
         end(s.end()),
         begin(s.begin()),
-        filename(*move(filename))
+        filename(filename)
     { }
 
     [[noreturn, gnu::cold]]
@@ -503,11 +503,12 @@ struct Parser {
 } using namespace in;
 
  // Finally:
-Tree tree_from_string (Str s, AnyString filename) {
-    return Parser(s, move(filename)).parse();
+Tree tree_from_string (Str s, const AnyString& filename) {
+    return Parser(s, filename).parse();
 }
 
-Tree tree_from_file (AnyString filename) {
+Tree tree_from_file (MoveRef<AnyString> filename_) {
+    auto filename = *move(filename_);
     UniqueString s = string_from_file(filename);
     return tree_from_string(move(s), move(filename));
 }
