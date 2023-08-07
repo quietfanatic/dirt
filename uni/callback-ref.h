@@ -11,8 +11,9 @@ namespace uni {
 template <class F, class Ret, class... Args>
 concept HasExactCallOperator = std::is_convertible_v<
     decltype(&F::operator()),
-    Ret (F::*)(Args...)
+    Ret (F::*)(Args...) const
 >;
+
 template <class> struct CallbackRefV;
 template <class Ret, class... Args>
 struct CallbackRefV<Ret(Args...)> {
@@ -30,7 +31,7 @@ struct CallbackRefV<Ret(Args...)> {
     template <class F> requires(
         HasExactCallOperator<F, Ret, Args...>
     )
-    [[gnu::always_inline, gnu::artificial]] inline
+    [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRefV (const F& f) :
         f(&f),
         wrapper((decltype(wrapper))(&F::operator()))
@@ -39,7 +40,7 @@ struct CallbackRefV<Ret(Args...)> {
         !HasExactCallOperator<F, Ret, Args...> &&
         std::is_convertible_v<std::invoke_result_t<F, Args...>, Ret>
     )
-    [[gnu::always_inline, gnu::artificial]] inline
+    [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRefV (const F& f) :
         f(&f),
         wrapper([](const void* f, Args... args)->Ret{
@@ -51,7 +52,7 @@ struct CallbackRefV<Ret(Args...)> {
     template <class F> requires(
         std::is_convertible_v<std::invoke_result_t<F, Args...>, Ret>
     )
-    [[gnu::always_inline, gnu::artificial]] inline
+    [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRefV (const F& f) :
         f(&f),
         wrapper([](const void* f, Args... args)->Ret{
@@ -61,12 +62,12 @@ struct CallbackRefV<Ret(Args...)> {
 #endif
      // Looks like there's no way to avoid an extra copy of by-value args.
      // (std::function does it too)
-    [[gnu::always_inline, gnu::artificial]] inline
-    Ret operator () (Args... args) const {
+    [[gnu::artificial]] ALWAYS_INLINE
+    constexpr Ret operator () (Args... args) const {
         return wrapper(f, std::forward<Args>(args)...);
     }
 
-    template <class Sig> [[gnu::always_inline, gnu::artificial]] inline constexpr
+    template <class Sig> [[gnu::artificial]] ALWAYS_INLINE constexpr
     const CallbackRefV<Sig>& reinterpret () const {
         return *(const CallbackRefV<Sig>*)this;
     }

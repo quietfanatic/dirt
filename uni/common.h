@@ -64,7 +64,7 @@ using std::move;
  // These need to be before static and constexpr
 #ifndef ALWAYS_INLINE
     #if __GNUC__
-        #define ALWAYS_INLINE [[gnu::artificial, gnu::always_inline]] inline
+        #define ALWAYS_INLINE [[gnu::always_inline]] inline
     #elif _MSC_VER
         #define ALWAYS_INLINE __forceinline
     #else

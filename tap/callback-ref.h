@@ -7,7 +7,7 @@ namespace tap {
 template <class F, class Ret, class... Args>
 concept HasExactCallOperator = std::is_convertible_v<
     decltype(&F::operator()),
-    Ret (F::*)(Args...)
+    Ret (F::*)(Args...) const
 >;
 
  // A super lightweight callback class with reference semantics (std::function
