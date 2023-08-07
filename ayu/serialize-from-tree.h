@@ -53,7 +53,7 @@ enum : ItemFromTreeFlags {
  // If none of those descriptors are applicable, a CannotFromTree exception will
  // be thrown.
 void item_from_tree (
-    const Reference&, TreeRef, LocationRef loc = Location(),
+    const Reference&, const Tree&, LocationRef loc = Location(),
     ItemFromTreeFlags flags = 0
 );
 
