@@ -11,7 +11,7 @@ namespace in {
  // types.
 struct ReceiveReference {
     Reference& r;
-    void operator() (const Traversal& child) {
+    void operator() (const Traversal& child) const {
         new (&r) Reference(child.to_reference());
     }
 };

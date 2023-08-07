@@ -63,10 +63,6 @@ struct Traversal {
         usize index;
     };
 
-    template <class CB> NOINLINE
-    void call (CB cb) const try { cb(*this); }
-    catch (...) { wrap_exception(); }
-
     template <class CB>
     static void start (
         const Reference& ref, LocationRef loc, bool only_addressable,
@@ -74,6 +70,8 @@ struct Traversal {
     ) {
         expect(ref);
         Traversal child;
+        try {
+
         child.parent = null;
         child.only_addressable = only_addressable;
         child.op = START;
@@ -91,7 +89,7 @@ struct Traversal {
             child.desc = DescriptionPrivate::get(ref.type());
             child.addressable = true;
             child.children_addressable = true;
-            child.call(cb);
+            cb(child);
         }
         else {
             child.readonly = ref.readonly();
@@ -102,16 +100,18 @@ struct Traversal {
             if (!child.only_addressable || child.children_addressable) {
                 ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
-                    child.call(cb);
+                    cb(child);
                 });
             }
         }
+
+        } catch (...) { child.wrap_exception(); }
     }
 
     template <class CB>
     void follow_acr (
         Traversal& child, const Accessor* acr, AccessMode mode, CB cb
-    ) const {
+    ) const try {
         child.parent = this;
         child.readonly = readonly | !!(acr->flags & AcrFlags::Readonly);
         child.only_addressable = only_addressable;
@@ -121,7 +121,7 @@ struct Traversal {
         if (child.address) {
             child.addressable = children_addressable;
             child.children_addressable = children_addressable;
-            child.call(cb);
+            cb(child);
         }
         else {
             child.addressable = false;
@@ -130,16 +130,17 @@ struct Traversal {
             if (!child.only_addressable || child.children_addressable) {
                 acr->access(mode, *address, [&child, cb](Mu& v){
                     child.address = &v;
-                    child.call(cb);
+                    cb(child);
                 });
             }
         }
     }
+    catch (...) { wrap_exception(); }
 
     template <class CB>
     void follow_reference (
         Traversal& child, const Reference& ref, AccessMode mode, CB cb
-    ) const {
+    ) const try {
         child.parent = this;
         child.only_addressable = only_addressable;
         child.address = ref.address();
@@ -148,7 +149,7 @@ struct Traversal {
             child.readonly = readonly || ref.readonly();
             child.addressable = children_addressable;
             child.children_addressable = children_addressable;
-            child.call(cb);
+            cb(child);
         }
         else {
             child.desc = DescriptionPrivate::get(ref.type());
@@ -159,11 +160,12 @@ struct Traversal {
             if (!child.only_addressable || child.children_addressable) {
                 ref.access(mode, [&child, cb](Mu& v){
                     child.address = &v;
-                    child.call(cb);
+                    cb(child);
                 });
             }
         }
     }
+    catch (...) { wrap_exception(); }
 
     template <class CB>
     void follow_delegate (
