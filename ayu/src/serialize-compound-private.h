@@ -124,34 +124,59 @@ void ser_attr (
     }
 }
 
-template <class CB>
+template <class CB> NOINLINE
+bool ser_maybe_elem_elems (
+    const Traversal& trav, usize index, AccessMode mode, CB cb,
+    const ElemsDcrPrivate* elems
+) {
+    if (index < elems->n_elems) {
+        auto acr = elems->elem(index)->acr();
+        trav.follow_elem(acr, index, mode, cb);
+        return true;
+    }
+    else [[unlikely]] return false;
+}
+
+template <class CB> NOINLINE
+bool ser_maybe_elem_elem_func (
+    const Traversal& trav, usize index, AccessMode mode, CB cb,
+    ElemFunc<Mu>* f
+) {
+    if (Reference ref = f(*trav.address, index)) {
+        trav.follow_elem_func(move(ref), f, index, mode, cb);
+        return true;
+    }
+    else [[unlikely]] return false;
+}
+
+template <class CB> NOINLINE
+bool ser_maybe_elem_delegate (
+    const Traversal& trav, usize index, AccessMode mode, CB cb,
+    const Accessor* acr
+) {
+    bool found = false;
+    trav.follow_delegate(
+        acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
+        [&found, index, mode, &cb](const Traversal& child)
+    {
+        found = ser_maybe_elem(child, index, mode, cb);
+    });
+    return found;
+}
+
+
+template <class CB> NOINLINE
 bool ser_maybe_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
 ) {
     if (auto elems = trav.desc->elems()) {
-        if (index < elems->n_elems) {
-            auto acr = elems->elem(index)->acr();
-            trav.follow_elem(acr, index, mode, cb);
-            return true;
-        }
-        else [[unlikely]] return false;
+        return ser_maybe_elem_elems(trav, index, mode, cb, elems);
     }
     else if (auto elem_func = trav.desc->elem_func()) {
-        if (Reference ref = elem_func->f(*trav.address, index)) {
-            trav.follow_elem_func(move(ref), elem_func->f, index, mode, cb);
-            return true;
-        }
-        else [[unlikely]] return false;
+        return ser_maybe_elem_elem_func(trav, index, mode, cb, elem_func->f);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        bool found = false;
-        trav.follow_delegate(
-            acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
-            [&found, index, mode, &cb](const Traversal& child)
-        {
-            found = ser_maybe_elem(child, index, mode, cb);
-        });
-        return found;
+        return ser_maybe_elem_delegate(trav, index, mode, cb, acr);
     }
     else raise_ElemsNotSupported(trav.desc);
 }
