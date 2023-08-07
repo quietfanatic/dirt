@@ -106,10 +106,10 @@ struct DescriptionPrivate : DescriptionFor<Mu> {
     }
 
     bool accepts_object () const {
-        return attrs_offset || keys_offset;
+        return !!attrs_offset | !!keys_offset;
     }
     bool accepts_array () const {
-        return elems_offset || length_offset;
+        return !!elems_offset | !!length_offset;
     }
      // Figure out whether this description prefers being serialized as an array
      // or as an object.  Whichever has a related facet specified first will

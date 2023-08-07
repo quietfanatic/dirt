@@ -11,7 +11,7 @@ void ser_to_tree_after_values (Tree&, const Traversal&);
 void ser_to_tree_object (Tree&, const Traversal&);
 void ser_to_tree_array (Tree&, const Traversal&);
 void ser_to_tree_delegate (Tree&, const Traversal&, const Accessor*);
-[[noreturn]] void ser_to_tree_error (Tree&, const Traversal&);
+[[noreturn]] void ser_to_tree_fail (Tree&, const Traversal&);
 void ser_to_tree_wrap_exception (Tree&);
 
 static uint64 diagnostic_serialization = 0;
@@ -76,7 +76,7 @@ void ser_to_tree_after_values (Tree& r, const Traversal& trav) {
     else if (auto acr = trav.desc->delegate_acr()) {
         ser_to_tree_delegate(r, trav, acr);
     }
-    else ser_to_tree_error(r, trav);
+    else ser_to_tree_fail(r, trav);
 }
 
 NOINLINE
@@ -146,7 +146,7 @@ void ser_to_tree_delegate (
 }
 
 [[gnu::cold]] NOINLINE
-void ser_to_tree_error (
+void ser_to_tree_fail (
     Tree&, const Traversal& trav
 ) {
     if (trav.desc->values()) {
