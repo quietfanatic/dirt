@@ -235,17 +235,35 @@ struct Traversal {
         if (op == START) {
             return *reference;
         }
-        else {
-            Reference parent_ref = parent->to_reference();
+        else if (parent->addressable) {
             switch (op) {
-                case DELEGATE: case ATTR: case ELEM:
-                    return parent_ref.chain(acr);
+                case DELEGATE: case ATTR: case ELEM: {
+                    auto type = Type(parent->desc, parent->readonly);
+                    return Reference(Pointer(type, parent->address), acr);
+                }
                 case ATTR_FUNC:
-                    return parent_ref.chain_attr_func(attr_func, *key);
+                    return attr_func(*parent->address, *key);
                 case ELEM_FUNC:
-                    return parent_ref.chain_elem_func(elem_func, index);
+                    return elem_func(*parent->address, index);
                 default: never();
             }
+        }
+        else {
+            Reference parent_ref = parent->to_reference();
+            const Accessor* child_acr;
+            switch (op) {
+                case DELEGATE: case ATTR: case ELEM:
+                    child_acr = new ChainAcr(parent_ref.acr, acr);
+                    break;
+                case ATTR_FUNC:
+                    child_acr = new AttrFuncAcr(*attr_func, *key);
+                    break;
+                case ELEM_FUNC:
+                    child_acr = new ElemFuncAcr(*elem_func, index);
+                    break;
+                default: never();
+            }
+            return Reference(parent_ref.host, child_acr);
         }
     }
 

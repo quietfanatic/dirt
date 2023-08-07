@@ -252,11 +252,6 @@ struct Reference {
         return require_address_as<T>();
     }
 
-     // These are used by serialize.  They will be most efficient if this
-     // Reference has an address().
-    Reference chain (const in::Accessor*) const noexcept;
-    Reference chain_attr_func (AttrFunc<Mu>*, const AnyString&) const;
-    Reference chain_elem_func (ElemFunc<Mu>*, usize) const;
      // Kinda internal, TODO move to internal namespace
     void access (in::AccessMode mode, CallbackRef<void(Mu&)> cb) const {
         if (mode != in::AccessMode::Read) require_writeable();

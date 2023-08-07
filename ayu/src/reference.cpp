@@ -4,7 +4,6 @@
 #include "../describe.h"
 #include "../location.h"
 #include "../scan.h"
-#include "accessors-private.h"
 #include "serialize-compound-private.h"
 
 namespace ayu {
@@ -26,54 +25,6 @@ void Reference::raise_Unaddressable () const {
         "Can't get address of unaddressable Reference of type ", type().name(),
         " at ", item_to_string(&here)
     ));
-}
-
-Reference Reference::chain (const Accessor* o_acr) const noexcept {
-    if (auto a = address()) {
-        return Reference(Pointer(type(), a), o_acr);
-    }
-    else {
-        return Reference(host, new ChainAcr(acr, o_acr));
-    }
-}
-
-Reference Reference::chain_attr_func (
-    AttrFunc<Mu>* attr_func, const AnyString& key
-) const {
-    if (auto addr = address()) {
-        if (auto r = attr_func(*addr, key)) return r;
-        else raise_AttrNotFound(type(), key);
-    }
-    else {
-         // Extra read just to check if the func returns null Reference.
-         // If we're here, we're already on a fairly worst-case performance
-         // scenario, so one more check isn't gonna make much difference.
-        read([this, attr_func, &key](const Mu& v){
-            Reference ref = attr_func(const_cast<Mu&>(v), key);
-            if (!ref) raise_AttrNotFound(type(), key);
-        });
-        return Reference(host, new ChainAcr(
-            acr, new AttrFuncAcr(attr_func, key)
-        ));
-    }
-}
-
-Reference Reference::chain_elem_func (
-    ElemFunc<Mu>* elem_func, size_t index
-) const {
-    if (auto addr = address()) {
-        if (auto r = elem_func(*addr, index)) return r;
-        else raise_ElemNotFound(type(), index);
-    }
-    else {
-        read([this, elem_func, index](const Mu& v){
-            Reference ref = elem_func(const_cast<Mu&>(v), index);
-            if (!ref) raise_ElemNotFound(type(), index);
-        });
-        return Reference(host, new ChainAcr(
-            acr, new ElemFuncAcr(elem_func, index)
-        ));
-    }
 }
 
 } using namespace ayu;
