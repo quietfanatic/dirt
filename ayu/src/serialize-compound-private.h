@@ -50,67 +50,91 @@ void raise_ElemsNotSupported (Type);
 
 ///// INLINE DEFINITIONS
 
-template <class CB>
+template <class CB> NOINLINE
+bool ser_maybe_attr_attrs (
+    const Traversal& trav, const AnyString& key,
+    AccessMode mode, CB cb, const AttrsDcrPrivate* attrs
+) {
+     // This will likely be called once for each attr, making it O(N^2) over
+     // the number of attrs.  If we want we could optimize for large N by
+     // keeping a temporary map...somewhere
+     //
+     // First check direct attrs
+    for (uint i = 0; i < attrs->n_attrs; i++) {
+        auto attr = attrs->attr(i);
+        if (attr->key == key) {
+            trav.follow_attr(attr->acr(), key, mode, cb);
+            return true;
+        }
+    }
+     // Then included attrs
+    for (uint i = 0; i < attrs->n_attrs; i++) {
+        auto attr = attrs->attr(i);
+        auto acr = attr->acr();
+        if (acr->attr_flags & AttrFlags::Include) {
+             // Change mode to modify so we don't clobber the other attrs of
+             // the included item.  Hopefully it won't matter, because
+             // inheriting through a non-addressable reference will be
+             // pretty slow no matter what.  Perhaps if we really wanted to
+             // optimize this, then in claim_keys we could build up a
+             // structure mirroring the inclusion diagram and follow it,
+             // instead of just keeping the flat list of keys.
+             //
+             // TODO: This may not behave properly with only_addressable.
+            bool found = false;
+            trav.follow_attr(
+                acr, attr->key,
+                mode == AccessMode::Write ? AccessMode::Modify : mode,
+                [&found, &key, mode, &cb](const Traversal& child)
+            {
+                found = ser_maybe_attr(child, key, mode, cb);
+            });
+            if (found) return true;
+        }
+    }
+    [[unlikely]] return false;
+}
+
+template <class CB> NOINLINE
+bool ser_maybe_attr_attr_func (
+    const Traversal& trav, const AnyString& key,
+    AccessMode mode, CB cb, AttrFunc<Mu>* f
+) {
+    if (Reference ref = f(*trav.address, key)) {
+        trav.follow_attr_func(move(ref), f, key, mode, cb);
+        return true;
+    }
+    [[unlikely]] return false;
+}
+
+template <class CB> NOINLINE
+bool ser_maybe_attr_delegate (
+    const Traversal& trav, const AnyString& key,
+    AccessMode mode, CB cb, const Accessor* acr
+) {
+    bool r = false;
+    trav.follow_delegate(
+        acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
+        [&r, &key, mode, &cb](const Traversal& child)
+    {
+        r = ser_maybe_attr(child, key, mode, cb);
+    });
+    return r;
+}
+
+template <class CB> NOINLINE
 bool ser_maybe_attr (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, CB cb
 ) {
     if (auto attrs = trav.desc->attrs()) {
-         // Note: This will likely be called once for each attr, making it
-         // O(N^2) over the number of attrs.  If we want we could optimize for
-         // large N by keeping a temporary map...somewhere
-         //
-         // First check direct attrs
-        for (uint i = 0; i < attrs->n_attrs; i++) {
-            auto attr = attrs->attr(i);
-            if (attr->key == key) {
-                trav.follow_attr(attr->acr(), key, mode, cb);
-                return true;
-            }
-        }
-         // Then included attrs
-        for (uint i = 0; i < attrs->n_attrs; i++) {
-            auto attr = attrs->attr(i);
-            auto acr = attr->acr();
-            if (acr->attr_flags & AttrFlags::Include) {
-                 // Change mode to modify so we don't clobber the other attrs of
-                 // the included item.  Hopefully it won't matter, because
-                 // inheriting through a non-addressable reference will be
-                 // pretty slow no matter what.  Perhaps if we really wanted to
-                 // optimize this, then in claim_keys we could build up a
-                 // structure mirroring the inclusion diagram and follow it,
-                 // instead of just keeping the flat list of keys.
-                 //
-                 // TODO: This may not behave properly with only_addressable.
-                bool found = false;
-                trav.follow_attr(
-                    acr, attr->key,
-                    mode == AccessMode::Write ? AccessMode::Modify : mode,
-                    [&found, &key, mode, &cb](const Traversal& child)
-                {
-                    found = ser_maybe_attr(child, key, mode, cb);
-                });
-                if (found) return true;
-            }
-        }
-        [[unlikely]] return false;
+        return ser_maybe_attr_attrs(trav, key, mode, cb, attrs);
     }
     else if (auto attr_func = trav.desc->attr_func()) {
-        if (Reference ref = attr_func->f(*trav.address, key)) {
-            trav.follow_attr_func(move(ref), attr_func->f, key, mode, cb);
-            return true;
-        }
-        [[unlikely]] return false;
+        return ser_maybe_attr_attr_func(trav, key, mode, cb, attr_func->f);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        bool r = false;
-        trav.follow_delegate(
-            acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
-            [&r, &key, mode, &cb](const Traversal& child)
-        {
-            r = ser_maybe_attr(child, key, mode, cb);
-        });
-        return r;
+        return ser_maybe_attr_delegate(trav, key, mode, cb, acr);
     }
     else raise_AttrsNotSupported(trav.desc);
 }
