@@ -246,12 +246,10 @@ void IFTContext::do_swizzles () {
          // Explicitly assign to clear swizzle_ops
         auto swizzles = move(swizzle_ops);
         for (auto& op : swizzles) {
+            expect(op.loc);
             PushBaseLocation pbl (op.loc);
              // TODO: wrap error messages
-            if (auto address = op.item.address()) {
-                op.f(*address, op.tree);
-            }
-            else op.item.access(AccessMode::Modify, [&op](Mu& v){
+            op.item.access(AccessMode::Modify, [&op](Mu& v){
                 op.f(v, op.tree);
             });
         }
@@ -263,11 +261,9 @@ void IFTContext::do_inits () {
     while (!init_ops.empty()) {
         auto inits = move(init_ops);
         for (auto& op : inits) {
+            expect(op.loc);
             PushBaseLocation pbl (op.loc);
-            if (auto address = op.item.address()) {
-                op.f(*address);
-            }
-            else op.item.access(AccessMode::Modify, [&op](Mu& v){
+            op.item.access(AccessMode::Modify, [&op](Mu& v){
                 op.f(v);
             });
              // Initting might even add more swizzle ops.
