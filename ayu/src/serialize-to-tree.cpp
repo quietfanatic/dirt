@@ -28,6 +28,7 @@ void ser_to_tree_complex (Tree& r, const Traversal& trav) {
             auto value = values->value(i);
             if (values->compare(*trav.address, *value->get_value())) {
                 new (&r) Tree(value->name);
+                return;
             }
         }
          // Fall through
