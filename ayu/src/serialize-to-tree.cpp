@@ -7,12 +7,22 @@ namespace in {
 
 static uint64 diagnostic_serialization = 0;
 
+NOINLINE void ser_to_tree_complex (Tree& r, const Traversal& trav);
 void ser_to_tree (Tree& r, const Traversal& trav) try {
      // The majority of items are [[likely]] to be atomic.
     if (auto to_tree = trav.desc->to_tree()) [[likely]] {
         new (&r) Tree(to_tree->f(*trav.address));
-        return;
     }
+    else ser_to_tree_complex(r, trav);
+}
+catch (const std::exception&) {
+     // TODO also check std::uncaught_exceptions
+    if (diagnostic_serialization) {
+        new (&r) Tree(std::current_exception());
+    }
+    else throw;
+}
+void ser_to_tree_complex (Tree& r, const Traversal& trav) {
     if (auto values = trav.desc->values()) {
         for (uint i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
@@ -20,6 +30,7 @@ void ser_to_tree (Tree& r, const Traversal& trav) try {
                 new (&r) Tree(value->name);
             }
         }
+         // Fall through
     }
     if (trav.desc->preference() == Description::PREFER_OBJECT) {
         UniqueArray<AnyString> keys;
@@ -44,9 +55,8 @@ void ser_to_tree (Tree& r, const Traversal& trav) try {
             });
         }
         new (&r) Tree(move(object));
-        return;
     }
-    if (trav.desc->preference() == Description::PREFER_ARRAY) {
+    else if (trav.desc->preference() == Description::PREFER_ARRAY) {
         usize len = ser_get_length(trav);
         auto array = TreeArray(Capacity(len));
         for (usize i = 0; i < len; i++) {
@@ -64,16 +74,14 @@ void ser_to_tree (Tree& r, const Traversal& trav) try {
             });
         }
         new (&r) Tree(move(array));
-        return;
     }
-    if (auto acr = trav.desc->delegate_acr()) {
+    else if (auto acr = trav.desc->delegate_acr()) {
         trav.follow_delegate(
             acr, AccessMode::Read, [&r](const Traversal& child)
         { ser_to_tree(r, child); });
         r.flags |= acr->tree_flags();
-        return;
     }
-    if (trav.desc->values()) {
+    else if (trav.desc->values()) {
         raise(e_ToTreeValueNotFound, cat(
             "No value for type ", Type(trav.desc).name(),
             " matches the item's value"
@@ -82,13 +90,6 @@ void ser_to_tree (Tree& r, const Traversal& trav) try {
     else raise(e_ToTreeNotSupported, cat(
         "Item of type ", Type(trav.desc).name(), " does not support to_tree."
     ));
-}
-catch (const std::exception&) {
-     // TODO also check std::uncaught_exceptions
-    if (diagnostic_serialization) {
-        new (&r) Tree(std::current_exception());
-    }
-    else throw;
 }
 
 } using namespace in;
