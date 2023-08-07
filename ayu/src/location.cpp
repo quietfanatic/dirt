@@ -8,6 +8,7 @@
 #include "traversal-private.h"
 
 namespace ayu {
+namespace in {
 
 struct ResourceLocation : LocationData {
     Resource resource;
@@ -21,6 +22,8 @@ struct ReferenceLocation : LocationData {
         LocationData(REFERENCE), reference(*move(ref))
     { }
 };
+
+} using namespace in;
 
 Location::Location (Resource res) noexcept :
     data(new ResourceLocation(move(res)))

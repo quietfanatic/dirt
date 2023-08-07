@@ -22,42 +22,42 @@ struct KeyLocation : LocationData {
     Location parent;
     AnyString key;
     KeyLocation (MoveRef<Location> p, MoveRef<AnyString> k) :
-        LocationData(KEY), parent(*move(p)), key(*move(k))
+        LocationData(in::KEY), parent(*move(p)), key(*move(k))
     { }
 };
 struct IndexLocation : LocationData {
     Location parent;
     uint32 index;
     IndexLocation (MoveRef<Location> p, usize i) :
-        LocationData(INDEX), parent(*move(p)), index(i)
+        LocationData(in::INDEX), parent(*move(p)), index(i)
     { expect(index == i); }
 };
 
-} using namespace in;
+};
 
 inline Location::Location (MoveRef<Location> p, MoveRef<AnyString> k) noexcept :
-    data(new KeyLocation(expect(*move(p)), *move(k)))
+    data(new in::KeyLocation(expect(*move(p)), *move(k)))
 { }
 inline Location::Location (MoveRef<Location> p, usize i) noexcept :
-    data(new IndexLocation(expect(*move(p)), i))
+    data(new in::IndexLocation(expect(*move(p)), i))
 { }
 
 inline const Location* Location::parent () const noexcept {
     switch (data->form) {
-        case KEY: return &static_cast<KeyLocation*>(data.p)->parent;
-        case INDEX: return &static_cast<IndexLocation*>(data.p)->parent;
+        case in::KEY: return &static_cast<in::KeyLocation*>(data.p)->parent;
+        case in::INDEX: return &static_cast<in::IndexLocation*>(data.p)->parent;
         default: return null;
     }
 }
 inline const AnyString* Location::key () const noexcept {
     switch (data->form) {
-        case KEY: return &static_cast<KeyLocation*>(data.p)->key;
+        case in::KEY: return &static_cast<in::KeyLocation*>(data.p)->key;
         default: return null;
     }
 }
 inline const uint32* Location::index () const noexcept {
     switch (data->form) {
-        case INDEX: return &static_cast<IndexLocation*>(data.p)->index;
+        case in::INDEX: return &static_cast<in::IndexLocation*>(data.p)->index;
         default: return null;
     }
 }

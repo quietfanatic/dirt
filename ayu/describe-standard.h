@@ -18,6 +18,7 @@
 #include "common.h"
 #include "describe-base.h"
 #include "reference.h"
+#include "serialize-compound.h"
 #include "serialize-from-tree.h"
 
  // std::optional serializes to null for nullopt and whatever it contains

@@ -45,10 +45,8 @@
 #include <type_traits>
 
 #include "internal/accessors-internal.h"
-#include "internal/descriptors-internal.h"
 #include "dynamic.h"
 #include "pointer.h"
-#include "serialize-compound.h"
 
 namespace ayu {
 
@@ -263,13 +261,11 @@ struct Reference {
         }
     }
 
-     // Syntax sugar.
-    Reference operator [] (AnyString key) const {
-        return item_attr(*this, move(key));
-    }
-    Reference operator [] (usize index) const {
-        return item_elem(*this, index);
-    }
+     // Syntax sugar.  These are just wrappers around item_attr and item_elem,
+     // but they're extern so that we don't pull to many dependencies into this
+     // header.
+    Reference operator [] (const AnyString& key);
+    Reference operator [] (usize index);
 };
 
  // Reference comparison is best-effort.  References compare equal if:

@@ -27,6 +27,13 @@ void Reference::raise_Unaddressable () const {
     ));
 }
 
+Reference Reference::operator[] (const AnyString& key) {
+    return item_attr(*this, key);
+}
+Reference Reference::operator[] (usize index) {
+    return item_elem(*this, index);
+}
+
 } using namespace ayu;
 
 static Tree Reference_to_tree (const Reference& v) {

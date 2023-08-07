@@ -128,12 +128,8 @@ struct Resource {
 
      // Syntax sugar
     explicit operator bool () const { return data; }
-    auto operator [] (AnyString key) {
-        return item_attr(ref(), move(key));
-    }
-    auto operator [] (usize index) {
-        return item_elem(ref(), index);
-    }
+    auto operator [] (const AnyString& key) { return ref()[key]; }
+    auto operator [] (usize index) { return ref()[index]; }
 };
 
  // Resources are considered equal if their names are equal (Resources with the

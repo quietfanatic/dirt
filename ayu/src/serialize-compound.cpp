@@ -219,7 +219,7 @@ void item_set_keys (
 }
 
 Reference item_maybe_attr (
-    const Reference& item, AnyString key, LocationRef loc
+    const Reference& item, const AnyString& key, LocationRef loc
 ) {
     Reference r;
      // Is AccessMode::Read correct here?  Will we instead have to chain up the
@@ -229,7 +229,7 @@ Reference item_maybe_attr (
     { ser_maybe_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
     return r;
 }
-Reference item_attr (const Reference& item, AnyString key, LocationRef loc) {
+Reference item_attr (const Reference& item, const AnyString& key, LocationRef loc) {
     Reference r;
     Traversal::start(item, loc, false, AccessMode::Read,
         [&r, &key](const Traversal& trav)

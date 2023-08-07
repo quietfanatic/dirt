@@ -27,10 +27,10 @@ void item_set_keys (
  // Get an attribute of an object-like item by its key, or empty Reference if
  // the attribute doesn't exist.
 Reference item_maybe_attr (
-    const Reference&, AnyString, LocationRef loc = Location());
+    const Reference&, const AnyString&, LocationRef loc = Location());
  // Throws e_ElemNotFound if the attribute doesn't exist.  Guaranteed not to
  // return an empty or null Reference.
-Reference item_attr (const Reference&, AnyString, LocationRef loc = Location());
+Reference item_attr (const Reference&, const AnyString&, LocationRef loc = Location());
 
 ///// OPERATIONS FOR ARRAY-LIKE TYPES
  // These use either the elems() descriptor or the keys() and elem_func()
