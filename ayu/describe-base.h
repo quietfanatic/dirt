@@ -269,7 +269,7 @@ struct _AYU_DescribeBase {
      //
      // If attr_func() is present, keys() must also be present, and attrs() must
      // not be present.
-    static constexpr auto attr_func (Reference(* f )(T&, AnyString));
+    static constexpr auto attr_func (Reference(* f )(T&, const AnyString&));
 
     ///// DESCRIPTORS FOR ARRAY-LIKE TYPES
 

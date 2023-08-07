@@ -48,9 +48,9 @@ struct Traversal {
          // DELEGATE, ATTR, ELEM
         const Accessor* acr;
          // ATTR_FUNC
-        Reference(* attr_func )(Mu&, AnyString);
+        AttrFunc<Mu>* attr_func;
          // ELEM_FUNC
-        Reference(* elem_func )(Mu&, usize);
+        ElemFunc<Mu>* elem_func;
     };
     union {
          // START
@@ -189,7 +189,7 @@ struct Traversal {
 
     template <class CB>
     void follow_attr_func (
-        const Reference& ref, Reference(* func )(Mu&, AnyString),
+        const Reference& ref, AttrFunc<Mu>* func,
         const AnyString& key, AccessMode mode, CB cb
     ) const {
         Traversal child;
@@ -211,7 +211,7 @@ struct Traversal {
 
     template <class CB>
     void follow_elem_func (
-        const Reference& ref, Reference(* func )(Mu&, usize),
+        const Reference& ref, ElemFunc<Mu>* func,
         usize index, AccessMode mode, CB cb
     ) const {
         Traversal child;

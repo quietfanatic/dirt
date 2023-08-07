@@ -145,7 +145,7 @@ constexpr auto _AYU_DescribeBase<T>::keys (const Acr& acr) {
     return in::KeysDcrWith<T, Acr>(acr);
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::attr_func (Reference(* f )(T&, AnyString)) {
+constexpr auto _AYU_DescribeBase<T>::attr_func (AttrFunc<T>* f) {
     return in::AttrFuncDcr<T>{{}, f};
 }
 template <class T>
@@ -154,7 +154,7 @@ constexpr auto _AYU_DescribeBase<T>::length (const Acr& acr) {
     return in::LengthDcrWith<T, Acr>(acr);
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::elem_func (Reference(* f )(T&, usize)) {
+constexpr auto _AYU_DescribeBase<T>::elem_func (ElemFunc<T>* f) {
     return in::ElemFuncDcr<T>{{}, f};
 }
 template <class T>

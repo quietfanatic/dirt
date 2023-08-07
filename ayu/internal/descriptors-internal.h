@@ -298,8 +298,10 @@ struct KeysDcrWith : KeysDcr<T> {
 };
 
 template <class T>
+using AttrFunc = Reference(T&, const AnyString&);
+template <class T>
 struct AttrFuncDcr : AttachedDescriptor<T> {
-    Reference(* f )(T&, AnyString);
+    AttrFunc<T>* f;
 };
 
 template <class T>
@@ -315,8 +317,10 @@ struct LengthDcrWith : LengthDcr<T> {
 };
 
 template <class T>
+using ElemFunc = Reference(T&, usize);
+template <class T>
 struct ElemFuncDcr : AttachedDescriptor<T> {
-    Reference(* f )(T&, size_t);
+    ElemFunc<T>* f;
 };
 
 template <class T>

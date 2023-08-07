@@ -38,11 +38,11 @@ Reference Reference::chain (const Accessor* o_acr) const noexcept {
 }
 
 Reference Reference::chain_attr_func (
-    Reference(* attr_func )(Mu&, AnyString), AnyString key
+    AttrFunc<Mu>* attr_func, const AnyString& key
 ) const {
     if (auto addr = address()) {
         if (auto r = attr_func(*addr, key)) return r;
-        else raise_AttrNotFound(type(), move(key));
+        else raise_AttrNotFound(type(), key);
     }
     else {
          // Extra read just to check if the func returns null Reference.
@@ -50,16 +50,16 @@ Reference Reference::chain_attr_func (
          // scenario, so one more check isn't gonna make much difference.
         read([this, attr_func, &key](const Mu& v){
             Reference ref = attr_func(const_cast<Mu&>(v), key);
-            if (!ref) raise_AttrNotFound(type(), move(key));
+            if (!ref) raise_AttrNotFound(type(), key);
         });
         return Reference(host, new ChainAcr(
-            acr, new AttrFuncAcr(attr_func, move(key))
+            acr, new AttrFuncAcr(attr_func, key)
         ));
     }
 }
 
 Reference Reference::chain_elem_func (
-    Reference(* elem_func )(Mu&, size_t), size_t index
+    ElemFunc<Mu>* elem_func, size_t index
 ) const {
     if (auto addr = address()) {
         if (auto r = elem_func(*addr, index)) return r;

@@ -157,17 +157,17 @@ void ChainAcr::_destroy (Accessor* acr) noexcept {
 Type AttrFuncAcr::_type (const Accessor* acr, Mu* v) {
     if (!v) return Type();
     auto self = static_cast<const AttrFuncAcr*>(acr);
-    return self->fp(*v, self->key).type();
+    return self->f(*v, self->key).type();
 }
 void AttrFuncAcr::_access (
     const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
 ) {
     auto self = static_cast<const AttrFuncAcr*>(acr);
-    self->fp(v, self->key).access(mode, cb);
+    self->f(v, self->key).access(mode, cb);
 }
 Mu* AttrFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const AttrFuncAcr*>(acr);
-    return self->fp(v, self->key).address();
+    return self->f(v, self->key).address();
 }
 void AttrFuncAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const AttrFuncAcr*>(acr);
@@ -177,15 +177,15 @@ void AttrFuncAcr::_destroy (Accessor* acr) noexcept {
 Type ElemFuncAcr::_type (const Accessor* acr, Mu* v) {
     if (!v) return Type();
     auto self = static_cast<const ElemFuncAcr*>(acr);
-    return self->fp(*v, self->index).type();
+    return self->f(*v, self->index).type();
 }
 void ElemFuncAcr::_access (const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb) {
     auto self = static_cast<const ElemFuncAcr*>(acr);
-    self->fp(v, self->index).access(mode, cb);
+    self->f(v, self->index).access(mode, cb);
 }
 Mu* ElemFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ElemFuncAcr*>(acr);
-    return self->fp(v, self->index).address();
+    return self->f(v, self->index).address();
 }
 
 } using namespace ayu::in;

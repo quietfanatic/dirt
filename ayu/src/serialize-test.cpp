@@ -173,7 +173,7 @@ AYU_DESCRIBE(ayu::test::AttrsTest,
             }
         }
     )),
-    attr_func([](AttrsTest& v, AnyString k){
+    attr_func([](AttrsTest& v, const AnyString& k){
         return Reference(&v.xs.at(k));
     })
 )
@@ -193,7 +193,7 @@ AYU_DESCRIBE(ayu::test::AttrsTest2,
             }
         }
     )),
-    attr_func([](AttrsTest2& v, AnyString k){
+    attr_func([](AttrsTest2& v, const AnyString& k){
         return Reference(&v.xs.at(k));
     })
 )

@@ -140,7 +140,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
     )),
-    desc::attr_func([](std::unordered_map<std::string, T>& v, uni::AnyString k){
+    desc::attr_func([](std::unordered_map<std::string, T>& v, const uni::AnyString& k){
         auto iter = v.find(k);
         return iter != v.end()
             ? ayu::Reference(&iter->second)
@@ -176,7 +176,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
     )),
-    desc::attr_func([](std::map<std::string, T>& v, uni::AnyString k){
+    desc::attr_func([](std::map<std::string, T>& v, const uni::AnyString& k){
         auto iter = v.find(k);
         return iter != v.end()
             ? ayu::Reference(&iter->second)

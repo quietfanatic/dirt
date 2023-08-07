@@ -1,5 +1,6 @@
 #pragma once
 #include "../internal/accessors-internal.h"
+#include "../internal/descriptors-internal.h"
 
 namespace ayu::in {
 
@@ -17,10 +18,10 @@ struct ChainAcr : Accessor {
 };
 
 struct AttrFuncAcr : Accessor {
-    Reference(* fp )(Mu&, AnyString);
+    AttrFunc<Mu>* f;
     AnyString key;
-    AttrFuncAcr (Reference(* fp )(Mu&, AnyString), AnyString k) :
-        Accessor(&_vt), fp(fp), key(move(k))
+    AttrFuncAcr (AttrFunc<Mu>* f, AnyString k) :
+        Accessor(&_vt), f(f), key(move(k))
     { }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
@@ -30,10 +31,10 @@ struct AttrFuncAcr : Accessor {
 };
 
 struct ElemFuncAcr : Accessor {
-    Reference(* fp )(Mu&, usize);
+    ElemFunc<Mu>* f;
     size_t index;
-    ElemFuncAcr (Reference(* fp )(Mu&, usize), usize i) :
-        Accessor(&_vt), fp(fp), index(i)
+    ElemFuncAcr (ElemFunc<Mu>* f, usize i) :
+        Accessor(&_vt), f(f), index(i)
     { }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
