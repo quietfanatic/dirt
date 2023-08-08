@@ -216,6 +216,7 @@ void item_set_keys (
     Traversal::start(item, loc, false, AccessMode::Write,
         [&keys](const Traversal& trav)
     { ser_set_keys(trav, move(keys)); });
+    expect(!keys);
 }
 
 Reference item_maybe_attr (

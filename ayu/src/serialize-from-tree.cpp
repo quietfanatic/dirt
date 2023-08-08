@@ -172,7 +172,9 @@ void ser_from_tree_object (const Traversal& trav, const Tree& tree) {
             keys.emplace_back_expect_capacity(key);
         }
         ser_set_keys(trav, move(keys));
-         // Restrict scope of keys to here
+        expect(!keys);
+         // Restrict scope of keys to here so its destructor doesn't prevent a
+         // tail call.
     }
     for (auto& [key, value] : object) {
         ser_attr(trav, key, AccessMode::Write,

@@ -1478,7 +1478,7 @@ struct ArrayInterface {
                     return;
                 }
             }
-            if constexpr (std::is_trivially_destructible_v<T>) {
+            if (std::is_trivially_destructible_v<T> || size() == 0) {
                 SharableBuffer<T>::deallocate(impl.data);
             }
             else destroy(impl);
@@ -1489,7 +1489,9 @@ struct ArrayInterface {
     NOINLINE static
     void destroy (Impl impl) {
         Self& self = reinterpret_cast<Self&>(impl);
-        for (usize i = self.size(); i > 0;) {
+        usize i = self.size();
+        expect(i > 0);
+        while (i > 0) {
             impl.data[--i].~T();
         }
         SharableBuffer<T>::deallocate(impl.data);

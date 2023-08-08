@@ -90,7 +90,10 @@ void ser_to_tree_object (Tree& r, const Traversal& trav) {
         {
             if (child.op == ATTR &&
                 child.acr->attr_flags & AttrFlags::Invisible
-            ) return;
+            ) {
+                key = {};  // Consume key even though we didn't use it
+                return;
+            }
              // It's okay to move key even though the traversal stack has a
              // pointer to it, because this is the last thing that happens
              // before ser_attr returns.
@@ -109,8 +112,7 @@ void ser_to_tree_object (Tree& r, const Traversal& trav) {
 #ifndef NDEBUG
     for (auto& key : keys) expect(!key.owned());
 #endif
-    SharableBuffer<AnyString>::deallocate(keys.data());
-    keys.unsafe_set_empty();
+    keys.unsafe_set_size(0);
     new (&r) Tree(move(object));
 }
 
