@@ -7,7 +7,7 @@ namespace ayu {
 namespace in {
 
  // Pulling out this callback to avoid redundant instantiations of
- // ser_maybe_attr<> and ser_maybe_elem<> due to all lambdas having unique
+ // trav_maybe_attr<> and trav_maybe_elem<> due to all lambdas having unique
  // types.
 struct ReceiveReference {
     Reference& r;
@@ -19,7 +19,7 @@ struct ReceiveReference {
 ///// ATTRS
 
 static
-void ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
+void trav_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
      // This'll end up being N^2.  TODO: Test whether including an unordered_set
      // would speed this up (probably not).  Maybe even just hashing the key
      // might be enough.
@@ -28,7 +28,7 @@ void ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
 }
 
 static
-void ser_collect_keys_attrs (
+void trav_collect_keys_attrs (
     const Traversal& trav, UniqueArray<AnyString>& keys,
     const AttrsDcrPrivate* attrs
 ) {
@@ -38,26 +38,26 @@ void ser_collect_keys_attrs (
         if (acr->attr_flags & AttrFlags::Include) {
             trav.follow_attr(acr, attr->key, AccessMode::Read,
                 [&keys](const Traversal& child)
-            { ser_collect_keys(child, keys); });
+            { trav_collect_keys(child, keys); });
         }
-        else ser_collect_key(keys, attr->key);
+        else trav_collect_key(keys, attr->key);
     }
 }
 
 static
-void ser_collect_keys_keys_builtin (
+void trav_collect_keys_keys_builtin (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
     acr->read(*trav.address, [&keys](Mu& v){
         auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
         for (auto& key : item_keys) {
-            ser_collect_key(keys, AnyString(key));
+            trav_collect_key(keys, AnyString(key));
         }
     });
 }
 
 static
-void ser_collect_keys_keys_generic (
+void trav_collect_keys_keys_generic (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr,
     Type keys_type
 ) {
@@ -68,7 +68,7 @@ void ser_collect_keys_keys_generic (
         if (keys_tree.form != Form::Array) goto keys_type_invalid;
         for (const Tree& key : TreeArraySlice(keys_tree)) {
             if (key.form != Form::String) goto keys_type_invalid;
-            ser_collect_key(keys, AnyString(move(key)));
+            trav_collect_key(keys, AnyString(move(key)));
         }
         return;
         keys_type_invalid: raise(e_KeysTypeInvalid, cat(
@@ -80,7 +80,7 @@ void ser_collect_keys_keys_generic (
 }
 
 static
-void ser_collect_keys_keys (
+void trav_collect_keys_keys (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
     Type keys_type = acr->type(trav.address);
@@ -88,35 +88,35 @@ void ser_collect_keys_keys (
      // string comparison.
     if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
          // Optimize for AnyArray<AnyString>
-         ser_collect_keys_keys_builtin(trav, keys, acr);
+         trav_collect_keys_keys_builtin(trav, keys, acr);
     }
     else [[unlikely]] {
          // Generic case for anything that to_trees to an array of strings
-         ser_collect_keys_keys_generic(trav, keys, acr, keys_type);
+         trav_collect_keys_keys_generic(trav, keys, acr, keys_type);
     }
 }
 
 static
-void ser_collect_keys_delegate (
+void trav_collect_keys_delegate (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
     trav.follow_delegate(acr, AccessMode::Read, [&keys](const Traversal& child){
-        ser_collect_keys(child, keys);
+        trav_collect_keys(child, keys);
     });
 }
 
 NOINLINE
-void ser_collect_keys (
+void trav_collect_keys (
     const Traversal& trav, UniqueArray<AnyString>& keys
 ) {
     if (auto attrs = trav.desc->attrs()) {
-        ser_collect_keys_attrs(trav, keys, attrs);
+        trav_collect_keys_attrs(trav, keys, attrs);
     }
     else if (auto acr = trav.desc->keys_acr()) {
-        ser_collect_keys_keys(trav, keys, acr);
+        trav_collect_keys_keys(trav, keys, acr);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        ser_collect_keys_delegate(trav, keys, acr);
+        trav_collect_keys_delegate(trav, keys, acr);
     }
     else raise_AttrsNotSupported(trav.desc);
 }
@@ -129,14 +129,14 @@ AnyArray<AnyString> item_get_keys (
     UniqueArray<AnyString> keys;
     Traversal::start(item, loc, false, AccessMode::Read,
         [&keys](const Traversal& trav)
-    { ser_collect_keys(trav, keys); });
+    { trav_collect_keys(trav, keys); });
     return keys;
 }
 
 namespace in {
 
 static
-bool ser_claim_key (UniqueArray<AnyString>& keys, Str key) {
+bool trav_claim_key (UniqueArray<AnyString>& keys, Str key) {
      // This algorithm overall is O(N^3), we may be able to speed it up by
      // setting a flag if there are no included attrs, or maybe by using an
      // unordered_set?
@@ -151,7 +151,7 @@ bool ser_claim_key (UniqueArray<AnyString>& keys, Str key) {
     return false;
 }
 
-void ser_claim_keys (
+void trav_claim_keys (
     const Traversal& trav,
     UniqueArray<AnyString>& keys,
     bool optional
@@ -184,9 +184,9 @@ void ser_claim_keys (
              // For readonly keys, get the keys and compare them.
              // TODO: This can probably be optimized more
             UniqueArray<AnyString> required_keys;
-            ser_collect_keys(trav, required_keys);
+            trav_collect_keys(trav, required_keys);
             for (auto& key : required_keys) {
-                if (ser_claim_key(keys, key)) {
+                if (trav_claim_key(keys, key)) {
                      // If any of the keys are present, it makes this item no
                      // longer optional.
                     optional = false;
@@ -207,7 +207,7 @@ void ser_claim_keys (
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (ser_claim_key(keys, attr->key)) {
+            if (trav_claim_key(keys, attr->key)) {
                  // If any attrs are given, all required attrs must be given
                  // (only matters if this item is an included attr)
                  // TODO: this should fail a test depending on the order of attrs
@@ -233,22 +233,22 @@ void ser_claim_keys (
                 bool opt = optional | !!(acr->attr_flags & AttrFlags::Optional);
                 trav.follow_attr(acr, attr->key, AccessMode::Write,
                     [&keys, opt](const Traversal& child)
-                { ser_claim_keys(child, keys, opt); });
+                { trav_claim_keys(child, keys, opt); });
             }
         }
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         trav.follow_delegate(acr, AccessMode::Write,
             [&keys, optional](const Traversal& child)
-        { ser_claim_keys(child, keys, optional); });
+        { trav_claim_keys(child, keys, optional); });
     }
     else raise_AttrsNotSupported(trav.desc);
 }
 
-void ser_set_keys (
+void trav_set_keys (
     const Traversal& trav, UniqueArray<AnyString>&& keys
 ) {
-    ser_claim_keys(trav, keys, false);
+    trav_claim_keys(trav, keys, false);
     if (keys) raise_AttrRejected(trav.desc, keys[0]);
 }
 
@@ -259,7 +259,7 @@ void item_set_keys (
 ) {
     Traversal::start(item, loc, false, AccessMode::Write,
         [&keys](const Traversal& trav)
-    { ser_set_keys(trav, move(keys)); });
+    { trav_set_keys(trav, move(keys)); });
     expect(!keys);
 }
 
@@ -271,20 +271,20 @@ Reference item_maybe_attr (
      // reference from the start?
     Traversal::start(item, loc, false, AccessMode::Read,
         [&r, &key](const Traversal& trav)
-    { ser_maybe_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
+    { trav_maybe_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
     return r;
 }
 Reference item_attr (const Reference& item, const AnyString& key, LocationRef loc) {
     Reference r;
     Traversal::start(item, loc, false, AccessMode::Read,
         [&r, &key](const Traversal& trav)
-    { ser_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
+    { trav_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
     return r;
 }
 
 ///// ELEMS
 
-usize in::ser_get_length (const Traversal& trav) {
+usize in::trav_get_length (const Traversal& trav) {
     if (auto acr = trav.desc->length_acr()) {
         usize len;
          // Do we want to support other integral types besides usize?  Probably
@@ -301,7 +301,7 @@ usize in::ser_get_length (const Traversal& trav) {
         usize len;
         trav.follow_delegate(
             acr, AccessMode::Read, [&len](const Traversal& child)
-        { len = ser_get_length(child); });
+        { len = trav_get_length(child); });
         return len;
     }
     else raise_ElemsNotSupported(trav.desc);
@@ -311,11 +311,11 @@ usize item_get_length (const Reference& item, LocationRef loc) {
     usize len;
     Traversal::start(
         item, loc, false, AccessMode::Read, [&len](const Traversal& trav)
-    { len = ser_get_length(trav); });
+    { len = trav_get_length(trav); });
     return len;
 }
 
-void in::ser_set_length (const Traversal& trav, usize len) {
+void in::trav_set_length (const Traversal& trav, usize len) {
     if (auto acr = trav.desc->length_acr()) {
         if (!(acr->flags & AcrFlags::Readonly)) {
             acr->write(*trav.address, [len](Mu& v){
@@ -346,7 +346,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
     else if (auto acr = trav.desc->delegate_acr()) {
         trav.follow_delegate(
             acr, AccessMode::Write, [len](const Traversal& child)
-        { ser_set_length(child, len); });
+        { trav_set_length(child, len); });
     }
     else raise_ElemsNotSupported(trav.desc);
 }
@@ -354,7 +354,7 @@ void in::ser_set_length (const Traversal& trav, usize len) {
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
     Traversal::start(
         item, loc, false, AccessMode::Write, [len](const Traversal& trav)
-    { ser_set_length(trav, len); });
+    { trav_set_length(trav, len); });
 }
 
 Reference item_maybe_elem (
@@ -363,14 +363,14 @@ Reference item_maybe_elem (
     Reference r;
     Traversal::start(item, loc, false, AccessMode::Read,
         [&r, index](const Traversal& trav)
-    { ser_maybe_elem(trav, index, AccessMode::Read, ReceiveReference(r)); });
+    { trav_maybe_elem(trav, index, AccessMode::Read, ReceiveReference(r)); });
     return r;
 }
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r;
     Traversal::start(item, loc, false, AccessMode::Read,
         [&r, index](const Traversal& trav)
-    { ser_elem(trav, index, AccessMode::Read, ReceiveReference(r)); });
+    { trav_elem(trav, index, AccessMode::Read, ReceiveReference(r)); });
     return r;
 }
 

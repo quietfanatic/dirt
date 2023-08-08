@@ -19,12 +19,12 @@ bool scan_trav (
     switch (trav.desc->preference()) {
         case Description::PREFER_OBJECT: {
             UniqueArray<AnyString> ks;
-            ser_collect_keys(trav, ks);
+            trav_collect_keys(trav, ks);
             for (auto& k : ks) {
                  // Initialize to false because in only_addressable mode, the
                  // callback may not be called.
                 bool r = false;
-                ser_attr(trav, k, AccessMode::Read,
+                trav_attr(trav, k, AccessMode::Read,
                     [&r, loc, &k, &cb](const Traversal& child)
                 {
                     r = scan_trav(child, Location(loc, k), cb);
@@ -34,10 +34,10 @@ bool scan_trav (
             return false;
         }
         case Description::PREFER_ARRAY: {
-            usize len = ser_get_length(trav);
+            usize len = trav_get_length(trav);
             for (usize i = 0; i < len; i++) {
                 bool r = false;
-                ser_elem(trav, i, AccessMode::Read,
+                trav_elem(trav, i, AccessMode::Read,
                     [&r, loc, i, &cb](const Traversal& child)
                 {
                     r = scan_trav(child, Location(loc, i), cb);

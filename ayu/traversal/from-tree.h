@@ -82,7 +82,7 @@ constexpr ErrorCode e_FromTreeFormRejected = "ayu::e_FromTreeFormRejected";
 constexpr ErrorCode e_FromTreeValueNotFound = "ayu::e_FromTreeValueNotFound";
 
  // You can use this in your from_tree descriptor.
-[[noreturn]]
+[[noreturn, gnu::cold]] NOINLINE
 void raise_FromTreeFormRejected (Type item_type, Form got_form);
 
 } // ayu

@@ -10,31 +10,31 @@ namespace ayu::in {
 
 ///// ATTR OPERATIONS
  // Implement get_keys by adding keys to an array of AnyStrings
-void ser_collect_keys (const Traversal&, UniqueArray<AnyString>&);
+void trav_collect_keys (const Traversal&, UniqueArray<AnyString>&);
 
  // Implement set_keys by removing keys from an array
-void ser_claim_keys (const Traversal&, UniqueArray<AnyString>&, bool optional);
-void ser_set_keys (const Traversal&, UniqueArray<AnyString>&&);
+void trav_claim_keys (const Traversal&, UniqueArray<AnyString>&, bool optional);
+void trav_set_keys (const Traversal&, UniqueArray<AnyString>&&);
 
  // If the attr isn't found, returns false and doesn't call the callback
 template <class CB>
-bool ser_maybe_attr (const Traversal&, const AnyString&, AccessMode, CB);
+bool trav_maybe_attr (const Traversal&, const AnyString&, AccessMode, CB);
  // Throws if the attr isn't found
 template <class CB>
-void ser_attr (const Traversal&, const AnyString&, AccessMode, CB);
+void trav_attr (const Traversal&, const AnyString&, AccessMode, CB);
 
  ///// Elem operations
-usize ser_get_length (const Traversal&);
+usize trav_get_length (const Traversal&);
  // Implement set_length by counting up used length
-void ser_claim_length (const Traversal&, usize& claimed, usize len);
-void ser_set_length (const Traversal&, usize);
+void trav_claim_length (const Traversal&, usize& claimed, usize len);
+void trav_set_length (const Traversal&, usize);
 
  // If elem is out of range, returns false and doesn't call the callback
 template <class CB>
-bool ser_maybe_elem (const Traversal&, usize, AccessMode, CB);
+bool trav_maybe_elem (const Traversal&, usize, AccessMode, CB);
  // Throws if elem is out of bounds
 template <class CB>
-void ser_elem (const Traversal&, usize, AccessMode, CB);
+void trav_elem (const Traversal&, usize, AccessMode, CB);
 
  ///// Exceptions
 [[noreturn]]
@@ -49,7 +49,7 @@ void raise_ElemsNotSupported (Type);
 ///// INLINE DEFINITIONS
 
 template <class CB> NOINLINE
-bool ser_maybe_attr_attrs (
+bool trav_maybe_attr_attrs (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, CB cb, const AttrsDcrPrivate* attrs
 ) {
@@ -85,7 +85,7 @@ bool ser_maybe_attr_attrs (
                 mode == AccessMode::Write ? AccessMode::Modify : mode,
                 [&found, &key, mode, &cb](const Traversal& child)
             {
-                found = ser_maybe_attr(child, key, mode, cb);
+                found = trav_maybe_attr(child, key, mode, cb);
             });
             if (found) return true;
         }
@@ -94,7 +94,7 @@ bool ser_maybe_attr_attrs (
 }
 
 template <class CB> NOINLINE
-bool ser_maybe_attr_attr_func (
+bool trav_maybe_attr_attr_func (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, CB cb, AttrFunc<Mu>* f
 ) {
@@ -106,7 +106,7 @@ bool ser_maybe_attr_attr_func (
 }
 
 template <class CB> NOINLINE
-bool ser_maybe_attr_delegate (
+bool trav_maybe_attr_delegate (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, CB cb, const Accessor* acr
 ) {
@@ -115,39 +115,39 @@ bool ser_maybe_attr_delegate (
         acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
         [&r, &key, mode, &cb](const Traversal& child)
     {
-        r = ser_maybe_attr(child, key, mode, cb);
+        r = trav_maybe_attr(child, key, mode, cb);
     });
     return r;
 }
 
 template <class CB> NOINLINE
-bool ser_maybe_attr (
+bool trav_maybe_attr (
     const Traversal& trav, const AnyString& key,
     AccessMode mode, CB cb
 ) {
     if (auto attrs = trav.desc->attrs()) {
-        return ser_maybe_attr_attrs(trav, key, mode, cb, attrs);
+        return trav_maybe_attr_attrs(trav, key, mode, cb, attrs);
     }
     else if (auto attr_func = trav.desc->attr_func()) {
-        return ser_maybe_attr_attr_func(trav, key, mode, cb, attr_func->f);
+        return trav_maybe_attr_attr_func(trav, key, mode, cb, attr_func->f);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        return ser_maybe_attr_delegate(trav, key, mode, cb, acr);
+        return trav_maybe_attr_delegate(trav, key, mode, cb, acr);
     }
     else raise_AttrsNotSupported(trav.desc);
 }
 
 template <class CB>
-void ser_attr (
+void trav_attr (
     const Traversal& trav, const AnyString& key, AccessMode mode, CB cb
 ) {
-    if (!ser_maybe_attr(trav, key, mode, cb)) {
+    if (!trav_maybe_attr(trav, key, mode, cb)) {
         raise_AttrNotFound(trav.desc, key);
     }
 }
 
 template <class CB> NOINLINE
-bool ser_maybe_elem_elems (
+bool trav_maybe_elem_elems (
     const Traversal& trav, usize index, AccessMode mode, CB cb,
     const ElemsDcrPrivate* elems
 ) {
@@ -160,7 +160,7 @@ bool ser_maybe_elem_elems (
 }
 
 template <class CB> NOINLINE
-bool ser_maybe_elem_elem_func (
+bool trav_maybe_elem_elem_func (
     const Traversal& trav, usize index, AccessMode mode, CB cb,
     ElemFunc<Mu>* f
 ) {
@@ -172,7 +172,7 @@ bool ser_maybe_elem_elem_func (
 }
 
 template <class CB> NOINLINE
-bool ser_maybe_elem_delegate (
+bool trav_maybe_elem_delegate (
     const Traversal& trav, usize index, AccessMode mode, CB cb,
     const Accessor* acr
 ) {
@@ -181,33 +181,33 @@ bool ser_maybe_elem_delegate (
         acr, mode == AccessMode::Write ? AccessMode::Modify : mode,
         [&found, index, mode, &cb](const Traversal& child)
     {
-        found = ser_maybe_elem(child, index, mode, cb);
+        found = trav_maybe_elem(child, index, mode, cb);
     });
     return found;
 }
 
 
 template <class CB> NOINLINE
-bool ser_maybe_elem (
+bool trav_maybe_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
 ) {
     if (auto elems = trav.desc->elems()) {
-        return ser_maybe_elem_elems(trav, index, mode, cb, elems);
+        return trav_maybe_elem_elems(trav, index, mode, cb, elems);
     }
     else if (auto elem_func = trav.desc->elem_func()) {
-        return ser_maybe_elem_elem_func(trav, index, mode, cb, elem_func->f);
+        return trav_maybe_elem_elem_func(trav, index, mode, cb, elem_func->f);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        return ser_maybe_elem_delegate(trav, index, mode, cb, acr);
+        return trav_maybe_elem_delegate(trav, index, mode, cb, acr);
     }
     else raise_ElemsNotSupported(trav.desc);
 }
 
 template <class CB>
-void ser_elem (
+void trav_elem (
     const Traversal& trav, usize index, AccessMode mode, CB cb
 ) {
-    if (!ser_maybe_elem(trav, index, mode, cb)) {
+    if (!trav_maybe_elem(trav, index, mode, cb)) {
         raise_ElemNotFound(trav.desc, index);
     }
 }
