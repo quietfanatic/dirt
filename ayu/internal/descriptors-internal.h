@@ -235,12 +235,12 @@ struct ValuesDcrWith : ValuesDcr<T> {
 
 template <class T>
 struct AttrDcr : ComparableAddress {
-    Str key;
+    StaticString key;
 };
 template <class T, class Acr>
 struct AttrDcrWith : AttrDcr<T> {
     Acr acr;
-    constexpr AttrDcrWith (Str k, const Acr& a) :
+    constexpr AttrDcrWith (StaticString k, const Acr& a) :
         AttrDcr<T>{{}, k},
         acr(constexpr_acr(a))
     { }

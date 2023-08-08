@@ -27,7 +27,7 @@ void ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
     keys.emplace_back(move(key));
 }
 
-NOINLINE
+static
 void ser_collect_keys_attrs (
     const Traversal& trav, UniqueArray<AnyString>& keys,
     const AttrsDcrPrivate* attrs
@@ -79,7 +79,7 @@ void ser_collect_keys_keys_generic (
     });
 }
 
-NOINLINE
+static
 void ser_collect_keys_keys (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
@@ -96,7 +96,7 @@ void ser_collect_keys_keys (
     }
 }
 
-NOINLINE
+static
 void ser_collect_keys_delegate (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
@@ -109,11 +109,11 @@ NOINLINE
 void ser_collect_keys (
     const Traversal& trav, UniqueArray<AnyString>& keys
 ) {
-    if (auto acr = trav.desc->keys_acr()) {
-        ser_collect_keys_keys(trav, keys, acr);
-    }
-    else if (auto attrs = trav.desc->attrs()) {
+    if (auto attrs = trav.desc->attrs()) {
         ser_collect_keys_attrs(trav, keys, attrs);
+    }
+    else if (auto acr = trav.desc->keys_acr()) {
+        ser_collect_keys_keys(trav, keys, acr);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
         ser_collect_keys_delegate(trav, keys, acr);
