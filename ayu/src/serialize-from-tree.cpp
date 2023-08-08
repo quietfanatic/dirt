@@ -12,11 +12,33 @@ struct SwizzleOp {
      // nested from_tree is called with DELAY_SWIZZLE
     Tree tree;
     Location loc;
+
+    ALWAYS_INLINE
+    SwizzleOp (SwizzleFunc<Mu>* f, Reference&& i, const Tree& t, Location&& l) :
+        f(f), item(move(i)), tree(t), loc(move(l))
+    { }
+     // Allow efficient reallocation
+    ALWAYS_INLINE
+    SwizzleOp (SwizzleOp&& o) {
+        std::memcpy((void*)this, &o, sizeof(SwizzleOp));
+        std::memset((void*)&o, 0, sizeof(SwizzleOp));
+    }
 };
 struct InitOp {
     InitFunc<Mu>* f;
     Reference item;
     Location loc;
+
+    ALWAYS_INLINE
+    InitOp (InitFunc<Mu>* f, Reference&& i, Location&& l) :
+        f(f), item(move(i)), loc(move(l))
+    { }
+     // Allow efficient reallocation
+    ALWAYS_INLINE
+    InitOp (InitOp&& o) {
+        std::memcpy((void*)this, &o, sizeof(InitOp));
+        std::memset((void*)&o, 0, sizeof(InitOp));
+    }
 };
 struct IFTContext {
     static IFTContext* current;

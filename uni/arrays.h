@@ -245,11 +245,19 @@ struct ArrayInterface {
      // Move construct.
     ALWAYS_INLINE constexpr
     ArrayInterface (ArrayInterface&& o) requires (!ac::trivially_copyable) {
-        impl = o.impl;
-        o.impl = {};
+        if (std::is_constant_evaluated()) {
+            impl = o.impl;
+            o.impl = {};
+        }
+        else {
+             // This is the most optimizable way to move data, but it's not
+             // allowed at constexpr time.
+            std::memcpy(&impl, &o.impl, sizeof(Impl));
+            std::memset(&o.impl, 0, sizeof(Impl));
+        }
     }
-     // We need to default the move constructor too, not just the copy
-     // constructor, or the Itanium C++ ABI won't pass this in registers.
+     // We need to default both move and copy constructors so that the Itanium
+     // C++ ABI can pass this in registers.
     ArrayInterface (ArrayInterface&& o) requires (ac::trivially_copyable)
         = default;
      // Move conversion.  Tries to make the moved-to array have the same
