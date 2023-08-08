@@ -25,10 +25,9 @@ struct TraverseToTree {
     void traverse (Tree& r, const Traversal& trav) try {
          // The majority of items are [[likely]] to be atomic.
         if (auto to_tree = trav.desc->to_tree()) [[likely]] {
-            new (&r) Tree(to_tree->f(*trav.address));
-            return;
+            use_to_tree(r, trav, to_tree->f);
         }
-        if (auto values = trav.desc->values()) {
+        else if (auto values = trav.desc->values()) {
             use_values(r, trav, values);
         }
         else no_value_match(r, trav);
@@ -50,6 +49,13 @@ struct TraverseToTree {
     }
 
 ///// EXECUTE STRATEGIES
+
+    static
+    void use_to_tree (
+        Tree& r, const Traversal& trav, ToTreeFunc<Mu>* f
+    ) {
+        new (&r) Tree(f(*trav.address));
+    }
 
     NOINLINE static
     void use_values (
