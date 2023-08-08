@@ -32,6 +32,8 @@ struct TraverseToTree {
         }
         else no_value_match(r, trav);
     }
+     // Unfortunately this exception handler prevents tail calling from this
+     // function, but putting it anywhere else seems to perform worse.
     catch (...) { wrap_exception(r); }
 
     NOINLINE static
@@ -50,6 +52,8 @@ struct TraverseToTree {
 
 ///// EXECUTE STRATEGIES
 
+     // NOINLINEing this seems to be worse, probably because traverse() already
+     // has to do some stack setup for its try/catch.
     static
     void use_to_tree (
         Tree& r, const Traversal& trav, ToTreeFunc<Mu>* f
