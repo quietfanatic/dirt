@@ -69,6 +69,13 @@ constexpr Tree::Tree (TreeObject v, TreeFlags f) :
     length(v.size()), data{.as_object_ptr = v.data()}
 {
     require(v.size() <= uint32(-1));
+#ifndef NDEBUG
+     // Check for duplicate keys
+    for (usize i = 0; i < v.size(); i++)
+    for (usize j = 0; j < i; j++) {
+        expect(v[i].first != v[j].first);
+    }
+#endif
     v.unsafe_set_empty();
 }
 inline Tree::Tree (std::exception_ptr v, TreeFlags f) :

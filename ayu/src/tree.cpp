@@ -56,59 +56,91 @@ void raise_TreeCantRepresent (StaticString type_name, TreeRef t) {
     ));
 }
 
+NOINLINE
+bool tree_eq_str (const char* a, const char* b, usize s) {
+    expect(s > 0);
+    return memcmp(a, b, s) == 0;
+}
+
+NOINLINE
+bool tree_eq_array (const Tree* a, const Tree* b, usize s) {
+    expect(s > 0);
+    for (usize i = 0; i < s; i++) {
+        if (a[i] != b[i]) return false;
+    }
+    return true;
+}
+
+NOINLINE
+bool tree_eq_object (TreeObjectSlice a, TreeObjectSlice b) {
+    expect(a.size() == b.size());
+    expect(a.size() > 0 && b.size() > 0);
+    expect(a.data() != b.data());
+     // Allow attributes to be in different orders
+    for (auto& ap : a) {
+        for (auto& bp : b) {
+            if (ap.first == bp.first) {
+                if (ap.second == bp.second) break;
+                else return false;
+            }
+        }
+    }
+    return true;
+}
+
 } using namespace in;
 
-bool operator == (TreeRef a, TreeRef b) noexcept {
-    if (a->rep != b->rep) {
+NOINLINE
+bool operator == (const Tree& a, const Tree& b) noexcept {
+    if (a.rep != b.rep) {
          // Special case int/float comparisons
-        if (a->rep == Rep::Int64 && b->rep == Rep::Double) {
-            return int64(*a) == double(*b);
+        if (a.rep == Rep::Int64 && b.rep == Rep::Double) {
+            return a.data.as_int64 == b.data.as_double;
         }
-        else if (a->rep == Rep::Double && b->rep == Rep::Int64) {
-            return double(*a) == int64(*b);
+        else if (a.rep == Rep::Double && b.rep == Rep::Int64) {
+            return a.data.as_double == b.data.as_int64;
         }
          // Comparison between different-lifetime strings
-        else if ((a->rep == Rep::StaticString && b->rep == Rep::SharedString)
-              || (a->rep == Rep::SharedString && b->rep == Rep::StaticString)
-        ) {
-            return Str(*a) == Str(*b);
-        }
+        else if ((a.rep == Rep::StaticString && b.rep == Rep::SharedString)
+              || (a.rep == Rep::SharedString && b.rep == Rep::StaticString)
+        ) goto strs;
          // Otherwise different reps = different values.
         return false;
     }
-    else switch (a->rep) {
+    else switch (a.rep) {
         case Rep::Null: return true;
-        case Rep::Bool: return bool(*a) == bool(*b);
-        case Rep::Int64: return int64(*a) == int64(*b);
+        case Rep::Bool:
+        case Rep::Int64: return a.data.as_int64 == b.data.as_int64;
         case Rep::Double: {
-            auto av = double(*a);
-            auto bv = double(*b);
+            auto av = a.data.as_double;
+            auto bv = b.data.as_double;
             return av == bv || (av != av && bv != bv);
         }
         case Rep::StaticString:
-        case Rep::SharedString: {
-            return Str(*a) == Str(*b);
-        }
+        case Rep::SharedString: goto strs;
         case Rep::Array: {
-            return TreeArraySlice(*a) == TreeArraySlice(*b);
+            if (a.length != b.length) return false;
+            if (a.length == 0) return false;
+            if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
+            return tree_eq_array(a.data.as_array_ptr, b.data.as_array_ptr, a.length);
         }
         case Rep::Object: {
-             // Allow attributes to be in different orders
-            auto ao = TreeObjectSlice(*a);
-            auto bo = TreeObjectSlice(*b);
-            if (ao.size() != bo.size()) return false;
-            else for (auto& ap : ao) {
-                for (auto& bp : bo) {
-                    if (ap.first == bp.first) {
-                        if (ap.second == bp.second) break;
-                        else return false;
-                    }
-                }
-            }
-            return true;
+            if (a.length != b.length) return false;
+            if (a.length == 0) return false;
+            if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
+            return tree_eq_object(
+                TreeObjectSlice(a.data.as_object_ptr, a.length),
+                TreeObjectSlice(b.data.as_object_ptr, b.length)
+            );
         }
         case Rep::Error: return false;
         default: never();
+    }
+    strs: {
+        if (a.length != b.length) return false;
+        if (a.length == 0) return true;
+        if (a.data.as_char_ptr == b.data.as_char_ptr) return true;
+        return tree_eq_str(a.data.as_char_ptr, b.data.as_char_ptr, a.length);
     }
 }
 

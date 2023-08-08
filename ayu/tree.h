@@ -171,7 +171,7 @@ static_assert(sizeof(Tree) == sizeof(TreeRef));
  //  attributes don't have to be in the same order.  Note that comparing
  //  TreeObjects or TreeObjectSlices will NOT do an order-independent
  //  comparison, it'll just do ordinary array comparison.
-bool operator == (TreeRef a, TreeRef b) noexcept;
+bool operator == (const Tree& a, const Tree& b) noexcept;
 
  // Tried to get something out of a tree that was the wrong form.
 constexpr ErrorCode e_TreeWrongForm = "ayu::e_TreeWrongForm";
