@@ -1,6 +1,6 @@
 #include "texture-program.h"
 
-#include "../ayu/resource.h"
+#include "../ayu/resources/resource.h"
 #include "gl.h"
 #include "image.h"
 #include "program.h"

@@ -2,7 +2,6 @@
 #include "../serialize-compound.h"
 
 #include "../reference.h"
-#include "../resource.h"
 #include "descriptors-private.h"
 #include "traversal-private.h"
 

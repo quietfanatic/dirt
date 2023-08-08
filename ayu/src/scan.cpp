@@ -6,7 +6,7 @@
 #include "descriptors-private.h"
 #include "serialize-compound-private.h"
 #include "traversal-private.h"
-#include "universe-private.h"
+#include "../resources/universe.private.h"
 
 namespace ayu {
 namespace in {

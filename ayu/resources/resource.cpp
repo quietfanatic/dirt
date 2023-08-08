@@ -1,4 +1,4 @@
-#include "../resource.h"
+#include "resource.h"
 
 #include "../../uni/io.h"
 #include "../dynamic.h"
@@ -7,11 +7,11 @@
 #include "../parse.h"
 #include "../print.h"
 #include "../reference.h"
-#include "../resource-scheme.h"
 #include "../scan.h"
 #include "../serialize-from-tree.h"
 #include "../serialize-to-tree.h"
-#include "universe-private.h"
+#include "scheme.h"
+#include "universe.private.h"
 
 ///// INTERNALS
 
@@ -553,7 +553,7 @@ AYU_DESCRIBE(ayu::Resource,
 ///// TESTS
 
 #ifndef TAP_DISABLE_TESTS
-#include "test-environment-private.h"
+#include "../test/test-environment.private.h"
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<int32*>)
 

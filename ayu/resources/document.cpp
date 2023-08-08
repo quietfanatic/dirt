@@ -1,6 +1,4 @@
-#include "../document.h"
-
-#include <cctype>
+#include "document.h"
 
 #include "../common.h"
 #include "../describe.h"

@@ -3,7 +3,6 @@
 
 #include "../iri/iri.h"
 #include "describe-standard.h"
-#include "resource.h"
 
 using namespace ayu;
 

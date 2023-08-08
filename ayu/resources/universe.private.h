@@ -5,8 +5,8 @@
 #include <memory>
 #include <unordered_map>
 #include "../common.h"
-#include "../resource.h"
-#include "../resource-scheme.h"
+#include "resource.h"
+#include "scheme.h"
 
 namespace ayu::in {
 

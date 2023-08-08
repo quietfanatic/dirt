@@ -170,7 +170,7 @@ AYU_DESCRIBE(glow::Program,
 )
 
 #ifndef TAP_DISABLE_TESTS
-#include "../ayu/resource.h"
+#include "../ayu/resources/resource.h"
 #include "../ayu/serialize-to-tree.h"
 #include "../geo/rect.h"
 #include "../geo/vec.h"

@@ -3,7 +3,7 @@
 #include <charconv>
 #include "../../iri/iri.h"
 #include "../describe.h"
-#include "../resource.h"
+#include "../resources/resource.h"
 #include "../serialize-compound.h"
 #include "traversal-private.h"
 
@@ -196,7 +196,7 @@ AYU_DESCRIBE(ayu::Location,
 // TODO: more tests
 
 #ifndef TAP_DISABLE_TESTS
-#include "test-environment-private.h"
+#include "../test/test-environment.private.h"
 
 static tap::TestSet tests ("dirt/ayu/location", []{
     using namespace tap;

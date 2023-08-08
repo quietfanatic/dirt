@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "../iri/iri.h"
-#include "common.h"
-#include "type.h"
+#include "../../iri/iri.h"
+#include "../common.h"
+#include "../type.h"
 
 namespace ayu {
 

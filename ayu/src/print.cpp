@@ -344,8 +344,8 @@ void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
 #include "../parse.h"
-#include "../resource.h"
-#include "test-environment-private.h"
+#include "../resources/resource.h"
+#include "../test/test-environment.private.h"
 
 static tap::TestSet tests ("dirt/ayu/print", []{
     using namespace tap;

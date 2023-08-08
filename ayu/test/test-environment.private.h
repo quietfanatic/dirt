@@ -4,8 +4,8 @@
  // TODO don't rely on SDL for a non-gui library hahaha
 #include <SDL2/SDL_filesystem.h>
 #include "../../tap/tap.h"
-#include "../document.h"
-#include "../resource-scheme.h"
+#include "../resources/document.h"
+#include "../resources/scheme.h"
 
 namespace ayu::test {
     struct TestResourceScheme : FileResourceScheme {
@@ -21,7 +21,7 @@ namespace ayu::test {
              // reproduce.
             char* base = SDL_GetBasePath();
             trs = std::make_unique<test::TestResourceScheme>(
-                "ayu-test", cat(base, "res/dirt/ayu/src/test")
+                "ayu-test", cat(base, "res/dirt/ayu/test")
             );
             SDL_free(base);
         }

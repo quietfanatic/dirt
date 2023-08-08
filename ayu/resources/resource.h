@@ -25,8 +25,8 @@
 
 #pragma once
 
-#include "internal/common-internal.h"
-#include "reference.h"
+#include "../internal/common-internal.h"
+#include "../reference.h"
 
 namespace ayu {
 
