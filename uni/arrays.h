@@ -1478,26 +1478,21 @@ struct ArrayInterface {
                     return;
                 }
             }
-             // Noinline this for shared arrays with nontrivial element
-             // destructors.  We don't want to inline an entire loop of
-             // destructor calls in every place we remove a reference.
-            if constexpr (
-                ac::supports_share && !std::is_trivially_destructible_v<T>
-            ) destroy_noinline(impl);
+            if constexpr (std::is_trivially_destructible_v<T>) {
+                SharableBuffer<T>::deallocate(impl.data);
+            }
             else destroy(impl);
         }
     }
-    static
+
+     // This should be noinline because it begins and ends with a tail call.
+    NOINLINE static
     void destroy (Impl impl) {
         Self& self = reinterpret_cast<Self&>(impl);
         for (usize i = self.size(); i > 0;) {
             impl.data[--i].~T();
         }
         SharableBuffer<T>::deallocate(impl.data);
-    }
-    NOINLINE static
-    void destroy_noinline (Impl impl) noexcept {
-        destroy(impl);
     }
 
     template <ArrayIterator Ptr> static
