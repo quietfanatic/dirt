@@ -16,15 +16,12 @@ namespace in {
 
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
+
+///// TOP
+
     const char* end;
     const char* begin;
     const AnyString& filename;
-
-     // std::unordered_map is supposedly slow, so we'll use an array instead.
-     // We'll rethink if we ever need to parse a document with a large amount
-     // of shortcuts (I can't imagine for my use cases having more than 20
-     // or so).
-    UniqueArray<TreePair> shortcuts;
 
     Parser (Str s, const AnyString& filename) :
         end(s.end()),
@@ -32,197 +29,44 @@ struct Parser {
         filename(filename)
     { }
 
-    [[noreturn, gnu::cold]]
-    void error (const char* in, Str mess) {
-         // Diagnose line and column number
-         // I'm not sure the col is exactly right
-        uint line = 1;
-        const char* last_lf = begin - 1;
-        for (const char* p2 = begin; p2 != in; p2++) {
-            if (*p2 == '\n') {
-                line++;
-                last_lf = p2;
-            }
+    Tree parse () {
+        const char* in = begin;
+         // Skip BOM
+        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
+            in += 3;
         }
-        uint col = in - last_lf;
-        raise(e_ParseFailed, cat(
-            mess, " at ", filename, ':', line, ':', col
-        ));
+        in = skip_ws(in);
+        Tree r;
+        in = parse_term(in, r);
+        in = skip_ws(in);
+        if (in != end) error(in, "Extra stuff at end of document");
+        return r;
     }
 
-    [[gnu::cold]]
-    void check_error_chars (const char* in) {
-        if (*in <= ' ' || *in >= 127) {
-            error(in, cat(
-                "Unrecognized byte <", to_hex_digit(uint8(*in) >> 4),
-                to_hex_digit(*in & 0xf), '>'
-            ));
-        }
+///// TERM
+
+    NOINLINE const char* parse_term (const char* in, Tree& r) {
+        if (in >= end) return got_error(in, r);
         switch (*in) {
-            case ANY_RESERVED_SYMBOL:
-                error(in, cat("Reserved symbol ", *in));
-            default: return;
+            case ANY_WORD_STARTER: return got_word(in, r);
+            case ANY_DECIMAL_DIGIT:
+            case '.': return got_digit(in, r);
+            case '+': return got_plus(in, r);
+             // Comments starting with -- should already have been skipped by a
+             // previous skip_ws().
+            case '-': return got_minus(in, r);
+
+            case '"': return got_string(in, r);
+            case '[': return got_array(in, r);
+            case '{': return got_object(in, r);
+
+            case '&': return got_decl(in, r);
+            case '*': return got_shortcut(in, r);
+            default: return got_error(in, r);
         }
     }
 
-    ///// NON-SEMANTIC CONTENT
-
-    const char* skip_comment (const char* in) {
-        in += 2;  // for two -s
-        while (in < end) {
-            if (*in++ == '\n') break;
-        }
-        return in;
-    }
-    NOINLINE const char* skip_ws (const char* in) {
-        while (in < end) {
-            switch (*in) {
-                case ANY_WS: in++; break;
-                case '-': {
-                    if (in + 1 < end && in[1] == '-') {
-                        in = skip_comment(in);
-                        break;
-                    }
-                    else return in;
-                }
-                default: return in;
-            }
-        }
-        return in;
-    }
-    NOINLINE const char* skip_comma (const char* in) {
-        while (in < end) {
-            switch (*in) {
-                case ANY_WS: in++; break;
-                case ',': in++; goto next;
-                case '-': {
-                    if (in + 1 < end && in[1] == '-') {
-                        in = skip_comment(in);
-                        break;
-                    }
-                    else return in;
-                }
-                default: return in;
-            }
-        }
-        return in;
-        next:
-        while (in < end) {
-            switch (*in) {
-                case ANY_WS: in++; break;
-                case '-': {
-                    if (in + 1 < end && in[1] == '-') {
-                        in = skip_comment(in);
-                        break;
-                    }
-                    else return in;
-                }
-                default: return in;
-            }
-        }
-        return in;
-    }
-
-    ///// STRINGS
-
-    const char* got_x_escape (const char* in, char& r) {
-        {
-            if (in + 2 >= end) goto invalid_x;
-            int n0 = from_hex_digit(in[0]);
-            if (n0 < 0) goto invalid_x;
-            int n1 = from_hex_digit(in[1]);
-            if (n1 < 0) goto invalid_x;
-            in += 2;
-            r = n0 << 4 | n1;
-            return in;
-        }
-        invalid_x: error(in, "Invalid \\x escape sequence");
-    }
-
-    const char* got_u_escape (const char* in, UniqueString& out) {
-        UniqueString16 units (Capacity(1));
-         // Process multiple \uXXXX sequences at once so
-         // that we can fuse UTF-16 surrogates.
-        for (;;) {
-            if (in + 4 >= end) goto invalid_u;
-            int n0 = from_hex_digit(in[0]);
-            if (n0 < 0) goto invalid_u;
-            int n1 = from_hex_digit(in[1]);
-            if (n1 < 0) goto invalid_u;
-            int n2 = from_hex_digit(in[2]);
-            if (n0 < 0) goto invalid_u;
-            int n3 = from_hex_digit(in[3]);
-            if (n1 < 0) goto invalid_u;
-            units.push_back(n0 << 12 | n1 << 8 | n2 << 4 | n3);
-            in += 4;
-            if (in + 2 < end && in[0] == '\\' && in[1] == 'u') {
-                in += 2;
-            }
-            else break;
-        }
-        out.append_expect_capacity(from_utf16(units));
-        return in;
-        invalid_u: error(in, "Invalid \\u escape sequence");
-    }
-
-    NOINLINE const char* got_string (const char* in, Tree& r) {
-        in++;  // for the "
-         // Find the end of the string and determine upper bound of required
-         // capacity.
-        usize n_escapes = 0;
-        const char* p = in;
-        while (p < end) {
-            switch (*p) {
-                case '"': goto start;
-                case '\\':
-                    n_escapes++;
-                    p += 2;
-                    break;
-                default: p++; break;
-            }
-        }
-        error(in, "Missing \" before end of input");
-        start:
-         // If there aren't any escapes we can just memcpy the whole string
-        if (!n_escapes) {
-            new (&r) Tree(UniqueString(in, p));
-            return p+1; // For the "
-        }
-         // Otherwise preallocate
-        auto out = UniqueString(Capacity(p - in - n_escapes));
-         // Now read the string
-        while (in < end) {
-            char c = *in++;
-            switch (c) {
-                case '"':
-                    new (&r) Tree(move(out));
-                    return in;
-                case '\\': {
-                    expect(in < end);
-                    switch (*in++) {
-                        case '"': c = '"'; break;
-                        case '\\': c = '\\'; break;
-                         // Dunno why this is in json
-                        case '/': c = '/'; break;
-                        case 'b': c = '\b'; break;
-                        case 'f': c = '\f'; break;
-                        case 'n': c = '\n'; break;
-                        case 'r': c = '\r'; break;
-                        case 't': c = '\t'; break;
-                        case 'x': in = got_x_escape(in, c); break;
-                        case 'u':
-                            in = got_u_escape(in, out);
-                            continue; // Skip the push_back
-                        default: in--; error(in, "Unknown escape sequence");
-                    }
-                    break;
-                }
-                default: [[likely]] break;
-            }
-            out.push_back_expect_capacity(c);
-        }
-        never();
-    }
+///// WORDS (unquoted)
 
     NOINLINE const char* find_word_end (const char* in) {
         in++; // First character already known to be part of word
@@ -257,7 +101,7 @@ struct Parser {
         return word_end;
     }
 
-    ///// NUMBERS
+///// NUMBERS
 
     [[noreturn, gnu::cold]] NOINLINE
     void error_invalid_number (const char* in, const char* num_end) {
@@ -346,7 +190,108 @@ struct Parser {
         return parse_number_based(in, r, find_word_end(in), false);
     }
 
-    ///// COMPOUND
+///// STRINGS (quoted)
+
+    NOINLINE const char* got_string (const char* in, Tree& r) {
+        in++;  // for the "
+         // Find the end of the string and determine upper bound of required
+         // capacity.
+        usize n_escapes = 0;
+        const char* p = in;
+        while (p < end) {
+            switch (*p) {
+                case '"': goto start;
+                case '\\':
+                    n_escapes++;
+                    p += 2;
+                    break;
+                default: p++; break;
+            }
+        }
+        error(in, "Missing \" before end of input");
+        start:
+         // If there aren't any escapes we can just memcpy the whole string
+        if (!n_escapes) {
+            new (&r) Tree(UniqueString(in, p));
+            return p+1; // For the "
+        }
+         // Otherwise preallocate
+        auto out = UniqueString(Capacity(p - in - n_escapes));
+         // Now read the string
+        while (in < end) {
+            char c = *in++;
+            switch (c) {
+                case '"':
+                    new (&r) Tree(move(out));
+                    return in;
+                case '\\': {
+                    expect(in < end);
+                    switch (*in++) {
+                        case '"': c = '"'; break;
+                        case '\\': c = '\\'; break;
+                         // Dunno why this is in json
+                        case '/': c = '/'; break;
+                        case 'b': c = '\b'; break;
+                        case 'f': c = '\f'; break;
+                        case 'n': c = '\n'; break;
+                        case 'r': c = '\r'; break;
+                        case 't': c = '\t'; break;
+                        case 'x': in = got_x_escape(in, c); break;
+                        case 'u':
+                            in = got_u_escape(in, out);
+                            continue; // Skip the push_back
+                        default: in--; error(in, "Unknown escape sequence");
+                    }
+                    break;
+                }
+                default: [[likely]] break;
+            }
+            out.push_back_expect_capacity(c);
+        }
+        never();
+    }
+
+    const char* got_x_escape (const char* in, char& r) {
+        {
+            if (in + 2 >= end) goto invalid_x;
+            int n0 = from_hex_digit(in[0]);
+            if (n0 < 0) goto invalid_x;
+            int n1 = from_hex_digit(in[1]);
+            if (n1 < 0) goto invalid_x;
+            in += 2;
+            r = n0 << 4 | n1;
+            return in;
+        }
+        invalid_x: error(in, "Invalid \\x escape sequence");
+    }
+
+    const char* got_u_escape (const char* in, UniqueString& out) {
+        UniqueString16 units (Capacity(1));
+         // Process multiple \uXXXX sequences at once so
+         // that we can fuse UTF-16 surrogates.
+        for (;;) {
+            if (in + 4 >= end) goto invalid_u;
+            int n0 = from_hex_digit(in[0]);
+            if (n0 < 0) goto invalid_u;
+            int n1 = from_hex_digit(in[1]);
+            if (n1 < 0) goto invalid_u;
+            int n2 = from_hex_digit(in[2]);
+            if (n0 < 0) goto invalid_u;
+            int n3 = from_hex_digit(in[3]);
+            if (n1 < 0) goto invalid_u;
+            units.push_back(n0 << 12 | n1 << 8 | n2 << 4 | n3);
+            in += 4;
+            if (in + 2 < end && in[0] == '\\' && in[1] == 'u') {
+                in += 2;
+            }
+            else break;
+        }
+        out.append_expect_capacity(from_utf16(units));
+        return in;
+        invalid_u: error(in, "Invalid \\u escape sequence");
+    }
+
+///// COMPOUND
 
     NOINLINE const char* got_array (const char* in, Tree& r) {
         UniqueArray<Tree> a;
@@ -393,7 +338,13 @@ struct Parser {
         not_terminated: error(in, "Missing } before end of input");
     }
 
-    ///// SHORTCUTS
+///// SHORTCUTS
+
+     // std::unordered_map is supposedly slow, so we'll use an array instead.
+     // We'll rethink if we ever need to parse a document with a large amount
+     // of shortcuts (I can't imagine for my use cases having more than 20
+     // or so).
+    UniqueArray<TreePair> shortcuts;
 
     const char* parse_shortcut_name (const char* in, AnyString& r) {
         Tree name;
@@ -454,7 +405,67 @@ struct Parser {
         return get_shortcut(in, r, name);
     }
 
-    ///// TERM
+///// NON-SEMANTIC CONTENT
+
+    const char* skip_comment (const char* in) {
+        in += 2;  // for two -s
+        while (in < end) {
+            if (*in++ == '\n') break;
+        }
+        return in;
+    }
+
+    NOINLINE const char* skip_ws (const char* in) {
+        while (in < end) {
+            switch (*in) {
+                case ANY_WS: in++; break;
+                case '-': {
+                    if (in + 1 < end && in[1] == '-') {
+                        in = skip_comment(in);
+                        break;
+                    }
+                    else return in;
+                }
+                default: return in;
+            }
+        }
+        return in;
+    }
+
+    NOINLINE const char* skip_comma (const char* in) {
+        while (in < end) {
+            switch (*in) {
+                case ANY_WS: in++; break;
+                case ',': in++; goto next;
+                case '-': {
+                    if (in + 1 < end && in[1] == '-') {
+                        in = skip_comment(in);
+                        break;
+                    }
+                    else return in;
+                }
+                default: return in;
+            }
+        }
+        return in;
+        next:
+        while (in < end) {
+            switch (*in) {
+                case ANY_WS: in++; break;
+                case '-': {
+                    if (in + 1 < end && in[1] == '-') {
+                        in = skip_comment(in);
+                        break;
+                    }
+                    else return in;
+                }
+                default: return in;
+            }
+        }
+        return in;
+    }
+
+///// ERRORS
 
     NOINLINE const char* got_error (const char* in, Tree&) {
         if (in >= end) error(in, "Expected term but ran into end of input");
@@ -462,41 +473,37 @@ struct Parser {
         error(in, cat("Expected term but got ", *in));
     }
 
-    NOINLINE const char* parse_term (const char* in, Tree& r) {
-        if (in >= end) return got_error(in, r);
+    [[gnu::cold]] NOINLINE
+    void check_error_chars (const char* in) {
+        if (*in <= ' ' || *in >= 127) {
+            error(in, cat(
+                "Unrecognized byte <", to_hex_digit(uint8(*in) >> 4),
+                to_hex_digit(*in & 0xf), '>'
+            ));
+        }
         switch (*in) {
-            case ANY_WORD_STARTER: return got_word(in, r);
-            case ANY_DECIMAL_DIGIT:
-            case '.': return got_digit(in, r);
-            case '+': return got_plus(in, r);
-             // Comments starting with -- should already have been skipped by a
-             // previous skip_ws().
-            case '-': return got_minus(in, r);
-
-            case '"': return got_string(in, r);
-            case '[': return got_array(in, r);
-            case '{': return got_object(in, r);
-
-            case '&': return got_decl(in, r);
-            case '*': return got_shortcut(in, r);
-            default: return got_error(in, r);
+            case ANY_RESERVED_SYMBOL:
+                error(in, cat("Reserved symbol ", *in));
+            default: return;
         }
     }
 
-    ///// TOP
-
-    Tree parse () {
-        const char* in = begin;
-         // Skip BOM
-        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
-            in += 3;
+    [[noreturn, gnu::cold]] NOINLINE
+    void error (const char* in, Str mess) {
+         // Diagnose line and column number
+         // I'm not sure the col is exactly right
+        uint line = 1;
+        const char* last_lf = begin - 1;
+        for (const char* p2 = begin; p2 != in; p2++) {
+            if (*p2 == '\n') {
+                line++;
+                last_lf = p2;
+            }
         }
-        in = skip_ws(in);
-        Tree r;
-        in = parse_term(in, r);
-        in = skip_ws(in);
-        if (in != end) error(in, "Extra stuff at end of document");
-        return r;
+        uint col = in - last_lf;
+        raise(e_ParseFailed, cat(
+            mess, " at ", filename, ':', line, ':', col
+        ));
     }
 };
 

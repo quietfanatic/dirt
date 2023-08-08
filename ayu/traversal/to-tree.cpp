@@ -5,18 +5,12 @@
 namespace ayu {
 namespace in {
 
-NOINLINE static
-void trav_to_tree (const Traversal&, Tree&);
-NOINLINE static
-void trav_to_tree_values (const Traversal&, Tree&, const ValuesDcrPrivate*);
-NOINLINE static
-void trav_to_tree_after_values (const Traversal&, Tree&);
-NOINLINE static
-void trav_to_tree_object (const Traversal&, Tree&);
-NOINLINE static
-void trav_to_tree_array (const Traversal&, Tree&);
-NOINLINE static
-void trav_to_tree_delegate (const Traversal&, Tree&, const Accessor*);
+NOINLINE static void trav_to_tree (Tree&, const Traversal&);
+NOINLINE static void trav_to_tree_values (Tree&, const Traversal&, const ValuesDcrPrivate*);
+NOINLINE static void trav_to_tree_after_values (Tree&, const Traversal&);
+NOINLINE static void trav_to_tree_object (Tree&, const Traversal&);
+NOINLINE static void trav_to_tree_array (Tree&, const Traversal&);
+NOINLINE static void trav_to_tree_delegate (Tree&, const Traversal&, const Accessor*);
 [[noreturn, gnu::cold]] NOINLINE static
 void trav_to_tree_fail (const Traversal&);
 [[gnu::cold]] NOINLINE static
@@ -31,7 +25,7 @@ Tree item_to_tree (const Reference& item, LocationRef loc) {
     Tree r;
     Traversal::start(
         item, loc, false, AccessMode::Read, [&r](const Traversal& trav)
-    { trav_to_tree(trav, r); });
+    { trav_to_tree(r, trav); });
     return r;
 }
 
@@ -43,21 +37,21 @@ DiagnosticSerialization::~DiagnosticSerialization () {
     diagnostic_serialization -= 1;
 }
 
-void in::trav_to_tree (const Traversal& trav, Tree& r) try {
+void in::trav_to_tree (Tree& r, const Traversal& trav) try {
      // The majority of items are [[likely]] to be atomic.
     if (auto to_tree = trav.desc->to_tree()) [[likely]] {
         new (&r) Tree(to_tree->f(*trav.address));
         return;
     }
     if (auto values = trav.desc->values()) {
-        trav_to_tree_values(trav, r, values);
+        trav_to_tree_values(r, trav, values);
     }
-    else trav_to_tree_after_values(trav, r);
+    else trav_to_tree_after_values(r, trav);
 }
 catch (...) { trav_to_tree_wrap_exception(r); }
 
 void in::trav_to_tree_values (
-    const Traversal& trav, Tree& r, const ValuesDcrPrivate* values
+    Tree& r, const Traversal& trav, const ValuesDcrPrivate* values
 ) {
     for (uint i = 0; i < values->n_values; i++) {
         auto value = values->value(i);
@@ -66,23 +60,23 @@ void in::trav_to_tree_values (
             return;
         }
     }
-    trav_to_tree_after_values(trav, r);
+    trav_to_tree_after_values(r, trav);
 }
 
-void in::trav_to_tree_after_values (const Traversal& trav, Tree& r) {
+void in::trav_to_tree_after_values (Tree& r, const Traversal& trav) {
     if (trav.desc->preference() == Description::PREFER_OBJECT) {
-        trav_to_tree_object(trav, r);
+        trav_to_tree_object(r, trav);
     }
     else if (trav.desc->preference() == Description::PREFER_ARRAY) {
-        trav_to_tree_array(trav, r);
+        trav_to_tree_array(r, trav);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav_to_tree_delegate(trav, r, acr);
+        trav_to_tree_delegate(r, trav, acr);
     }
     else trav_to_tree_fail(trav);
 }
 
-void in::trav_to_tree_object (const Traversal& trav, Tree& r) {
+void in::trav_to_tree_object (Tree& r, const Traversal& trav) {
     UniqueArray<AnyString> keys;
     trav_collect_keys(trav, keys);
     auto object = TreeObject(Capacity(keys.size()));
@@ -102,7 +96,7 @@ void in::trav_to_tree_object (const Traversal& trav, Tree& r) {
             Tree& value = object.emplace_back_expect_capacity(
                 move(key), Tree()
             ).second;
-            trav_to_tree(child, value);
+            trav_to_tree(value, child);
              // Get flags from acr
             if (child.op == ATTR) {
                 value.flags |= child.acr->tree_flags();
@@ -118,7 +112,7 @@ void in::trav_to_tree_object (const Traversal& trav, Tree& r) {
     new (&r) Tree(move(object));
 }
 
-void in::trav_to_tree_array (const Traversal& trav, Tree& r) {
+void in::trav_to_tree_array (Tree& r, const Traversal& trav) {
     usize len = trav_get_length(trav);
     auto array = TreeArray(Capacity(len));
     for (usize i = 0; i < len; i++) {
@@ -129,7 +123,7 @@ void in::trav_to_tree_array (const Traversal& trav, Tree& r) {
                 child.acr->attr_flags & AttrFlags::Invisible
             ) return;
             Tree& elem = array.emplace_back_expect_capacity(Tree());
-            trav_to_tree(child, elem);
+            trav_to_tree(elem, child);
             if (child.op == ELEM) {
                 elem.flags |= child.acr->tree_flags();
             }
@@ -139,11 +133,11 @@ void in::trav_to_tree_array (const Traversal& trav, Tree& r) {
 }
 
 void in::trav_to_tree_delegate (
-    const Traversal& trav, Tree& r, const Accessor* acr
+    Tree& r, const Traversal& trav, const Accessor* acr
 ) {
     trav.follow_delegate(
         acr, AccessMode::Read, [&r](const Traversal& child)
-    { trav_to_tree(child, r); });
+    { trav_to_tree(r, child); });
     r.flags |= acr->tree_flags();
 }
 

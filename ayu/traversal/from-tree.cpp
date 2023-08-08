@@ -58,37 +58,23 @@ struct IFTContext {
 IFTContext* IFTContext::current = null;
 
  // item_from_tree toplevel execution
-NOINLINE static
-void item_from_tree_context (const Reference&, const Tree&, LocationRef);
-NOINLINE static
-void item_from_tree_start (const Reference&, const Tree&, LocationRef);
-NOINLINE static
-void item_from_tree_swizzle_init (IFTContext&);
-NOINLINE static
-void item_from_tree_swizzle (IFTContext&);
-NOINLINE static
-void item_from_tree_init (IFTContext&);
+NOINLINE static void item_from_tree_context (const Reference&, const Tree&, LocationRef);
+NOINLINE static void item_from_tree_start (const Reference&, const Tree&, LocationRef);
+NOINLINE static void item_from_tree_swizzle_init (IFTContext&);
+NOINLINE static void item_from_tree_swizzle (IFTContext&);
+NOINLINE static void item_from_tree_init (IFTContext&);
  // from_tree decision
-NOINLINE static
-void trav_from_tree (const Traversal&, const Tree&);
-NOINLINE static
-void trav_from_tree_after_values (const Traversal&, const Tree&);
+NOINLINE static void trav_from_tree (const Traversal&, const Tree&);
+NOINLINE static void trav_from_tree_after_values (const Traversal&, const Tree&);
  // from_tree execution
-NOINLINE static
-void trav_from_tree_from_tree (const Traversal&, const Tree&, FromTreeFunc<Mu>*);
-NOINLINE static
-void trav_from_tree_object (const Traversal&, const Tree&);
-NOINLINE static
-void trav_from_tree_array (const Traversal&, const Tree&);
-NOINLINE static
-void trav_from_tree_values (const Traversal&, const Tree&, const ValuesDcrPrivate*);
-NOINLINE static
-void trav_from_tree_delegate (const Traversal&, const Tree&, const Accessor*);
+NOINLINE static void trav_from_tree_from_tree (const Traversal&, const Tree&, FromTreeFunc<Mu>*);
+NOINLINE static void trav_from_tree_object (const Traversal&, const Tree&);
+NOINLINE static void trav_from_tree_array (const Traversal&, const Tree&);
+NOINLINE static void trav_from_tree_values (const Traversal&, const Tree&, const ValuesDcrPrivate*);
+NOINLINE static void trav_from_tree_delegate (const Traversal&, const Tree&, const Accessor*);
  // from_tree finishing
-NOINLINE static
-void trav_from_tree_finish (const Traversal&, const Tree&);
-NOINLINE static
-void trav_from_tree_add_swizzle_init (const Traversal&, const Tree&);
+NOINLINE static void trav_from_tree_finish (const Traversal&, const Tree&);
+NOINLINE static void trav_from_tree_add_swizzle_init (const Traversal&, const Tree&);
 [[noreturn, gnu::cold]] NOINLINE static
 void trav_from_tree_fail (const Traversal&, const Tree&);
 
@@ -189,6 +175,20 @@ void in::trav_from_tree (const Traversal& trav, const Tree& tree) {
     else trav_from_tree_after_values(trav, tree);
 }
 
+void in::trav_from_tree_after_values (
+    const Traversal& trav, const Tree& tree
+) {
+     // Nothing matched, so try delegate
+    if (auto acr = trav.desc->delegate_acr()) {
+        trav_from_tree_delegate(trav, tree, acr);
+    }
+     // Still nothing?  Allow swizzle with no from_tree.
+    else if (trav.desc->swizzle()) {
+        trav_from_tree_add_swizzle_init(trav, tree);
+    }
+    else trav_from_tree_fail(trav, tree);
+}
+
 void in::trav_from_tree_from_tree (
     const Traversal& trav, const Tree& tree, FromTreeFunc<Mu>* f
 ) {
@@ -217,7 +217,6 @@ void in::trav_from_tree_object (const Traversal& trav, const Tree& tree) {
     trav_from_tree_finish(trav, tree);
 }
 
-NOINLINE
 void in::trav_from_tree_array (const Traversal& trav, const Tree& tree) {
     expect(tree.rep == Rep::Array);
     auto array = TreeArraySlice(tree);
@@ -242,20 +241,6 @@ void in::trav_from_tree_values (
         }
     }
     trav_from_tree_after_values(trav, tree);
-}
-
-void in::trav_from_tree_after_values (
-    const Traversal& trav, const Tree& tree
-) {
-     // Nothing matched, so try delegate
-    if (auto acr = trav.desc->delegate_acr()) {
-        trav_from_tree_delegate(trav, tree, acr);
-    }
-     // Still nothing?  Allow swizzle with no from_tree.
-    else if (trav.desc->swizzle()) {
-        trav_from_tree_add_swizzle_init(trav, tree);
-    }
-    else trav_from_tree_fail(trav, tree);
 }
 
 void in::trav_from_tree_delegate (

@@ -16,19 +16,42 @@ struct ReceiveReference {
     }
 };
 
-///// ATTRS
+ // set_keys execution
+static void trav_collect_key (UniqueArray<AnyString>&, AnyString&&);
+static void trav_collect_keys_attrs (const Traversal&, UniqueArray<AnyString>&, const AttrsDcrPrivate*);
+static void trav_collect_keys_keys (const Traversal&, UniqueArray<AnyString>&, const Accessor*);
+static void trav_collect_keys_keys_builtin (const Traversal&, UniqueArray<AnyString>&, const Accessor*);
+static void trav_collect_keys_keys_generic (const Traversal&, UniqueArray<AnyString>&, const Accessor*, Type);
+static void trav_collect_keys_delegate (const Traversal&, UniqueArray<AnyString>&, const Accessor*);
 
-static
-void trav_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
-     // This'll end up being N^2.  TODO: Test whether including an unordered_set
-     // would speed this up (probably not).  Maybe even just hashing the key
-     // might be enough.
-    for (auto k : keys) if (k == key) return;
-    keys.emplace_back(move(key));
+} using namespace in;
+
+AnyArray<AnyString> item_get_keys (
+    const Reference& item, LocationRef loc
+) {
+    UniqueArray<AnyString> keys;
+    Traversal::start(item, loc, false, AccessMode::Read,
+        [&keys](const Traversal& trav)
+    { trav_collect_keys(trav, keys); });
+    return keys;
 }
 
-static
-void trav_collect_keys_attrs (
+NOINLINE void in::trav_collect_keys (
+    const Traversal& trav, UniqueArray<AnyString>& keys
+) {
+    if (auto attrs = trav.desc->attrs()) {
+        trav_collect_keys_attrs(trav, keys, attrs);
+    }
+    else if (auto acr = trav.desc->keys_acr()) {
+        trav_collect_keys_keys(trav, keys, acr);
+    }
+    else if (auto acr = trav.desc->delegate_acr()) {
+        trav_collect_keys_delegate(trav, keys, acr);
+    }
+    else raise_AttrsNotSupported(trav.desc);
+}
+
+void in::trav_collect_keys_attrs (
     const Traversal& trav, UniqueArray<AnyString>& keys,
     const AttrsDcrPrivate* attrs
 ) {
@@ -44,8 +67,23 @@ void trav_collect_keys_attrs (
     }
 }
 
-static
-void trav_collect_keys_keys_builtin (
+void in::trav_collect_keys_keys (
+    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
+) {
+    Type keys_type = acr->type(trav.address);
+     // Compare Type not std::type_info, since std::type_info can require a
+     // string comparison.
+    if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
+         // Optimize for AnyArray<AnyString>
+         trav_collect_keys_keys_builtin(trav, keys, acr);
+    }
+    else [[unlikely]] {
+         // Generic case for anything that to_trees to an array of strings
+         trav_collect_keys_keys_generic(trav, keys, acr, keys_type);
+    }
+}
+
+void in::trav_collect_keys_keys_builtin (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
     acr->read(*trav.address, [&keys](Mu& v){
@@ -56,8 +94,7 @@ void trav_collect_keys_keys_builtin (
     });
 }
 
-static
-void trav_collect_keys_keys_generic (
+void in::trav_collect_keys_keys_generic (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr,
     Type keys_type
 ) {
@@ -79,25 +116,7 @@ void trav_collect_keys_keys_generic (
     });
 }
 
-static
-void trav_collect_keys_keys (
-    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
-) {
-    Type keys_type = acr->type(trav.address);
-     // Compare Type not std::type_info, since std::type_info can require a
-     // string comparison.
-    if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
-         // Optimize for AnyArray<AnyString>
-         trav_collect_keys_keys_builtin(trav, keys, acr);
-    }
-    else [[unlikely]] {
-         // Generic case for anything that to_trees to an array of strings
-         trav_collect_keys_keys_generic(trav, keys, acr, keys_type);
-    }
-}
-
-static
-void trav_collect_keys_delegate (
+void in::trav_collect_keys_delegate (
     const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
 ) {
     trav.follow_delegate(acr, AccessMode::Read, [&keys](const Traversal& child){
@@ -105,32 +124,12 @@ void trav_collect_keys_delegate (
     });
 }
 
-NOINLINE
-void trav_collect_keys (
-    const Traversal& trav, UniqueArray<AnyString>& keys
-) {
-    if (auto attrs = trav.desc->attrs()) {
-        trav_collect_keys_attrs(trav, keys, attrs);
-    }
-    else if (auto acr = trav.desc->keys_acr()) {
-        trav_collect_keys_keys(trav, keys, acr);
-    }
-    else if (auto acr = trav.desc->delegate_acr()) {
-        trav_collect_keys_delegate(trav, keys, acr);
-    }
-    else raise_AttrsNotSupported(trav.desc);
-}
-
-} using namespace in;
-
-AnyArray<AnyString> item_get_keys (
-    const Reference& item, LocationRef loc
-) {
-    UniqueArray<AnyString> keys;
-    Traversal::start(item, loc, false, AccessMode::Read,
-        [&keys](const Traversal& trav)
-    { trav_collect_keys(trav, keys); });
-    return keys;
+void in::trav_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
+     // This'll end up being N^2.  TODO: Test whether including an unordered_set
+     // would speed this up (probably not).  Maybe even just hashing the key
+     // might be enough.
+    for (auto k : keys) if (k == key) return;
+    keys.emplace_back(move(key));
 }
 
 namespace in {
