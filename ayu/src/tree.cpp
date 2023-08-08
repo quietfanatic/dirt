@@ -120,13 +120,13 @@ bool operator == (const Tree& a, const Tree& b) noexcept {
         case Rep::SharedString: goto strs;
         case Rep::Array: {
             if (a.length != b.length) return false;
-            if (a.length == 0) return false;
+            if (a.length == 0) return true;
             if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
             return tree_eq_array(a.data.as_array_ptr, b.data.as_array_ptr, a.length);
         }
         case Rep::Object: {
             if (a.length != b.length) return false;
-            if (a.length == 0) return false;
+            if (a.length == 0) return true;
             if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
             return tree_eq_object(
                 TreeObjectSlice(a.data.as_object_ptr, a.length),
