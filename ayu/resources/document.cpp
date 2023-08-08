@@ -1,8 +1,8 @@
 #include "document.h"
 
 #include "../common.h"
-#include "../describe.h"
-#include "../reference.h"
+#include "../reflection/describe.h"
+#include "../reflection/reference.h"
 
 namespace ayu {
 namespace in {

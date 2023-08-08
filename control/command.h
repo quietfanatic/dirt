@@ -4,10 +4,10 @@
 #pragma once
 
 #include <utility>
-#include "../ayu/dynamic.h" 
+#include "../ayu/reflection/dynamic.h" 
  // For tuple describability
-#include "../ayu/describe-standard.h"
-#include "../ayu/type.h"
+#include "../ayu/reflection/describe-standard.h"
+#include "../ayu/reflection/type.h"
 #include "../uni/common.h"
 #include "command-template-utils.h"
 

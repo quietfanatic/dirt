@@ -37,7 +37,7 @@ struct Program {
     operator uint () const { return id; }
 };
 
-constexpr ayu::ErrorCode e_ShaderCompileFailed = "glow::ShaderCompileFailed";
-constexpr ayu::ErrorCode e_ProgramLinkFailed = "glow::ProgramLinkFailed";
+constexpr uni::ErrorCode e_ShaderCompileFailed = "glow::e_ShaderCompileFailed";
+constexpr uni::ErrorCode e_ProgramLinkFailed = "glow::e_ProgramLinkFailed";
 
 } // namespace glow

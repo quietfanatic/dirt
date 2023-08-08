@@ -33,6 +33,7 @@ static std::vector<std::unique_ptr<TestSetData>>& testers () {
     return testers;
 }
 
+ // TODO: detect duplicate test names
 TestSet::TestSet (std::string_view name, void(* code )()) {
     testers().emplace_back(new TestSetData{std::string(name), code});
 }

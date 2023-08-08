@@ -1,8 +1,8 @@
 #include "command.h"
 
-#include "../ayu/describe.h"
-#include "../ayu/serialize-from-tree.h"
-#include "../ayu/serialize-to-tree.h"
+#include "../ayu/reflection/describe.h"
+#include "../ayu/traversal/from-tree.h"
+#include "../ayu/traversal/to-tree.h"
 
 namespace control {
 

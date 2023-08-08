@@ -4,7 +4,7 @@
 #include <SDL2/SDL_video.h>
 
 #include "../glow/gl.h"
-#include "../ayu/describe.h"
+#include "../ayu/reflection/describe.h"
 
 namespace wind {
 

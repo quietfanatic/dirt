@@ -43,7 +43,7 @@ AYU_DESCRIBE(glow::TextureProgram,
 )
 
 #ifndef TAP_DISABLE_TESTS
-#include "../ayu/serialize-to-tree.h"
+#include "../ayu/traversal/to-tree.h"
 #include "../tap/tap.h"
 #include "../wind/window.h"
 #include "test-environment.h"

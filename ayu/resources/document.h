@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../internal/common-internal.h"
-#include "../type.h"
+#include "../common.h"
+#include "../reflection/type.h"
 
 namespace ayu {
 

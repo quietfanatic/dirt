@@ -6,9 +6,9 @@
 
 #include <exception>
 
+#include "arrays.h"
 #include "common.h"
 #include "copy-ref.h"
-#include "strings.h"
 
 namespace uni {
 

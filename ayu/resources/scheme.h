@@ -7,7 +7,7 @@
 
 #include "../../iri/iri.h"
 #include "../common.h"
-#include "../type.h"
+#include "../reflection/type.h"
 
 namespace ayu {
 

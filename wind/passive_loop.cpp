@@ -3,7 +3,7 @@
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_timer.h>
 
-#include "../ayu/describe.h"
+#include "../ayu/reflection/describe.h"
 
 namespace wind {
 

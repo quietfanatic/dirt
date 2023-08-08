@@ -3,11 +3,7 @@
 
 #pragma once
 
-#include <cstdint>
-#include <cwchar>
-#include <source_location>
-#include <string>
-#include <string_view>
+#include <cstring>
 #include "../uni/arrays.h"
 #include "../uni/assertions.h"
 #include "../uni/callback-ref.h"
@@ -24,17 +20,31 @@ using iri::IRI;
 
 ///// BASIC TYPES AND STUFF
 
-struct Document; // document.h
-struct Dynamic; // dynamic.h
-struct Location; // location.h
-using LocationRef = CopyRef<Location>;
-struct Pointer; // pointer.h
-struct Reference; // reference.h
-struct Resource; // resource.h
-struct Tree; // tree.h
-using TreeRef = CRef<Tree, 16>;
-struct Type; // type.h
+ // resources/document.h
+struct Document;
 
+ // resources/resource.h
+struct Resource;
+
+ // traversal/location.h
+struct Location;
+using LocationRef = CopyRef<Location>;
+
+ // reflection/type.h
+struct Type;
+
+ // reflection/pointer.h
+struct Pointer;
+
+ // reflection/reference.h
+struct Reference;
+
+ // reflection/dynamic.h
+struct Dynamic;
+
+ // data/tree.h
+struct Tree;
+using TreeRef = CRef<Tree, 16>;
 using TreeArray = SharedArray<Tree>;
 using TreeArraySlice = Slice<Tree>;
  // Since GCC 12.0, std::pair has extra concept shenanigans that cause weird

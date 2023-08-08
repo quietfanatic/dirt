@@ -1,7 +1,7 @@
 #include "program.h"
 
-#include "../ayu/describe.h"
-#include "../ayu/serialize-to-tree.h"
+#include "../ayu/reflection/describe.h"
+#include "../ayu/traversal/to-tree.h"
 #include "gl.h"
 
 namespace glow {
@@ -171,7 +171,7 @@ AYU_DESCRIBE(glow::Program,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../ayu/resources/resource.h"
-#include "../ayu/serialize-to-tree.h"
+#include "../ayu/traversal/to-tree.h"
 #include "../geo/rect.h"
 #include "../geo/vec.h"
 #include "../tap/tap.h"

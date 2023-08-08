@@ -1,8 +1,8 @@
 #include "image.h"
 
 #include <cerrno>
-#include "../ayu/describe.h"
-#include "../ayu/serialize-to-tree.h"
+#include "../ayu/reflection/describe.h"
+#include "../ayu/traversal/to-tree.h"
 #include "gl.h"
 
 namespace glow {

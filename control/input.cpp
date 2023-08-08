@@ -2,7 +2,7 @@
 
 #include <cstring>
 #include <SDL2/SDL_events.h>
-#include "../ayu/describe.h"
+#include "../ayu/reflection/describe.h"
 #include "../uni/hash.h"
 
 namespace control {
@@ -103,7 +103,7 @@ Input input_from_string (Str name) {
     switch (hash32(name)) {
 #define KEY(name, sdlk) case hash32(name): return {.type = KEY, .code = sdlk};
 #define ALT(name, sdlk) KEY(name, sdlk)
-#include "keys-table-internal.h"
+#include "keys-table.private.h"
 #undef ALT
 #undef KEY
          // TODO: Put these in the keys table
@@ -135,7 +135,7 @@ Str input_to_string (const Input& input) {
             switch (input.code) {
 #define KEY(name, sdlk) case sdlk: return name;
 #define ALT(name, sdlk) // ignore alternatives
-#include "keys-table-internal.h"
+#include "keys-table.private.h"
 #undef ALT
 #undef KEY
                  // Not entirely sure what to do here.
@@ -227,8 +227,8 @@ AYU_DESCRIBE(control::Input,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
-#include "../ayu/serialize-from-tree.h"
-#include "../ayu/serialize-to-tree.h"
+#include "../ayu/traversal/from-tree.h"
+#include "../ayu/traversal/to-tree.h"
 
 static tap::TestSet tests ("dirt/control/input", []{
     using namespace tap;

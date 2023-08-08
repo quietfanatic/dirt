@@ -27,12 +27,12 @@ The AYU data language is similar to JSON but with the following differences:
  - The order of attributes in objects is generally preserved, but should not be
    semantically significant.
 
-See ayu-data-language.md for more details.
+See data/ayu-data-language.md for more details.
 
 #### Serialization library
 
-Documentation pending, but see describe-base.h
+Documentation pending, but see reflection/describe-base.h
 
 #### Resource management
 
-Documentation pending, but see resource.h
+Documentation pending, but see resources/resource.h

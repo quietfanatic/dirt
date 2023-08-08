@@ -1,15 +1,15 @@
 #include "resource.h"
 
 #include "../../uni/io.h"
-#include "../dynamic.h"
-#include "../describe.h"
-#include "../describe-standard.h"
-#include "../parse.h"
-#include "../print.h"
-#include "../reference.h"
-#include "../scan.h"
-#include "../serialize-from-tree.h"
-#include "../serialize-to-tree.h"
+#include "../data/parse.h"
+#include "../data/print.h"
+#include "../reflection/describe-standard.h"
+#include "../reflection/describe.h"
+#include "../reflection/dynamic.h"
+#include "../reflection/reference.h"
+#include "../traversal/from-tree.h"
+#include "../traversal/scan.h"
+#include "../traversal/to-tree.h"
 #include "scheme.h"
 #include "universe.private.h"
 
@@ -557,7 +557,7 @@ AYU_DESCRIBE(ayu::Resource,
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<int32*>)
 
-static tap::TestSet tests ("dirt/ayu/resource", []{
+static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     using namespace tap;
 
     test::TestEnvironment env;
