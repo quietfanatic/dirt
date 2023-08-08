@@ -16,11 +16,10 @@ struct ReceiveReference {
     }
 };
 
-} using namespace in;
-
 ///// ATTRS
 
-void in::ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
+static
+void ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
      // This'll end up being N^2.  TODO: Test whether including an unordered_set
      // would speed this up (probably not).  Maybe even just hashing the key
      // might be enough.
@@ -28,61 +27,101 @@ void in::ser_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
     keys.emplace_back(move(key));
 }
 
-void in::ser_collect_keys (
+NOINLINE
+void ser_collect_keys_attrs (
+    const Traversal& trav, UniqueArray<AnyString>& keys,
+    const AttrsDcrPrivate* attrs
+) {
+    for (uint16 i = 0; i < attrs->n_attrs; i++) {
+        auto attr = attrs->attr(i);
+        auto acr = attr->acr();
+        if (acr->attr_flags & AttrFlags::Include) {
+            trav.follow_attr(acr, attr->key, AccessMode::Read,
+                [&keys](const Traversal& child)
+            { ser_collect_keys(child, keys); });
+        }
+        else ser_collect_key(keys, attr->key);
+    }
+}
+
+static
+void ser_collect_keys_keys_builtin (
+    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
+) {
+    acr->read(*trav.address, [&keys](Mu& v){
+        auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
+        for (auto& key : item_keys) {
+            ser_collect_key(keys, AnyString(key));
+        }
+    });
+}
+
+static
+void ser_collect_keys_keys_generic (
+    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr,
+    Type keys_type
+) {
+    acr->read(*trav.address, [&trav, keys_type, &keys](Mu& v){
+         // We might be able to optimize this more, but it's not that
+         // important.
+        auto keys_tree = item_to_tree(Pointer(keys_type, &v));
+        if (keys_tree.form != Form::Array) goto keys_type_invalid;
+        for (const Tree& key : TreeArraySlice(keys_tree)) {
+            if (key.form != Form::String) goto keys_type_invalid;
+            ser_collect_key(keys, AnyString(move(key)));
+        }
+        return;
+        keys_type_invalid: raise(e_KeysTypeInvalid, cat(
+            "Item of type ", Type(trav.desc).name(),
+            " gave keys() type ", keys_type.name(),
+            " which does not serialize to an array of strings"
+        ));
+    });
+}
+
+NOINLINE
+void ser_collect_keys_keys (
+    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
+) {
+    Type keys_type = acr->type(trav.address);
+     // Compare Type not std::type_info, since std::type_info can require a
+     // string comparison.
+    if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
+         // Optimize for AnyArray<AnyString>
+         ser_collect_keys_keys_builtin(trav, keys, acr);
+    }
+    else [[unlikely]] {
+         // Generic case for anything that to_trees to an array of strings
+         ser_collect_keys_keys_generic(trav, keys, acr, keys_type);
+    }
+}
+
+NOINLINE
+void ser_collect_keys_delegate (
+    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
+) {
+    trav.follow_delegate(acr, AccessMode::Read, [&keys](const Traversal& child){
+        ser_collect_keys(child, keys);
+    });
+}
+
+NOINLINE
+void ser_collect_keys (
     const Traversal& trav, UniqueArray<AnyString>& keys
 ) {
     if (auto acr = trav.desc->keys_acr()) {
-        Type keys_type = acr->type(trav.address);
-         // Compare Type not std::type_info, since std::type_info can require a
-         // string comparison.
-        if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
-             // Optimize for AnyArray<AnyString>
-            acr->read(*trav.address, [&keys](Mu& v){
-                auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
-                for (auto& key : item_keys) {
-                    ser_collect_key(keys, AnyString(key));
-                }
-            });
-        }
-        else [[unlikely]] {
-             // General case, any type that serializes to an array of strings.
-            acr->read(*trav.address, [&trav, keys_type, &keys](Mu& v){
-                 // We might be able to optimize this more, but it's not that
-                 // important.
-                auto keys_tree = item_to_tree(Pointer(keys_type, &v));
-                if (keys_tree.form != Form::Array) goto keys_type_invalid;
-                for (const Tree& key : TreeArraySlice(keys_tree)) {
-                    if (key.form != Form::String) goto keys_type_invalid;
-                    ser_collect_key(keys, AnyString(move(key)));
-                }
-                return;
-                keys_type_invalid: raise(e_KeysTypeInvalid, cat(
-                    "Item of type ", Type(trav.desc).name(),
-                    " gave keys() type ", keys_type.name(),
-                    " which does not serialize to an array of strings"
-                ));
-            });
-        }
+        ser_collect_keys_keys(trav, keys, acr);
     }
     else if (auto attrs = trav.desc->attrs()) {
-        for (uint16 i = 0; i < attrs->n_attrs; i++) {
-            auto attr = attrs->attr(i);
-            auto acr = attr->acr();
-            if (acr->attr_flags & AttrFlags::Include) {
-                trav.follow_attr(acr, attr->key, AccessMode::Read,
-                    [&keys](const Traversal& child)
-                { ser_collect_keys(child, keys); });
-            }
-            else ser_collect_key(keys, attr->key);
-        }
+        ser_collect_keys_attrs(trav, keys, attrs);
     }
     else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, AccessMode::Read, [&keys](const Traversal& child){
-            ser_collect_keys(child, keys);
-        });
+        ser_collect_keys_delegate(trav, keys, acr);
     }
     else raise_AttrsNotSupported(trav.desc);
 }
+
+} using namespace in;
 
 AnyArray<AnyString> item_get_keys (
     const Reference& item, LocationRef loc
@@ -94,7 +133,10 @@ AnyArray<AnyString> item_get_keys (
     return keys;
 }
 
-bool in::ser_claim_key (UniqueArray<AnyString>& keys, Str key) {
+namespace in {
+
+static
+bool ser_claim_key (UniqueArray<AnyString>& keys, Str key) {
      // This algorithm overall is O(N^3), we may be able to speed it up by
      // setting a flag if there are no included attrs, or maybe by using an
      // unordered_set?
@@ -109,7 +151,7 @@ bool in::ser_claim_key (UniqueArray<AnyString>& keys, Str key) {
     return false;
 }
 
-void in::ser_claim_keys (
+void ser_claim_keys (
     const Traversal& trav,
     UniqueArray<AnyString>& keys,
     bool optional
@@ -203,12 +245,14 @@ void in::ser_claim_keys (
     else raise_AttrsNotSupported(trav.desc);
 }
 
-void in::ser_set_keys (
+void ser_set_keys (
     const Traversal& trav, UniqueArray<AnyString>&& keys
 ) {
     ser_claim_keys(trav, keys, false);
     if (keys) raise_AttrRejected(trav.desc, keys[0]);
 }
+
+} using namespace in;
 
 void item_set_keys (
     const Reference& item, AnyArray<AnyString> keys, LocationRef loc

@@ -10,11 +10,9 @@ namespace ayu::in {
 
 ///// ATTR OPERATIONS
  // Implement get_keys by adding keys to an array of AnyStrings
-void ser_collect_key (UniqueArray<AnyString>&, AnyString&&);
 void ser_collect_keys (const Traversal&, UniqueArray<AnyString>&);
 
  // Implement set_keys by removing keys from an array
-bool ser_claim_key (UniqueArray<AnyString>&, Str);
 void ser_claim_keys (const Traversal&, UniqueArray<AnyString>&, bool optional);
 void ser_set_keys (const Traversal&, UniqueArray<AnyString>&&);
 
