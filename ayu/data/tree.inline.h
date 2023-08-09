@@ -100,14 +100,12 @@ constexpr Tree::Tree (Tree&& o) :
 constexpr Tree::Tree (const Tree& o) :
     form(o.form), rep(o.rep), flags(o.flags), length(o.length), data(o.data)
 {
-    if (std::is_constant_evaluated()) {
-        require(o.rep >= 0);
-    }
-    else {
+    if (!std::is_constant_evaluated()) {
+         // Optimize
         std::memcpy(this, &o, sizeof(Tree));
-        if (rep < 0 && data.as_char_ptr) {
-            ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
-        }
+    }
+    if (rep < 0 && data.as_char_ptr) {
+        ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
 }
 

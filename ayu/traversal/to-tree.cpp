@@ -89,39 +89,69 @@ struct TraverseToTree {
     void use_attrs (
         Tree& r, const Traversal& trav, const AttrsDcrPrivate* attrs
     ) {
-         // This may have to reallocate if there are included attrs.
-        auto object = TreeObject(Capacity(attrs->n_attrs));
+        auto object = UniqueArray<Pair<AnyString, Tree>>(
+            Capacity(attrs->n_attrs)
+        );
+         // First just build the object as though none of the attrs are included
+         // (but keep track if any are).
+        bool any_included = false;
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags & AttrFlags::Invisible) continue;
+            any_included |= !!(attr->acr()->attr_flags & AttrFlags::Include);
 
             trav.follow_attr(
                 attr->acr(), attr->key, AccessMode::Read,
                 [&object, attr](const Traversal& child)
             {
+                Tree& value = object.emplace_back_expect_capacity(
+                    attr->key, Tree()
+                ).second;
+                traverse(value, child);
+                value.flags |= attr->acr()->tree_flags();
+            });
+        }
+         // Then if there are included attrs, rebuild the object.
+        if (any_included) {
+             // Determine length for preallocation
+            usize len = 0;
+            for (uint i = 0; i < attrs->n_attrs; i++) {
+                auto attr = attrs->attr(i);
                 if (attr->acr()->attr_flags & AttrFlags::Include) {
-                     // For included attrs, just serialize the whole thing and
-                     // then append to the current object.
-                    Tree sub;
-                    traverse(sub, child);
-                     // TODO: add ToTreeFlags::PreferObject
-                    if (sub.rep != Rep::Object) {
+                    len += object[i].second.length;
+                }
+                else len += 1;
+            }
+             // Allocate
+            auto new_object = decltype(object)(Capacity(len));
+             // Selectively flatten
+            for (uint i = 0; i < attrs->n_attrs; i++) {
+                auto attr = attrs->attr(i);
+                if (attr->acr()->attr_flags & AttrFlags::Include) {
+                     // Consume the string too while we're here
+                    AnyString(move(object[i].first));
+                    Tree sub_tree = move(object[i].second);
+                    if (sub_tree.rep != Rep::Object) {
                         raise(e_General, "Included item did not serialize to an object");
                     }
-                    auto sub_object = TreeObject(sub);
-                    object.reserve_plenty(object.size() + sub_object.size());
+                    auto sub_object = TreeObject(move(sub_tree));
                     for (auto& pair : sub_object) {
-                        object.emplace_back_expect_capacity(pair);
+                        new_object.emplace_back_expect_capacity(pair);
                     }
                 }
                 else {
-                     // Can't emplace_back_expect_capacity because an included
-                     // attr may have interfered with the remaining capacity.
-                    Tree& value = object.emplace_back(attr->key, Tree()).second;
-                    traverse(value, child);
-                    value.flags |= attr->acr()->tree_flags();
+                    new_object.emplace_back_expect_capacity(move(object[i]));
                 }
-            });
+            }
+#ifndef NDEBUG
+             // Old object's contents should be fully consumed
+            for (auto& pair : object) {
+                expect(!pair.first.owned());
+                expect(!pair.second.has_value());
+            }
+#endif
+            object.unsafe_set_size(0);
+            object = move(new_object);
         }
          // This will check for duplicates in debug mode.
         new (&r) Tree(move(object));
@@ -141,6 +171,7 @@ struct TraverseToTree {
         else [[unlikely]] {
             get_keys_generic(keys, trav, keys_acr, keys_type);
         }
+        bool keys_unique = keys.unique(); // For optimization
          // Now get value for each key
         auto object = TreeObject(Capacity(keys.size()));
         for (auto& key : keys) {
@@ -148,16 +179,26 @@ struct TraverseToTree {
             if (!ref) raise_AttrNotFound(trav.desc, key);
             trav.follow_attr_func(
                 ref, f, key, AccessMode::Read,
-                [&object, &key](const Traversal& child)
+                [&object, &key, keys_unique](const Traversal& child)
             {
+                 // Try to consume the key.
                  // It's okay to move key even though the traversal stack has a
                  // pointer to it, because this is the last thing that happens
                  // before trav.follow_attr_func returns.
+                AnyString k = keys_unique ? move(const_cast<AnyString&>(key)) : key;
                 Tree& value = object.emplace_back_expect_capacity(
-                    move(key), Tree()
+                    move(k), Tree()
                 ).second;
                 traverse(value, child);
             });
+        }
+         // Check if we were able to consume the whole keys array and skip the
+         // destructor loop if so.
+        if (keys_unique) {
+#ifndef NDEBUG
+            for (auto& key : keys) expect(!key.owned());
+#endif
+            keys.unsafe_set_size(0);
         }
         new (&r) Tree(move(object));
     }
@@ -201,7 +242,7 @@ struct TraverseToTree {
     void use_elems (
         Tree& r, const Traversal& trav, const ElemsDcrPrivate* elems
     ) {
-        auto array = TreeArray(Capacity(elems->n_elems));
+        auto array = UniqueArray<Tree>(Capacity(elems->n_elems));
         for (uint i = 0; i < elems->n_elems; i++) {
             auto acr = elems->elem(i)->acr();
             trav.follow_elem(
