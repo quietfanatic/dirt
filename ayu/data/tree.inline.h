@@ -112,8 +112,7 @@ constexpr Tree::Tree (const Tree& o) :
 constexpr Tree::~Tree () {
     if (rep < 0 && data.as_char_ptr) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
-        if (header->ref_count) --header->ref_count;
-        else in::delete_Tree_data(*this);
+        if (!--header->ref_count) in::delete_Tree_data(*this);
     }
 }
 

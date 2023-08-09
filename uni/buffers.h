@@ -10,7 +10,7 @@ inline namespace buffers {
     struct alignas(8) SharedBufferHeader {
          // Number of typed elements this buffer can hold
         const uint32 capacity;
-         // zero-based ref count.  For uniquely owned buffers, this is always 0.
+         // Ref count.  For uniquely owned buffers, this is always 1.
         mutable uint32 ref_count;
     };
 
@@ -52,7 +52,7 @@ inline namespace buffers {
             require(bytes <= usize(-1));
             auto header = (SharedBufferHeader*)std::malloc(bytes);
             const_cast<uint32&>(header->capacity) = cap;
-            header->ref_count = 0;
+            header->ref_count = 1;
             return (T*)(header + 1);
         }
 

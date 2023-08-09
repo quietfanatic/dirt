@@ -874,7 +874,8 @@ struct ArrayInterface {
         if constexpr (ac::is_Unique) return true;
         else if constexpr (ac::supports_owned) {
             if (owned()) {
-                return header().ref_count == 0;
+                expect(header().ref_count);
+                return header().ref_count == 1;
             }
             else return !impl.data;
         }
@@ -1384,7 +1385,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void set_owned_unique (T* d, usize s) {
         set_owned(d, s);
-        expect(!header().ref_count);
+        expect(header().ref_count == 1);
     }
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
@@ -1478,11 +1479,10 @@ struct ArrayInterface {
     void remove_ref () {
         if (owned()) {
             if constexpr (ac::is_Unique) {
-                expect(header().ref_count == 0);
+                expect(header().ref_count == 1);
             }
             else if constexpr (ac::supports_owned) {
-                if (header().ref_count) {
-                    --header().ref_count;
+                if (--header().ref_count) {
                     return;
                 }
             }
