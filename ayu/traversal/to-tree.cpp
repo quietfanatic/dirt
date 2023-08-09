@@ -42,7 +42,15 @@ struct TraverseToTree {
             use_object(r, trav);
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
-            use_array(r, trav);
+            if (auto elems = trav.desc->elems()) {
+                use_elems(r, trav, elems);
+            }
+            else if (auto length_acr = trav.desc->length_acr()) {
+                use_computed_elems(
+                    r, trav, length_acr, trav.desc->elem_func()->f
+                );
+            }
+            else never();
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, acr);
@@ -115,21 +123,45 @@ struct TraverseToTree {
     }
 
     NOINLINE static
-    void use_array (Tree& r, const Traversal& trav) {
-        usize len = trav_get_length(trav);
-        auto array = TreeArray(Capacity(len));
-        for (usize i = 0; i < len; i++) {
-            trav_elem(
-                trav, i, AccessMode::Read, [&array](const Traversal& child)
+    void use_elems (
+        Tree& r, const Traversal& trav, const ElemsDcrPrivate* elems
+    ) {
+        auto array = TreeArray(Capacity(elems->n_elems));
+        for (uint i = 0; i < elems->n_elems; i++) {
+            auto acr = elems->elem(i)->acr();
+            trav.follow_elem(
+                acr, i, AccessMode::Read, [&array](const Traversal& child)
             {
-                if (child.op == ELEM &&
-                    child.acr->attr_flags & AttrFlags::Invisible
-                ) return;
+                 // This probably should never happen unless the elems are on
+                 // the end and also optional.  TODO: Pop invisible elems off
+                 // the end before allocating array.
+                if (child.acr->attr_flags & AttrFlags::Invisible) return;
                 Tree& elem = array.emplace_back_expect_capacity(Tree());
                 traverse(elem, child);
-                if (child.op == ELEM) {
-                    elem.flags |= child.acr->tree_flags();
-                }
+                elem.flags |= child.acr->tree_flags();
+            });
+        }
+        new (&r) Tree(move(array));
+    }
+
+    NOINLINE static
+    void use_computed_elems (
+        Tree& r, const Traversal& trav,
+        const Accessor* length_acr, ElemFunc<Mu>* elem_func
+    ) {
+        usize len;
+        length_acr->read(*trav.address, [&len](Mu& v){
+            len = reinterpret_cast<const usize&>(v);
+        });
+        auto array = TreeArray(Capacity(len));
+        for (usize i = 0; i < len; i++) {
+            auto ref = elem_func(*trav.address, i);
+            trav.follow_elem_func(
+                ref, elem_func, i, AccessMode::Read,
+                [&array](const Traversal& child)
+            {
+                Tree& elem = array.emplace_back_expect_capacity(Tree());
+                traverse(elem, child);
             });
         }
         new (&r) Tree(move(array));
