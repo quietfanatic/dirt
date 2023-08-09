@@ -39,18 +39,20 @@ struct TraverseToTree {
     NOINLINE static
     void no_value_match (Tree& r, const Traversal& trav) {
         if (trav.desc->preference() == Description::PREFER_OBJECT) {
-            use_object(r, trav);
+            if (auto attrs = trav.desc->attrs()) {
+                use_attrs(r, trav, attrs);
+            }
+            else use_computed_attrs(
+                r, trav, trav.desc->keys_acr(), trav.desc->attr_func()->f
+            );
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
             if (auto elems = trav.desc->elems()) {
                 use_elems(r, trav, elems);
             }
-            else if (auto length_acr = trav.desc->length_acr()) {
-                use_computed_elems(
-                    r, trav, length_acr, trav.desc->elem_func()->f
-                );
-            }
-            else never();
+            else use_computed_elems(
+                r, trav, trav.desc->length_acr(), trav.desc->elem_func()->f
+            );
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, acr);
@@ -58,7 +60,7 @@ struct TraverseToTree {
         else fail(trav);
     }
 
-///// EXECUTE STRATEGIES
+///// STRATEGIES
 
      // NOINLINEing this seems to be worse, probably because traverse() already
      // has to do some stack setup for its try/catch.
@@ -84,42 +86,115 @@ struct TraverseToTree {
     }
 
     NOINLINE static
-    void use_object (Tree& r, const Traversal& trav) {
-        UniqueArray<AnyString> keys;
-        trav_collect_keys(trav, keys);
-        auto object = TreeObject(Capacity(keys.size()));
-        for (auto& key : keys) {
-            trav_attr(trav, key, AccessMode::Read,
-                [&object, &key](const Traversal& child)
+    void use_attrs (
+        Tree& r, const Traversal& trav, const AttrsDcrPrivate* attrs
+    ) {
+         // This may have to reallocate if there are included attrs.
+        auto object = TreeObject(Capacity(attrs->n_attrs));
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            if (attr->acr()->attr_flags & AttrFlags::Invisible) continue;
+
+            trav.follow_attr(
+                attr->acr(), attr->key, AccessMode::Read,
+                [&object, attr](const Traversal& child)
             {
-                 // TODO: move this check to collect_keys
-                if (child.op == ATTR &&
-                    child.acr->attr_flags & AttrFlags::Invisible
-                ) {
-                    key = {};  // Consume key even though we didn't use it
-                    return;
+                if (attr->acr()->attr_flags & AttrFlags::Include) {
+                     // For included attrs, just serialize the whole thing and
+                     // then append to the current object.
+                    Tree sub;
+                    traverse(sub, child);
+                     // TODO: add ToTreeFlags::PreferObject
+                    if (sub.rep != Rep::Object) {
+                        raise(e_General, "Included item did not serialize to an object");
+                    }
+                    auto sub_object = TreeObject(sub);
+                    object.reserve_plenty(object.size() + sub_object.size());
+                    for (auto& pair : sub_object) {
+                        object.emplace_back_expect_capacity(pair);
+                    }
                 }
-                 // It's okay to move key even though the traversal stack has a
-                 // pointer to it, because this is the last thing that happens
-                 // before trav_attr returns.
-                Tree& value = object.emplace_back_expect_capacity(
-                    move(key), Tree()
-                ).second;
-                 // Recurse
-                traverse(value, child);
-                 // Get flags from acr
-                if (child.op == ATTR) {
-                    value.flags |= child.acr->tree_flags();
+                else {
+                     // Can't emplace_back_expect_capacity because an included
+                     // attr may have interfered with the remaining capacity.
+                    Tree& value = object.emplace_back(attr->key, Tree()).second;
+                    traverse(value, child);
+                    value.flags |= attr->acr()->tree_flags();
                 }
             });
         }
-         // All the keys have been consumed at this point, so skip the destructor
-         // loop.
-#ifndef NDEBUG
-        for (auto& key : keys) expect(!key.owned());
-#endif
-        keys.unsafe_set_size(0);
+         // This will check for duplicates in debug mode.
         new (&r) Tree(move(object));
+    }
+
+    NOINLINE static
+    void use_computed_attrs (
+        Tree& r, const Traversal& trav,
+        const Accessor* keys_acr, AttrFunc<Mu>* f
+    ) {
+         // Get list of keys
+        AnyArray<AnyString> keys;
+        Type keys_type = keys_acr->type(trav.address);
+        if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
+            get_keys_AnyArray(keys, trav, keys_acr);
+        }
+        else [[unlikely]] {
+            get_keys_generic(keys, trav, keys_acr, keys_type);
+        }
+         // Now get value for each key
+        auto object = TreeObject(Capacity(keys.size()));
+        for (auto& key : keys) {
+            auto ref = f(*trav.address, key);
+            if (!ref) raise_AttrNotFound(trav.desc, key);
+            trav.follow_attr_func(
+                ref, f, key, AccessMode::Read,
+                [&object, &key](const Traversal& child)
+            {
+                 // It's okay to move key even though the traversal stack has a
+                 // pointer to it, because this is the last thing that happens
+                 // before trav.follow_attr_func returns.
+                Tree& value = object.emplace_back_expect_capacity(
+                    move(key), Tree()
+                ).second;
+                traverse(value, child);
+            });
+        }
+        new (&r) Tree(move(object));
+    }
+
+    static
+    void get_keys_AnyArray (
+        AnyArray<AnyString>& keys, const Traversal& trav,
+        const Accessor* keys_acr
+    ) {
+        keys_acr->read(*trav.address, [&keys](Mu& v){
+            new (&keys) AnyArray<AnyString>(
+                reinterpret_cast<const AnyArray<AnyString>&>(v)
+            );
+        });
+    }
+
+    static
+    void get_keys_generic (
+        AnyArray<AnyString>& keys, const Traversal& trav,
+        const Accessor* keys_acr, Type keys_type
+    ) {
+        keys_acr->read(*trav.address, [&keys, &trav, keys_type](Mu& v){
+             // We might be able to optimize this more, but it's not that
+             // important.
+            auto keys_tree = item_to_tree(Pointer(keys_type, &v));
+            if (keys_tree.rep != Rep::Array) {
+                raise_KeysTypeInvalid(trav, keys_type);
+            }
+            auto array = TreeArraySlice(keys_tree);
+            new (&keys) AnyArray<AnyString>(Capacity(array.size()));
+            for (const Tree& key : array) {
+                if (key.form != Form::String) {
+                    raise_KeysTypeInvalid(trav, keys_type);
+                }
+                keys.emplace_back_expect_capacity(AnyString(move(key)));
+            }
+        });
     }
 
     NOINLINE static
@@ -156,6 +231,7 @@ struct TraverseToTree {
         auto array = TreeArray(Capacity(len));
         for (usize i = 0; i < len; i++) {
             auto ref = elem_func(*trav.address, i);
+            if (!ref) raise_ElemNotFound(trav.desc, i);
             trav.follow_elem_func(
                 ref, elem_func, i, AccessMode::Read,
                 [&array](const Traversal& child)
@@ -188,7 +264,7 @@ struct TraverseToTree {
             ));
         }
         else raise(e_ToTreeNotSupported, cat(
-            "Item of type ", Type(trav.desc).name(), " does not support to_tree."
+            "Item of type ", Type(trav.desc).name(), " does not support to_tree"
         ));
     }
 
@@ -199,6 +275,17 @@ struct TraverseToTree {
             new (&r) Tree(move(ex));
         }
         else std::rethrow_exception(move(ex));
+    }
+
+    [[noreturn, gnu::cold]] NOINLINE static
+    void raise_KeysTypeInvalid(
+        const Traversal& trav, Type keys_type
+    ) {
+        raise(e_KeysTypeInvalid, cat(
+            "Item of type ", Type(trav.desc).name(),
+            " gave keys() type ", keys_type.name(),
+            " which does not serialize to an array of strings"
+        ));
     }
 };
 
