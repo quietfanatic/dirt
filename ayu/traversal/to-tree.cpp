@@ -40,27 +40,25 @@ struct TraverseToTree {
     void no_value_match (Tree& r, const Traversal& trav) {
         if (trav.desc->preference() == Description::PREFER_OBJECT) {
             if (auto attrs = trav.desc->attrs()) {
-                use_attrs(r, trav, attrs);
+                return use_attrs(r, trav, attrs);
             }
-            else {
-                expect(trav.desc->keys_offset && trav.desc->attr_func_offset);
-                use_computed_attrs(
-                    r, trav, trav.desc->keys_acr(), trav.desc->attr_func()->f
-                );
+            else if (auto keys = trav.desc->keys_acr()) {
+                auto f = trav.desc->attr_func()->f;
+                return use_computed_attrs(r, trav, keys, f);
             }
+             // Fall through
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
             if (auto elems = trav.desc->elems()) {
-                use_elems(r, trav, elems);
+                return use_elems(r, trav, elems);
             }
-            else {
-                expect(trav.desc->length_offset && trav.desc->elem_func_offset);
-                use_computed_elems(
-                    r, trav, trav.desc->length_acr(), trav.desc->elem_func()->f
-                );
+            else if (auto length = trav.desc->length_acr()) {
+                auto f = trav.desc->elem_func()->f;
+                return use_computed_elems(r, trav, length, f);
             }
+             // Fall through
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
+        if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, acr);
         }
         else fail(trav);

@@ -149,8 +149,12 @@ struct TraverseFromTree {
         }
          // Now the behavior depends on what kind of tree we've been given
         else if (tree.form == Form::Object) {
-            if (trav.desc->accepts_object()) {
-                use_object(trav, tree);
+            if (auto attrs = trav.desc->attrs()) {
+                use_attrs(trav, tree, attrs);
+            }
+            else if (auto keys = trav.desc->keys_acr()) {
+                auto f = trav.desc->attr_func()->f;
+                use_computed_attrs(trav, tree, keys, f);
             }
             else no_match(trav, tree);
         }
@@ -191,25 +195,139 @@ struct TraverseFromTree {
     }
 
     NOINLINE static
-    void use_object (const Traversal& trav, const Tree& tree) {
+    void use_attrs (
+        const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
+    ) {
         expect(tree.rep == Rep::Object);
-        auto object = TreeObjectSlice(tree);
-        {
-            auto keys = UniqueArray<AnyString>(Capacity(object.size()));
-            for (auto& [key, value] : object) {
-                keys.emplace_back_expect_capacity(key);
-            }
-            trav_set_keys(trav, move(keys));
-            expect(!keys);
-             // Restrict scope of keys to here so its destructor doesn't prevent a
-             // tail call.
-        }
-        for (auto& [key, value] : object) {
-            trav_attr(trav, key, AccessMode::Write,
-                [&value](const Traversal& child)
-            { traverse(child, value); });
+        { // Restrict scope of object so its destructor doesn't block tail call
+             // Copy so we can destructively remove pairs as we claim them
+            auto object = UniqueArray<TreePair>(TreeObjectSlice(tree));
+            claim_attrs_use_attrs(trav, object, attrs);
+            if (object) raise_AttrRejected(trav.desc, object[0].first);
         }
         finish_item(trav, tree);
+    }
+
+    NOINLINE static
+    void use_computed_attrs (
+        const Traversal& trav, const Tree& tree,
+        const Accessor* keys_acr, AttrFunc<Mu>* f
+    ) {
+        expect(tree.rep == Rep::Object);
+        {
+            auto object = UniqueArray<TreePair>(TreeObjectSlice(tree));
+            claim_attrs_use_computed_attrs(trav, object, keys_acr, f);
+            expect(!object);
+        }
+        finish_item(trav, tree);
+    }
+
+    NOINLINE static
+    void claim_attrs (
+        const Traversal& trav, UniqueArray<TreePair>& object
+    ) {
+        if (auto attrs = trav.desc->attrs()) {
+            claim_attrs_use_attrs(trav, object, attrs);
+        }
+        else if (auto keys = trav.desc->keys_acr()) {
+            auto f = trav.desc->attr_func()->f;
+            claim_attrs_use_computed_attrs(trav, object, keys, f);
+        }
+        else raise_AttrsNotSupported(trav.desc);
+    }
+
+    NOINLINE static
+    void claim_attrs_use_attrs (
+        const Traversal& trav, UniqueArray<TreePair>& object,
+        const AttrsDcrPrivate* attrs
+    ) {
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+             // First try matching attr directly even if it's included
+            for (usize i = 0; i < object.size(); i++) {
+                if (object[i].first == attr->key) {
+                    Tree& value = object[i].second;
+                    trav.follow_attr(
+                        attr->acr(), attr->key, AccessMode::Write,
+                        [&value](const Traversal& child)
+                    { traverse(child, value); });
+                    object.erase(i);
+                    goto next_attr;
+                }
+            }
+             // No match, try including
+            if (attr->acr()->attr_flags & AttrFlags::Include) {
+                trav.follow_attr(
+                    attr->acr(), attr->key, AccessMode::Write,
+                    [&object](const Traversal& child)
+                { claim_attrs(child, object); });
+            }
+             // Maybe it's optional then?
+            else if (attr->acr()->attr_flags & AttrFlags::Optional) {
+            }
+             // Nope, there's nothing more we can do.
+            else raise_AttrMissing(trav.desc, attr->key);
+            next_attr:;
+        }
+    }
+
+    NOINLINE static
+    void claim_attrs_use_computed_attrs (
+        const Traversal& trav, UniqueArray<TreePair>& object,
+        const Accessor* keys_acr, AttrFunc<Mu>* f
+    ) {
+         // Set keys
+        Type keys_type = keys_acr->type(trav.address);
+        if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
+            set_keys_AnyArray(trav, object, keys_acr);
+        }
+        else [[unlikely]] {
+            set_keys_generic(trav, object, keys_acr, keys_type);
+        }
+         // Write each attr
+        for (usize i = 0; i < object.size(); i++) {
+            Reference ref = f(*trav.address, object[i].first);
+            if (!ref) raise_AttrNotFound(trav.desc, object[i].first);
+            Tree& value = object[i].second;
+            trav.follow_attr_func(
+                ref, f, object[i].first, AccessMode::Write,
+                [&value](const Traversal& child)
+            { traverse(child, value); });
+             // consume
+            TreePair(move(object[i]));
+        }
+         // object should be fully consumed.
+        object.unsafe_set_size(0);
+    }
+
+    static
+    void set_keys_AnyArray (
+        const Traversal& trav, UniqueArray<TreePair>& object,
+        const Accessor* keys_acr
+    ) {
+        auto keys = UniqueArray<AnyString>(Capacity(object.size()));
+        for (usize i = 0; i < object.size(); i++) {
+            keys.emplace_back_expect_capacity(object[i].first);
+        }
+        keys_acr->write(*trav.address, [&keys](Mu& v){
+            reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
+        });
+        expect(!keys.owned());
+    }
+
+    static
+    void set_keys_generic (
+        const Traversal& trav, UniqueArray<TreePair>& object,
+        const Accessor* keys_acr, Type keys_type
+    ) {
+        auto array = UniqueArray<Tree>(Capacity(object.size()));
+        for (usize i = 0; i < object.size(); i++) {
+            array.emplace_back_expect_capacity(Tree(object[i].first));
+        }
+        auto keys = Tree(move(array));
+        keys_acr->write(*trav.address, [keys_type, &keys](Mu& v){
+            item_from_tree(Reference(keys_type, &v), keys);
+        });
     }
 
     NOINLINE static

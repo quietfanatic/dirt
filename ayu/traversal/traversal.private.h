@@ -78,23 +78,26 @@ struct Traversal {
         child.op = START;
         child.reference = &ref;
         child.location = loc;
-        child.address = ref.address();
-         // I experimented with several ways of branching, and this one works out
-         // the best.  ref.address(), ref.type(), and ref.readonly() all branch on
-         // the existence of ref.acr, so if we bundle them up this way, the
-         // compiler can make it so the happy path where ref.acr == null only has
-         // one branch.  (For some reason putting ref.type() and ref.readonly()
-         // before ref.address() doesn't work as well, so I put them after).
-        if (child.address) {
-            child.readonly = ref.readonly();
+         // A lot of Reference's methods branch on acr, so do that branch here
+         // to intentionally merge them.
+        if (!ref.acr) {
+            child.address = ref.host.address;
+            child.desc = DescriptionPrivate::get(ref.host.type);
+            child.readonly = ref.host.type.readonly();
+            child.addressable = true;
+            child.children_addressable = true;
+            cb(child);
+        }
+        else if ((child.address = ref.address())) {
             child.desc = DescriptionPrivate::get(ref.type());
+            child.readonly = ref.readonly();
             child.addressable = true;
             child.children_addressable = true;
             cb(child);
         }
         else {
-            child.readonly = ref.readonly();
             child.desc = DescriptionPrivate::get(ref.type());
+            child.readonly = ref.readonly();
             child.addressable = false;
             child.children_addressable =
                 ref.acr->flags & AcrFlags::PassThroughAddressable;
@@ -150,8 +153,15 @@ struct Traversal {
     ) const try {
         child.parent = this;
         child.only_addressable = only_addressable;
-        child.address = ref.address();
-        if (child.address) {
+        if (!ref.acr) {
+            child.address = ref.host.address;
+            child.desc = DescriptionPrivate::get(ref.host.type);
+            child.readonly = readonly | ref.host.type.readonly();
+            child.addressable = children_addressable;
+            child.children_addressable = children_addressable;
+            cb(child);
+        }
+        else if ((child.address = ref.address())) {
             child.desc = DescriptionPrivate::get(ref.type());
             child.readonly = readonly || ref.readonly();
             child.addressable = children_addressable;

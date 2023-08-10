@@ -86,6 +86,7 @@ struct AcrVT {
     static Type const_type (const Accessor*, Mu*) {
         return Type::CppType<T>();
     }
+     // TODO: merge type and address methods
     Type(* type )(const Accessor*, Mu*) = null;
     void(* access )(const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>)
         = null;
@@ -128,8 +129,7 @@ struct Accessor {
                mode == AccessMode::Write ||
                mode == AccessMode::Modify
         );
-         // TODO: change to expect
-        require(mode == AccessMode::Read || ~(flags & AcrFlags::Readonly));
+        expect(mode == AccessMode::Read || ~(flags & AcrFlags::Readonly));
         vt->access(this, mode, from, cb);
     }
     void read (Mu& from, CallbackRef<void(Mu&)> cb) const {
@@ -146,7 +146,7 @@ struct Accessor {
         return vt->address(this, from);
     }
     Mu* inverse_address (Mu& to) const {
-         // TODO: check AcrFlags::Unaddressable
+        if (flags & AcrFlags::Unaddressable) return null;
         return vt->inverse_address(this, to);
     }
 

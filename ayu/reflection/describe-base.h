@@ -204,15 +204,12 @@ struct _AYU_DescribeBase {
      //     attributes will also be merged in).  When deserializing, the Tree
      //     may either ignore inheritance and provide this attribute with `key`,
      //     or it may provide all of this attribute's attributes directly
-     //     without `key`.  If both optional and include are specified, then
-     //     it's acceptable if none of the child item's attributes are given,
-     //     but if any of the child item's attributes are given, then all of its
-     //     other non-optional attributes must also be given.
+     //     without `key`.  If include is specified, then optional is ignored.
      //   - invisible: This attribute will not be read when serializing, but it
      //     will still be written when deserializing (unless it's also optional,
      //     which it probably should be).  If your attribute has a readonly
-     //     accessor, you probably want to make it invisible; otherwise your
-     //     object will not be able to deserialize properly.
+     //     accessor, you probably want to make it invisible; otherwise it will
+     //     make the whole item readonly.
     template <class Acr>
     static constexpr auto attr (
         StaticString key,

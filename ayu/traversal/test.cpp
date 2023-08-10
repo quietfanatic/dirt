@@ -335,17 +335,15 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(it.b, 31, "Inherit works when not collapsed");
 
     auto iot = InheritOptionalTest{{{23, 24}, 25}, 26};
-    Tree from_tree_iot1 = tree_from_string("{d:44}");
-    item_from_tree(&iot, from_tree_iot1);
-    is(iot.d, 44, "Inherit optional works");
-    is(iot.a, 23, "Didn't set attrs of optional included attrs");
+    throws_code<e_AttrMissing>([&]{
+        item_from_tree(&iot, tree_from_string("{d:44}"));
+    }, "Optional doesn't work with include");
     throws_code<e_AttrMissing>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 MemberTest:{a:56 b:67}}"));
-    }, "Optional included attrs need either all or no attrs");
-    todo(1);
+    }, "Optional doesn't work with include");
     throws_code<e_AttrMissing>([&]{
         item_from_tree(&iot, tree_from_string("{d:34 c:78}"));
-    }, "Optional included attrs need either all or no attrs (2)");
+    }, "Optional doesn't work with include");
 
     auto et = ElemTest{0.5, 1.5, 2.5};
     Tree ett = item_to_tree(&et);
