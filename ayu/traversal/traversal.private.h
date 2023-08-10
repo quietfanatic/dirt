@@ -62,6 +62,7 @@ struct Traversal {
          // ELEM, ELEM_FUNC
         usize index;
     };
+    void* callback;
 
     template <class CB>
     static void start (
@@ -98,10 +99,13 @@ struct Traversal {
             child.children_addressable =
                 ref.acr->flags & AcrFlags::PassThroughAddressable;
             if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, [&child, cb](Mu& v){
+                child.callback = (void*)&cb;
+                ref.access(mode, CallbackRef<void(Mu&)>(
+                    child, [](Traversal& child, Mu& v)
+                {
                     child.address = &v;
-                    cb(child);
-                });
+                    (*(std::remove_reference_t<CB>*)child.callback)(child);
+                }));
             }
         }
 
@@ -128,10 +132,13 @@ struct Traversal {
             child.children_addressable =
                 acr->flags & AcrFlags::PassThroughAddressable;
             if (!child.only_addressable || child.children_addressable) {
-                acr->access(mode, *address, [&child, cb](Mu& v){
+                child.callback = (void*)&cb;
+                acr->access(mode, *address, CallbackRef<void(Mu&)>(
+                    child, [](Traversal& child, Mu& v)
+                {
                     child.address = &v;
-                    cb(child);
-                });
+                    (*(std::remove_reference_t<CB>*)child.callback)(child);
+                }));
             }
         }
     }
@@ -158,10 +165,13 @@ struct Traversal {
             child.children_addressable =
                 ref.acr->flags & AcrFlags::PassThroughAddressable;
             if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, [&child, cb](Mu& v){
+                child.callback = (void*)&cb;
+                ref.access(mode, CallbackRef<void(Mu&)>(
+                    child, [](Traversal& child, Mu& v)
+                {
                     child.address = &v;
-                    cb(child);
-                });
+                    (*(std::remove_reference_t<CB>*)child.callback)(child);
+                }));
             }
         }
     }
