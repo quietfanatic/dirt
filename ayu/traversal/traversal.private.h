@@ -55,10 +55,10 @@ struct Traversal {
     union {
          // START
         LocationRef location;
-         // ATTR, ATTR_FUNC
-         // Can't include AnyString directly because it's too non-trivial.
-         // TODO: CRef<AnyString> then?
-        const AnyString* key;
+         // ATTR
+        const StaticString* static_key;
+         // ATTR_FUNC
+        const AnyString* any_key;
          // ELEM, ELEM_FUNC
         usize index;
     };
@@ -181,11 +181,11 @@ struct Traversal {
      // no worry about a dangling pointer to a temporary.
     template <class CB>
     void follow_attr (
-        const Accessor* acr, const AnyString& key, AccessMode mode, CB cb
+        const Accessor* acr, const StaticString& key, AccessMode mode, CB cb
     ) const {
         Traversal child;
         child.op = ATTR;
-        child.key = &key;
+        child.static_key = &key;
         follow_acr(child, acr, mode, cb);
     }
 
@@ -197,7 +197,7 @@ struct Traversal {
         Traversal child;
         child.op = ATTR_FUNC;
         child.attr_func = func;
-        child.key = &key;
+        child.any_key = &key;
         follow_reference(child, ref, mode, cb);
     }
 
@@ -244,7 +244,7 @@ struct Traversal {
                 return Reference(Pointer(type, parent->address), acr);
             }
             case ATTR_FUNC:
-                return attr_func(*parent->address, *key);
+                return attr_func(*parent->address, *any_key);
             case ELEM_FUNC:
                 return elem_func(*parent->address, index);
             default: never();
@@ -258,7 +258,7 @@ struct Traversal {
                 child_acr = new ChainAcr(parent_ref.acr, acr);
                 break;
             case ATTR_FUNC:
-                child_acr = new AttrFuncAcr(*attr_func, *key);
+                child_acr = new AttrFuncAcr(*attr_func, *any_key);
                 break;
             case ELEM_FUNC:
                 child_acr = new ElemFuncAcr(*elem_func, index);
@@ -280,8 +280,10 @@ struct Traversal {
         Location parent_loc = parent->to_location();
         switch (op) {
             case DELEGATE: return parent_loc;
-            case ATTR: case ATTR_FUNC:
-                return Location(move(parent_loc), *key);
+            case ATTR:
+                return Location(move(parent_loc), *static_key);
+            case ATTR_FUNC:
+                return Location(move(parent_loc), *any_key);
             case ELEM: case ELEM_FUNC:
                 return Location(move(parent_loc), index);
             default: never();

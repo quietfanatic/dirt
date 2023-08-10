@@ -33,7 +33,10 @@ inline namespace buffers {
              // Working with malloc on glibc x64, it seems that malloc gives
              // sizes 24, 40, 56, 88, 104, ...
              // In other words, 8 + 16n.  And our header size just so happens to
-             // be 8 bytes.  Nice!
+             // be 8 bytes.  Nice!  However, malloc provide storage aligned to
+             // 16-byte boundaries, so by inserting an 8-byte header we lose
+             // this alignment.  It may be worth investigating if there's a
+             // solution to this problem.
              // Give up on rounding up non-power-of-two sizes.
             usize mask = sizeof(T) == 1 ? 15
                        : sizeof(T) == 2 ? 7

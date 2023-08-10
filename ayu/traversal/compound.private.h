@@ -61,7 +61,7 @@ bool trav_maybe_attr_attrs (
     for (uint i = 0; i < attrs->n_attrs; i++) {
         auto attr = attrs->attr(i);
         if (attr->key == key) {
-            trav.follow_attr(attr->acr(), key, mode, cb);
+            trav.follow_attr(attr->acr(), attr->key, mode, cb);
             return true;
         }
     }
