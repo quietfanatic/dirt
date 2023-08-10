@@ -59,6 +59,15 @@ struct CallbackRefV<Ret(Args...)> {
     { }
 #endif
 
+     // If your're only capturing a single thing, this will be more efficient
+     // than using a lambda (which may use more stack space).
+    template <class C>
+    [[gnu::artificial]] ALWAYS_INLINE
+    constexpr CallbackRefV (C&& c, Ret(* f )(C&&, Args...)) :
+        capture((void*)&c),
+        wrapper(reinterpret_cast<decltype(wrapper)>(f))
+    { }
+
      // Looks like there's no way to avoid an extra copy of by-value args.
      // (std::function does it too)
     [[gnu::artificial]] ALWAYS_INLINE
