@@ -8,32 +8,31 @@ namespace in {
 
 NOINLINE
 void delete_Tree_data (TreeRef t) noexcept {
-     // Delete by manifesting an array and letting its destructor run.
-     // We're using Unique* instead of Shared* because we've already run down
-     // the reference count.
+     // Manually delete all the elements.  We can't call UniqueArray<*>'s
+     // destructor because we've already run the reference count down to 0, and
+     // it debug-asserts that the reference count is 1.
     switch (t->rep) {
         case Rep::SharedString: {
-            UniqueString::UnsafeConstructOwned(
-                (char*)t->data.as_char_ptr, t->length
-            );
+            SharableBuffer<const char>::deallocate(t->data.as_char_ptr);
             break;
         }
         case Rep::Array: {
-            UniqueArray<Tree>::UnsafeConstructOwned(
-                (Tree*)t->data.as_array_ptr, t->length
-            );
+            for (usize i = 0; i < t->length; i++) {
+                t->data.as_array_ptr[i].~Tree();
+            }
+            SharableBuffer<const Tree>::deallocate(t->data.as_array_ptr);
             break;
         }
         case Rep::Object: {
-            UniqueArray<TreePair>::UnsafeConstructOwned(
-                (TreePair*)t->data.as_object_ptr, t->length
-            );
+            for (usize i = 0; i < t->length; i++) {
+                t->data.as_object_ptr[i].~TreePair();
+            }
+            SharableBuffer<const TreePair>::deallocate(t->data.as_object_ptr);
             break;
         }
         case Rep::Error: {
-            UniqueArray<std::exception_ptr>::UnsafeConstructOwned(
-                (std::exception_ptr*)t->data.as_error_ptr, t->length
-            );
+            t->data.as_error_ptr->~exception_ptr();
+            SharableBuffer<const std::exception_ptr>::deallocate(t->data.as_error_ptr);
             break;
         }
         default: never();
