@@ -8,18 +8,12 @@
 
 namespace uni {
 
-template <class F, class Ret, class... Args>
-concept HasExactCallOperator = std::is_convertible_v<
-    decltype(&F::operator()),
-    Ret (F::*)(Args...) const
->;
-
 template <class> struct CallbackRefV;
 template <class Ret, class... Args>
 struct CallbackRefV<Ret(Args...)> {
-    const void* f;
-    Ret(* wrapper )(const void*, Args...);
-#ifdef __GNUC__
+    void* capture;
+    Ret(* wrapper )(void*, Args...);
+#if __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wpmf-conversions"
      // GCC allows casting a method pointer to a function pointer, so take
@@ -29,22 +23,24 @@ struct CallbackRefV<Ret(Args...)> {
      // callee with no ugly wrapper functions inbetween.  This might not work
      // for virtual operator() but why would you do that.
     template <class F> requires(
-        HasExactCallOperator<F, Ret, Args...>
+        std::is_same_v<std::invoke_result_t<F, Args...>, Ret>
     )
     [[gnu::artificial]] ALWAYS_INLINE
-    constexpr CallbackRefV (const F& f) :
-        f(&f),
-        wrapper((decltype(wrapper))(&F::operator()))
+    constexpr CallbackRefV (F&& f) :
+        capture((void*)&f),
+        wrapper((decltype(wrapper))(&std::remove_cvref_t<F>::operator()))
     { }
     template <class F> requires(
-        !HasExactCallOperator<F, Ret, Args...> &&
+        !std::is_same_v<std::invoke_result_t<F, Args...>, Ret> &&
         std::is_convertible_v<std::invoke_result_t<F, Args...>, Ret>
     )
     [[gnu::artificial]] ALWAYS_INLINE
-    constexpr CallbackRefV (const F& f) :
-        f(&f),
-        wrapper([](const void* f, Args... args)->Ret{
-            return (*reinterpret_cast<const F*>(f))(std::forward<Args>(args)...);
+    constexpr CallbackRefV (F&& f) :
+        capture((void*)&f),
+        wrapper([](void* f, Args... args)->Ret{
+            return (std::forward<F>(
+                *reinterpret_cast<std::remove_reference_t<F>*>(f)
+            ))(std::forward<Args>(args)...);
         })
     { }
 #pragma GCC diagnostic pop
@@ -53,18 +49,21 @@ struct CallbackRefV<Ret(Args...)> {
         std::is_convertible_v<std::invoke_result_t<F, Args...>, Ret>
     )
     [[gnu::artificial]] ALWAYS_INLINE
-    constexpr CallbackRefV (const F& f) :
-        f(&f),
-        wrapper([](const void* f, Args... args)->Ret{
-            return (*reinterpret_cast<const F*>(f))(std::forward<Args>(args)...);
+    constexpr CallbackRefV (F&& f) :
+        capture((void*)&f),
+        wrapper([](void* f, Args... args)->Ret{
+            return (std::forward<F>(
+                *reinterpret_cast<std::remove_reference_t<F>*>(f)
+            ))(std::forward<Args>(args)...);
         })
     { }
 #endif
+
      // Looks like there's no way to avoid an extra copy of by-value args.
      // (std::function does it too)
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr Ret operator () (Args... args) const {
-        return wrapper(f, std::forward<Args>(args)...);
+        return wrapper(capture, std::forward<Args>(args)...);
     }
 
     template <class Sig> [[gnu::artificial]] ALWAYS_INLINE constexpr
