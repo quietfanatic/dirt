@@ -52,21 +52,23 @@ constexpr Tree::Tree (AnyString v, TreeFlags f) :
     form(Form::String), rep(v.owned() ? in::Rep::SharedString : in::Rep::StaticString),
     flags(f), length(v.size()), data{.as_char_ptr = v.data()}
 {
-    require(v.size() <= uint32(-1));
+    require(v.size() <= uint32(-2));
     v.unsafe_set_empty();
 }
 constexpr Tree::Tree (TreeArray v, TreeFlags f) :
     form(Form::Array), rep(in::Rep::Array), flags(f),
     length(v.size()), data{.as_array_ptr = v.data()}
 {
-    require(v.size() <= uint32(-1));
+    require(v.size() <= uint32(-2));
     v.unsafe_set_empty();
 }
 constexpr Tree::Tree (TreeObject v, TreeFlags f) :
     form(Form::Object), rep(in::Rep::Object), flags(f),
     length(v.size()), data{.as_object_ptr = v.data()}
 {
-    require(v.size() <= uint32(-1));
+     // Forbid uint32(-1) because an algorithm in traversal uses an index of -1
+     // as a sentinel.
+    require(v.size() <= uint32(-2));
 #ifndef NDEBUG
      // Check for duplicate keys
     for (usize i = 0; i < v.size(); i++)

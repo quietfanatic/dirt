@@ -100,14 +100,24 @@ struct _AYU_DescribeBase {
      //
      // For compound types (types with attributes or elements), this will be
      // called first on all the child items in order, then on the parent item.
+     //
+     // Two things to be aware of:
+     //   - If this item is in an optional attr or elem, and that attr or elem
+     //     is not assigned in the from_tree operation, then swizzle will not be
+     //     called on it or its child items.
+     //   - If this item is in an included attr, the tree passed to swizzle will
+     //     be the tree provided to the outer item that includes this one, so
+     //     the tree may have more attributes than you expect.
     static constexpr auto swizzle (void(* f )(T&, const Tree&));
      // If your type has an extra step needed to complete its initialization
      // after from_tree() and swizzle(), use this function.  As an example, you
-     // can have a window type which sets all the parameters using attrs(), and
+     // can have a window type which sets all its parameters using attrs(), and
      // then calls a library function to open the window in init().
      //
      // For compound types, this will be called first on all the child items in
-     // order, then on the parent item.
+     // order, then on the parent item.  Be aware that an optional attr or elem
+     // will not have init called on it or its child items if it is not provided
+     // with a value in the from_tree operation.
     static constexpr auto init (void(* f )(T&));
      // Make this type behave like another type.  `accessor` must be the result
      // of one of the accessor functions in the ACCESSOR section below.  If both
@@ -197,7 +207,9 @@ struct _AYU_DescribeBase {
      // the member() accessor.  `flags` can be any |ed combination of:
      //   - optional: This attribute does not need to be provided when
      //     deserializing.  If it is not provided, `accessor`'s write operation
-     //     will not be called (normally MissingAttr would be thrown).
+     //     will not be called (normally AttrMissing would be thrown), and
+     //     swizzle and init will not be called on this item or any of its
+     //     children.
      //   - include: When serializing, `key` will be ignored and this
      //     attribute's attributes will be merged with this item's attributes
      //     (and if any of those attributes have include specified, their
@@ -290,9 +302,9 @@ struct _AYU_DescribeBase {
      // combination of:
      //   - optional: This element does not need to be provided when
      //     deserializing.  If it is not provided, `accessor`'s write operation
-     //     will not be called (normally WrongLength will be thrown).  This flag
-     //     is ignored if there are any elements after this one which are not
-     //     optional (this might be a compile-time error later).
+     //     will not be called (normally LengthRejected would be thrown).  This
+     //     flag is ignored if there are any elements after this one which are
+     //     not optional (this might be a compile-time error later).
      //   - include: Unlike with attrs, this doesn't do much; all it does is
      //     allow casting between this item and the element.  Earlier prototypes
      //     of this library allowed included elements to be flattened into the
@@ -365,9 +377,9 @@ struct _AYU_DescribeBase {
      //     is readonly by default and this flag is ignored.  If you have an
      //     attr or elem with a readonly accessor, the attr or elem should be
      //     marked with invisible|optional, otherwise the parent item will not
-     //     survive a round-trip serialize-deserialize.  If the parent item is
-     //     only ever going to be serialized and never deserialized (e.g.
-     //     exception objects), it doesn't matter.
+     //     survive a round-trip serialize-deserialize.  This doesn't matter if
+     //     the parent item is only ever going to be serialized and never
+     //     deserialized.
      //   - prefer_hex: The item this accessor points to prefers to be
      //     serialized in hexadecimal format if it's a number.
      //   - prefer_compact: The item this accessor points to prefers to be
@@ -398,7 +410,7 @@ struct _AYU_DescribeBase {
      // means of a pointer-to-member.  This accessor will be addressable and
      // reverse_addressable.  Obviously this is only available for class and
      // union C++ types, and will cause a compile-time error when used on
-     // fundamental C++ types.
+     // scalar C++ types.
      //
      // For attr() and elem(), you can pass the pointer-to-member directly and
      // it's as if you had used member().  If you need to specify any accessor
