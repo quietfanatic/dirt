@@ -166,14 +166,12 @@ struct TraverseToTree {
     ) {
          // Get list of keys
         AnyArray<AnyString> keys;
-        Type keys_type = keys_acr->type(trav.address);
-        if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
-            get_keys_AnyArray(keys, trav, keys_acr);
-        }
-        else [[unlikely]] {
-            get_keys_generic(keys, trav, keys_acr, keys_type);
-        }
-         // Now get value for each key
+        keys_acr->read(*trav.address, [&keys](Mu& v){
+            new (&keys) AnyArray<AnyString>(
+                reinterpret_cast<const AnyArray<AnyString>&>(v)
+            );
+        });
+         // Now read value for each key
         auto object = TreeObject(Capacity(keys.size()));
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
@@ -189,41 +187,6 @@ struct TraverseToTree {
             });
         }
         new (&r) Tree(move(object));
-    }
-
-    static
-    void get_keys_AnyArray (
-        AnyArray<AnyString>& keys, const Traversal& trav,
-        const Accessor* keys_acr
-    ) {
-        keys_acr->read(*trav.address, [&keys](Mu& v){
-            new (&keys) AnyArray<AnyString>(
-                reinterpret_cast<const AnyArray<AnyString>&>(v)
-            );
-        });
-    }
-
-    static
-    void get_keys_generic (
-        AnyArray<AnyString>& keys, const Traversal& trav,
-        const Accessor* keys_acr, Type keys_type
-    ) {
-        keys_acr->read(*trav.address, [&keys, &trav, keys_type](Mu& v){
-             // We might be able to optimize this more, but it's not that
-             // important.
-            auto keys_tree = item_to_tree(Pointer(keys_type, &v));
-            if (keys_tree.rep != Rep::Array) {
-                raise_KeysTypeInvalid(trav, keys_type);
-            }
-            auto array = TreeArraySlice(keys_tree);
-            new (&keys) AnyArray<AnyString>(Capacity(array.size()));
-            for (const Tree& key : array) {
-                if (key.form != Form::String) {
-                    raise_KeysTypeInvalid(trav, keys_type);
-                }
-                keys.emplace_back_expect_capacity(AnyString(move(key)));
-            }
-        });
     }
 
     NOINLINE static

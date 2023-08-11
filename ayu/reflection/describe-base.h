@@ -230,9 +230,7 @@ struct _AYU_DescribeBase {
     );
      // Use this for items that may have a variable number of attributes.
      // `accessor` must be the output of one of the accessor functions (see
-     // ACCESSORS), and its child type can be anything that serializes to an
-     // array of strings, but serialization will be fastest if its type is
-     // exactly uni::AnyArray<uni::AnyString>.
+     // ACCESSORS), and its child type must be uni::AnyArray<uni::AnyString>.
      //
      // During serialization, the list of keys will be determined with
      // `accessor`'s read operation, and for each key, the attribute's value

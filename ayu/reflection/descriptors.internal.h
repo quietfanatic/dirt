@@ -301,6 +301,7 @@ struct KeysDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
 struct KeysDcrWith : KeysDcr<T> {
     static_assert(std::is_same_v<typename Acr::AcrFromType, T>);
+    static_assert(std::is_same_v<typename Acr::AcrToType, AnyArray<AnyString>>);
     Acr acr;
     constexpr KeysDcrWith (const Acr& a) :
         acr(constexpr_acr(a))

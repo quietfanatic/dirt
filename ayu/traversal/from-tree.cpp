@@ -347,44 +347,51 @@ struct TraverseFromTree {
         const Traversal& trav, TreeObjectSlice object,
         const Accessor* keys_acr
     ) {
-         // TODO: readonly keys
-        Type keys_type = keys_acr->type(trav.address);
-        if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
-            set_keys_AnyArray(trav, object, keys_acr);
+        if (!(keys_acr->flags & AcrFlags::Readonly)) {
+             // Writable keys, so write them.
+            auto keys = UniqueArray<AnyString>(Capacity(object.size()));
+            for (usize i = 0; i < object.size(); i++) {
+                keys.emplace_back_expect_capacity(object[i].first);
+            }
+            keys_acr->write(*trav.address, [&keys](Mu& v){
+                reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
+            });
+            expect(!keys.owned());
         }
-        else [[unlikely]] {
-            set_keys_generic(trav, object, keys_acr, keys_type);
+        else {
+             // Readonly keys?  Read them and check that they match.
+            AnyArray<AnyString> keys;
+            keys_acr->read(*trav.address, [&keys](Mu& v){
+                keys = reinterpret_cast<AnyArray<AnyString>&>(v);
+            });
+#ifndef NDEBUG
+             // Check returned keys for duplicates
+            for (usize i = 0; i < keys.size(); i++)
+            for (usize j = 0; j < i; j++) {
+                expect(keys[i] != keys[j]);
+            }
+#endif
+            if (keys.size() >= object.size()) {
+                for (auto& required : keys) {
+                    for (auto& given : object) {
+                        if (given.first == required) goto next_required;
+                    }
+                    raise_AttrMissing(trav.desc, required);
+                    next_required:;
+                }
+            }
+            else [[unlikely]] {
+                 // Too many keys given
+                for (auto& given : object) {
+                    for (auto& required : keys) {
+                        if (required == given.first) goto next_given;
+                    }
+                    raise_AttrRejected(trav.desc, given.first);
+                    next_given:;
+                }
+                never();
+            }
         }
-    }
-
-    static
-    void set_keys_AnyArray (
-        const Traversal& trav, TreeObjectSlice object,
-        const Accessor* keys_acr
-    ) {
-        auto keys = UniqueArray<AnyString>(Capacity(object.size()));
-        for (usize i = 0; i < object.size(); i++) {
-            keys.emplace_back_expect_capacity(object[i].first);
-        }
-        keys_acr->write(*trav.address, [&keys](Mu& v){
-            reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
-        });
-        expect(!keys.owned());
-    }
-
-    NOINLINE static
-    void set_keys_generic (
-        const Traversal& trav, TreeObjectSlice object,
-        const Accessor* keys_acr, Type keys_type
-    ) {
-        auto array = UniqueArray<Tree>(Capacity(object.size()));
-        for (usize i = 0; i < object.size(); i++) {
-            array.emplace_back_expect_capacity(Tree(object[i].first));
-        }
-        auto keys = Tree(move(array));
-        keys_acr->write(*trav.address, [keys_type, &keys](Mu& v){
-            item_from_tree(Reference(keys_type, &v), keys);
-        });
     }
 
     static
@@ -432,10 +439,21 @@ struct TraverseFromTree {
         const Accessor* length_acr, ElemFunc<Mu>* f
     ) {
         expect(tree.rep == Rep::Array);
-         // Set length.  TODO: readonly lengths
-        length_acr->write(*trav.address, [len{tree.length}](Mu& v){
-            reinterpret_cast<usize&>(v) = len;
-        });
+        if (!(length_acr->flags & AcrFlags::Readonly)) {
+            length_acr->write(*trav.address, [len{tree.length}](Mu& v){
+                reinterpret_cast<usize&>(v) = len;
+            });
+        }
+        else {
+             // For readonly length, read it and check that it's the same.
+            usize len;
+            length_acr->read(*trav.address, [&len](Mu& v){
+                len = reinterpret_cast<usize&>(v);
+            });
+            if (tree.length != len) {
+                raise_LengthRejected(trav.desc, len, len, tree.length);
+            }
+        }
         auto array = TreeArraySlice(tree);
         for (usize i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);

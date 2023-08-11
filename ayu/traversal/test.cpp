@@ -62,10 +62,6 @@ namespace ayu::test {
         std::vector<int> xs;
     };
 
-     // Test usage of keys() with type std::vector<std::string>
-    struct AttrsTest {
-        std::unordered_map<std::string, int> xs;
-    };
      // Test usage of keys() with type AnyArray<AnyString>
     struct AttrsTest2 {
         std::unordered_map<AnyString, int> xs;
@@ -155,26 +151,6 @@ AYU_DESCRIBE(ayu::test::ElemsTest,
     )),
     elem_func([](ElemsTest& v, usize i){
         return Reference(&v.xs.at(i));
-    })
-)
-AYU_DESCRIBE(ayu::test::AttrsTest,
-    keys(mixed_funcs<std::vector<std::string>>(
-        [](const AttrsTest& v){
-            std::vector<std::string> r;
-            for (auto& p : v.xs) {
-                r.emplace_back(p.first);
-            }
-            return r;
-        },
-        [](AttrsTest& v, const std::vector<std::string>& ks){
-            v.xs.clear();
-            for (auto& k : ks) {
-                v.xs.emplace(k, 0);
-            }
-        }
-    )),
-    attr_func([](AttrsTest& v, const AnyString& k){
-        return Reference(&v.xs.at(k));
     })
 )
 AYU_DESCRIBE(ayu::test::AttrsTest2,
@@ -390,36 +366,8 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     }, "item_from_tree with length and elem_func doesn't throw");
     is(est.xs.at(3), 4, "item_from_tree works with elem_func");
 
-    auto ast = AttrsTest{{{"a", 11}, {"b", 22}}};
-    auto keys = item_get_keys(&ast);
-    is(keys.size(), 2u, "item_get_keys (size)");
-    ok((keys[0] == "a" && keys[1] == "b") || (keys[0] == "b" && keys[1] == "a"),
-        "item_get_keys (contents)"
-    );
-    answer = 0;
-    doesnt_throw([&]{
-        item_attr(&ast, "b").read_as<int>([&](const int& v){ answer = v; });
-    }, "item_attr and Reference::read_as");
-    is(answer, 22, "item_attr gives correct answer");
-    throws_code<e_External>([&]{
-        item_attr(&ast, "c");
-    }, "item_attr can throw on missing key (from user-defined function)");
-    auto ks = std::vector<AnyString>{"c", "d"};
-    item_set_keys(&ast, Slice<AnyString>(ks));
-    is(ast.xs.find("a"), ast.xs.end(), "item_set_keys removed key");
-    is(ast.xs.at("c"), 0, "item_set_keys added key");
-    doesnt_throw([&]{
-        item_attr(&ast, "d").write_as<int>([](int& v){ v = 999; });
-    }, "item_attr and Reference::write_as");
-    is(ast.xs.at("d"), 999, "writing to attr works");
-    try_to_tree(&ast, "{c:0,d:999}", "item_to_tree with keys and attr_func");
-    doesnt_throw([&]{
-        item_from_string(&ast, "{e:88,f:34}");
-    }, "item_from_tree with keys and attr_func doesn't throw");
-    is(ast.xs.at("f"), 34, "item_from_tree works with attr_func");
-
     auto ast2 = AttrsTest2{{{"a", 11}, {"b", 22}}};
-    keys = item_get_keys(&ast2);
+    auto keys = item_get_keys(&ast2);
     is(keys.size(), 2u, "item_get_keys (size)");
     ok((keys[0] == "a" && keys[1] == "b") || (keys[0] == "b" && keys[1] == "a"),
         "item_get_keys (contents)"
@@ -432,7 +380,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     throws_code<e_External>([&]{
         item_attr(&ast2, "c");
     }, "item_attr can throw on missing key (from user-defined function)");
-    ks = std::vector<AnyString>{"c", "d"};
+    auto ks = std::vector<AnyString>{"c", "d"};
     item_set_keys(&ast2, Slice<AnyString>(ks));
     is(ast2.xs.find("a"), ast2.xs.end(), "item_set_keys removed key");
     is(ast2.xs.at("c"), 0, "item_set_keys added key");
