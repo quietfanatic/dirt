@@ -417,7 +417,9 @@ struct TraverseFromTree {
         auto array = TreeArraySlice(tree);
          // Check whether length is acceptable
         usize min = elems->n_elems;
-        while (elems->elem(min-1)->acr()->attr_flags & AttrFlags::Optional) {
+        while (min &&
+            elems->elem(min-1)->acr()->attr_flags & AttrFlags::Optional
+        ) {
             min -= 1;
         }
         if (array.size() < min || array.size() > elems->n_elems) {
