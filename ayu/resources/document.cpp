@@ -68,9 +68,14 @@ struct DocumentData {
 };
 
 struct DocumentItemRef {
+    DocumentData* document;
+    AnyString name;
+    usize id;
     DocumentItemHeader* header;
-    DocumentItemRef (DocumentData* doc, Str name) {
-        usize id = parse_numbered_name(name);
+    DocumentItemRef (DocumentData* doc, const AnyString& name_) :
+        document(doc), name(name_), id(parse_numbered_name(name_))
+    {
+         // Find item if it exists
         for (auto link = doc->items.next; link != &doc->items; link = link->next) {
             auto h = static_cast<DocumentItemHeader*>(link);
             if (id != usize(-1) ? h->id == id : h->name == name) {
@@ -78,6 +83,7 @@ struct DocumentItemRef {
                 return;
             }
         }
+         // Doesn't exist, we'll autovivify later.
         header = null;
     }
 };
@@ -177,13 +183,12 @@ AYU_DESCRIBE(ayu::Document,
             r.emplace_back("_next_id");
             return AnyArray(r);
         },
-        [](ayu::Document& v, const AnyArray<AnyString>& ks){
+        [](ayu::Document& v, const AnyArray<AnyString>&){
+             // Setting keys clears the document, but it doesn't actually create
+             // the document items.  They aren't created until the type is set
+             // on a DocumentItemRef.
             v.data->~DocumentData();
             new (v.data) DocumentData;
-            for (auto& k : ks) {
-                if (k == "_next_id") continue;
-                v.allocate_named(Type(), k);
-            }
         }
     )),
     attr_func([](ayu::Document& v, const AnyString& k){
@@ -191,51 +196,36 @@ AYU_DESCRIBE(ayu::Document,
             return Reference(&v.data->next_id);
         }
         else {
-            auto ref = DocumentItemRef(v.data, move(k));
-            if (ref.header) {
-                return Reference(
-                    v, variable(move(ref), pass_through_addressable)
-                );
-            }
-            else return Reference();
+            auto ref = DocumentItemRef(v.data, k);
+            return Reference(
+                v, variable(move(ref), pass_through_addressable)
+            );
         }
     })
 )
 
 AYU_DESCRIBE(ayu::in::DocumentItemRef,
-     // Although nullishness is a valid state for DocumentItemRef (meaning the
-     // DocumentItemHeader has no type), we don't want to allow serializing it.
     elems(
         elem(value_funcs<Type>(
             [](const DocumentItemRef& v){
-                return v.header->type;
+                if (v.header) return v.header->type;
+                else return Type();
             },
             [](DocumentItemRef& v, Type t){
-                if (v.header->type) {
-                    v.header->type.destroy(v.header->data());
+                if (!t) raise(e_General, "Document item cannot have no type");
+                auto& doc = reinterpret_cast<Document&>(v.document);
+                if (v.header) [[unlikely]] {
+                     // Item exists?  We'll have to clobber it.  This will
+                     // change its order in the document.
+                    doc.delete_(v.header->type, v.header->data());
                 }
-                 // Using realloc on a C++ object is questionably legal, but
-                 // nothing in DocumentItemHeader requires a stable address.
-                 // (cast to void* to silence warning)
-                 // (note: if instead we call ~DocumentItemHeader without
-                 //  first cleaning prev and next, it will reorder items in
-                 //  the document.)
-                v.header = (DocumentItemHeader*)realloc(
-                    (void*)v.header, sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
-                );
-                v.header->prev->next = v.header;
-                v.header->next->prev = v.header;
-                v.header->type = t;
-                if (v.header->type) {
-                    v.header->type.default_construct(v.header->data());
-                }
+                void* data = doc.allocate_named(t, v.name);
+                v.header = (DocumentItemHeader*)data - 1;
+                t.default_construct(data);
             }
         )),
         elem(reference_func([](DocumentItemRef& v){
-            if (v.header->type) {
-                return Reference(v.header->type, v.header->data());
-            }
-            else return Reference();
+            return Reference(v.header->type, v.header->data());
         }))
     )
 )
