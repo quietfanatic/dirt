@@ -11,55 +11,104 @@
 namespace ayu {
 namespace in {
 
-bool scan_trav (
-    const Traversal& trav, LocationRef loc,
-    CallbackRef<bool(const Traversal&, LocationRef)> cb
-) {
-    if (cb(trav, loc)) return true;
-    switch (trav.desc->preference()) {
-        case Description::PREFER_OBJECT: {
-            UniqueArray<AnyString> ks;
-            trav_collect_keys(trav, ks);
-            for (auto& k : ks) {
-                 // Initialize to false because in only_addressable mode, the
-                 // callback may not be called.
-                bool r = false;
-                trav_attr(trav, k, AccessMode::Read,
-                    [&r, loc, &k, &cb](const Traversal& child)
-                {
-                    r = scan_trav(child, Location(loc, k), cb);
-                });
-                if (r) return true;
-            }
-            return false;
+struct TraverseScan {
+
+    static
+    bool start_pointers (
+        Pointer base_item, LocationRef base_loc,
+        CallbackRef<bool(Pointer, LocationRef)> cb
+    ) {
+        bool r = false;
+        Traversal::start(base_item, base_loc, true, AccessMode::Read,
+            [&r, base_loc, cb](const Traversal& trav)
+        {
+            TraverseScan::traverse(
+                r, trav, base_loc, [&r, cb](const Traversal& trav, LocationRef loc)
+            {
+                if (trav.addressable) {
+                    r = cb(Pointer(trav.desc, trav.address), loc);
+                }
+            });
+        });
+        return r;
+    }
+
+    static
+    bool start_references (
+        const Reference& base_item, LocationRef base_loc,
+        CallbackRef<bool(const Reference&, LocationRef)> cb
+    ) {
+        bool r = false;
+        Traversal::start(base_item, base_loc, false, AccessMode::Read,
+            [&r, base_loc, cb](const Traversal& trav)
+        {
+            TraverseScan::traverse(
+                r, trav, base_loc, [&r, cb](const Traversal& trav, LocationRef loc)
+            {
+                r = cb(trav.to_reference(), loc);
+            });
+        });
+        return r;
+    }
+
+    NOINLINE static
+    void traverse (
+        bool& r, const Traversal& trav, LocationRef loc,
+        CallbackRef<void(const Traversal&, LocationRef)> cb
+    ) {
+        cb(trav, loc);
+        if (r) return;
+        else if (trav.desc->preference() == Description::PREFER_OBJECT) {
+            use_object(r, trav, loc, cb);
         }
-        case Description::PREFER_ARRAY: {
-            usize len = trav_get_length(trav);
-            for (usize i = 0; i < len; i++) {
-                bool r = false;
-                trav_elem(trav, i, AccessMode::Read,
-                    [&r, loc, i, &cb](const Traversal& child)
-                {
-                    r = scan_trav(child, Location(loc, i), cb);
-                });
-                if (r) return true;
-            }
-            return false;
+        else if (trav.desc->preference() == Description::PREFER_ARRAY) {
+            use_array(r, trav, loc, cb);
         }
-        default: {
-            if (auto acr = trav.desc->delegate_acr()) {
-                bool r = false;
-                trav.follow_delegate(acr, AccessMode::Read,
-                    [&r, loc, &cb](const Traversal& child)
-                {
-                    r = scan_trav(child, loc, cb);
-                });
-                return r;
-            }
-            return false;
+        else if (auto acr = trav.desc->delegate_acr()) {
+            use_delegate(r, trav, loc, cb, acr);
         }
     }
-}
+
+    static
+    void use_object (
+        bool& r, const Traversal& trav, LocationRef loc,
+        CallbackRef<void(const Traversal&, LocationRef)> cb
+    ) {
+        UniqueArray<AnyString> ks;
+        trav_collect_keys(trav, ks);
+        for (auto& k : ks) {
+            trav_attr(trav, k, AccessMode::Read,
+                [&r, loc, &k, &cb](const Traversal& child)
+            { traverse(r, child, Location(loc, k), cb); });
+            if (r) return;
+        }
+    }
+
+    static
+    void use_array (
+        bool& r, const Traversal& trav, LocationRef loc,
+        CallbackRef<void(const Traversal&, LocationRef)> cb
+    ) {
+        usize len = trav_get_length(trav);
+        for (usize i = 0; i < len; i++) {
+            trav_elem(trav, i, AccessMode::Read,
+                [&r, loc, i, &cb](const Traversal& child)
+            { traverse(r, child, Location(loc, i), cb); });
+            if (r) return;
+        }
+    }
+
+    static
+    void use_delegate (
+        bool& r, const Traversal& trav, LocationRef loc,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
+        const Accessor* acr
+    ) {
+        trav.follow_delegate(acr, AccessMode::Read,
+            [&r, loc, &cb](const Traversal& child)
+        { traverse(r, child, loc, cb); });
+    }
+};
 
  // Store a typed Pointer instead of a Mu* because items at the same address
  // with different types are different items.
@@ -100,37 +149,14 @@ bool scan_pointers (
     Pointer base_item, LocationRef base_loc,
     CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
-    bool r = false;
-    Traversal::start(base_item, base_loc, true, AccessMode::Read,
-        [&r, base_loc, cb](const Traversal& trav)
-    {
-        r = scan_trav(
-            trav, base_loc, [cb](const Traversal& trav, LocationRef loc)
-        {
-            if (trav.addressable) {
-                return cb(Pointer(trav.desc, trav.address), loc);
-            }
-            else return false;
-        });
-    });
-    return r;
+    return TraverseScan::start_pointers(base_item, base_loc, cb);
 }
 
 bool scan_references (
     const Reference& base_item, LocationRef base_loc,
     CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
-    bool r = false;
-    Traversal::start(base_item, base_loc, false, AccessMode::Read,
-        [&r, base_loc, cb](const Traversal& trav)
-    {
-        r = scan_trav(
-            trav, base_loc, [cb](const Traversal& trav, LocationRef loc)
-        {
-            return cb(trav.to_reference(), loc);
-        });
-    });
-    return r;
+    return TraverseScan::start_references(base_item, base_loc, cb);
 }
 
 bool scan_resource_pointers (
