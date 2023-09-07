@@ -7,8 +7,7 @@ namespace ayu {
 namespace in {
 
  // Pulling out this callback to avoid redundant instantiations of
- // trav_maybe_attr<> and trav_maybe_elem<> due to all lambdas having unique
- // types.
+ // lambdas due to all lambdas having unique types.
 struct ReceiveReference {
     Reference& r;
     void operator() (const Traversal& child) const {
@@ -16,13 +15,72 @@ struct ReceiveReference {
     }
 };
 
- // set_keys execution
-static void trav_collect_key (UniqueArray<AnyString>&, AnyString&&);
-static void trav_collect_keys_attrs (const Traversal&, UniqueArray<AnyString>&, const AttrsDcrPrivate*);
-static void trav_collect_keys_keys (const Traversal&, UniqueArray<AnyString>&, const Accessor*);
-static void trav_collect_keys_keys_builtin (const Traversal&, UniqueArray<AnyString>&, const Accessor*);
-static void trav_collect_keys_keys_generic (const Traversal&, UniqueArray<AnyString>&, const Accessor*, Type);
-static void trav_collect_keys_delegate (const Traversal&, UniqueArray<AnyString>&, const Accessor*);
+///// GET KEYS
+
+struct TraverseCollectKeys {
+    UniqueArray<AnyString> keys;
+
+    void start (const Reference& item, LocationRef loc) {
+        Traversal::start(item, loc, false, AccessMode::Read,
+            [this](const Traversal& trav)
+        { traverse(trav); });
+    }
+
+    void collect (AnyString&& key) {
+         // This'll end up being N^2.  TODO: Test whether including an unordered_set
+         // would speed this up (probably not).  Maybe even just hashing the key
+         // might be enough.
+        for (auto k : keys) if (k == key) return;
+        keys.emplace_back(move(key));
+    }
+
+    NOINLINE void traverse (const Traversal& trav) {
+        if (auto attrs = trav.desc->attrs()) {
+            use_attrs(trav, attrs);
+        }
+        else if (auto acr = trav.desc->keys_acr()) {
+            use_computed_attrs(trav, acr);
+        }
+        else if (auto acr = trav.desc->delegate_acr()) {
+            use_delegate(trav, acr);
+        }
+        else raise_AttrsNotSupported(trav.desc);
+    }
+
+    NOINLINE void use_attrs (
+        const Traversal& trav, const AttrsDcrPrivate* attrs
+    ) {
+        for (uint16 i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            auto acr = attr->acr();
+            if (acr->attr_flags & AttrFlags::Include) {
+                trav.follow_attr(acr, attr->key, AccessMode::Read,
+                    [this](const Traversal& child)
+                { traverse(child); });
+            }
+            else collect(attr->key);
+        }
+    }
+
+    NOINLINE void use_computed_attrs (
+        const Traversal& trav, const Accessor* keys_acr
+    ) {
+        keys_acr->read(*trav.address, [this](Mu& v){
+            auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
+            for (auto& key : item_keys) {
+                collect(AnyString(key));
+            }
+        });
+    }
+
+    NOINLINE void use_delegate (
+        const Traversal& trav, const Accessor* acr
+    ) {
+        trav.follow_delegate(acr, AccessMode::Read, [this](const Traversal& child){
+            traverse(child);
+        });
+    }
+};
 
 } using namespace in;
 
@@ -30,106 +88,13 @@ AnyArray<AnyString> item_get_keys (
     const Reference& item, LocationRef loc
 ) {
     UniqueArray<AnyString> keys;
-    Traversal::start(item, loc, false, AccessMode::Read,
-        [&keys](const Traversal& trav)
-    { trav_collect_keys(trav, keys); });
+    reinterpret_cast<TraverseCollectKeys&>(keys).start(item, loc);
     return keys;
 }
 
-NOINLINE void in::trav_collect_keys (
-    const Traversal& trav, UniqueArray<AnyString>& keys
-) {
-    if (auto attrs = trav.desc->attrs()) {
-        trav_collect_keys_attrs(trav, keys, attrs);
-    }
-    else if (auto acr = trav.desc->keys_acr()) {
-        trav_collect_keys_keys(trav, keys, acr);
-    }
-    else if (auto acr = trav.desc->delegate_acr()) {
-        trav_collect_keys_delegate(trav, keys, acr);
-    }
-    else raise_AttrsNotSupported(trav.desc);
-}
-
-void in::trav_collect_keys_attrs (
-    const Traversal& trav, UniqueArray<AnyString>& keys,
-    const AttrsDcrPrivate* attrs
-) {
-    for (uint16 i = 0; i < attrs->n_attrs; i++) {
-        auto attr = attrs->attr(i);
-        auto acr = attr->acr();
-        if (acr->attr_flags & AttrFlags::Include) {
-            trav.follow_attr(acr, attr->key, AccessMode::Read,
-                [&keys](const Traversal& child)
-            { trav_collect_keys(child, keys); });
-        }
-        else trav_collect_key(keys, attr->key);
-    }
-}
-
-void in::trav_collect_keys_keys (
-    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
-) {
-    Type keys_type = acr->type(trav.address);
-     // Compare Type not std::type_info, since std::type_info can require a
-     // string comparison.
-    if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
-         // Optimize for AnyArray<AnyString>
-         trav_collect_keys_keys_builtin(trav, keys, acr);
-    }
-    else [[unlikely]] {
-         // Generic case for anything that to_trees to an array of strings
-         trav_collect_keys_keys_generic(trav, keys, acr, keys_type);
-    }
-}
-
-void in::trav_collect_keys_keys_builtin (
-    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
-) {
-    acr->read(*trav.address, [&keys](Mu& v){
-        auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
-        for (auto& key : item_keys) {
-            trav_collect_key(keys, AnyString(key));
-        }
-    });
-}
-
-void in::trav_collect_keys_keys_generic (
-    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr,
-    Type keys_type
-) {
-    acr->read(*trav.address, [&trav, keys_type, &keys](Mu& v){
-         // We might be able to optimize this more, but it's not that
-         // important.
-        auto keys_tree = item_to_tree(Pointer(keys_type, &v));
-        if (keys_tree.form != Form::Array) goto keys_type_invalid;
-        for (const Tree& key : TreeArraySlice(keys_tree)) {
-            if (key.form != Form::String) goto keys_type_invalid;
-            trav_collect_key(keys, AnyString(move(key)));
-        }
-        return;
-        keys_type_invalid: raise(e_KeysTypeInvalid, cat(
-            "Item of type ", Type(trav.desc).name(),
-            " gave keys() type ", keys_type.name(),
-            " which does not serialize to an array of strings"
-        ));
-    });
-}
-
-void in::trav_collect_keys_delegate (
-    const Traversal& trav, UniqueArray<AnyString>& keys, const Accessor* acr
-) {
-    trav.follow_delegate(acr, AccessMode::Read, [&keys](const Traversal& child){
-        trav_collect_keys(child, keys);
-    });
-}
-
-void in::trav_collect_key (UniqueArray<AnyString>& keys, AnyString&& key) {
-     // This'll end up being N^2.  TODO: Test whether including an unordered_set
-     // would speed this up (probably not).  Maybe even just hashing the key
-     // might be enough.
-    for (auto k : keys) if (k == key) return;
-    keys.emplace_back(move(key));
+ // TEMP
+void in::trav_collect_keys (UniqueArray<AnyString>& keys, const Traversal& trav) {
+    reinterpret_cast<TraverseCollectKeys&>(keys).traverse(trav);
 }
 
 namespace in {
@@ -183,7 +148,7 @@ void trav_claim_keys (
              // For readonly keys, get the keys and compare them.
              // TODO: This can probably be optimized more
             UniqueArray<AnyString> required_keys;
-            trav_collect_keys(trav, required_keys);
+            trav_collect_keys(required_keys, trav);
             for (auto& key : required_keys) {
                 if (trav_claim_key(keys, key)) {
                      // If any of the keys are present, it makes this item no

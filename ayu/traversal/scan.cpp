@@ -75,7 +75,7 @@ struct TraverseScan {
         CallbackRef<void(const Traversal&, LocationRef)> cb
     ) {
         UniqueArray<AnyString> ks;
-        trav_collect_keys(trav, ks);
+        trav_collect_keys(ks, trav);
         for (auto& k : ks) {
             trav_attr(trav, k, AccessMode::Read,
                 [&r, loc, &k, &cb](const Traversal& child)
