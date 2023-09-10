@@ -311,35 +311,7 @@ struct Traversal {
     }
 
     [[noreturn, gnu::cold]] void wrap_exception () const {
-        try { throw; }
-        catch (Error& e) {
-            if (!e.has_travloc) {
-                e.has_travloc = true;
-                Location here = to_location();
-                {
-                    DiagnosticSerialization ds;
-                    e.details = cat(move(e.details),
-                        " (", item_to_string(&here), ')'
-                    );
-                }
-            }
-            throw e;
-        }
-        catch (std::exception& ex) {
-            Error e;
-            e.code = e_External;
-            Location here = to_location();
-            {
-                DiagnosticSerialization ds;
-                e.details = cat(
-                    get_demangled_name(typeid(ex)), ": ", ex.what(),
-                    " (", item_to_string(&here), ')'
-                );
-            }
-            e.has_travloc = true;
-            e.external = std::current_exception();
-            throw e;
-        }
+        rethrow_with_travloc(to_location());
     }
 };
 

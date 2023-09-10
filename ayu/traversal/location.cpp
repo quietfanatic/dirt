@@ -177,6 +177,36 @@ PushBaseLocation::~PushBaseLocation () {
     cur_base_iri = IRI();
 }
 
+void rethrow_with_travloc (LocationRef loc) {
+    try { throw; }
+    catch (Error& e) {
+        if (!e.has_travloc) {
+            e.has_travloc = true;
+            {
+                DiagnosticSerialization ds;
+                e.details = cat(move(e.details),
+                    " (", item_to_string(&*loc), ')'
+                );
+            }
+        }
+        throw e;
+    }
+    catch (std::exception& ex) {
+        Error e;
+        e.code = e_External;
+        {
+            DiagnosticSerialization ds;
+            e.details = cat(
+                get_demangled_name(typeid(ex)), ": ", ex.what(),
+                " (", item_to_string(&*loc), ')'
+            );
+        }
+        e.has_travloc = true;
+        e.external = std::current_exception();
+        throw e;
+    }
+}
+
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::Location,

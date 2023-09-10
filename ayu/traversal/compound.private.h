@@ -21,7 +21,6 @@ template <class CB>
 void trav_attr (const Traversal&, const AnyString&, AccessMode, CB);
 
  ///// Elem operations
-usize trav_get_length (const Traversal&);
  // Implement set_length by counting up used length
 void trav_claim_length (const Traversal&, usize& claimed, usize len);
 void trav_set_length (const Traversal&, usize);

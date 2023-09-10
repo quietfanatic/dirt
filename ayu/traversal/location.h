@@ -112,6 +112,12 @@ struct PushBaseLocation {
     ~PushBaseLocation ();
 };
 
+///// MISC
+
+ // Add a traversal location to the current exception if it doesn't already
+ // have one.
+[[noreturn, gnu::cold]] void rethrow_with_travloc (LocationRef loc);
+
 } // namespace ayu
 
 #include "location.inline.h"

@@ -89,7 +89,7 @@ struct TraverseScan {
         bool& r, const Traversal& trav, LocationRef loc,
         CallbackRef<void(const Traversal&, LocationRef)> cb
     ) {
-        usize len = trav_get_length(trav);
+        usize len = item_get_length(Pointer(trav.desc, trav.address), loc);
         for (usize i = 0; i < len; i++) {
             trav_elem(trav, i, AccessMode::Read,
                 [&r, loc, i, &cb](const Traversal& child)

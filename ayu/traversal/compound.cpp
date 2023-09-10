@@ -247,35 +247,46 @@ Reference item_attr (const Reference& item, const AnyString& key, LocationRef lo
 
 ///// ELEMS
 
-usize in::trav_get_length (const Traversal& trav) {
-    if (auto acr = trav.desc->length_acr()) {
-        usize len;
-         // Do we want to support other integral types besides usize?  Probably
-         // not very high priority.
-        acr->read(*trav.address, [&len](Mu& v){
-            len = reinterpret_cast<const usize&>(v);
-        });
-        return len;
+struct TraverseGetLength {
+    static usize start (const Reference& item, LocationRef loc) try {
+        if (auto addr = item.address()) {
+            return traverse(*addr, item.type());
+        }
+        else {
+            usize len;
+            item.read([&len, type{item.type()}](Mu& v){
+                len = traverse(v, type);
+            });
+            return len;
+        }
+    } catch (...) { rethrow_with_travloc(loc); }
+
+    NOINLINE static usize traverse (Mu& item, Type type) {
+        auto desc = DescriptionPrivate::get(type);
+        if (auto elems = desc->elems()) {
+            return elems->n_elems;
+        }
+        else if (auto acr = desc->length_acr()) {
+            usize len;
+            acr->read(item, [&len](Mu& v){
+                len = reinterpret_cast<const usize&>(v);
+            });
+            return len;
+        }
+        else if (auto acr = desc->delegate_acr()) {
+            usize len;
+            Type child_type = acr->type(&item);
+            acr->read(item, [&len, child_type](Mu& v){
+                len = traverse(v, child_type);
+            });
+            return len;
+        }
+        else raise_ElemsNotSupported(type);
     }
-    else if (auto elems = trav.desc->elems()) {
-        return elems->n_elems;
-    }
-    else if (auto acr = trav.desc->delegate_acr()) {
-        usize len;
-        trav.follow_delegate(
-            acr, AccessMode::Read, [&len](const Traversal& child)
-        { len = trav_get_length(child); });
-        return len;
-    }
-    else raise_ElemsNotSupported(trav.desc);
-}
+};
 
 usize item_get_length (const Reference& item, LocationRef loc) {
-    usize len;
-    Traversal::start(
-        item, loc, false, AccessMode::Read, [&len](const Traversal& trav)
-    { len = trav_get_length(trav); });
-    return len;
+    return TraverseGetLength::start(item, loc);
 }
 
 void in::trav_set_length (const Traversal& trav, usize len) {
