@@ -76,9 +76,9 @@ struct TraverseCollectKeys {
     NOINLINE void use_delegate (
         const Traversal& trav, const Accessor* acr
     ) {
-        trav.follow_delegate(acr, AccessMode::Read, [this](const Traversal& child){
-            traverse(child);
-        });
+        trav.follow_delegate(acr, AccessMode::Read,
+            [this](const Traversal& child)
+        { traverse(child); });
     }
 };
 
@@ -99,68 +99,49 @@ void in::trav_collect_keys (UniqueArray<AnyString>& keys, const Traversal& trav)
 
 namespace in {
 
-static
-bool trav_claim_key (UniqueArray<AnyString>& keys, Str key) {
-     // This algorithm overall is O(N^3), we may be able to speed it up by
-     // setting a flag if there are no included attrs, or maybe by using an
-     // unordered_set?
-     // TODO: Just use a bool array for claiming instead of erasing from
-     // the array?
-    for (usize i = 0; i < keys.size(); ++i) {
-        if (keys[i] == key) {
-            keys.erase(i);
-            return true;
-        }
-    }
-    return false;
-}
+struct TraverseClaimKeys {
+    UniqueArray<AnyString> keys;
 
-void trav_claim_keys (
-    const Traversal& trav,
-    UniqueArray<AnyString>& keys,
-    bool optional
-) {
-    if (auto acr = trav.desc->keys_acr()) {
-        Type keys_type = acr->type(trav.address);
-        if (!(acr->flags & AcrFlags::Readonly)) {
-            if (keys_type == Type::CppType<AnyArray<AnyString>>()) {
-                 // Optimize for AnyArray<AnyString>
-                acr->write(*trav.address, [&keys](Mu& v){
-                    reinterpret_cast<AnyArray<AnyString>&>(v) = keys;
-                });
-            }
-            else [[unlikely]] {
-                 // General case: call item_from_tree on the keys.  This will
-                 // be slow.
-                UniqueArray<Tree> array (keys.size());
-                for (usize i = 0; i < keys.size(); i++) {
-                    array[i] = Tree(keys[i]);
-                }
-                acr->write(*trav.address, [keys_type, &array](Mu& v){
-                    item_from_tree(
-                        Pointer(keys_type, &v), Tree(move(array))
-                    );
-                });
-            }
-            keys = {};
-        }
-        else {
-             // For readonly keys, get the keys and compare them.
-             // TODO: This can probably be optimized more
-            UniqueArray<AnyString> required_keys;
-            trav_collect_keys(required_keys, trav);
-            for (auto& key : required_keys) {
-                if (trav_claim_key(keys, key)) {
-                     // If any of the keys are present, it makes this item no
-                     // longer optional.
-                    optional = false;
-                }
-                else if (!optional) raise_AttrMissing(trav.desc, key);
-            }
-            return;
-        }
+    void start (const Reference& item, LocationRef loc) {
+        Traversal::start(item, loc, false, AccessMode::Read,
+            [this](const Traversal& trav)
+        {
+            traverse(trav, false);
+            if (keys) raise_AttrRejected(trav.desc, keys[0]);
+        });
     }
-    else if (auto attrs = trav.desc->attrs()) {
+
+    bool claim (Str key) {
+         // This algorithm overall is O(N^3), we may be able to speed it up by
+         // setting a flag if there are no included attrs, or maybe by using an
+         // unordered_set?
+         // TODO: Just use a bool array for claiming instead of erasing from
+         // the array?
+        for (usize i = 0; i < keys.size(); ++i) {
+            if (keys[i] == key) {
+                keys.erase(i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    NOINLINE void traverse (const Traversal& trav, bool optional) {
+        if (auto attrs = trav.desc->attrs()) {
+            use_attrs(trav, optional, attrs);
+        }
+        else if (auto acr = trav.desc->keys_acr()) {
+            use_computed_attrs(trav, optional, acr);
+        }
+        else if (auto acr = trav.desc->delegate_acr()) {
+            use_delegate(trav, optional, acr);
+        }
+        else raise_AttrsNotSupported(trav.desc);
+    }
+
+    NOINLINE void use_attrs (
+        const Traversal& trav, bool optional, const AttrsDcrPrivate* attrs
+    ) {
          // Prioritize direct attrs
          // I don't think it's possible for n_attrs to be large enough to
          // overflow the stack...right?  The max description size is 64K and an
@@ -171,7 +152,7 @@ void trav_claim_keys (
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (trav_claim_key(keys, attr->key)) {
+            if (claim(attr->key)) {
                  // If any attrs are given, all required attrs must be given
                  // (only matters if this item is an included attr)
                  // TODO: this should fail a test depending on the order of attrs
@@ -196,35 +177,53 @@ void trav_claim_keys (
                 if (claimed_included[i]) continue;
                 bool opt = optional | !!(acr->attr_flags & AttrFlags::Optional);
                 trav.follow_attr(acr, attr->key, AccessMode::Write,
-                    [&keys, opt](const Traversal& child)
-                { trav_claim_keys(child, keys, opt); });
+                    [this, opt](const Traversal& child)
+                { traverse(child, opt); });
             }
         }
     }
-    else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(acr, AccessMode::Write,
-            [&keys, optional](const Traversal& child)
-        { trav_claim_keys(child, keys, optional); });
-    }
-    else raise_AttrsNotSupported(trav.desc);
-}
 
-void trav_set_keys (
-    const Traversal& trav, UniqueArray<AnyString>&& keys
-) {
-    trav_claim_keys(trav, keys, false);
-    if (keys) raise_AttrRejected(trav.desc, keys[0]);
-}
+    NOINLINE void use_computed_attrs (
+        const Traversal& trav, bool optional, const Accessor* keys_acr
+    ) {
+        if (!(keys_acr->flags & AcrFlags::Readonly)) {
+            keys_acr->write(*trav.address, [this](Mu& v){
+                reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
+            });
+        }
+        else {
+             // For readonly keys, get the keys and compare them.
+             // TODO: This can probably be optimized more
+            UniqueArray<AnyString> required_keys;
+            trav_collect_keys(required_keys, trav);
+            for (auto& key : required_keys) {
+                if (claim(key)) {
+                     // If any of the keys are present, it makes this item no
+                     // longer optional.
+                    optional = false;
+                }
+                else if (!optional) raise_AttrMissing(trav.desc, key);
+            }
+            return;
+        }
+    }
+
+    NOINLINE void use_delegate (
+        const Traversal& trav, bool optional, const Accessor* acr
+    ) {
+        trav.follow_delegate(acr, AccessMode::Write,
+            [this, optional](const Traversal& child)
+        { traverse(child, optional); });
+    }
+
+};
 
 } using namespace in;
 
 void item_set_keys (
     const Reference& item, AnyArray<AnyString> keys, LocationRef loc
 ) {
-    Traversal::start(item, loc, false, AccessMode::Write,
-        [&keys](const Traversal& trav)
-    { trav_set_keys(trav, move(keys)); });
-    expect(!keys);
+    TraverseClaimKeys(move(keys)).start(item, loc);
 }
 
 Reference item_maybe_attr (

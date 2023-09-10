@@ -13,10 +13,6 @@ namespace ayu::in {
  // TEMP
 void trav_collect_keys (UniqueArray<AnyString>&, const Traversal&);
 
- // Implement set_keys by removing keys from an array
-void trav_claim_keys (const Traversal&, UniqueArray<AnyString>&, bool optional);
-void trav_set_keys (const Traversal&, UniqueArray<AnyString>&&);
-
  // If the attr isn't found, returns false and doesn't call the callback
 template <class CB>
 bool trav_maybe_attr (const Traversal&, const AnyString&, AccessMode, CB);
