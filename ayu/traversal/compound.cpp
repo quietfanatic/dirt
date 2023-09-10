@@ -52,6 +52,7 @@ struct TraverseGetKeys {
     ) {
         for (uint16 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
+             // TODO: discard invisible attrs?
             auto acr = attr->acr();
             if (acr->attr_flags & AttrFlags::Include) {
                 trav.follow_attr(acr, attr->key, AccessMode::Read,
@@ -313,7 +314,7 @@ struct TraverseSetLength {
         }
     } catch (...) { rethrow_with_travloc(loc); }
 
-    NOINLINE static usize traverse (Mu& item, Type type, usize len) {
+    NOINLINE static void traverse (Mu& item, Type type, usize len) {
         auto desc = DescriptionPrivate::get(type);
         if (auto elems = desc->elems()) {
             usize min = elems->n_elems;

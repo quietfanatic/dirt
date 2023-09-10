@@ -22,7 +22,7 @@ struct TraverseScan {
         Traversal::start(base_item, base_loc, true, AccessMode::Read,
             [&r, base_loc, cb](const Traversal& trav)
         {
-            TraverseScan::traverse(
+            traverse(
                 r, trav, base_loc, [&r, cb](const Traversal& trav, LocationRef loc)
             {
                 if (trav.addressable) {
@@ -42,7 +42,7 @@ struct TraverseScan {
         Traversal::start(base_item, base_loc, false, AccessMode::Read,
             [&r, base_loc, cb](const Traversal& trav)
         {
-            TraverseScan::traverse(
+            traverse(
                 r, trav, base_loc, [&r, cb](const Traversal& trav, LocationRef loc)
             {
                 r = cb(trav.to_reference(), loc);
@@ -59,46 +59,120 @@ struct TraverseScan {
         cb(trav, loc);
         if (r) return;
         else if (trav.desc->preference() == Description::PREFER_OBJECT) {
-            use_object(r, trav, loc, cb);
+            if (auto attrs = trav.desc->attrs()) {
+                use_attrs(r, trav, loc, cb, attrs);
+            }
+            else if (auto keys = trav.desc->keys_acr()) {
+                use_computed_attrs(r, trav, loc, cb, keys);
+            }
+            else never();
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
-            use_array(r, trav, loc, cb);
+            if (auto elems = trav.desc->elems()) {
+                use_elems(r, trav, loc, cb, elems);
+            }
+            else if (auto length = trav.desc->length_acr()) {
+                use_computed_elems(r, trav, loc, cb, length);
+            }
+            else never();
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, loc, cb, acr);
         }
     }
 
-    static
-    void use_object (
+    NOINLINE static
+    void use_attrs (
         bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
+        const AttrsDcrPrivate* attrs
     ) {
-        UniqueArray<AnyString> ks;
-        trav_collect_keys(ks, trav);
-        for (auto& k : ks) {
-            trav_attr(trav, k, AccessMode::Read,
-                [&r, loc, &k, &cb](const Traversal& child)
-            { traverse(r, child, Location(loc, k), cb); });
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+             // TODO: discard invisible attrs?
+            auto acr = attr->acr();
+             // Behave as though all included attrs are included (collapse the
+             // location segment for the included attr).
+            Location child_loc =
+                acr->attr_flags & AttrFlags::Include
+                ? *loc : Location(loc, attr->key);
+             // TODO: verify that the child item is object-like.
+            trav.follow_attr(acr, attr->key, AccessMode::Read,
+                [&r, child_loc, cb](const Traversal& child)
+            { traverse(r, child, child_loc, cb); });
             if (r) return;
         }
     }
 
-    static
-    void use_array (
+    NOINLINE static
+    void use_computed_attrs (
         bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
+        const Accessor* keys_acr
     ) {
-        usize len = item_get_length(Pointer(trav.desc, trav.address), loc);
+         // Get list of keys
+        AnyArray<AnyString> keys;
+        keys_acr->read(*trav.address, [&keys](Mu& v){
+            new (&keys) AnyArray<AnyString>(
+                reinterpret_cast<const AnyArray<AnyString>&>(v)
+            );
+        });
+        auto f = trav.desc->attr_func()->f;
+         // Now scan for each key
+        for (auto& key : keys) {
+            auto ref = f(*trav.address, key);
+            if (!ref) raise_AttrNotFound(trav.desc, key);
+            Location child_loc = Location(loc, key);
+            trav.follow_attr_func(
+                ref, f, key, AccessMode::Read,
+                [&r, child_loc, cb](const Traversal& child)
+            { traverse(r, child, child_loc, cb); });
+            if (r) return;
+        }
+    }
+
+    NOINLINE static
+    void use_elems (
+        bool& r, const Traversal& trav, LocationRef loc,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
+        const ElemsDcrPrivate* elems
+    ) {
+        for (uint i = 0; i < elems->n_elems; i++) {
+            auto elem = elems->elem(i);
+            auto acr = elem->acr();
+            Location child_loc = Location(loc, i);
+             // TODO: verify that the child item is array-like.
+            trav.follow_elem(acr, i, AccessMode::Read,
+                [&r, child_loc, cb](const Traversal& child)
+            { traverse(r, child, child_loc, cb); });
+            if (r) return;
+        }
+    }
+
+    NOINLINE static
+    void use_computed_elems (
+        bool& r, const Traversal& trav, LocationRef loc,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
+        const Accessor* length_acr
+    ) {
+        usize len;
+        length_acr->read(*trav.address, [&len](Mu& v){
+            len = reinterpret_cast<usize&>(v);
+        });
+        auto f = trav.desc->elem_func()->f;
         for (usize i = 0; i < len; i++) {
-            trav_elem(trav, i, AccessMode::Read,
-                [&r, loc, i, &cb](const Traversal& child)
-            { traverse(r, child, Location(loc, i), cb); });
+            auto ref = f(*trav.address, i);
+            if (!ref) raise_ElemNotFound(trav.desc, i);
+            Location child_loc = Location(loc, i);
+            trav.follow_elem_func(
+                ref, f, i, AccessMode::Read,
+                [&r, child_loc, cb](const Traversal& child)
+            { traverse(r, child, child_loc, cb); });
             if (r) return;
         }
     }
 
-    static
+    NOINLINE static
     void use_delegate (
         bool& r, const Traversal& trav, LocationRef loc,
         CallbackRef<void(const Traversal&, LocationRef)> cb,
@@ -165,6 +239,7 @@ bool scan_resource_pointers (
     if (res.state() == UNLOADED) return false;
     return scan_pointers(res.get_value().ptr(), Location(res), cb);
 }
+
 bool scan_resource_references (
     const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
@@ -299,6 +374,7 @@ Location pointer_to_location (Pointer item) {
         "Couldn't locate pointer target of type ", item.type.name()
     ));
 }
+
 Location reference_to_location (const Reference& item) {
     if (!item) return Location();
     else if (Location r = find_reference(item)) {

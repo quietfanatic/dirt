@@ -46,7 +46,7 @@ struct TraverseToTree {
                 auto f = trav.desc->attr_func()->f;
                 return use_computed_attrs(r, trav, keys, f);
             }
-             // Fall through
+            else never();
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
             if (auto elems = trav.desc->elems()) {
@@ -56,7 +56,7 @@ struct TraverseToTree {
                 auto f = trav.desc->elem_func()->f;
                 return use_computed_elems(r, trav, length, f);
             }
-             // Fall through
+            else never();
         }
         if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, acr);
