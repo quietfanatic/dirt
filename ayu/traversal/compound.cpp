@@ -17,7 +17,7 @@ struct ReceiveReference {
 
 ///// GET KEYS
 
-struct TraverseCollectKeys {
+struct TraverseGetKeys {
     UniqueArray<AnyString> keys;
 
     void start (const Reference& item, LocationRef loc) {
@@ -88,18 +88,18 @@ AnyArray<AnyString> item_get_keys (
     const Reference& item, LocationRef loc
 ) {
     UniqueArray<AnyString> keys;
-    reinterpret_cast<TraverseCollectKeys&>(keys).start(item, loc);
+    reinterpret_cast<TraverseGetKeys&>(keys).start(item, loc);
     return keys;
 }
 
  // TEMP
 void in::trav_collect_keys (UniqueArray<AnyString>& keys, const Traversal& trav) {
-    reinterpret_cast<TraverseCollectKeys&>(keys).traverse(trav);
+    reinterpret_cast<TraverseGetKeys&>(keys).traverse(trav);
 }
 
 namespace in {
 
-struct TraverseClaimKeys {
+struct TraverseSetKeys {
     UniqueArray<AnyString> keys;
 
     void start (const Reference& item, LocationRef loc) {
@@ -194,9 +194,9 @@ struct TraverseClaimKeys {
         else {
              // For readonly keys, get the keys and compare them.
              // TODO: This can probably be optimized more
-            UniqueArray<AnyString> required_keys;
-            trav_collect_keys(required_keys, trav);
-            for (auto& key : required_keys) {
+            TraverseGetKeys tgk;
+            tgk.traverse(trav);
+            for (auto& key : tgk.keys) {
                 if (claim(key)) {
                      // If any of the keys are present, it makes this item no
                      // longer optional.
@@ -223,7 +223,7 @@ struct TraverseClaimKeys {
 void item_set_keys (
     const Reference& item, AnyArray<AnyString> keys, LocationRef loc
 ) {
-    TraverseClaimKeys(move(keys)).start(item, loc);
+    TraverseSetKeys(move(keys)).start(item, loc);
 }
 
 Reference item_maybe_attr (
