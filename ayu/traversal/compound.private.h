@@ -21,9 +21,6 @@ template <class CB>
 void trav_attr (const Traversal&, const AnyString&, AccessMode, CB);
 
  ///// Elem operations
- // Implement set_length by counting up used length
-void trav_claim_length (const Traversal&, usize& claimed, usize len);
-void trav_set_length (const Traversal&, usize);
 
  // If elem is out of range, returns false and doesn't call the callback
 template <class CB>
@@ -33,13 +30,13 @@ template <class CB>
 void trav_elem (const Traversal&, usize, AccessMode, CB);
 
  ///// Exceptions
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_AttrNotFound (Type, const AnyString&);
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_ElemNotFound (Type, usize);
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_AttrsNotSupported (Type);
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_ElemsNotSupported (Type);
 
 ///// INLINE DEFINITIONS

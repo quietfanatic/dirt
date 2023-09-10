@@ -97,6 +97,8 @@ void in::trav_collect_keys (UniqueArray<AnyString>& keys, const Traversal& trav)
     reinterpret_cast<TraverseGetKeys&>(keys).traverse(trav);
 }
 
+///// SET KEYS
+
 namespace in {
 
 struct TraverseSetKeys {
@@ -226,6 +228,8 @@ void item_set_keys (
     TraverseSetKeys(move(keys)).start(item, loc);
 }
 
+///// ATTR
+
 Reference item_maybe_attr (
     const Reference& item, const AnyString& key, LocationRef loc
 ) {
@@ -245,7 +249,9 @@ Reference item_attr (const Reference& item, const AnyString& key, LocationRef lo
     return r;
 }
 
-///// ELEMS
+///// GET LENGTH
+
+namespace in {
 
 struct TraverseGetLength {
     static usize start (const Reference& item, LocationRef loc) try {
@@ -285,51 +291,75 @@ struct TraverseGetLength {
     }
 };
 
+} // in
+
 usize item_get_length (const Reference& item, LocationRef loc) {
     return TraverseGetLength::start(item, loc);
 }
 
-void in::trav_set_length (const Traversal& trav, usize len) {
-    if (auto acr = trav.desc->length_acr()) {
-        if (!(acr->flags & AcrFlags::Readonly)) {
-            acr->write(*trav.address, [len](Mu& v){
-                reinterpret_cast<usize&>(v) = len;
-            });
+///// SET LENGTH
+
+namespace in {
+
+struct TraverseSetLength {
+    static void start (const Reference& item, usize len, LocationRef loc) try {
+        if (auto addr = item.address()) {
+            traverse(*addr, item.type(), len);
         }
         else {
-             // For readonly length, just check that the provided length matches
-            usize expected;
-            acr->read(*trav.address, [&expected](Mu& v){
-                expected = reinterpret_cast<const usize&>(v);
+            item.read([type{item.type()}, len](Mu& v){
+                traverse(v, type, len);
             });
-            if (len != expected) {
-                raise_LengthRejected(trav.desc, expected, expected, len);
+        }
+    } catch (...) { rethrow_with_travloc(loc); }
+
+    NOINLINE static usize traverse (Mu& item, Type type, usize len) {
+        auto desc = DescriptionPrivate::get(type);
+        if (auto elems = desc->elems()) {
+            usize min = elems->n_elems;
+             // Scan backwards for optional elements.  TODO: this could be done
+             // at compile-time.
+            while (min > 0 &&
+                elems->elem(min-1)->acr()->attr_flags & AttrFlags::Optional
+            ) min -= 1;
+            if (len < min || len > elems->n_elems) {
+                raise_LengthRejected(type, min, elems->n_elems, len);
             }
         }
-    }
-    else if (auto elems = trav.desc->elems()) {
-        usize min = elems->n_elems;
-         // Scan backwards for optional elements
-        while (min > 0 &&
-            elems->elem(min-1)->acr()->attr_flags & AttrFlags::Optional
-        ) min -= 1;
-        if (len < min || len > elems->n_elems) {
-            raise_LengthRejected(trav.desc, min, elems->n_elems, len);
+        else if (auto acr = desc->length_acr()) {
+            if (!(acr->flags & AcrFlags::Readonly)) {
+                acr->write(item, [len](Mu& v){
+                    reinterpret_cast<usize&>(v) = len;
+                });
+            }
+            else {
+                 // For readonly length, just check that the provided length matches
+                usize expected;
+                acr->read(item, [&expected](Mu& v){
+                    expected = reinterpret_cast<const usize&>(v);
+                });
+                if (len != expected) {
+                    raise_LengthRejected(type, expected, expected, len);
+                }
+            }
         }
+        else if (auto acr = desc->delegate_acr()) {
+            Type child_type = acr->type(&item);
+            acr->modify(item, [child_type, len](Mu& v){
+                traverse(v, child_type, len);
+            });
+        }
+        else raise_ElemsNotSupported(type);
     }
-    else if (auto acr = trav.desc->delegate_acr()) {
-        trav.follow_delegate(
-            acr, AccessMode::Write, [len](const Traversal& child)
-        { trav_set_length(child, len); });
-    }
-    else raise_ElemsNotSupported(trav.desc);
-}
+};
+
+} // in
 
 void item_set_length (const Reference& item, usize len, LocationRef loc) {
-    Traversal::start(
-        item, loc, false, AccessMode::Write, [len](const Traversal& trav)
-    { trav_set_length(trav, len); });
+    TraverseSetLength::start(item, len, loc);
 }
+
+///// ELEM
 
 Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
@@ -348,33 +378,34 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     return r;
 }
 
-[[gnu::cold]]
+///// ERRORS
+
 void in::raise_AttrsNotSupported (Type item_type) {
     raise(e_AttrsNotSupported, cat(
         "Item of type ", item_type.name(),
         " does not support behaving like an ", "object."
     ));
 }
-[[gnu::cold]]
+
 void raise_AttrMissing (Type item_type, const AnyString& key) {
     raise(e_AttrMissing, cat(
         "Item of type ", item_type.name(), " missing required key ", key
     ));
 }
-[[gnu::cold]]
+
 void raise_AttrRejected (Type item_type, const AnyString& key) {
     raise(e_AttrRejected, cat(
         "Item of type ", item_type.name(), " given unwanted key ", key
     ));
 }
-[[gnu::cold]]
+
 void in::raise_ElemsNotSupported (Type item_type) {
     raise(e_ElemsNotSupported, cat(
         "Item of type ", item_type.name(),
         " does not support behaving like an ", "array."
     ));
 }
-[[gnu::cold]]
+
 void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
     UniqueString mess = min == max ? cat(
         "Item of type ", item_type.name(), " given wrong length ", got,
@@ -386,14 +417,12 @@ void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
     raise(e_LengthRejected, move(mess));
 }
 
-[[gnu::cold]]
 void in::raise_AttrNotFound (Type item_type, const AnyString& key) {
     raise(e_AttrNotFound, cat(
         "Item of type ", item_type.name(), " has no attribute with key ", key
     ));
 }
 
-[[gnu::cold]]
 void in::raise_ElemNotFound (Type item_type, usize index) {
     raise(e_ElemNotFound, cat(
         "Item of type ", item_type.name(), " has no element at index ", index

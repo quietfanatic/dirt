@@ -311,6 +311,7 @@ struct Traversal {
     }
 
     [[noreturn, gnu::cold]] void wrap_exception () const {
+         // TODO: don't call to_location() if not necessary
         rethrow_with_travloc(to_location());
     }
 };

@@ -88,13 +88,13 @@ constexpr ErrorCode e_ElemNotFound = "ayu::e_ElemNotFound";
 constexpr ErrorCode e_ElemsNotSupported = "ayu::e_ElemsNotSupported";
 
  // You might want to use these error types in your descriptions.
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_AttrMissing (Type item_type, const AnyString& key);
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_AttrRejected (Type item_type, const AnyString& key);
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_LengthRejected (Type item_type, usize min, usize max, usize got);
 
 } // namespace ayu
