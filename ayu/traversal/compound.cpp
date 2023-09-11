@@ -362,20 +362,78 @@ void item_set_length (const Reference& item, usize len, LocationRef loc) {
 
 ///// ELEM
 
+namespace in {
+
+struct TraverseElem {
+    static
+    Reference start (const Reference& item, usize index, LocationRef loc) {
+        Reference r;
+        Traversal::start(item, loc, false, AccessMode::Read,
+            [&r, index](const Traversal& trav)
+        { traverse(r, trav, index); });
+        return r;
+    }
+
+    NOINLINE static
+    void traverse (Reference& r, const Traversal& trav, usize index) {
+        if (auto elems = trav.desc->elems()) {
+            use_elems(r, trav, index, elems);
+        }
+        else if (auto elem_func = trav.desc->elem_func()) {
+            use_computed_elems(r, trav, index, elem_func->f);
+        }
+        else if (auto acr = trav.desc->delegate_acr()) {
+            use_delegate(r, trav, index, acr);
+        }
+        else raise_ElemsNotSupported(trav.desc);
+    }
+
+    NOINLINE static
+    void use_elems (
+        Reference& r, const Traversal& trav, usize index,
+        const ElemsDcrPrivate* elems
+    ) {
+        if (index > elems->n_elems) return;
+        trav.follow_elem(elems->elem(index)->acr(), index, AccessMode::Read,
+            [&r](const Traversal& child)
+        { r = child.to_reference(); });
+    }
+
+    NOINLINE static
+    void use_computed_elems (
+        Reference& r, const Traversal& trav, usize index,
+        ElemFunc<Mu>* f
+    ) {
+        Reference ref = f(*trav.address, index);
+        if (!ref) return;
+        trav.follow_elem_func(ref, f, index, AccessMode::Read,
+            [&r](const Traversal& child)
+        { r = child.to_reference(); });
+    }
+
+    NOINLINE static
+    void use_delegate (
+        Reference& r, const Traversal& trav, usize index,
+        const Accessor* acr
+    ) {
+        trav.follow_delegate(acr, AccessMode::Read,
+            [&r, index](const Traversal& child)
+        { traverse(r, child, index); });
+    }
+};
+
+} // in
+
 Reference item_maybe_elem (
     const Reference& item, usize index, LocationRef loc
 ) {
-    Reference r;
-    Traversal::start(item, loc, false, AccessMode::Read,
-        [&r, index](const Traversal& trav)
-    { trav_maybe_elem(trav, index, AccessMode::Read, ReceiveReference(r)); });
-    return r;
+    return TraverseElem::start(item, index, loc);
 }
+
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
-    Reference r;
-    Traversal::start(item, loc, false, AccessMode::Read,
-        [&r, index](const Traversal& trav)
-    { trav_elem(trav, index, AccessMode::Read, ReceiveReference(r)); });
+    Reference r = TraverseElem::start(item, index, loc);
+     // TODO: wrap with travloc
+    if (!r) raise_ElemNotFound(item.type(), index);
     return r;
 }
 
