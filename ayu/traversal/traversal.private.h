@@ -31,7 +31,7 @@ struct Traversal {
      // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
      // track of it here.
     bool readonly;
-     // If this item has a stable address, then trav_reference() can use the
+     // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.
     bool addressable;
      // Set if this item has pass_through_addressable AND parent->addressable is

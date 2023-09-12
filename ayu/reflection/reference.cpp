@@ -1,9 +1,10 @@
 #include "reference.h"
 
 #include "../../iri/iri.h"
-#include "../traversal/compound.private.h"
+#include "../traversal/compound.h"
 #include "../traversal/location.h"
 #include "../traversal/scan.h"
+#include "../traversal/to-tree.h"
 #include "describe.h"
 
 namespace ayu {

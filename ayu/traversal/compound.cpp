@@ -1,7 +1,7 @@
-#include "compound.private.h"
+#include "compound.h"
 
-#include "from-tree.h"
-#include "to-tree.h"
+#include "traversal.private.h"
+#include "../reflection/descriptors.private.h"
 
 namespace ayu {
 namespace in {
@@ -91,11 +91,6 @@ AnyArray<AnyString> item_get_keys (
     UniqueArray<AnyString> keys;
     reinterpret_cast<TraverseGetKeys&>(keys).start(item, loc);
     return keys;
-}
-
- // TEMP
-void in::trav_collect_keys (UniqueArray<AnyString>& keys, const Traversal& trav) {
-    reinterpret_cast<TraverseGetKeys&>(keys).traverse(trav);
 }
 
 ///// SET KEYS
@@ -231,22 +226,95 @@ void item_set_keys (
 
 ///// ATTR
 
+struct TraverseAttr {
+    static Reference start (
+        const Reference& item, const AnyString& key, LocationRef loc
+    ) {
+        Reference r;
+        Traversal::start(item, loc, false, AccessMode::Read,
+            [&r, &key](const Traversal& trav)
+        { traverse(r, trav, key); });
+        return r;
+    }
+
+    NOINLINE static
+    void traverse (Reference& r, const Traversal& trav, const AnyString& key) {
+        if (auto attrs = trav.desc->attrs()) {
+            return use_attrs(r, trav, key, attrs);
+        }
+        else if (auto attr_func = trav.desc->attr_func()) {
+            return use_computed_attrs(r, trav, key, attr_func->f);
+        }
+        else if (auto acr = trav.desc->delegate_acr()) {
+            return use_delegate(r, trav, key, acr);
+        }
+        else raise_AttrsNotSupported(trav.desc);
+    }
+
+    NOINLINE static
+    void use_attrs (
+        Reference& r, const Traversal& trav, const AnyString& key,
+        const AttrsDcrPrivate* attrs
+    ) {
+         // First check direct attrs
+         // TODO: change order to be a depth-first search, to match current
+         // to_tree and from_tree behavior
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            if (attr->key == key) {
+                trav.follow_attr(attr->acr(), attr->key, AccessMode::Read,
+                    [&r](const Traversal& child)
+                { r = child.to_reference(); });
+                return;
+            }
+        }
+         // Then included attrs
+        for (uint i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            auto acr = attr->acr();
+            if (acr->attr_flags & AttrFlags::Include) {
+                trav.follow_attr(acr, attr->key, AccessMode::Read,
+                    [&r, &key](const Traversal& child)
+                { traverse(r, child, key); });
+                if (r) return;
+            }
+        }
+        [[unlikely]] return;
+    }
+
+    NOINLINE static
+    void use_computed_attrs (
+        Reference& r, const Traversal& trav, const AnyString& key,
+        AttrFunc<Mu>* f
+    ) {
+        if (Reference ref = f(*trav.address, key)) {
+            trav.follow_attr_func(move(ref), f, key, AccessMode::Read,
+                [&r](const Traversal& child)
+            { r = child.to_reference(); });
+        }
+    }
+
+    NOINLINE static
+    void use_delegate (
+        Reference& r, const Traversal& trav, const AnyString& key,
+        const Accessor* acr
+    ) {
+        trav.follow_delegate(acr, AccessMode::Read,
+            [&r, &key](const Traversal& child)
+        { traverse(r, child, key); });
+    }
+};
+
 Reference item_maybe_attr (
     const Reference& item, const AnyString& key, LocationRef loc
 ) {
-    Reference r;
-     // Is AccessMode::Read correct here?  Will we instead have to chain up the
-     // reference from the start?
-    Traversal::start(item, loc, false, AccessMode::Read,
-        [&r, &key](const Traversal& trav)
-    { trav_maybe_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
-    return r;
+    return TraverseAttr::start(item, key, loc);
 }
+
 Reference item_attr (const Reference& item, const AnyString& key, LocationRef loc) {
-    Reference r;
-    Traversal::start(item, loc, false, AccessMode::Read,
-        [&r, &key](const Traversal& trav)
-    { trav_attr(trav, key, AccessMode::Read, ReceiveReference(r)); });
+    Reference r = TraverseAttr::start(item, key, loc);
+     // TODO: wrap with travloc
+    if (!r) raise_AttrNotFound(item.type(), key);
     return r;
 }
 
@@ -439,7 +507,7 @@ Reference item_elem (const Reference& item, usize index, LocationRef loc) {
 
 ///// ERRORS
 
-void in::raise_AttrsNotSupported (Type item_type) {
+void raise_AttrsNotSupported (Type item_type) {
     raise(e_AttrsNotSupported, cat(
         "Item of type ", item_type.name(),
         " does not support behaving like an ", "object."
@@ -458,7 +526,7 @@ void raise_AttrRejected (Type item_type, const AnyString& key) {
     ));
 }
 
-void in::raise_ElemsNotSupported (Type item_type) {
+void raise_ElemsNotSupported (Type item_type) {
     raise(e_ElemsNotSupported, cat(
         "Item of type ", item_type.name(),
         " does not support behaving like an ", "array."
@@ -476,13 +544,13 @@ void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
     raise(e_LengthRejected, move(mess));
 }
 
-void in::raise_AttrNotFound (Type item_type, const AnyString& key) {
+void raise_AttrNotFound (Type item_type, const AnyString& key) {
     raise(e_AttrNotFound, cat(
         "Item of type ", item_type.name(), " has no attribute with key ", key
     ));
 }
 
-void in::raise_ElemNotFound (Type item_type, usize index) {
+void raise_ElemNotFound (Type item_type, usize index) {
     raise(e_ElemNotFound, cat(
         "Item of type ", item_type.name(), " has no element at index ", index
     ));

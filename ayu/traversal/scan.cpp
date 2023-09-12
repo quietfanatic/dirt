@@ -4,7 +4,7 @@
 #include "../reflection/pointer.h"
 #include "../reflection/reference.h"
 #include "../resources/universe.private.h"
-#include "compound.private.h"
+#include "compound.h"
 #include "location.h"
 #include "traversal.private.h"
 

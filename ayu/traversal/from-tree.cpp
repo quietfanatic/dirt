@@ -1,7 +1,9 @@
 #include "from-tree.h"
 
 #include <memory>
-#include "compound.private.h"
+#include "../reflection/descriptors.private.h"
+#include "compound.h"
+#include "traversal.private.h"
 
 namespace ayu {
 namespace in {
