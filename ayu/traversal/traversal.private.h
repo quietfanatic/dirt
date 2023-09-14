@@ -38,8 +38,8 @@ struct Traversal {
      // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.
     bool addressable;
-     // Set if this item has pass_through_addressable AND parent->addressable is
-     // true.
+     // Set if parent->children_addressable and pass_through_addressable.  This
+     // can go from on to off, but never from off to on.
     bool children_addressable;
     TraversalOp op;
     union {
@@ -138,8 +138,8 @@ struct Traversal {
         }
         else {
             child.addressable = false;
-            child.children_addressable =
-                acr->flags & AcrFlags::PassThroughAddressable;
+            child.children_addressable = children_addressable &
+                !!(acr->flags & AcrFlags::PassThroughAddressable);
             if (!child.only_addressable || child.children_addressable) {
                 child.callback = (void*)&cb;
                 acr->access(mode, *address, CallbackRef<void(Mu&)>(
@@ -178,8 +178,8 @@ struct Traversal {
             }
             else {
                 child.addressable = false;
-                child.children_addressable =
-                    ref.acr->flags & AcrFlags::PassThroughAddressable;
+                child.children_addressable = children_addressable &
+                    !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
                 if (!child.only_addressable || child.children_addressable) {
                     child.callback = (void*)&cb;
                     ref.access(mode, CallbackRef<void(Mu&)>(
