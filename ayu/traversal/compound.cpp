@@ -227,7 +227,7 @@ void item_set_keys (
 ///// ATTR
 
 struct TraverseAttr {
-    static Reference start (
+    NOINLINE static Reference start (
         const Reference& item, const AnyString& key, LocationRef loc
     ) {
         Reference r;
@@ -433,7 +433,7 @@ void item_set_length (const Reference& item, usize len, LocationRef loc) {
 namespace in {
 
 struct TraverseElem {
-    static
+    NOINLINE static
     Reference start (const Reference& item, usize index, LocationRef loc) {
         Reference r;
         Traversal::start(item, loc, false, AccessMode::Read,

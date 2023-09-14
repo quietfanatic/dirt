@@ -26,21 +26,21 @@ enum TraversalOp : uint8 {
 };
 struct Traversal {
     const Traversal* parent;
-    Mu* address;
     const DescriptionPrivate* desc;
+    Mu* address;
      // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
      // track of it here.
     bool readonly;
+     // Only traverse addressable items.  If an unaddressable and
+     // non-pass-through item is encountered, the traversal's callback will not
+     // be called.
+    bool only_addressable;
      // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.
     bool addressable;
      // Set if this item has pass_through_addressable AND parent->addressable is
      // true.
     bool children_addressable;
-     // Only traverse addressable items.  If an unaddressable and
-     // non-pass-through item is encountered, the traversal's callback will not
-     // be called.
-    bool only_addressable;
     TraversalOp op;
     union {
          // START
@@ -74,41 +74,47 @@ struct Traversal {
         try {
 
         child.parent = null;
+        child.readonly = ref.host.type.readonly();
         child.only_addressable = only_addressable;
         child.op = START;
         child.reference = &ref;
         child.location = loc;
-         // A lot of Reference's methods branch on acr, so do that branch here
-         // to intentionally merge them.
-        if (!ref.acr) {
-            child.address = ref.host.address;
+         // A lot of Reference's methods branch on acr, and while those checks
+         // would normally be able to be merged, the indirect calls to the acr's
+         // virtual functions invalidate a lot of optimizations, so instead of
+         // working directly on the reference, we're going to pick it apart into
+         // host and acr.
+        if (!ref.acr) [[likely]] {
             child.desc = DescriptionPrivate::get(ref.host.type);
-            child.readonly = ref.host.type.readonly();
-            child.addressable = true;
-            child.children_addressable = true;
-            cb(child);
-        }
-        else if ((child.address = ref.address())) {
-            child.desc = DescriptionPrivate::get(ref.type());
-            child.readonly = ref.readonly();
+            child.address = ref.host.address;
             child.addressable = true;
             child.children_addressable = true;
             cb(child);
         }
         else {
-            child.desc = DescriptionPrivate::get(ref.type());
-            child.readonly = ref.readonly();
-            child.addressable = false;
-            child.children_addressable =
-                ref.acr->flags & AcrFlags::PassThroughAddressable;
-            if (!child.only_addressable || child.children_addressable) {
-                child.callback = (void*)&cb;
-                ref.access(mode, CallbackRef<void(Mu&)>(
-                    child, [](Traversal& child, Mu& v)
-                {
-                    child.address = &v;
-                    (*(std::remove_reference_t<CB>*)child.callback)(child);
-                }));
+            child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
+            child.desc = DescriptionPrivate::get(ref.acr->type(ref.host.address));
+            child.address = ref.acr->address(*ref.host.address);
+            if (child.address) {
+                child.addressable = true;
+                child.children_addressable = true;
+                cb(child);
+            }
+            else {
+                child.addressable = false;
+                child.children_addressable =
+                    ref.acr->flags & AcrFlags::PassThroughAddressable;
+                if (!child.only_addressable || child.children_addressable) {
+                     // Optimize callback storage by using the stack object we
+                     // already have as a closure, instead of making a new one.
+                    child.callback = (void*)&cb;
+                    ref.access(mode, CallbackRef<void(Mu&)>(
+                        child, [](Traversal& child, Mu& v)
+                    {
+                        child.address = &v;
+                        (*(std::remove_reference_t<CB>*)child.callback)(child);
+                    }));
+                }
             }
         }
 
@@ -152,36 +158,37 @@ struct Traversal {
         Traversal& child, const Reference& ref, AccessMode mode, CB cb
     ) const try {
         child.parent = this;
+        child.readonly = readonly | ref.host.type.readonly();
         child.only_addressable = only_addressable;
-        if (!ref.acr) {
-            child.address = ref.host.address;
+        if (!ref.acr) [[likely]] {
             child.desc = DescriptionPrivate::get(ref.host.type);
-            child.readonly = readonly | ref.host.type.readonly();
-            child.addressable = children_addressable;
-            child.children_addressable = children_addressable;
-            cb(child);
-        }
-        else if ((child.address = ref.address())) {
-            child.desc = DescriptionPrivate::get(ref.type());
-            child.readonly = readonly || ref.readonly();
+            child.address = ref.host.address;
             child.addressable = children_addressable;
             child.children_addressable = children_addressable;
             cb(child);
         }
         else {
-            child.desc = DescriptionPrivate::get(ref.type());
-            child.readonly = readonly || ref.readonly();
-            child.addressable = false;
-            child.children_addressable =
-                ref.acr->flags & AcrFlags::PassThroughAddressable;
-            if (!child.only_addressable || child.children_addressable) {
-                child.callback = (void*)&cb;
-                ref.access(mode, CallbackRef<void(Mu&)>(
-                    child, [](Traversal& child, Mu& v)
-                {
-                    child.address = &v;
-                    (*(std::remove_reference_t<CB>*)child.callback)(child);
-                }));
+            child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
+            child.desc = DescriptionPrivate::get(ref.acr->type(ref.host.address));
+            child.address = ref.acr->address(*ref.host.address);
+            if (child.address) {
+                child.addressable = children_addressable;
+                child.children_addressable = children_addressable;
+                cb(child);
+            }
+            else {
+                child.addressable = false;
+                child.children_addressable =
+                    ref.acr->flags & AcrFlags::PassThroughAddressable;
+                if (!child.only_addressable || child.children_addressable) {
+                    child.callback = (void*)&cb;
+                    ref.access(mode, CallbackRef<void(Mu&)>(
+                        child, [](Traversal& child, Mu& v)
+                    {
+                        child.address = &v;
+                        (*(std::remove_reference_t<CB>*)child.callback)(child);
+                    }));
+                }
             }
         }
     }
