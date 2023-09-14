@@ -22,12 +22,11 @@ struct TraverseScan {
         Traversal::start(base_item, base_loc, true, AccessMode::Read,
             [&r, base_loc, cb](const Traversal& trav)
         {
-            traverse(
-                r, trav, base_loc, [&r, cb](const Traversal& trav, LocationRef loc)
+            r = traverse(trav, base_loc,
+                [cb](const Traversal& trav, LocationRef loc)
             {
-                if (trav.addressable) {
-                    r = cb(Pointer(trav.desc, trav.address), loc);
-                }
+                return trav.addressable &&
+                    cb(Pointer(trav.desc, trav.address), loc);
             });
         });
         return r;
@@ -42,49 +41,47 @@ struct TraverseScan {
         Traversal::start(base_item, base_loc, false, AccessMode::Read,
             [&r, base_loc, cb](const Traversal& trav)
         {
-            traverse(
-                r, trav, base_loc, [&r, cb](const Traversal& trav, LocationRef loc)
-            {
-                r = cb(trav.to_reference(), loc);
-            });
+            r = traverse(trav, base_loc,
+                [cb](const Traversal& trav, LocationRef loc)
+            { return cb(trav.to_reference(), loc); });
         });
         return r;
     }
 
     NOINLINE static
-    void traverse (
-        bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb
+    bool traverse (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
-        cb(trav, loc);
-        if (r) return;
+        if (cb(trav, loc)) return true;
         else if (trav.desc->preference() == Description::PREFER_OBJECT) {
             if (auto attrs = trav.desc->attrs()) {
-                use_attrs(r, trav, loc, cb, attrs);
+                return use_attrs(trav, loc, cb, attrs);
             }
             else if (auto keys = trav.desc->keys_acr()) {
-                use_computed_attrs(r, trav, loc, cb, keys);
+                return use_computed_attrs(trav, loc, cb, keys);
             }
             else never();
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
             if (auto elems = trav.desc->elems()) {
-                use_elems(r, trav, loc, cb, elems);
+                return use_elems(trav, loc, cb, elems);
             }
             else if (auto length = trav.desc->length_acr()) {
-                use_computed_elems(r, trav, loc, cb, length);
+                return use_computed_elems(trav, loc, cb, length);
             }
             else never();
         }
         else if (auto acr = trav.desc->delegate_acr()) {
-            use_delegate(r, trav, loc, cb, acr);
+            return use_delegate(trav, loc, cb, acr);
         }
+        else return false;
     }
 
     NOINLINE static
-    void use_attrs (
-        bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb,
+    bool use_attrs (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const AttrsDcrPrivate* attrs
     ) {
         for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -97,17 +94,19 @@ struct TraverseScan {
                 acr->attr_flags & AttrFlags::Include
                 ? *loc : Location(loc, attr->key);
              // TODO: verify that the child item is object-like.
+            bool r = false; // init in case only_addressable skips cb
             trav.follow_attr(acr, attr->key, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
-            { traverse(r, child, child_loc, cb); });
-            if (r) return;
+            { r = traverse(child, child_loc, cb); });
+            if (r) return true;
         }
+        return false;
     }
 
     NOINLINE static
-    void use_computed_attrs (
-        bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb,
+    bool use_computed_attrs (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const Accessor* keys_acr
     ) {
          // Get list of keys
@@ -123,18 +122,20 @@ struct TraverseScan {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
             Location child_loc = Location(loc, key);
+            bool r = false;
             trav.follow_attr_func(
                 ref, f, key, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
-            { traverse(r, child, child_loc, cb); });
-            if (r) return;
+            { r = traverse(child, child_loc, cb); });
+            if (r) return true;
         }
+        return false;
     }
 
     NOINLINE static
-    void use_elems (
-        bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb,
+    bool use_elems (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const ElemsDcrPrivate* elems
     ) {
         for (uint i = 0; i < elems->n_elems; i++) {
@@ -142,17 +143,19 @@ struct TraverseScan {
             auto acr = elem->acr();
             Location child_loc = Location(loc, i);
              // TODO: verify that the child item is array-like.
+            bool r = false;
             trav.follow_elem(acr, i, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
-            { traverse(r, child, child_loc, cb); });
-            if (r) return;
+            { r = traverse(child, child_loc, cb); });
+            if (r) return true;
         }
+        return false;
     }
 
     NOINLINE static
-    void use_computed_elems (
-        bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb,
+    bool use_computed_elems (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const Accessor* length_acr
     ) {
         usize len;
@@ -164,23 +167,27 @@ struct TraverseScan {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             Location child_loc = Location(loc, i);
+            bool r = false;
             trav.follow_elem_func(
                 ref, f, i, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
-            { traverse(r, child, child_loc, cb); });
-            if (r) return;
+            { r = traverse(child, child_loc, cb); });
+            if (r) return true;
         }
+        return false;
     }
 
     NOINLINE static
-    void use_delegate (
-        bool& r, const Traversal& trav, LocationRef loc,
-        CallbackRef<void(const Traversal&, LocationRef)> cb,
+    bool use_delegate (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const Accessor* acr
     ) {
+        bool r;
         trav.follow_delegate(acr, AccessMode::Read,
             [&r, loc, &cb](const Traversal& child)
-        { traverse(r, child, loc, cb); });
+        { r = traverse(child, loc, cb); });
+        return r;
     }
 };
 
