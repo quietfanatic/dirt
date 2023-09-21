@@ -53,8 +53,13 @@ struct TraverseScan {
         const Traversal& trav, LocationRef loc,
         CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
-        if (cb(trav, loc)) return true;
-        else if (trav.desc->preference() == Description::PREFER_OBJECT) {
+         // Although we always call cb(trav, loc) first, doing so requires
+         // saving and restoring all our arguments, which also prevents tail
+         // calls.  So we're doing it at the top of each execution function
+         // instead of at the top of this decision function.  The callback is
+         // expected to return true either rarely or never, so it's okay to
+         // delay checking its return a bit.
+        if (trav.desc->preference() == Description::PREFER_OBJECT) {
             if (auto attrs = trav.desc->attrs()) {
                 return use_attrs(trav, loc, cb, attrs);
             }
@@ -75,7 +80,9 @@ struct TraverseScan {
         else if (auto acr = trav.desc->delegate_acr()) {
             return use_delegate(trav, loc, cb, acr);
         }
-        else return false;
+         // Down here, we aren't using the arguments any more, so the compiler
+         // doesn't need to save them and we can tail call the cb
+        else return cb(trav, loc);
     }
 
     NOINLINE static
@@ -84,6 +91,7 @@ struct TraverseScan {
         CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const AttrsDcrPrivate* attrs
     ) {
+        if (cb(trav, loc)) return true;
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
              // TODO: discard invisible attrs?
@@ -109,6 +117,7 @@ struct TraverseScan {
         CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const Accessor* keys_acr
     ) {
+        if (cb(trav, loc)) return true;
          // Get list of keys
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address, [&keys](Mu& v){
@@ -138,6 +147,7 @@ struct TraverseScan {
         CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const ElemsDcrPrivate* elems
     ) {
+        if (cb(trav, loc)) return true;
         for (uint i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
@@ -158,6 +168,7 @@ struct TraverseScan {
         CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const Accessor* length_acr
     ) {
+        if (cb(trav, loc)) return true;
         usize len;
         length_acr->read(*trav.address, [&len](Mu& v){
             len = reinterpret_cast<usize&>(v);
@@ -183,9 +194,10 @@ struct TraverseScan {
         CallbackRef<bool(const Traversal&, LocationRef)> cb,
         const Accessor* acr
     ) {
+        if (cb(trav, loc)) return true;
         bool r;
         trav.follow_delegate(acr, AccessMode::Read,
-            [&r, loc, &cb](const Traversal& child)
+            [&r, loc, cb](const Traversal& child)
         { r = traverse(child, loc, cb); });
         return r;
     }
