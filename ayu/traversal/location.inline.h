@@ -14,8 +14,13 @@ struct LocationData : RefCounted {
     uint8 form;
     LocationData (uint8 f) : form(f) { }
 };
- // ResourceLocation and ReferenceLocation are extern to break a cyclic
- // dependency.
+ // ResourceLocation is extern to break a cyclic dependency.
+struct ReferenceLocation : LocationData {
+    Reference reference;
+    ReferenceLocation (MoveRef<Reference> ref) :
+        LocationData(REFERENCE), reference(*move(ref))
+    { }
+};
 struct KeyLocation : LocationData {
     Location parent;
     AnyString key;
@@ -33,12 +38,23 @@ struct IndexLocation : LocationData {
 
 };
 
+inline Location::Location (const Reference& ref) noexcept :
+    data(new in::ReferenceLocation(ref))
+{ }
 inline Location::Location (MoveRef<Location> p, MoveRef<AnyString> k) noexcept :
     data(new in::KeyLocation(expect(*move(p)), *move(k)))
 { }
 inline Location::Location (MoveRef<Location> p, usize i) noexcept :
     data(new in::IndexLocation(expect(*move(p)), i))
 { }
+
+inline const Reference* Location::reference () const noexcept {
+    switch (data->form) {
+        case in::REFERENCE:
+            return &static_cast<in::ReferenceLocation*>(data.p)->reference;
+        default: return null;
+    }
+}
 
 inline const Location* Location::parent () const noexcept {
     switch (data->form) {

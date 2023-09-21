@@ -16,32 +16,16 @@ struct ResourceLocation : LocationData {
         LocationData(RESOURCE), resource(*move(res))
     { }
 };
-struct ReferenceLocation : LocationData {
-    Reference reference;
-    ReferenceLocation (MoveRef<Reference> ref) :
-        LocationData(REFERENCE), reference(*move(ref))
-    { }
-};
 
 } using namespace in;
 
 Location::Location (Resource res) noexcept :
     data(new ResourceLocation(move(res)))
 { }
-Location::Location (const Reference& ref) noexcept :
-    data(new ReferenceLocation(ref))
-{ }
 
 const Resource* Location::resource () const noexcept {
     switch (data->form) {
         case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
-        default: return null;
-    }
-}
-
-const Reference* Location::reference () const noexcept {
-    switch (data->form) {
-        case REFERENCE: return &static_cast<ReferenceLocation*>(data.p)->reference;
         default: return null;
     }
 }
