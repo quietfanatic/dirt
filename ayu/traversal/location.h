@@ -28,9 +28,9 @@ namespace ayu {
  // immutable once created.
 struct Location {
     in::RCP<in::LocationData, in::delete_LocationData> data;
-    constexpr explicit Location (in::LocationData* p = null) : data(p) { }
-     // The empty location is treated as the location of an anonymous item, and
-     // can't be transformed into a reference.
+     // The empty location cannot be transformed into a reference and will
+     // null-deref if you try to do anything but boolify it.
+    constexpr explicit Location (in::LocationData* p = null) : data(p) { } 
     explicit operator bool () const { return !!data; }
      // Constructs a root location from a Resource.
     explicit Location (Resource) noexcept;
