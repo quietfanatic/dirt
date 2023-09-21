@@ -21,7 +21,7 @@ struct TraverseGetKeys {
     UniqueArray<AnyString> keys;
 
     void start (const Reference& item, LocationRef loc) {
-        Traversal::start(item, loc, false, AccessMode::Read,
+        trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
         { traverse(trav); });
     }
@@ -55,7 +55,7 @@ struct TraverseGetKeys {
              // TODO: discard invisible attrs?
             auto acr = attr->acr();
             if (acr->attr_flags & AttrFlags::Include) {
-                trav.follow_attr(acr, attr->key, AccessMode::Read,
+                trav_attr(trav, acr, attr->key, AccessMode::Read,
                     [this](const Traversal& child)
                 { traverse(child); });
             }
@@ -77,7 +77,7 @@ struct TraverseGetKeys {
     NOINLINE void use_delegate (
         const Traversal& trav, const Accessor* acr
     ) {
-        trav.follow_delegate(acr, AccessMode::Read,
+        trav_delegate(trav, acr, AccessMode::Read,
             [this](const Traversal& child)
         { traverse(child); });
     }
@@ -101,7 +101,7 @@ struct TraverseSetKeys {
     UniqueArray<AnyString> keys;
 
     void start (const Reference& item, LocationRef loc) {
-        Traversal::start(item, loc, false, AccessMode::Read,
+        trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
         {
             traverse(trav, false);
@@ -174,7 +174,7 @@ struct TraverseSetKeys {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed_included[i]) continue;
                 bool opt = optional | !!(acr->attr_flags & AttrFlags::Optional);
-                trav.follow_attr(acr, attr->key, AccessMode::Write,
+                trav_attr(trav, acr, attr->key, AccessMode::Write,
                     [this, opt](const Traversal& child)
                 { traverse(child, opt); });
             }
@@ -209,7 +209,7 @@ struct TraverseSetKeys {
     NOINLINE void use_delegate (
         const Traversal& trav, bool optional, const Accessor* acr
     ) {
-        trav.follow_delegate(acr, AccessMode::Write,
+        trav_delegate(trav, acr, AccessMode::Write,
             [this, optional](const Traversal& child)
         { traverse(child, optional); });
     }
@@ -231,7 +231,7 @@ struct TraverseAttr {
         const Reference& item, const AnyString& key, LocationRef loc
     ) {
         Reference r;
-        Traversal::start(item, loc, false, AccessMode::Read,
+        trav_start(item, loc, false, AccessMode::Read,
             [&r, &key](const Traversal& trav)
         { traverse(r, trav, key); });
         return r;
@@ -262,7 +262,7 @@ struct TraverseAttr {
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->key == key) {
-                trav.follow_attr(attr->acr(), attr->key, AccessMode::Read,
+                trav_attr(trav, attr->acr(), attr->key, AccessMode::Read,
                     [&r](const Traversal& child)
                 { r = child.to_reference(); });
                 return;
@@ -273,7 +273,7 @@ struct TraverseAttr {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (acr->attr_flags & AttrFlags::Include) {
-                trav.follow_attr(acr, attr->key, AccessMode::Read,
+                trav_attr(trav, acr, attr->key, AccessMode::Read,
                     [&r, &key](const Traversal& child)
                 { traverse(r, child, key); });
                 if (r) return;
@@ -288,7 +288,7 @@ struct TraverseAttr {
         AttrFunc<Mu>* f
     ) {
         if (Reference ref = f(*trav.address, key)) {
-            trav.follow_attr_func(move(ref), f, key, AccessMode::Read,
+            trav_attr_func(trav, move(ref), f, key, AccessMode::Read,
                 [&r](const Traversal& child)
             { r = child.to_reference(); });
         }
@@ -299,7 +299,7 @@ struct TraverseAttr {
         Reference& r, const Traversal& trav, const AnyString& key,
         const Accessor* acr
     ) {
-        trav.follow_delegate(acr, AccessMode::Read,
+        trav_delegate(trav, acr, AccessMode::Read,
             [&r, &key](const Traversal& child)
         { traverse(r, child, key); });
     }
@@ -436,7 +436,7 @@ struct TraverseElem {
     NOINLINE static
     Reference start (const Reference& item, usize index, LocationRef loc) {
         Reference r;
-        Traversal::start(item, loc, false, AccessMode::Read,
+        trav_start(item, loc, false, AccessMode::Read,
             [&r, index](const Traversal& trav)
         { traverse(r, trav, index); });
         return r;
@@ -462,7 +462,7 @@ struct TraverseElem {
         const ElemsDcrPrivate* elems
     ) {
         if (index > elems->n_elems) return;
-        trav.follow_elem(elems->elem(index)->acr(), index, AccessMode::Read,
+        trav_elem(trav, elems->elem(index)->acr(), index, AccessMode::Read,
             [&r](const Traversal& child)
         { r = child.to_reference(); });
     }
@@ -474,7 +474,7 @@ struct TraverseElem {
     ) {
         Reference ref = f(*trav.address, index);
         if (!ref) return;
-        trav.follow_elem_func(ref, f, index, AccessMode::Read,
+        trav_elem_func(trav, ref, f, index, AccessMode::Read,
             [&r](const Traversal& child)
         { r = child.to_reference(); });
     }
@@ -484,7 +484,7 @@ struct TraverseElem {
         Reference& r, const Traversal& trav, usize index,
         const Accessor* acr
     ) {
-        trav.follow_delegate(acr, AccessMode::Read,
+        trav_delegate(trav, acr, AccessMode::Read,
             [&r, index](const Traversal& child)
         { traverse(r, child, index); });
     }

@@ -98,7 +98,7 @@ struct TraverseFromTree {
         const Reference& item, const Tree& tree, LocationRef loc
     ) {
         PushBaseLocation pbl(*loc ? *loc : Location(item));
-        Traversal::start(item, loc, false, AccessMode::Write,
+        trav_start(item, loc, false, AccessMode::Write,
             [&tree](const Traversal& trav)
         { traverse(trav, tree); });
     }
@@ -292,8 +292,7 @@ struct TraverseFromTree {
             ) {
                 auto& [key, value] = tree.data.as_object_ptr[j];
                 if (key == attr->key) {
-                    trav.follow_attr(
-                        attr->acr(), attr->key, AccessMode::Write,
+                    trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                         [&value](const Traversal& child)
                     { traverse(child, value); });
                      // Claim attr by deleting link
@@ -303,8 +302,7 @@ struct TraverseFromTree {
             }
              // No match, try including
             if (attr->acr()->attr_flags & AttrFlags::Include) {
-                trav.follow_attr(
-                    attr->acr(), attr->key, AccessMode::Write,
+                trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                     [&tree, next_list](const Traversal& child)
                 {
                     claim_attrs(child, tree, next_list);
@@ -403,8 +401,7 @@ struct TraverseFromTree {
         auto& [key, value] = pair;
         Reference ref = f(*trav.address, key);
         if (!ref) raise_AttrNotFound(trav.desc, key);
-        trav.follow_attr_func(
-            ref, f, key, AccessMode::Write,
+        trav_attr_func(trav, ref, f, key, AccessMode::Write,
             [&value](const Traversal& child)
         { traverse(child, value); });
     }
@@ -429,8 +426,7 @@ struct TraverseFromTree {
         }
         for (usize i = 0; i < array.size(); i++) {
             const Tree& child_tree = array[i];
-            trav.follow_elem(
-                elems->elem(i)->acr(), i, AccessMode::Write,
+            trav_elem(trav, elems->elem(i)->acr(), i, AccessMode::Write,
                 [&child_tree](const Traversal& child)
             { traverse(child, child_tree); });
         }
@@ -463,8 +459,7 @@ struct TraverseFromTree {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             const Tree& child_tree = array[i];
-            trav.follow_elem_func(
-                ref, f, i, AccessMode::Write,
+            trav_elem_func(trav, ref, f, i, AccessMode::Write,
                 [&child_tree](const Traversal& child)
             { traverse(child, child_tree); });
         }
@@ -491,8 +486,8 @@ struct TraverseFromTree {
     void use_delegate (
         const Traversal& trav, const Tree& tree, const Accessor* acr
     ) {
-        trav.follow_delegate(
-            acr, AccessMode::Write, [&tree](const Traversal& child)
+        trav_delegate(trav, acr, AccessMode::Write,
+            [&tree](const Traversal& child)
         { traverse(child, tree); });
         finish_item(trav, tree);
     }

@@ -15,8 +15,8 @@ struct TraverseToTree {
     Tree start (const Reference& item, LocationRef loc) {
         PushBaseLocation pbl(*loc ? *loc : Location(item));
         Tree r;
-        Traversal::start(
-            item, loc, false, AccessMode::Read, [&r](const Traversal& trav)
+        trav_start(item, loc, false, AccessMode::Read,
+            [&r](const Traversal& trav)
         { traverse(r, trav); });
         return r;
     }
@@ -106,8 +106,7 @@ struct TraverseToTree {
             if (attr->acr()->attr_flags & AttrFlags::Invisible) continue;
             any_included |= !!(attr->acr()->attr_flags & AttrFlags::Include);
 
-            trav.follow_attr(
-                attr->acr(), attr->key, AccessMode::Read,
+            trav_attr(trav, attr->acr(), attr->key, AccessMode::Read,
                 [&object, attr](const Traversal& child)
             {
                 Tree& value = object.emplace_back_expect_capacity(
@@ -178,8 +177,7 @@ struct TraverseToTree {
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
-            trav.follow_attr_func(
-                ref, f, key, AccessMode::Read,
+            trav_attr_func(trav, ref, f, key, AccessMode::Read,
                 [&object, &key](const Traversal& child)
             {
                 Tree& value = object.emplace_back_expect_capacity(
@@ -198,8 +196,8 @@ struct TraverseToTree {
         auto array = UniqueArray<Tree>(Capacity(elems->n_elems));
         for (uint i = 0; i < elems->n_elems; i++) {
             auto acr = elems->elem(i)->acr();
-            trav.follow_elem(
-                acr, i, AccessMode::Read, [&array](const Traversal& child)
+            trav_elem(trav, acr, i, AccessMode::Read,
+                [&array](const Traversal& child)
             {
                  // This probably should never happen unless the elems are on
                  // the end and also optional.  TODO: Pop invisible elems off
@@ -226,8 +224,7 @@ struct TraverseToTree {
         for (usize i = 0; i < len; i++) {
             auto ref = elem_func(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            trav.follow_elem_func(
-                ref, elem_func, i, AccessMode::Read,
+            trav_elem_func(trav, ref, elem_func, i, AccessMode::Read,
                 [&array](const Traversal& child)
             {
                 Tree& elem = array.emplace_back_expect_capacity(Tree());
@@ -241,8 +238,8 @@ struct TraverseToTree {
     void use_delegate (
         Tree& r, const Traversal& trav, const Accessor* acr
     ) {
-        trav.follow_delegate(
-            acr, AccessMode::Read, [&r](const Traversal& child)
+        trav_delegate(trav, acr, AccessMode::Read,
+            [&r](const Traversal& child)
         { traverse(r, child); });
         r.flags |= acr->tree_flags();
     }
