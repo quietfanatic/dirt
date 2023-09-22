@@ -202,10 +202,11 @@ struct TraverseToTree {
                  // This probably should never happen unless the elems are on
                  // the end and also optional.  TODO: Pop invisible elems off
                  // the end before allocating array.
-                if (child.acr->attr_flags & AttrFlags::Invisible) return;
+                auto acr = static_cast<const AcrTraversal&>(child).acr;
+                if (acr->attr_flags & AttrFlags::Invisible) return;
                 Tree& elem = array.emplace_back_expect_capacity(Tree());
                 traverse(elem, child);
-                elem.flags |= child.acr->tree_flags();
+                elem.flags |= acr->tree_flags();
             });
         }
         new (&r) Tree(move(array));
