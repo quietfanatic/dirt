@@ -14,44 +14,40 @@ namespace in {
 struct TraverseScan {
 
     static
-    bool start_pointers (
+    void start_pointers (
         Pointer base_item, LocationRef base_loc,
-        CallbackRef<bool(Pointer, LocationRef)> cb
+        CallbackRef<void(Pointer, LocationRef)> cb
     ) {
-        bool r = false;
         trav_start(base_item, base_loc, true, AccessMode::Read,
-            [&r, base_loc, cb](const Traversal& trav)
+            [base_loc, cb](const Traversal& trav)
         {
-            r = traverse(trav, base_loc,
+            traverse(trav, base_loc,
                 [cb](const Traversal& trav, LocationRef loc)
             {
-                return trav.addressable &&
-                    cb(Pointer(trav.desc, trav.address), loc);
+                if (!trav.addressable) return;
+                cb(Pointer(trav.desc, trav.address), loc);
             });
         });
-        return r;
     }
 
     static
-    bool start_references (
+    void start_references (
         const Reference& base_item, LocationRef base_loc,
-        CallbackRef<bool(const Reference&, LocationRef)> cb
+        CallbackRef<void(const Reference&, LocationRef)> cb
     ) {
-        bool r = false;
         trav_start(base_item, base_loc, false, AccessMode::Read,
-            [&r, base_loc, cb](const Traversal& trav)
+            [base_loc, cb](const Traversal& trav)
         {
-            r = traverse(trav, base_loc,
+            traverse(trav, base_loc,
                 [cb](const Traversal& trav, LocationRef loc)
-            { return cb(trav.to_reference(), loc); });
+            { cb(trav.to_reference(), loc); });
         });
-        return r;
     }
 
     NOINLINE static
-    bool traverse (
+    void traverse (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
+        CallbackRef<void(const Traversal&, LocationRef)> cb
     ) {
          // Although we always call cb(trav, loc) first, doing so requires
          // saving and restoring all our arguments, which also prevents tail
@@ -61,37 +57,37 @@ struct TraverseScan {
          // delay checking its return a bit.
         if (trav.desc->preference() == Description::PREFER_OBJECT) {
             if (auto attrs = trav.desc->attrs()) {
-                return use_attrs(trav, loc, cb, attrs);
+                use_attrs(trav, loc, cb, attrs);
             }
             else if (auto keys = trav.desc->keys_acr()) {
-                return use_computed_attrs(trav, loc, cb, keys);
+                use_computed_attrs(trav, loc, cb, keys);
             }
             else never();
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
             if (auto elems = trav.desc->elems()) {
-                return use_elems(trav, loc, cb, elems);
+                use_elems(trav, loc, cb, elems);
             }
             else if (auto length = trav.desc->length_acr()) {
-                return use_computed_elems(trav, loc, cb, length);
+                use_computed_elems(trav, loc, cb, length);
             }
             else never();
         }
         else if (auto acr = trav.desc->delegate_acr()) {
-            return use_delegate(trav, loc, cb, acr);
+            use_delegate(trav, loc, cb, acr);
         }
          // Down here, we aren't using the arguments any more, so the compiler
          // doesn't need to save them and we can tail call the cb
-        else return cb(trav, loc);
+        else cb(trav, loc);
     }
 
     NOINLINE static
-    bool use_attrs (
+    void use_attrs (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
         const AttrsDcrPrivate* attrs
     ) {
-        if (cb(trav, loc)) return true;
+        cb(trav, loc);
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
              // TODO: discard invisible attrs?
@@ -102,22 +98,19 @@ struct TraverseScan {
                 acr->attr_flags & AttrFlags::Include
                 ? *loc : Location(loc, attr->key);
              // TODO: verify that the child item is object-like.
-            bool r = false; // init in case only_addressable skips cb
             trav_attr(trav, acr, attr->key, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+                [child_loc, cb](const Traversal& child)
+            { traverse(child, child_loc, cb); });
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_computed_attrs (
+    void use_computed_attrs (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
         const Accessor* keys_acr
     ) {
-        if (cb(trav, loc)) return true;
+        cb(trav, loc);
          // Get list of keys
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address, [&keys](Mu& v){
@@ -131,43 +124,37 @@ struct TraverseScan {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
             Location child_loc = Location(loc, key);
-            bool r = false;
             trav_attr_func(trav, ref, f, key, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+                [child_loc, cb](const Traversal& child)
+            { traverse(child, child_loc, cb); });
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_elems (
+    void use_elems (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
         const ElemsDcrPrivate* elems
     ) {
-        if (cb(trav, loc)) return true;
+        cb(trav, loc);
         for (uint i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
             Location child_loc = Location(loc, i);
              // TODO: verify that the child item is array-like.
-            bool r = false;
             trav_elem(trav, acr, i, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+                [child_loc, cb](const Traversal& child)
+            { traverse(child, child_loc, cb); });
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_computed_elems (
+    void use_computed_elems (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
         const Accessor* length_acr
     ) {
-        if (cb(trav, loc)) return true;
+        cb(trav, loc);
         usize len;
         length_acr->read(*trav.address, [&len](Mu& v){
             len = reinterpret_cast<usize&>(v);
@@ -177,27 +164,22 @@ struct TraverseScan {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             Location child_loc = Location(loc, i);
-            bool r = false;
             trav_elem_func(trav, ref, f, i, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+                [child_loc, cb](const Traversal& child)
+            { traverse(child, child_loc, cb); });
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_delegate (
+    void use_delegate (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
+        CallbackRef<void(const Traversal&, LocationRef)> cb,
         const Accessor* acr
     ) {
-        if (cb(trav, loc)) return true;
-        bool r;
+        cb(trav, loc);
         trav_delegate(trav, acr, AccessMode::Read,
-            [&r, loc, cb](const Traversal& child)
-        { r = traverse(child, loc, cb); });
-        return r;
+            [loc, cb](const Traversal& child)
+        { traverse(child, loc, cb); });
     }
 };
 
@@ -217,7 +199,6 @@ std::unordered_map<Pointer, Location>* get_location_cache () {
              // It could theoretically be a problem if the pointers differ in
              // readonlyness, but that should probably never happen.
             location_cache.emplace(ptr, loc);
-            return false;
         });
         have_location_cache = true;
     }
@@ -236,62 +217,61 @@ KeepLocationCache::~KeepLocationCache () {
     }
 }
 
-bool scan_pointers (
+void scan_pointers (
     Pointer base_item, LocationRef base_loc,
-    CallbackRef<bool(Pointer, LocationRef)> cb
+    CallbackRef<void(Pointer, LocationRef)> cb
 ) {
-    return TraverseScan::start_pointers(base_item, base_loc, cb);
+    TraverseScan::start_pointers(base_item, base_loc, cb);
 }
 
-bool scan_references (
+void scan_references (
     const Reference& base_item, LocationRef base_loc,
-    CallbackRef<bool(const Reference&, LocationRef)> cb
+    CallbackRef<void(const Reference&, LocationRef)> cb
 ) {
-    return TraverseScan::start_references(base_item, base_loc, cb);
+    TraverseScan::start_references(base_item, base_loc, cb);
 }
 
-bool scan_resource_pointers (
-    const Resource& res, CallbackRef<bool(Pointer, LocationRef)> cb
+void scan_resource_pointers (
+    const Resource& res, CallbackRef<void(Pointer, LocationRef)> cb
 ) {
-    if (res.state() == UNLOADED) return false;
-    return scan_pointers(res.get_value().ptr(), Location(res), cb);
+    if (res.state() == UNLOADED) return;
+    scan_pointers(res.get_value().ptr(), Location(res), cb);
 }
 
-bool scan_resource_references (
-    const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
+void scan_resource_references (
+    const Resource& res, CallbackRef<void(const Reference&, LocationRef)> cb
 ) {
-    if (res.state() == UNLOADED) return false;
-    return scan_references(res.get_value().ptr(), Location(res), cb);
+    if (res.state() == UNLOADED) return;
+    scan_references(res.get_value().ptr(), Location(res), cb);
 }
 
-bool scan_universe_pointers (
-    CallbackRef<bool(Pointer, LocationRef)> cb
+void scan_universe_pointers (
+    CallbackRef<void(Pointer, LocationRef)> cb
 ) {
+     // TODO scan current item like in scan_universe_references
     for (auto& [_, resdat] : universe().resources) {
-        if (scan_resource_pointers(&*resdat, cb)) return true;
+        scan_resource_pointers(&*resdat, cb);
     }
-    return false;
 }
 
-bool scan_universe_references (
-    CallbackRef<bool(const Reference&, LocationRef)> cb
+void scan_universe_references (
+    CallbackRef<void(const Reference&, LocationRef)> cb
 ) {
      // To allow serializing self-referential data structures that aren't inside
      // a Resource, first scan the currently-being-serialized item, but only if
      // it's not in a Resource (so we don't duplicate work).
      // TODO: Maybe don't do this if the traversal was started by a scan,
      // instead of by a serialize.
+     // TODO: This probably isn't the right place to do this.
+     // TODO: Quit early if the item was found in the current item.
     if (Location loc = current_base_location()) {
         if (auto ref = loc.reference()) {
-            if (scan_references(*ref, loc, cb)) {
-                return true;
-            }
+            scan_references(*ref, loc, cb);
         }
     }
     for (auto& [_, resdat] : universe().resources) {
-        if (scan_resource_references(&*resdat, cb)) return true;
+        scan_resource_references(&*resdat, cb);
     }
-    return false;
 }
 
 Location find_pointer (Pointer item) {
@@ -311,13 +291,11 @@ Location find_pointer (Pointer item) {
         Location r;
         scan_universe_pointers([&r, item](Pointer p, LocationRef loc){
             if (p == item) {
-                 // If we get a non-readonly pointer to a readonly location,
-                 // reject it, but also don't keep searching.
-                if (p.readonly() && !item.readonly()) [[unlikely]] return true;
+                 // Reject non-readonly pointer to readonly location.
+                if (p.readonly() && !item.readonly()) [[unlikely]] return;
+                expect(!r);
                 new (&r) Location(loc);
-                return true;
             }
-            return false;
         });
         return r;
     }
@@ -351,12 +329,11 @@ Location find_reference (const Reference& item) {
                 {
                     if (ref == item) {
                         if (ref.readonly() && !item.readonly()) {
-                            [[unlikely]] return true;
+                            [[unlikely]] return;
                         }
+                        expect(!r);
                         new (&r) Location(loc);
-                        return true;
                     }
-                    else return false;
                 });
                 return r;
             }
@@ -371,12 +348,11 @@ Location find_reference (const Reference& item) {
         {
             if (ref == item) {
                 if (ref.readonly() && !item.readonly()) {
-                    [[unlikely]] return true;
+                    [[unlikely]] return;
                 }
+                expect(!r);
                 new (&r) Location(loc);
-                return true;
             }
-            else return false;
         });
         return r;
     }
