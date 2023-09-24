@@ -248,7 +248,13 @@ void scan_resource_references (
 void scan_universe_pointers (
     CallbackRef<void(Pointer, LocationRef)> cb
 ) {
-     // TODO scan current item like in scan_universe_references
+    if (Location loc = current_base_location()) {
+        if (auto ref = loc.reference()) {
+            if (auto address = ref->address()) {
+               scan_pointers(Pointer(ref->type(), address), loc, cb);
+            }
+        }
+    }
     for (auto& [_, resdat] : universe().resources) {
         scan_resource_pointers(&*resdat, cb);
     }
