@@ -50,10 +50,11 @@ struct KeepLocationCache {
  //     their child items and is first called with (base_item, base_loc) before
  //     any scanning.  If an item only has a delegate() descriptor, the callback
  //     will be called both for the parent item and the child item with the same
- //     location.
-void scan_pointers (
+ //     location.  If the callback returns true, the scan will be stopped.
+ //   returns: true if the callback ever returned true.
+bool scan_pointers (
     Pointer base_item, LocationRef base_loc,
-    CallbackRef<void(Pointer, LocationRef)> cb
+    CallbackRef<bool(Pointer, LocationRef)> cb
 );
 
  // Scans all visible items under the given reference, whether or not they are
@@ -65,27 +66,28 @@ void scan_pointers (
  //     child items and is first called with (base_item, base_loc) before any
  //     scanning.  If an item only has a delegate() descriptor, the callback
  //     will be called both for the parent item and the child item with the same
- //     location.
-void scan_references (
+ //     location.  If the callback returns true, the scan will be stopped.
+ //   returns: true if the callback ever returned true.
+bool scan_references (
     const Reference& base_item, LocationRef base_loc,
-    CallbackRef<void(const Reference&, LocationRef)> cb
+    CallbackRef<bool(const Reference&, LocationRef)> cb
 );
 
  // Scan under a particular resource's data.  The location is automatically
  // determined from the resource's name.  This silently does nothing and returns
  // false if the resource's state is UNLOADED.
-void scan_resource_pointers (
-    const Resource& res, CallbackRef<void(Pointer, LocationRef)> cb
+bool scan_resource_pointers (
+    const Resource& res, CallbackRef<bool(Pointer, LocationRef)> cb
 );
-void scan_resource_references (
-    const Resource& res, CallbackRef<void(const Reference&, LocationRef)> cb
+bool scan_resource_references (
+    const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
 );
  // Scan all loaded resources.
-void scan_universe_pointers (
-    CallbackRef<void(Pointer, LocationRef)> cb
+bool scan_universe_pointers (
+    CallbackRef<bool(Pointer, LocationRef)> cb
 );
-void scan_universe_references (
-    CallbackRef<void(const Reference&, LocationRef)> cb
+bool scan_universe_references (
+    CallbackRef<bool(const Reference&, LocationRef)> cb
 );
 
  // reference_to_location or pointer_to_location failed to find the Reference.

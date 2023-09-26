@@ -318,6 +318,7 @@ void unload (Slice<Resource> reses) {
                     res,
                     [&ref_set](const Reference& ref, LocationRef loc) {
                         ref_set.emplace(ref, loc);
+                        return false;
                     }
                 );
             }
@@ -329,13 +330,14 @@ void unload (Slice<Resource> reses) {
                     [&ref_set, &breaks](Reference ref_ref, LocationRef loc) {
                          // TODO: Check for Pointer as well
                         if (ref_ref.type() != Type::CppType<Reference>()) {
-                            return;
+                            return false;
                         }
                         Reference ref = ref_ref.get_as<Reference>();
                         auto iter = ref_set.find(ref);
                         if (iter != ref_set.end()) {
                             breaks.emplace_back(loc, iter->second);
                         }
+                        return false;
                     }
                 );
             }
@@ -432,6 +434,7 @@ void reload (Slice<Resource> reses) {
                     res.data->old_value.ptr(), Location(res),
                     [&old_refs](const Reference& ref, LocationRef loc) {
                         old_refs.emplace(ref, loc);
+                        return false;
                     }
                 );
             }
@@ -442,10 +445,10 @@ void reload (Slice<Resource> reses) {
                     other,
                     [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc) {
                          // TODO: scan Pointers as well
-                        if (ref_ref.type() != Type::CppType<Reference>()) return;
+                        if (ref_ref.type() != Type::CppType<Reference>()) return false;
                         Reference ref = ref_ref.get_as<Reference>();
                         auto iter = old_refs.find(ref);
-                        if (iter == old_refs.end()) return;
+                        if (iter == old_refs.end()) return false;
                         try {
                              // reference_from_location will use new resource value
                             Reference new_ref = reference_from_location(iter->second);
@@ -454,6 +457,7 @@ void reload (Slice<Resource> reses) {
                         catch (std::exception&) {
                              breaks.emplace_back(loc, iter->second);
                         }
+                        return false;
                     }
                 );
             }
