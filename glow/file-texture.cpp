@@ -20,7 +20,8 @@ FileTexture::FileTexture (std::string filename, uint32 target) : Texture(target)
 #ifdef GLOW_PROFILING
     double time0 = uni::now();
 #endif
-    SDL_Surface* surf = require_sdl(IMG_Load(filename.c_str()));
+    SDL_Surface* surf = IMG_Load(filename.c_str());
+    if (!surf) raise(e_FileTextureLoadFailed, SDL_GetError());
 #ifdef GLOW_PROFILING
     double time1 = uni::now();
     double time2 = time1;
