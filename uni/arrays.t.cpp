@@ -56,7 +56,7 @@ AnyArray<int> t10 () {
     return AnyArray<int>(Slice<int>(foos));
 }
 
-AnyArray<char> t11 () {
+AnyString t11 () {
     return "formidable";
 }
 

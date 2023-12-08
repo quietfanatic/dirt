@@ -591,7 +591,7 @@ struct ArrayInterface {
     // being for copy assignment to unique strings to reuse the allocated buffer
     // instead of making a new one.  Currently I think this is more complicated
     // than it's worth.
-    // Also, we should maybe detect when assigning a substr of self to self.
+    // Also, we could maybe detect when assigning a substr of self to self.
 
     ALWAYS_INLINE constexpr
     ArrayInterface& operator= (ArrayInterface&& o) requires (
@@ -606,7 +606,18 @@ struct ArrayInterface {
         !ac::trivially_copyable
     ) {
         if (&o == this) [[unlikely]] return *this;
-        return *this = ArrayInterface(o);
+        if constexpr (!std::is_nothrow_copy_constructible_v<T>) {
+             // If the copy constructor can throw, don't destruct the
+             // destination until after the copy has succeeded.
+            auto t = ArrayInterface(o);
+            this->~ArrayInterface();
+            return *new (this) ArrayInterface(move(t));
+        }
+        else {
+             // Otherwise save stack space by destructing first.
+            this->~ArrayInterface();
+            return *new (this) ArrayInterface(o);
+        }
     }
     constexpr
     ArrayInterface& operator= (const ArrayInterface&) requires (
@@ -1507,6 +1518,7 @@ struct ArrayInterface {
 
     template <ArrayIterator Ptr> static
     T* copy_fill (T* dat, Ptr ptr, usize s) requires (std::is_copy_constructible_v<T>) {
+         // TODO: check ArrayForwardIterator!
         if constexpr (std::is_trivially_copy_constructible_v<T>) {
             return (T*)std::memcpy(
                 (void*)dat, std::to_address(ptr), s * sizeof(T)
