@@ -1518,8 +1518,9 @@ struct ArrayInterface {
 
     template <ArrayIterator Ptr> static
     T* copy_fill (T* dat, Ptr ptr, usize s) requires (std::is_copy_constructible_v<T>) {
-         // TODO: check ArrayForwardIterator!
-        if constexpr (std::is_trivially_copy_constructible_v<T>) {
+        if constexpr (ArrayContiguousIterator<Ptr> &&
+            std::is_trivially_copy_constructible_v<T>
+        ) {
             return (T*)std::memcpy(
                 (void*)dat, std::to_address(ptr), s * sizeof(T)
             );
