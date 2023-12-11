@@ -1,5 +1,5 @@
 // This provides the barebones ref-counted buffer class that powers
-// AnyArray and AnyString
+// AnyArray and AnyString.
 
 #pragma once
 #include "common.h"
@@ -17,15 +17,18 @@ inline namespace buffers {
     template <class T>
     struct SharableBuffer {
         static_assert(alignof(T) <= 8,
-            "SharableBuffer with objects of align > 8 are not yet supported."
+            "SharableBuffer with elements of align > 8 are not yet supported."
         );
         SharableBuffer () = delete;
 
-        ALWAYS_INLINE
-        static SharedBufferHeader* header (const T* data) {
+        ALWAYS_INLINE static
+        SharedBufferHeader* header (const T* data) {
             return (SharedBufferHeader*)data - 1;
         }
 
+        static constexpr usize max_capacity = uint32(-1);
+
+         // Round up a requested size a little to avoid excessive reallocations
         static constexpr usize capacity_for_size (usize size) {
              // Working with malloc on glibc x64, it seems that malloc gives
              // sizes 24, 40, 56, 88, 104, ...
@@ -41,14 +44,47 @@ inline namespace buffers {
                        : sizeof(T) == 4 ? 3
                        : sizeof(T) == 8 ? 1
                        : 0;
-            return (size + mask) & ~mask;
+            usize cap = (size + mask) & ~mask;
+            if (cap > max_capacity) [[unlikely]] {
+                require(size <= max_capacity);
+                cap = max_capacity;
+            }
+            return cap;
         }
 
-        [[gnu::malloc, gnu::returns_nonnull]] static
+        static constexpr usize min_capacity = capacity_for_size(1);
+
+         // Round up the requested size to a power of two, anticipating
+         // continual growth.
+        static constexpr usize plenty_for_size (usize size) {
+            constexpr usize min = min_capacity < 4 ? 4 : min_capacity;
+            if (size <= min) return min;
+            else if (size <= (max_capacity >> 1) + 1) {
+                return std::bit_ceil(uint32(size));
+            }
+            else [[unlikely]] {
+                require(size <= max_capacity);
+                return max_capacity;
+            }
+        }
+
+         // Allocate rounding up a little
+        [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
         T* allocate (usize size) {
-            if (size > uint32(-1) >> 1) [[unlikely]] require(false);
-            usize cap = capacity_for_size(size);
-             // On 32-bit platforms we need to make sure we don't overflow usize
+            return allocate_exact(capacity_for_size(size));
+        }
+
+         // Allocate rounding up to a power of two
+        [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
+        T* allocate_plenty (usize size) {
+            return allocate_exact(plenty_for_size(size));
+        }
+
+         // Allocate the exact amount without rounding (may waste space)
+        [[gnu::malloc, gnu::returns_nonnull]] static
+        T* allocate_exact (usize cap) {
+             // Use uint64 instead of usize because on 32-bit platforms we need
+             // to make sure we don't overflow usize.
             uint64 bytes = sizeof(SharedBufferHeader) + (uint64)cap * sizeof(T);
             require(bytes <= usize(-1));
             auto header = (SharedBufferHeader*)std::malloc(bytes);
@@ -57,8 +93,8 @@ inline namespace buffers {
             return (T*)(header + 1);
         }
 
-        [[gnu::nonnull(1)]] ALWAYS_INLINE
-        static void deallocate (T* buf) {
+        [[gnu::nonnull(1)]] ALWAYS_INLINE static
+        void deallocate (T* buf) {
             std::free((SharedBufferHeader*)buf - 1);
         }
     };

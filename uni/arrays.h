@@ -993,7 +993,7 @@ struct ArrayInterface {
         if (!unique() ||
             SharableBuffer<T>::capacity_for_size(size()) < capacity()
         ) {
-            set_owned_unique(reallocate(impl, size()), size());
+            set_owned_unique(reallocate_noinline(impl, size()), size());
         }
     }
 
@@ -1004,17 +1004,11 @@ struct ArrayInterface {
     ALWAYS_INLINE
     void make_unique () requires (ac::supports_owned) {
         if (!unique()) {
-            set_owned_unique(reallocate(impl, size()), size());
+            set_owned_unique(reallocate_noinline(impl, size()), size());
         }
     }
 
-     // Change the size of the array.  When growing, default-constructs new
-     // elements, and will reallocate if the new size is larger than the current
-     // capacity.  When shrinking, destroys elements past the new size, and
-     // never reallocates.  If the current array is not unique, makes it unique
-     // UNLESS it's shared and the elements are trivially destructible (which
-     // means that arrays can share the same buffer despite having different
-     // lengths).
+     // Change the size of the array by either growing or shrinking.
     ALWAYS_INLINE
     void resize (usize new_size) requires (
         ac::supports_owned && std::is_default_constructible_v<T>
@@ -1023,6 +1017,8 @@ struct ArrayInterface {
         if (new_size < old_size) shrink(new_size);
         else if (new_size > old_size) grow(new_size);
     }
+     // Increases the size of the array by appending default-constructed
+     // elements onto the end, reallocating if necessary.
     void grow (usize new_size) requires (
         ac::supports_owned && std::is_default_constructible_v<T>
     ) {
@@ -1052,6 +1048,15 @@ struct ArrayInterface {
         }
         set_size(new_size);
     }
+     // Decreases the size of the array by one of three methods:
+     //   1. If the array is borrowed or the elements are trivially
+     //      destructible, just changes the size without touching the buffer.
+     //      This can result in arrays sharing the same buffer but with
+     //      different sizes.
+     //   2. Otherwise, if the array is owned and unique, destructs elements
+     //      past the new size in place without reallocating.
+     //   3. Otherwise, makes a new unique copy, copy-constructing elements up
+     //      to the new size.
     constexpr
     void shrink (usize new_size) {
         usize old_size = size();
@@ -1419,8 +1424,8 @@ struct ArrayInterface {
         }
         set_owned_unique(allocate_copy(ptr, s), s);
     }
-     // This noinline is a slight lie, it's actually allocate_copy that's
-     // noinline
+     // This noinline is a slight lie, it's actually allocate_copy_noinline
+     // that's NOINLINE.
     void set_copy_noinline (const T* ptr, usize s) requires (
         std::is_copy_constructible_v<T>
     ) {
@@ -1578,15 +1583,45 @@ struct ArrayInterface {
         return allocate_copy(ptr, s);
     }
 
-     // Used by reserve and related functions
+     // Used by reserve.  Not NOINLINE because new_size is likely to be
+     // statically known, making this a trivial wrapper.
     [[gnu::malloc, gnu::returns_nonnull]] static
-    T* reallocate (Impl impl, usize cap)
+    T* reallocate (Impl impl, usize new_size) {
+        return reallocate_exact(
+            impl, SharableBuffer<T>::capacity_for_size(new_size)
+        );
+    }
+
+     // Used by shrink_to_fit, and make_unique.  NOINLINE because the new size
+     // is probably not statically known and reallocate_exact can be tail
+     // called.
+    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
+    T* reallocate_noinline (Impl impl, usize new_size) {
+        return reallocate_exact(
+            impl, SharableBuffer<T>::capacity_for_size(new_size)
+        );
+    }
+
+     // Used by reserve_plenty and indirectly by push_back, append, etc.
+     // NOINLINE because reallocate_exact can be tail called and new_size is
+     // probably not statically known.
+    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
+    T* reallocate_plenty (Impl impl, usize new_size) {
+        return reallocate_exact(
+            impl, SharableBuffer<T>::plenty_for_size(new_size)
+        );
+    }
+
+     // Reallocate without rounding the capacity at all.  NOINLINE because it
+     // can be tail called.
+    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
+    T* reallocate_exact (Impl impl, usize cap)
         noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
         usize s = self.size();
         expect(cap >= s);
-        T* dat = SharableBuffer<T>::allocate(cap);
+        T* dat = SharableBuffer<T>::allocate_exact(cap);
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
          // It's unlikely that any type will have one of copy or move be trivial
@@ -1632,19 +1667,6 @@ struct ArrayInterface {
         }
         else require(std::is_copy_constructible_v<T>);
         return dat;
-    }
-
-    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* reallocate_plenty (Impl impl, usize cap)
-        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
-    {
-        if (cap < 4) cap = 4;
-        else if (cap > max_capacity >> 1) [[unlikely]] {
-            require(cap < max_capacity);
-            cap = max_capacity;
-        }
-        else cap = std::bit_ceil(uint32(cap));
-        return reallocate(impl, cap);
     }
 
      // Used by emplace and insert.  Opens a gap but doesn't put anything in it.

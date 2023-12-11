@@ -122,6 +122,14 @@ AnyArray<int> b22 () {
     return r;
 }
 
+AnyArray<int> bb22 () {
+    AnyArray<int> r (Capacity(32));
+    for (usize i = 0; i < 32; i++) {
+        r.emplace_back_expect_capacity(i);
+    }
+    return r;
+}
+
 std::vector<int> c22 () {
     std::vector<int> r;
     r.reserve(32);
