@@ -92,20 +92,12 @@ constexpr Tree::Tree (Tree&& o) :
         require(o.rep >= 0);
     }
     else {
-         // Optimization.  The member initializers above will be discarded by
-         // Dead Store Elimination, and replaced with this memcpy which the
-         // compiler optimizes better.
-        std::memcpy(this, &o, sizeof(Tree));
         std::memset((void*)&o, 0, sizeof(Tree));
     }
 }
 constexpr Tree::Tree (const Tree& o) :
     form(o.form), rep(o.rep), flags(o.flags), length(o.length), data(o.data)
 {
-    if (!std::is_constant_evaluated()) {
-         // Optimize
-        std::memcpy(this, &o, sizeof(Tree));
-    }
     if (rep < 0 && data.as_char_ptr) {
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
