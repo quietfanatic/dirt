@@ -189,6 +189,12 @@ concept ArrayContiguousIteratorFor =
 template <class I>
 concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<I>;
 
+ // Concept for iota construction.  We're only putting this here because putting
+ // the requires inline causes an ICE on GCC.
+ // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112769
+template <class F, class T>
+concept ArrayIotaFunctionFor = requires (F f, usize i) { T(f(i)); };
+
  // A tag-like type representing a span of uninitialized data
 struct Uninitialized { usize size; };
  // Requests constructing with the given capacity but size 0
@@ -544,6 +550,30 @@ struct ArrayInterface {
                 SharableBuffer<T>::deallocate(dat);
                 throw;
             }
+        }
+        set_owned_unique(dat, s);
+    }
+
+     // Iota construction: Construct with a size and a function from indexes to
+     // elements.
+    template <ArrayIotaFunctionFor<T> F> explicit
+    ArrayInterface (usize s, F f) requires (
+        ac::supports_owned
+    ) {
+        if (!s) { impl = {}; return; }
+        T* dat = SharableBuffer<T>::allocate(s);
+        usize i = 0;
+        try {
+            for (; i < s; ++i) {
+                new ((void*)&dat[i]) T(f(i));
+            }
+        }
+        catch (...) {
+            while (i > 0) {
+                impl.data[--i].~T();
+            }
+            SharableBuffer<T>::deallocate(dat);
+            throw;
         }
         set_owned_unique(dat, s);
     }

@@ -157,6 +157,22 @@ UniqueArray<int> b23 () {
     return r;
 }
 
+UniqueArray<int> t23b () {
+    UniqueArray<int> r (Capacity(32));
+    for (usize i = 0; i < 32; i++) {
+        r.emplace_back_expect_capacity(i);
+    }
+    return r;
+}
+
+UniqueArray<int> t23c () {
+    return UniqueArray<int>(32, [](usize i){ return i; });
+}
+
+UniqueArray<int> t23d (usize s) {
+    return UniqueArray<int>(s, [](usize i){ return i; });
+}
+
 void t24 (UniqueArray<int>& a) {
     a.emplace(32, 100);
 }
