@@ -171,6 +171,27 @@ constexpr Acr constexpr_acr (Acr a) {
     return a;
 }
 
+ // Merge _type virtual functions into one to improve branch target prediction.
+struct AccessorWithType : Accessor {
+     // This isn't a plain Type because Type::CppType may not work properly at
+     // global init time, and it isn't a std::type_info* because we still need
+     // to reference Type::CppType<To> to auto-instantiate template descriptions.
+     // We could make this a std::type_info* and manually reference
+     // Type::CppType<To> with the comma operator, but if the description for To
+     // was declared in the same translation unit, Type::CppType<To>() will be
+     // much faster than need_description_for_type_info().
+     //
+     // Wouldn't it save space to put this in the vtable?  No!  Doing so would
+     // require a different vtable for each To type, so it would likely use more
+     // space.  TODO: actually test this
+    const Description* const* desc;
+    static Type _type (const Accessor*, Mu*);
+    explicit constexpr AccessorWithType (
+        const AcrVT* vt, const Description* const* d, AcrFlags f = {}
+    ) : Accessor(vt, f), desc(d)
+    { }
+};
+
 ///// ACCESSOR TYPES
 
 /// base
@@ -201,9 +222,8 @@ struct BaseAcr2 : Accessor {
 
 /// member
 
-struct MemberAcr0 : Accessor {
-    using Accessor::Accessor;
-    static Type _type (const Accessor*, Mu*);
+struct MemberAcr0 : AccessorWithType {
+    using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
     static Mu* _inverse_address (const Accessor*, Mu&);
@@ -215,31 +235,18 @@ template <class From, class To>
 struct MemberAcr2 : MemberAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-     // This isn't a plain Type because Type::CppType may not work properly at
-     // global init time, and it isn't a std::type_info* because we still need
-     // to reference Type::CppType<To> to auto-instantiate template descriptions.
-     // We could make this a std::type_info* and manually reference
-     // Type::CppType<To> with the comma operator, but if the description for To
-     // was declared in the same translation unit, Type::CppType<To>() will be
-     // much faster than need_description_for_type_info().
-     //
-     // Wouldn't it save space to put this in the vtable?  No!  Doing so would
-     // require a different vtable for each To type, so it would likely use more
-     // space.  TODO: actually test this
-    const Description* const* desc;
     To From::* mp;
     explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
-        MemberAcr0(&_vt, flags), desc(get_indirect_description<To>()), mp(mp)
+        MemberAcr0(&_vt, get_indirect_description<To>(), flags), mp(mp)
     { }
 };
 
 /// ref_func
 
-struct RefFuncAcr0 : Accessor {
+struct RefFuncAcr0 : AccessorWithType {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
-    using Accessor::Accessor;
-    static Type _type (const Accessor*, Mu*);
+    using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
     static constexpr AcrVT _vt = {&_type, &_access, &_address};
@@ -248,20 +255,18 @@ template <class From, class To>
 struct RefFuncAcr2 : RefFuncAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
     To&(* f )(From&);
     explicit constexpr RefFuncAcr2 (To&(* f )(From&), AcrFlags flags = {}) :
-        RefFuncAcr0(&_vt, flags), desc(get_indirect_description<To>()), f(f)
+        RefFuncAcr0(&_vt, get_indirect_description<To>(), flags), f(f)
     { }
 };
 
 /// const_ref_func
 
-struct ConstRefFuncAcr0 : Accessor {
+struct ConstRefFuncAcr0 : AccessorWithType {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
-    using Accessor::Accessor;
-    static Type _type (const Accessor*, Mu*);
+    using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor*, Mu&);
     static constexpr AcrVT _vt = {&_type, &_access, &_address};
@@ -270,13 +275,11 @@ template <class From, class To>
 struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
     const To&(* f )(const From&);
     explicit constexpr ConstRefFuncAcr2 (
         const To&(* f )(const From&), AcrFlags flags = {}
     ) :
-        ConstRefFuncAcr0(&_vt, flags),
-        desc(get_indirect_description<To>()), f(f)
+        ConstRefFuncAcr0(&_vt, get_indirect_description<To>(), flags), f(f)
     { }
 };
 
@@ -521,7 +524,7 @@ template <class From, class To>
 struct ConstantAcr2 : ConstantAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
-    To value;
+    const To value;
     explicit constexpr ConstantAcr2 (const To& v, AcrFlags flags = {}) :
         ConstantAcr1<To>(&ConstantAcr1<To>::_vt, flags | AcrFlags::Readonly),
         value(v)
@@ -543,9 +546,8 @@ void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {
 
 /// constant_pointer
 
-struct ConstantPointerAcr0 : Accessor {
-    using Accessor::Accessor;
-    static Type _type (const Accessor*, Mu*);
+struct ConstantPointerAcr0 : AccessorWithType {
+    using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
      // Should be okay addressing this.
     static Mu* _address (const Accessor*, Mu&);
@@ -556,11 +558,11 @@ template <class From, class To>
 struct ConstantPointerAcr2 : ConstantPointerAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
     const To* pointer;
     explicit constexpr ConstantPointerAcr2 (const To* p, AcrFlags flags = {}) :
-        ConstantPointerAcr0(&_vt, flags | AcrFlags::Readonly),
-        desc(get_indirect_description<To>()), pointer(p)
+        ConstantPointerAcr0(
+            &_vt, get_indirect_description<To>(), flags | AcrFlags::Readonly
+        ), pointer(p)
     { }
 };
 
