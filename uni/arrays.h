@@ -17,9 +17,9 @@
  // Not to be confused with Small String Optimization.  AnyArray and AnyString
  // can refer to a static string (a string which will stay alive for the
  // duration of the program, or at least the foreseeable future).  This allows
- // them to be created and passed around with no allocation cost.  For
- // optimization, both StaticString and AnyString expect that fixed-size const
- // char[] (but not non-const char[]) is a string literal.  If you use
+ // them to be created and passed around with no allocation or refcounting cost.
+ // For optimization, both StaticString and AnyString expect that fixed-size
+ // const char[] (but not non-const char[]) is a string literal.  If you use
  // dynamically-allocated fixed-size raw char arrays, you might run into some
  // use-after-free surprises.  I think this should be rare to nonexistent in
  // practice.
@@ -31,15 +31,22 @@
  //
  // EXCEPTION-SAFETY
  // None of these classes generate their own exceptions.  If an out-of-bounds
- // index or a too-large-for-capacity problem occurs, the program will be
- // terminated.  If an element type throws an exception in its default
- // constructor, copy constructor, or copy assignment operator, the array method
- // provides a mostly-strong exception guarantee (except for multi-element
- // insert): All semantic state will be rewound to before the method was called,
- // but non-semantic state (such as capacity and whether a buffer is shared) may
- // be altered.  However, if an element type throws an exception in its move
- // constructor, move assignment constructor, or destructor, undefined behavior
- // will occur (hopefully after a debug-only assertion).
+ // index or a max-capacity-exceeded problem occurs, the program will be
+ // terminated.
+ //
+ // Elements are allowed to throw exceptions from their default constructor,
+ // copy constructor, or copy assignment operator. If this happens, all array
+ // methods except for multi-element insert provide a mostly-strong exception
+ // guarantee: All semantic state will be rewound to before the method was
+ // called, but non-semantic state (such as capacity and whether a buffer is
+ // shared) may be altered.  Multi-element insert will just terminate because
+ // cleaning up would be too much work.
+ //
+ // Elements are assumed to NEVER throw exceptions from their move constructor,
+ // move assignment operator, and destructor, even if those are not marked
+ // noexcept.  If one of those throws, undefined behavior occurs (hopefully with
+ // a debug-mode assert).
+
 #pragma once
 
 #include <bit> // bit_ceil
@@ -170,8 +177,8 @@ concept ArraySentinelFor = requires (Begin b, End e) { b != e; };
  // An ArrayContiguousIterator is one that guarantees that the elements are
  // contiguous in memory like a C array.
  // (We're reluctantly delegating to STL for contiguousity because it cannot be
- // verified at compile time, so the STL just explicitly specifies it for
- // iterators that model it.)
+ // automatically verified, so the STL just explicitly specifies it for
+ // iterators that are known to be contiguous.)
 template <class I>
 concept ArrayContiguousIterator = std::is_base_of_v<
     std::contiguous_iterator_tag,
@@ -190,7 +197,7 @@ template <class I>
 concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<I>;
 
  // Concept for iota construction.  We're only putting this here because putting
- // the requires inline causes an ICE on GCC.
+ // it directly on the function causes an ICE on GCC.
  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112769
 template <class F, class T>
 concept ArrayIotaFunctionFor = requires (F f, usize i) { T(f(i)); };
@@ -223,6 +230,7 @@ struct ArrayInterface {
     );
 
     ///// TYPEDEFS
+     // These are fairly unnecessary, but they're here to match STL containers.
     using value_type = T;
     using size_type = usize;
     using difference_type = isize;
@@ -237,7 +245,7 @@ struct ArrayInterface {
     using const_reverse_iterator = std::reverse_iterator<const T*>;
     using mut_reverse_iterator =
         std::conditional_t<ac::supports_owned, std::reverse_iterator<T*>, void>;
-
+     // This one is useful though.
     using SelfSlice = std::conditional_t<ac::is_String,
         ArrayInterface<ArrayClass::Str, T>,
         ArrayInterface<ArrayClass::Slice, T>
@@ -270,7 +278,7 @@ struct ArrayInterface {
      // ownership mode as the moved-from array, and if that isn't supported,
      // copies the buffer.  Although move conversion will never fail for
      // copyable element types, it's disabled for StaticArray and Slice, and the
-     // copy constructor from AnyArray to StaticArray can fail.
+     // copy constructor from AnyArray to StaticArray is explicit.
     template <class ac2> ALWAYS_INLINE constexpr
     ArrayInterface (ArrayInterface<ac2, T>&& o) requires (
         !ac::trivially_copyable && !ac2::trivially_copyable
@@ -578,7 +586,7 @@ struct ArrayInterface {
         set_owned_unique(dat, s);
     }
 
-     // Construct with uninitialized data if the elements support that
+     // Construct with uninitialized data if the elements support that.
     ALWAYS_INLINE explicit
     ArrayInterface (Uninitialized u) requires (
         ac::supports_owned && std::is_trivially_default_constructible_v<T>
@@ -586,7 +594,7 @@ struct ArrayInterface {
         if (!u.size) { impl = {}; return; }
         set_owned_unique(SharableBuffer<T>::allocate(u.size), u.size);
     }
-     // Construct with specific capacity
+     // Construct with given capacity and zero size.
     ALWAYS_INLINE explicit
     ArrayInterface (Capacity cap) requires (
         ac::supports_owned
@@ -718,6 +726,8 @@ struct ArrayInterface {
     void unsafe_set_empty () {
         impl = {};
     }
+     // This can be used if you have a buffer whose elements you know don't need
+     // destructing, but the buffer still needs to be freed.
     ALWAYS_INLINE constexpr
     void unsafe_set_size (usize s) {
         set_size(s);
@@ -885,7 +895,7 @@ struct ArrayInterface {
     static constexpr usize max_capacity =
         SharableBuffer<T>::capacity_for_size(max_size_);
 
-     // Returns if this string is owned (has a shared or unique buffer).  If
+     // Returns if this array is owned (has a shared or unique buffer).  If
      // this returns true, then there is a SharedBufferHeader behind data().
      // Returns false for empty arrays.
     ALWAYS_INLINE constexpr
@@ -907,7 +917,7 @@ struct ArrayInterface {
         else return false;
     }
 
-     // Returns if this string is unique (can be moved to a UniqueArray without
+     // Returns if this array is unique (can be moved to a UniqueArray without
      // doing an allocation).  This is not a strict subset of owned(); in
      // particular, it will return true for most empty arrays (capacity == 0).
     ALWAYS_INLINE constexpr
@@ -1308,7 +1318,9 @@ struct ArrayInterface {
 
      // Multiple-element insert.  If any of the iterator operators or the copy
      // constructor throw, the program will crash.  This is the one exception to
-     // the mostly-strong exception guarantee.
+     // the mostly-strong exception guarantee.  TODO: we can probably fix this;
+     // copy_fill already destructs the copied elements, so we'd just have to
+     // move the tail back.
     template <ArrayIterator Ptr>
     void insert (usize offset, Ptr p, usize s) requires (
         ac::supports_owned && std::is_copy_constructible_v<T>
@@ -1579,14 +1591,12 @@ struct ArrayInterface {
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End> static
     T* copy_fill (T* dat, Begin b, End e) requires (std::is_copy_constructible_v<T>) {
         static_assert(ArrayForwardIterator<Begin>);
+        usize s = 0;
         if constexpr (requires { usize(e - b); }) {
-            return copy_fill(dat, move(b), usize(e - b));
+            s = usize(e - b);
         }
-        else {
-            usize s = 0;
-            for (auto p = b; p != e; ++p) ++s;
-            return copy_fill(dat, move(b), s);
-        }
+        else for (auto p = b; p != e; ++p) ++s;
+        return copy_fill(dat, move(b), s);
     }
 
     template <ArrayIterator Ptr> [[gnu::malloc, gnu::returns_nonnull]] static
@@ -1596,15 +1606,16 @@ struct ArrayInterface {
     {
         expect(s > 0);
         T* dat = SharableBuffer<T>::allocate(s);
-        try {
+         // Prevent warnings about "this throw will always terminate"
+        if constexpr(noexcept(std::is_nothrow_copy_constructible_v<T>)) {
+            return copy_fill(dat, ptr, s);
+        }
+        else try {
             return copy_fill(dat, ptr, s);
         }
         catch (...) {
             SharableBuffer<T>::deallocate(dat);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wterminate"
             throw;
-#pragma GCC diagnostic pop
         }
     }
 
@@ -1683,15 +1694,22 @@ struct ArrayInterface {
             SharableBuffer<T>::deallocate(self.impl.data);
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
-            try {
+             // Prevent warnings about "this throw will always terminate".  Also
+             // have to throw ac::is_Unique in here because we haven't actually
+             // constexpr-branched on that yet, even though we'll never get here
+             // with it true.
+            if constexpr (
+                ac::is_Unique ||
+                noexcept(std::is_nothrow_copy_constructible_v<T>)
+            ) {
+                copy_fill(dat, self.impl.data, s);
+            }
+            else try {
                 copy_fill(dat, self.impl.data, s);
             }
             catch (...) {
                 SharableBuffer<T>::deallocate(dat);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wterminate"
                 throw;
-#pragma GCC diagnostic pop
             }
             --self.header().ref_count;
         }
