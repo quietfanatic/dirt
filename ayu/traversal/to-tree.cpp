@@ -139,15 +139,19 @@ struct TraverseToTree {
                     }
                     auto sub_object = TreeObject(move(sub_tree));
                     for (auto& pair : sub_object) {
-                        new_object.emplace_back_expect_capacity(pair);
+                        new_object.emplace_back_expect_capacity(move(pair));
                     }
+                     // All sub_object elements are now consumed, skip
+                     // destructor loop.
+                    sub_object.unsafe_set_size(0);
                 }
                 else {
                     new_object.emplace_back_expect_capacity(move(object[i]));
                 }
             }
+             // Old object's contents should be fully consumed so skip the
+             // destructor loop (but verify in debug mode).
 #ifndef NDEBUG
-             // Old object's contents should be fully consumed
             for (auto& pair : object) {
                 expect(!pair.first.owned());
                 expect(!pair.second.has_value());

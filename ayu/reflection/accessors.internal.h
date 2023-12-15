@@ -19,6 +19,7 @@ enum AcrFlags : uint8 {
     PreferHex = 0x1,
     PreferCompact = 0x2,
     PreferExpanded = 0x4,
+    AllTreeFlags = 0x7,
      // Writes through this accessor will fail.  Attrs and elems with this
      // accessor will not be serialized.
     Readonly = 0x20,
@@ -86,7 +87,8 @@ struct AcrVT {
     static Type const_type (const Accessor*, Mu*) {
         return Type::CppType<T>();
     }
-     // TODO: merge type and address methods
+     // TODO: merge type and address methods because they're nearly always
+     // called together.
     Type(* type )(const Accessor*, Mu*) = null;
     void(* access )(const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>)
         = null;
@@ -116,11 +118,7 @@ struct Accessor {
     { }
 
     TreeFlags tree_flags () const {
-        TreeFlags r = {};
-        if (flags & AcrFlags::PreferHex) r |= TreeFlags::PreferHex;
-        if (flags & AcrFlags::PreferCompact) r |= TreeFlags::PreferCompact;
-        if (flags & AcrFlags::PreferExpanded) r |= TreeFlags::PreferExpanded;
-        return r;
+        return TreeFlags(flags & AcrFlags::AllTreeFlags);
     }
 
     Type type (Mu* from) const { return vt->type(this, from); }

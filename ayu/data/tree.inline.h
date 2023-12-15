@@ -85,6 +85,9 @@ inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
     const_cast<const std::exception_ptr*&>(data.as_error_ptr) = e.data();
     e.unsafe_set_empty();
 }
+ // I wish I could use is_constant_evaluated before selecting whether to use the
+ // member initializers, for optimization.  It might be possible with some
+ // inheritance chicanery but the extra complexity would end up making it worse.
 constexpr Tree::Tree (Tree&& o) :
     form(o.form), rep(o.rep), flags(o.flags), length(o.length), data(o.data)
 {
