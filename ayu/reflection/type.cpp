@@ -80,6 +80,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (auto attrs = desc->attrs())
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
+        if (acr->attr_flags & AttrFlags::Include)
         if (Mu* a = acr->address(*p))
         if (Mu* b = acr->type(p).try_upcast_to(to, a))
             return b;
@@ -88,6 +89,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (auto elems = desc->elems())
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
+        if (acr->attr_flags & AttrFlags::Include)
         if (Mu* a = acr->address(*p))
         if (Mu* b = acr->type(p).try_upcast_to(to, a))
             return b;
@@ -118,6 +120,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
     if (auto attrs = desc->attrs())
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
+        if (acr->attr_flags & AttrFlags::Include)
         if (acr->vt->inverse_address)
         if (Mu* a = try_downcast_to(acr->type(null), p))
         if (Mu* b = acr->inverse_address(*a))
@@ -127,6 +130,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
     if (auto elems = desc->elems())
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
+        if (acr->attr_flags & AttrFlags::Include)
         if (acr->vt->inverse_address)
         if (Mu* a = try_downcast_to(acr->type(null), p))
         if (Mu* b = acr->inverse_address(*a))
