@@ -71,6 +71,12 @@ struct Cat<Head, Tail...> : CatHead<sizeof...(Tail), Head>, Cat<Tail...> {
         }
         else return Cat<Tail...>::template get<T>(n);
     }
+
+    template <class F>
+    constexpr void for_each (F f) const {
+        f(CatHead<sizeof...(Tail), Head>::head);
+        Cat<Tail...>::template for_each<F>(f);
+    }
 };
 
 template <>
@@ -84,6 +90,8 @@ struct Cat<> {
     constexpr const T* get (uint16) const {
         return null;
     }
+    template <class F>
+    constexpr void for_each (F) const { }
 };
 
 ///// CPP TYPE TRAITS
@@ -262,6 +270,13 @@ struct AttrsDcrWith : AttrsDcr<T> {
                 attrs.template get<AttrDcr<T>>(i)
             ) - static_cast<ComparableAddress*>(this);
         }
+    }
+    constexpr bool has_included_attrs () {
+        bool r = false;
+        attrs.for_each([&]<class Attr>(const Attr& attr){
+            r |= !!(attr.acr.attr_flags & AttrFlags::Include);
+        });
+        return r;
     }
 };
 
@@ -443,6 +458,10 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
             AYU_APPLY_OFFSET(AttrsDcr, attrs)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_OBJECT;
+            }
+            Dcr* attrs = desc.template get<Dcr>(0);
+            if (attrs->has_included_attrs()) {
+                header.flags |= Description::HAS_INCLUDED_ATTRS;
             }
         }
         else if constexpr (std::is_base_of_v<KeysDcr<T>, Dcr>) {

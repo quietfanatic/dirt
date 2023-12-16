@@ -28,8 +28,8 @@ struct Description : ComparableAddress {
         PREFER_ARRAY = 1 << 0,
         PREFER_OBJECT = 1 << 1,
         PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
-//        NO_INHERIT_ATTRS = 1 << 2,
-//        NO_INHERIT_ELEMS = 1 << 3,
+         // Can select some faster algorithms when this is false.
+        HAS_INCLUDED_ATTRS = 1 << 2,
     };
     uint16 flags = 0;
 

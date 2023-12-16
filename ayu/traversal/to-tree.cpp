@@ -16,8 +16,8 @@ struct TraverseToTree {
         PushBaseLocation pbl(*loc ? *loc : Location(item));
         Tree r;
         trav_start(item, loc, false, AccessMode::Read,
-            [&r](const Traversal& trav)
-        { traverse(r, trav); });
+            [&r](const Traversal& child){ traverse(r, child); }
+        );
         return r;
     }
 
@@ -36,7 +36,7 @@ struct TraverseToTree {
     }
      // Unfortunately this exception handler prevents tail calling from this
      // function, but putting it anywhere else seems to perform worse.
-    catch (...) { wrap_exception(r); }
+    catch (...) { if (!wrap_exception(r)) throw; }
 
     NOINLINE static
     void no_value_match (Tree& r, const Traversal& trav) {
@@ -68,9 +68,7 @@ struct TraverseToTree {
 
 ///// STRATEGIES
 
-     // NOINLINEing this seems to be worse, probably because traverse() already
-     // has to do some stack setup for its try/catch.
-    static
+    NOINLINE static
     void use_to_tree (
         Tree& r, const Traversal& trav, ToTreeFunc<Mu>* f
     ) {
@@ -95,29 +93,23 @@ struct TraverseToTree {
     void use_attrs (
         Tree& r, const Traversal& trav, const AttrsDcrPrivate* attrs
     ) {
-        auto object = UniqueArray<Pair<AnyString, Tree>>(
-            Capacity(attrs->n_attrs)
-        );
+        auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
          // First just build the object as though none of the attrs are included
-         // (but keep track if any are).
-        bool any_included = false;
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags & AttrFlags::Invisible) continue;
-            any_included |= !!(attr->acr()->attr_flags & AttrFlags::Include);
 
+            Tree& value = object.emplace_back_expect_capacity(
+                attr->key, Tree()
+            ).second;
             trav_attr(trav, attr->acr(), attr->key, AccessMode::Read,
-                [&object, attr](const Traversal& child)
-            {
-                Tree& value = object.emplace_back_expect_capacity(
-                    attr->key, Tree()
-                ).second;
-                traverse(value, child);
-                value.flags |= attr->acr()->tree_flags();
-            });
+                [&value](const Traversal& child){ traverse(value, child); }
+            );
+            value.flags |= attr->acr()->tree_flags();
         }
-         // Then if there are included attrs, rebuild the object.
-        if (any_included) {
+         // Then if there are included attrs, rebuild the object while
+         // flattening them.
+        if (trav.desc->flags & Description::HAS_INCLUDED_ATTRS) {
              // Determine length for preallocation
             usize len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -171,24 +163,22 @@ struct TraverseToTree {
     ) {
          // Get list of keys
         AnyArray<AnyString> keys;
-        keys_acr->read(*trav.address, [&keys](Mu& v){
+        keys_acr->read(*trav.address, CallbackRef<void(Mu&)>(
+            keys, [](AnyArray<AnyString>& keys, Mu& v)
+        {
             new (&keys) AnyArray<AnyString>(
                 reinterpret_cast<const AnyArray<AnyString>&>(v)
             );
-        });
+        }));
          // Now read value for each key
-        auto object = TreeObject(Capacity(keys.size()));
+        auto object = UniqueArray<TreePair>(Capacity(keys.size()));
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
+            auto& [_, value] = object.emplace_back_expect_capacity(key, Tree());
             trav_attr_func(trav, ref, f, key, AccessMode::Read,
-                [&object, &key](const Traversal& child)
-            {
-                Tree& value = object.emplace_back_expect_capacity(
-                    key, Tree()
-                ).second;
-                traverse(value, child);
-            });
+                [&value](const Traversal& child){ traverse(value, child); }
+            );
         }
         new (&r) Tree(move(object));
     }
@@ -200,18 +190,15 @@ struct TraverseToTree {
         auto array = UniqueArray<Tree>(Capacity(elems->n_elems));
         for (uint i = 0; i < elems->n_elems; i++) {
             auto acr = elems->elem(i)->acr();
+             // This probably should never happen unless the elems are on
+             // the end and also optional.  TODO: Pop invisible elems off
+             // the end before allocating array.
+            if (acr->attr_flags & AttrFlags::Invisible) continue;
+            Tree& elem = array.emplace_back_expect_capacity(Tree());
             trav_elem(trav, acr, i, AccessMode::Read,
-                [&array](const Traversal& child)
-            {
-                 // This probably should never happen unless the elems are on
-                 // the end and also optional.  TODO: Pop invisible elems off
-                 // the end before allocating array.
-                auto acr = static_cast<const AcrTraversal&>(child).acr;
-                if (acr->attr_flags & AttrFlags::Invisible) return;
-                Tree& elem = array.emplace_back_expect_capacity(Tree());
-                traverse(elem, child);
-                elem.flags |= acr->tree_flags();
-            });
+                [&elem](const Traversal& child){ traverse(elem, child); }
+            );
+            elem.flags |= acr->tree_flags();
         }
         new (&r) Tree(move(array));
     }
@@ -222,19 +209,19 @@ struct TraverseToTree {
         const Accessor* length_acr, ElemFunc<Mu>* elem_func
     ) {
         usize len;
-        length_acr->read(*trav.address, [&len](Mu& v){
-            len = reinterpret_cast<const usize&>(v);
-        });
-        auto array = TreeArray(Capacity(len));
+        length_acr->read(*trav.address,
+            CallbackRef<void(Mu& v)>(len, [](usize& len, Mu& v){
+                len = reinterpret_cast<const usize&>(v);
+            })
+        );
+        auto array = UniqueArray<Tree>(Capacity(len));
         for (usize i = 0; i < len; i++) {
             auto ref = elem_func(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
+            auto& elem = array.emplace_back_expect_capacity();
             trav_elem_func(trav, ref, elem_func, i, AccessMode::Read,
-                [&array](const Traversal& child)
-            {
-                Tree& elem = array.emplace_back_expect_capacity(Tree());
-                traverse(elem, child);
-            });
+                [&elem](const Traversal& child){ traverse(elem, child); }
+            );
         }
         new (&r) Tree(move(array));
     }
@@ -244,8 +231,8 @@ struct TraverseToTree {
         Tree& r, const Traversal& trav, const Accessor* acr
     ) {
         trav_delegate(trav, acr, AccessMode::Read,
-            [&r](const Traversal& child)
-        { traverse(r, child); });
+            [&r](const Traversal& child){ traverse(r, child); }
+        );
         r.flags |= acr->tree_flags();
     }
 
@@ -264,13 +251,14 @@ struct TraverseToTree {
         ));
     }
 
+     // NOINLINE this so its stack requirements don't get applied to traverse()
     [[gnu::cold]] NOINLINE static
-    void wrap_exception (Tree& r) {
-        auto ex = std::current_exception();
+    bool wrap_exception (Tree& r) {
         if (diagnostic_serialization) {
-            new (&r) Tree(move(ex));
+            new (&r) Tree(std::current_exception());
+            return true;
         }
-        else std::rethrow_exception(move(ex));
+        else return false;
     }
 
     [[noreturn, gnu::cold]] NOINLINE static
