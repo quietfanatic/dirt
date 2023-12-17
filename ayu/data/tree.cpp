@@ -177,8 +177,8 @@ static tap::TestSet tests ("dirt/ayu/data/tree", []{
     is(Str(Tree("asdfg")), "asdfg", "Round-trip strings");
     is(Str(Tree("qwertyuiop")), "qwertyuiop", "Round-trip long strings");
     throws_code<e_TreeWrongForm>([]{ int(Tree("0")); }, "Can't convert string to integer");
-    try_is<int>([]{ return int(Tree(3.0)); }, 3, "Convert floating to integer");
-    try_is<double>([]{ return double(Tree(3)); }, 3.0, "Convert integer to floating");
+    try_is([]{ return int(Tree(3.0)); }, 3, "Convert floating to integer");
+    try_is([]{ return double(Tree(3)); }, 3.0, "Convert integer to floating");
     throws_code<e_TreeCantRepresent>([]{
         int(Tree(3.5));
     }, "Can't convert 3.5 to integer");

@@ -111,18 +111,16 @@ bool try_ok (CallbackRef<bool()> code, std::string_view name = "");
 template <class A, class B>
 bool is (const A& got, const B& expected, std::string_view name = "");
 template <class A, class B>
-bool try_is (CallbackRef<A()> code, const B& expected, std::string_view name = "");
+bool try_is (A code, const B& expected, std::string_view name = "");
  // You can call the special case directly if you want.
 bool is_strcmp(const char* got, const char* expected, std::string_view name = "");
-bool try_is_strcmp(CallbackRef<const char*()> code, const char* expected, std::string_view name = "");
 
  // Unlike is, isnt isn't that useful, but at least it catches exceptions in the != operator.
 template <class A, class B>
 bool isnt (const A& got, const B& unexpected, std::string_view name = "");
 template <class A, class B>
-bool try_isnt (CallbackRef<A()> code, const B& unexpected, std::string_view name = "");
+bool try_isnt (A code, const B& unexpected, std::string_view name = "");
 bool isnt_strcmp(const char* got, const char* unexpected, std::string_view name = "");
-bool try_isnt_strcmp(CallbackRef<const char*()> code, const char* unexpected, std::string_view name = "");
 
  // Tests that got is within +/- range of expected.
 bool within (double got, double range, double expected, std::string_view name = "");
@@ -263,24 +261,14 @@ bool is (const A& got, const B& expected, std::string_view name) {
     }, name);
 }
 template <class A, class B>
-bool try_is (CallbackRef<A()> code, const B& expected, std::string_view name) {
+bool try_is (A code, const B& expected, std::string_view name) {
     return internal::fail_on_throw([&]{
-        const A& got = code();
-        if (got == expected) {
-            return pass(name);
-        }
-        else {
-            fail(name);
-            internal::diag_unexpected(got, expected);
-            return false;
-        }
+        const auto& got = code();
+        return is(got, expected, name);
     }, name);
 }
 static inline bool is (const char* got, const char* expected, std::string_view name) {
     return is_strcmp(got, expected, name);
-}
-static inline bool try_is (CallbackRef<const char*()> code, const char* expected, std::string_view name) {
-    return try_is_strcmp(code, expected, name);
 }
 
 template <class A, class B>
@@ -290,16 +278,14 @@ bool isnt (const A& got, const B& unexpected, std::string_view name) {
     }, name);
 }
 template <class A, class B>
-bool try_isnt (CallbackRef<A()> code, const B& unexpected, std::string_view name) {
+bool try_isnt (A code, const B& unexpected, std::string_view name) {
     return internal::fail_on_throw([&]{
-        return try_ok(code() != unexpected, name);
+        const auto& got = code();
+        return isnt(got, unexpected, name);
     }, name);
 }
 static inline bool isnt (const char* got, const char* unexpected, std::string_view name) {
     return isnt_strcmp(got, unexpected, name);
-}
-static inline bool try_isnt (CallbackRef<const char*()> code, const char* unexpected, std::string_view name) {
-    return try_isnt_strcmp(code, unexpected, name);
 }
 
 template <class E>

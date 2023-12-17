@@ -105,20 +105,10 @@ bool is_strcmp(const char* got, const char* expected, std::string_view name) {
         return false;
     }
 }
-bool try_is_strcmp(CallbackRef<const char*()> code, const char* expected, std::string_view name) {
-    return fail_on_throw([&]{
-        return is_strcmp(code(), expected, name);
-    }, name);
-}
 bool isnt_strcmp(const char* got, const char* unexpected, std::string_view name) {
     if (!got && !unexpected) return pass(name);
     else if (!got || !unexpected) return fail(name);
     else return ok(0 != strcmp(got, unexpected), name);
-}
-bool try_isnt_strcmp(CallbackRef<const char*()> code, const char* unexpected, std::string_view name) {
-    return fail_on_throw([&]{
-        return isnt_strcmp(code(), unexpected, name);
-    }, name);
 }
 
 struct plusminus {

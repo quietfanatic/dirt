@@ -528,7 +528,7 @@ Tree tree_from_file (MoveRef<AnyString> filename_) {
 static tap::TestSet tests ("dirt/ayu/data/parse", []{
     using namespace tap;
     auto y = [](StaticString s, const Tree& t){
-        try_is<Tree>([&]{return tree_from_string(s);}, t, cat("yes: ", s));
+        try_is([&]{return tree_from_string(s);}, t, cat("yes: ", s));
     };
     auto n = [](StaticString s){
         throws_code<e_ParseFailed>([&]{
