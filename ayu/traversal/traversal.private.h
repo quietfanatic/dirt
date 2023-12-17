@@ -319,7 +319,7 @@ Reference Traversal::to_reference_chain () const noexcept {
     switch (op) {
         case DELEGATE: case ATTR: case ELEM: {
             auto& self = static_cast<const AcrTraversal&>(*this);
-            child_acr = new ChainAcr(parent_ref.acr, self.acr);
+            child_acr = self.acr;
             break;
         }
         case ATTR_FUNC: {
@@ -334,7 +334,12 @@ Reference Traversal::to_reference_chain () const noexcept {
         }
         default: never();
     }
-    return Reference(parent_ref.host, child_acr);
+    if (parent_ref.acr) {
+        return Reference(
+            parent_ref.host, new ChainAcr(parent_ref.acr, child_acr)
+        );
+    }
+    else return Reference(parent_ref.host, child_acr);
 }
 
 inline
