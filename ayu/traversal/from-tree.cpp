@@ -362,7 +362,7 @@ struct TraverseFromTree {
              // Readonly keys?  Read them and check that they match.
             AnyArray<AnyString> keys;
             keys_acr->read(*trav.address, [&keys](Mu& v){
-                keys = reinterpret_cast<AnyArray<AnyString>&>(v);
+                new (&keys) AnyArray<AnyString>(reinterpret_cast<AnyArray<AnyString>&>(v));
             });
 #ifndef NDEBUG
              // Check returned keys for duplicates
@@ -412,8 +412,6 @@ struct TraverseFromTree {
     void use_elems (
         const Traversal& trav, const Tree& tree, const ElemsDcrPrivate* elems
     ) {
-        expect(tree.rep == Rep::Array);
-        auto array = TreeArraySlice(tree);
          // Check whether length is acceptable
         usize min = elems->n_elems;
         while (min &&
@@ -421,6 +419,8 @@ struct TraverseFromTree {
         ) {
             min -= 1;
         }
+        expect(tree.rep == Rep::Array);
+        auto array = TreeArraySlice(tree);
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }

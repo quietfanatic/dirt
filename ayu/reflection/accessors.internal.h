@@ -165,6 +165,12 @@ struct Accessor {
     }
 };
 
+ // Yes Accessors are comparable!  Two Accessors are the same if they come from
+ // the same place in the same AYU_DESCRIBE block, or if they're dynamically
+ // generated from the same inputs.
+bool operator== (const Accessor&, const Accessor&);
+usize hash_acr (const Accessor&);
+
 template <class Acr>
 constexpr Acr constexpr_acr (Acr a) {
     a.ref_count = 0;
@@ -591,3 +597,10 @@ struct ReferenceFuncAcr2 : ReferenceFuncAcr1 {
 };
 
 } // namespace ayu::in
+
+template <>
+struct std::hash<ayu::in::Accessor> {
+    size_t operator () (const ayu::in::Accessor& acr) const {
+        return ayu::in::hash_acr(acr);
+    }
+};

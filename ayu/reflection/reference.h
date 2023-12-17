@@ -268,20 +268,13 @@ struct Reference {
     Reference operator [] (usize index);
 };
 
- // Reference comparison is best-effort.  References compare equal if:
- //  1. They have the same host and accessor pointers, or
- //  2. They have the same type, they both have an address(), and those
- //     addresses are equal.
- // This means that unaddressable references constructed through attr_func or
- // elem_func will not be comparable, and thus cannot be serialized.  Those
- // references are likely to be very inefficient anyway, so try not to create
- // them.
+ // Reference comparison is best-effort.  If two References were constructed
+ // differently but happen to point to the same item, they might be considered
+ // unequal.  This should be rare though.
 inline bool operator == (const Reference& a, const Reference& b) {
-    if (a.host == b.host && a.acr == b.acr) return true;
-    if (!a | !b) return false;
-    if (a.type() != b.type()) return false;
-    auto aa = a.address();
-    return aa && aa == b.address();
+    if (a.host != b.host) return false;
+    if (!a.acr | !b.acr) return a.acr == b.acr;
+    return *a.acr == *b.acr;
 }
 inline bool operator != (const Reference& a, const Reference& b) {
     return !(a == b);
@@ -289,9 +282,9 @@ inline bool operator != (const Reference& a, const Reference& b) {
 
 ///// Reference error codes
 
- // Tried to write through a readonly reference.
+ // Tried to write through a readonly Reference.
 constexpr ErrorCode e_ReferenceReadonly = "ayu::e_ReferenceReadonly";
- // Tried to get the address of a reference, but it doesn't support addressing.
+ // Tried to get the address of a Reference, but it doesn't support addressing.
 constexpr ErrorCode e_ReferenceUnaddressable = "ayu::e_RefereneUnaddressable";
 
 } // ayu
@@ -300,16 +293,9 @@ constexpr ErrorCode e_ReferenceUnaddressable = "ayu::e_RefereneUnaddressable";
 template <>
 struct std::hash<ayu::Reference> {
     size_t operator () (const ayu::Reference& r) const {
-         // This is in a different order than operator==, but I don't think
-         // that should be a problem, assuming the address is deterministic.
-        auto a = r.address();
-        if (a) return ayu::in::hash_combine(
-            hash<void*>()((void*)a),
-            hash<ayu::Type>()(r.type())
-        );
-        else return ayu::in::hash_combine(
+        return ayu::in::hash_combine(
             hash<ayu::Pointer>()(r.host),
-            hash<void*>()((void*)r.acr)
+            r.acr ? hash<ayu::in::Accessor>()(*r.acr) : 0
         );
     }
 };

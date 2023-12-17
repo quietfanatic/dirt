@@ -177,6 +177,58 @@ Mu* ElemFuncAcr::_address (const Accessor* acr, Mu& v) {
     return self->f(v, self->index).address();
 }
 
+ // How do we compare dynamically-typed Accessors without adding an extra
+ // "compare" virtual method?  Easy, just examine the vtable pointers.  If you
+ // didn't want to know, you shouldn't have asked.
+bool operator== (const Accessor& a, const Accessor& b) {
+    if (&a == &b) return true;
+    if (a.vt != b.vt) return false;
+     // These ACRs are dynamically generated, but have a limited set of types,
+     // so we can dissect them and compare their members.
+    if (a.vt == &ChainAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainAcr&>(a);
+        auto& bb = reinterpret_cast<const ChainAcr&>(b);
+        return *aa.outer == *bb.outer && *aa.inner == *bb.inner;
+    }
+    else if (a.vt == &AttrFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const AttrFuncAcr&>(a);
+        auto& bb = reinterpret_cast<const AttrFuncAcr&>(b);
+        return aa.f == bb.f && aa.key == bb.key;
+    }
+    else if (a.vt == &ElemFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ElemFuncAcr&>(a);
+        auto& bb = reinterpret_cast<const ElemFuncAcr&>(b);
+        return aa.f == bb.f && aa.index == bb.index;
+    }
+     // Other ACRs can have a diverse range of parameterized types, so comparing
+     // their contents is not feasible.  Fortunately, they should all be
+     // statically generated, so if two ACRs refer to the same member of a type,
+     // they should have the same address.
+    else return false;
+}
+
+usize hash_acr (const Accessor& a) {
+    if (a.vt == &ChainAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainAcr&>(a);
+        return hash_combine(hash_acr(*aa.outer), hash_acr(*aa.inner));
+    }
+    else if (a.vt == &AttrFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const AttrFuncAcr&>(a);
+        return hash_combine(
+            std::hash<AttrFunc<Mu>*>{}(aa.f),
+            std::hash<AnyString>{}(aa.key)
+        );
+    }
+    else if (a.vt == &ElemFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ElemFuncAcr&>(a);
+        return hash_combine(
+            std::hash<ElemFunc<Mu>*>{}(aa.f),
+            std::hash<usize>{}(aa.index)
+        );
+    }
+    else return std::hash<const Accessor*>{}(&a);
+}
+
 } using namespace ayu::in;
 using namespace ayu;
 

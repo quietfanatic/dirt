@@ -334,12 +334,10 @@ Reference Traversal::to_reference_chain () const noexcept {
         }
         default: never();
     }
-    if (parent_ref.acr) {
-        return Reference(
-            parent_ref.host, new ChainAcr(parent_ref.acr, child_acr)
-        );
-    }
-    else return Reference(parent_ref.host, child_acr);
+     // If parent doesn't have an acr, we should be in
+     // to_reference_parent_addressable, not here.
+    expect(parent_ref.acr);
+    return Reference(parent_ref.host, new ChainAcr(parent_ref.acr, child_acr));
 }
 
 inline

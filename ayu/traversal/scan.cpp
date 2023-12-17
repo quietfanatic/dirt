@@ -349,8 +349,6 @@ Location find_reference (const Reference& item) {
             auto it = cache->find(item.host);
             if (it != cache->end()) {
                  // Now search under that host for the actual reference.
-                 // This will likely fail because it's hard to compare
-                 // unaddressable references, but try anyway.
                 Location r;
                 scan_references(
                     Reference(item.host), it->second,

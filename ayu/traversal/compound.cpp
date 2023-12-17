@@ -257,8 +257,6 @@ struct TraverseAttr {
         const AttrsDcrPrivate* attrs
     ) {
          // First check direct attrs
-         // TODO: change order to be a depth-first search, to match current
-         // to_tree and from_tree behavior
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->key == key) {

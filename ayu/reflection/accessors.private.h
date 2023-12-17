@@ -32,7 +32,7 @@ struct AttrFuncAcr : Accessor {
 
 struct ElemFuncAcr : Accessor {
     ElemFunc<Mu>* f;
-    size_t index;
+    usize index;
     ElemFuncAcr (ElemFunc<Mu>* f, usize i) :
         Accessor(&_vt), f(f), index(i)
     { }

@@ -88,6 +88,12 @@ namespace ayu::test {
         int b;
         int* p;
     };
+    struct ChainRefTest {
+        Reference ref;
+         // Make this non-addressable to test chaining an elem func onto a
+         // non-addressable reference.
+        std::vector<int> target;
+    };
 } using namespace ayu::test;
 
 AYU_DESCRIBE(ayu::test::ToTreeTest,
@@ -220,13 +226,19 @@ AYU_DESCRIBE(ayu::test::InternalRefTest,
         attr("p", &InternalRefTest::p)
     )
 )
+AYU_DESCRIBE(ayu::test::ChainRefTest,
+    attrs(
+        attr("ref", &ChainRefTest::ref),
+        attr("target", member(&ChainRefTest::target, unaddressable))
+    )
+)
 
 static tap::TestSet tests ("dirt/ayu/traversal", []{
     using namespace tap;
     ok(get_description_for_type_info(typeid(MemberTest)), "Description was registered");
 
     auto try_to_tree = [](Reference item, Str tree, Str name){
-        try_is<Tree, Tree>(
+        try_is(
             [&item]{ return item_to_tree(item); },
             tree_from_string(tree),
             name
@@ -440,6 +452,21 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         item_from_string(&irt, "{a:5 b:6 p:#/b}");
     });
     is(irt.p, &irt.b, "Can deserialize item with internal refs");
+
+    ChainRefTest crt = {null, {5, 4, 3}};
+    crt.ref = Reference(&crt)["target"][1];
+    try_is([&]{ return crt.ref.get_as<int>(); }, 4, "Can read from complex unaddressable ref");
+    doesnt_throw([&]{ crt.ref.set_as<int>(6); }, "Can write to complex unaddressable ref");
+    is(crt.target[1], 6);
+    try_to_tree(&crt, "{ref:#/target+1 target:[5 6 3]}", "Can serialize item with complex unaddressable ref");
+    diag(item_to_string(&crt));
+    doesnt_throw([&]{
+        item_from_string(&crt, "{ref:#/target+2 target:[0 2 9 6]}");
+    });
+    is(crt.ref, Reference(&crt)["target"][2], "Can deserialize item with complex unaddressable ref");
+    try_is([&]{ return crt.ref.get_as<int>(); }, 9, "Can read from complex unaddressable ref after deserializing");
+    doesnt_throw([&]{ crt.ref.set_as<int>(7); }, "Can write to complex unaddressable ref after deserializing");
+    is(crt.target[2], 7);
 
     done_testing();
 });
