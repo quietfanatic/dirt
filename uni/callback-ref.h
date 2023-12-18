@@ -24,6 +24,7 @@ struct CallbackRef<Ret(Args...)> {
      // for virtual operator() but why would you do that.
     template <class F> requires(
         !requires (CallbackRef* p, F f) { p = &f; } &&
+        requires { &std::remove_cvref_t<F>::operator(); } &&
         std::is_same_v<std::invoke_result_t<F, Args...>, Ret>
     )
     [[gnu::artificial]] ALWAYS_INLINE
@@ -33,7 +34,10 @@ struct CallbackRef<Ret(Args...)> {
     { }
     template <class F> requires(
         !requires (CallbackRef* p, F f) { p = &f; } &&
-        !std::is_same_v<std::invoke_result_t<F, Args...>, Ret> &&
+        !(
+            requires { &std::remove_cvref_t<F>::operator(); } &&
+            std::is_same_v<std::invoke_result_t<F, Args...>, Ret>
+        ) &&
         std::is_convertible_v<std::invoke_result_t<F, Args...>, Ret>
     )
     [[gnu::artificial]] ALWAYS_INLINE

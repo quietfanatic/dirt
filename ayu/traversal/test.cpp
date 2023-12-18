@@ -459,7 +459,6 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     doesnt_throw([&]{ crt.ref.set_as<int>(6); }, "Can write to complex unaddressable ref");
     is(crt.target[1], 6);
     try_to_tree(&crt, "{ref:#/target+1 target:[5 6 3]}", "Can serialize item with complex unaddressable ref");
-    diag(item_to_string(&crt));
     doesnt_throw([&]{
         item_from_string(&crt, "{ref:#/target+2 target:[0 2 9 6]}");
     });

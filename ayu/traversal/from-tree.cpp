@@ -133,9 +133,7 @@ struct TraverseFromTree {
         for (auto ops = move(ctx.init_ops); auto& op : ops) {
             expect(op.loc);
             PushBaseLocation pbl (op.loc);
-            op.item.access(AccessMode::Modify, [&op](Mu& v){
-                op.f(v);
-            });
+            op.item.access(AccessMode::Modify, *op.f);
         }
          // Initting might add more swizzle or init ops.  It'd be weird, but
          // it's allowed for an init() to load another resource.
