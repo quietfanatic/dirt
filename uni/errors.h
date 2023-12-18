@@ -53,10 +53,12 @@ constexpr ErrorCode e_External = "uni::e_External";
 #include "../tap/tap.h"
 
 namespace uni {
-    template <const ErrorCode& ec>
-    bool throws_code (tap::CallbackRef<void()> cb, std::string_view name = "") {
+    template <const ErrorCode& ec, class F>
+    bool throws_code (F cb, std::string_view name = "") {
         return tap::throws_check<Error>(
-            cb, [](const Error& e){ return Str(e.code) == Str(ec); }, name
+            std::forward<F>(cb),
+            [](const Error& e){ return Str(e.code) == Str(ec); },
+            name
         );
     }
 }

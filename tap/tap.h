@@ -1,68 +1,75 @@
-
  // A TAP outputting test library for C++
  //
  // Instructions:
  //
- // 1. Declare Testers at the bottom of each cpp file, or wherever you want.  They
- //     should look something like:
+ // 1. Declare TestSet object at global scope, either at the bottom of your
+ //    ordinary .cpp files or in their own .cpp files.  They should look
+ //    something like this.
  //
- //     #include "path/to/tap.h"
- //     static tap::Tester universe_tests ("universe/universe.cpp" [](){
- //         using namespace tap;
- //         plan(3);
- //         ok(init_universe(), "Everything starts up right");
- //         is(get_answer(), 42, "Just in case");
- //         within(entropy(), 0.1, 0, "Not too hot");
- //     });
+ //    #include "path/to/tap.h"
+ //    static tap::TestSet universe_tests ("universe/universe.cpp" [](){
+ //        using namespace tap;
+ //        plan(3);
+ //        ok(init_universe(), "Everything starts up right");
+ //        is(get_answer(), 72, "Just in case");
+ //        within(entropy(), 0.1, 0, "Not too hot");
+ //    });
  //
- //     Make sure you provide a unique name for each tester.  They don't have to
- //     be the filename of the file in which they reside.
+ //    Make sure you provide a unique name for each tester.  An easy naming
+ //    convention is to use the name of the source file the test is in.
  //
- // 2. There are two ways to run the tests.
- //     A) At the front of your main function, put
+ // 2. There are three ways to run the tests.
+ //    A) At the front of your main function, put
  //
- //         tap::allow_testing(argc, argv);
+ //       tap::allow_testing(argc, argv);
  //
- //         This will cause your program to respond to those command-line arguments.
- //         If you give your program "--test universe/universe.cpp" as arguments, it
- //         will run the test you installed with that name *and then exit*.  If you give
- //         it "--test" without arguments, it will print a list of command lines in the
- //         form of "./my_program --test universe/universe.cpp" for each test you've
- //         declared.  Giving a const char* as a third argument will make it look for
- //         something else instead of "--test".  If you pass an empty string as the third
- //         argument, then running your program with a single argument or no arguments
- //         will produce the above behavior.
+ //       This will cause your program to run tests in response to command-line
+ //       arguments.  If you give your program "--test universe/universe.cpp" as
+ //       arguments, it will run the TestSet you declared with that name and
+ //       then exit.  If you give it "--test" without arguments, it will print a
+ //       list of all registered tests, one per line.  Giving a third argument
+ //       will make it look for something else instead of "--test".  If you pass
+ //       an empty string as the third argument, then running your program with
+ //       a single argument or no arguments will produce the above behavior.
+ //    B) Have your program call run_test() itself.
+ //    C) Compile and link tap.cpp after defining TAP_ENABLE_MAIN.  This will
+ //       make tap declare its own main() with just calls tap::allow_testing().
+ //       Make sure not to include your own main() or you'll get conflicting
+ //       symbols.
  //
- // 3. Compile tap.cpp and link tap.o with your program, or if tap is a shared
- //     library somewhere, link to it.
- //
- // 4. To run all the test through a harness, do
+ // 3. To run all the tests through a harness, do
  //
  //     ./my_program --test | prove -e "./my_program --test" -
  //
- // 5. To compile with tests disabled for release, define TAP_DISABLE_TESTS.  If this is
- //     defined, no tests will be registered, and ideally your linker will discard all
- //     testing code.
+ //    The program 'prove' is generally packaged with Perl.
+ //
+ // 4. To compile with tests disabled for release, define TAP_DISABLE_TESTS.  If
+ //    this is defined, no tests will be registered, and ideally your linker
+ //    will discard all testing code.
 
 ///// BOILERPLATE
 
 #pragma once
 
+#include <cstring>
+#include <cstdlib>
+#include <cstdarg>
 #include <exception>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <typeinfo>
+#include <vector>
 
-#include <iostream>
-
-#include "callback-ref.h"
+#if __has_include(<cxxabi.h>)
+#include <cxxabi.h>
+#endif
 
 namespace tap {
 using namespace std;
 
-///// Tester
+///// TestSet
 
 #ifndef TAP_DISABLE_TESTS
 
@@ -75,11 +82,9 @@ struct TestSet {
 #else
 
  // Stub struct for when TAP_DISABLE_TESTS is defined.
-namespace {
 struct TestSet {
     TestSet (std::string_view, void(*)()) { }
 };
-}
 
 #endif
 
@@ -95,11 +100,11 @@ void done_testing ();
 
  // Run a test.  If succeeded is true, the test is successful, otherwise it
  //  is a failure.
- // TODO: take string_view
 bool ok (bool succeeded, std::string_view name = "");
  // The try_* versions of testing functions fail if the code throws an exception.
  //  Otherwise, they behave like the non-try versions with the returned result.
-bool try_ok (CallbackRef<bool()> code, std::string_view name = "");
+template <class F>
+bool try_ok (F code, std::string_view name = "");
 
  // Run a test that succeeds if got == expected (with overloaded operator ==).
  //  If the test failed, it will try to tell you what it got vs. what it expected.
@@ -110,48 +115,50 @@ bool try_ok (CallbackRef<bool()> code, std::string_view name = "");
  //  NULL checks).
 template <class A, class B>
 bool is (const A& got, const B& expected, std::string_view name = "");
-template <class A, class B>
-bool try_is (A code, const B& expected, std::string_view name = "");
- // You can call the special case directly if you want.
-bool is_strcmp(const char* got, const char* expected, std::string_view name = "");
+template <class F, class B>
+bool try_is (F code, const B& expected, std::string_view name = "");
 
  // Unlike is, isnt isn't that useful, but at least it catches exceptions in the != operator.
 template <class A, class B>
 bool isnt (const A& got, const B& unexpected, std::string_view name = "");
-template <class A, class B>
-bool try_isnt (A code, const B& unexpected, std::string_view name = "");
-bool isnt_strcmp(const char* got, const char* unexpected, std::string_view name = "");
+template <class F, class B>
+bool try_isnt (F code, const B& unexpected, std::string_view name = "");
 
  // Tests that got is within +/- range of expected.
 bool within (double got, double range, double expected, std::string_view name = "");
-bool try_within (CallbackRef<double()> code, double range, double expected, std::string_view name = "");
+template <class F>
+bool try_within (F code, double range, double expected, std::string_view name = "");
  // Tests that got is within a factor of .001 of expected.
-static inline bool about (double got, double expected, std::string_view name = "") {
+static inline
+bool about (double got, double expected, std::string_view name = "") {
     return within(got, expected*0.001, expected, name);
 }
-static inline bool try_about (CallbackRef<double()> code, double expected, std::string_view name = "") {
-    return try_within(code, expected*0.001, expected, name);
+template <class F>
+bool try_about (F&& code, double expected, std::string_view name = "") {
+    return try_within(std::forward<F>(code), expected*0.001, expected, name);
 }
 
  // Tests that code throws an exception of class Except.  If a different kind of
  //  exception is thrown, the test fails.
-template <class E = std::exception>
-bool throws (CallbackRef<void()> code, std::string_view name = "");
+template <class E = std::exception, class F>
+bool throws (F code, std::string_view name = "");
 
  // Like above, but fails if the thrown exception does not == expected.
-template <class E = std::exception>
-bool throws_is (CallbackRef<void()> code, const E& expected, std::string_view name = "");
+template <class E = std::exception, class F>
+bool throws_is (F code, const E& expected, std::string_view name = "");
 
  // Like above, but checks the exception's what() against a string.
-template <class E = std::exception>
-bool throws_what (CallbackRef<void()> code, std::string_view what, std::string_view name = "");
+template <class E = std::exception, class F>
+bool throws_what (F code, std::string_view what, std::string_view name = "");
 
- // Like above, but fails if the thrown exception does not satisfy check.
-template <class E = std::exception>
-bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, std::string_view name = "");
+ // Like above, but fails if the thrown exception does not satisfy the predicate
+ // 'check' which should take an E and return bool.
+template <class E = std::exception, class F, class P>
+bool throws_check (F code, P check, std::string_view name = "");
 
  // Succeeds if no exception is thrown.
-bool doesnt_throw (CallbackRef<void()> code, std::string_view name = "");
+template <class F>
+bool doesnt_throw (F code, std::string_view name = "");
 
  // Automatically pass a test with this name.  Only resort to this if you can't
  //  make your test work with the other testing functions.
@@ -160,7 +167,8 @@ bool pass (std::string_view name = "");
 bool fail (std::string_view name = "");
 
  // Alias for doesnt_throw
-static inline bool try_pass (CallbackRef<void()> code, std::string_view name = "") {
+template <class F>
+bool try_pass (F code, std::string_view name = "") {
     return doesnt_throw(code, name);
 }
 
@@ -172,12 +180,10 @@ static inline void todo (std::string_view excuse = "") {
     todo(1, excuse);
 }
  // The block form marks as todo every test that runs inside it.  It can be safely
-void todo (std::string_view excuse, CallbackRef<void()> code);
-static inline void todo (CallbackRef<void()> code, std::string_view excuse = "") {
-    todo(excuse, code);
-}
+template <class F>
+void todo (std::string_view excuse, F code);
 
- // Declare that you've skipped num tests.  You must not still run the tests.
+ // Declare that you've skipped num tests.  You must NOT still run the tests.
 void skip (unsigned num, std::string_view excuse = "");
  // Just skip one test.
 static inline void skip (std::string_view excuse = "") {
@@ -187,7 +193,7 @@ static inline void skip (std::string_view excuse = "") {
 ///// DIAGNOSTICS
 
  // Tap will use this to print strings to stdout.  By default, this is
- //  fputs(s.c_str(), stdout);
+ //     fwrite(s.data(), 1, s.size(), stdout);
 void set_print (void(*)(std::string_view));
 
  // Convert an arbitrary item to a string.  Feel free to overload this for your
@@ -214,7 +220,7 @@ struct scary_exception : std::exception { };
 ///// RUNNING TESTS
 
  // Do this in main to allow command-line testing.
-void allow_testing (int argc, char** argv, const char* test_flag = "--test");
+void allow_testing (int argc, char** argv, std::string_view test_flag = "--test");
 
  // To run a test set manually, do this.  It will not exit unless BAIL_OUT is called.
 void run_test (std::string_view name);
@@ -223,246 +229,9 @@ void list_tests ();
 
  // Copies of the parameters passed to allow_testing that you can access from
  //  your tests.  These are not available if you directly call run_test.
-extern int argc;
-extern char** argv;
-
-///// IMPLEMENTATION DETAILS
-
-namespace internal {
-    std::string type_name (const std::type_info& type);
-
-    bool fail_on_throw (CallbackRef<bool()>, std::string_view name);
-
-    template <class A, class B>
-    void diag_unexpected (const A& got, const B& expected);
-
-    void diag_didnt_throw (const std::type_info& type);
-    void diag_wrong_exception (const std::exception& got, const std::type_info& type);
-    void diag_wrong_exception_nonstandard (const std::type_info& type);
-    template <class E>
-    void diag_exception_failed_check (const E& got);
-
-    std::string show_ptr (void*);
-}
-
-///// TEMPLATE IMPLEMENTATIONS
-
-template <class A, class B>
-bool is (const A& got, const B& expected, std::string_view name) {
-    return internal::fail_on_throw([&]{
-        if (got == expected) {
-            return pass(name);
-        }
-        else {
-            fail(name);
-            internal::diag_unexpected(got, expected);
-            return false;
-        }
-    }, name);
-}
-template <class A, class B>
-bool try_is (A code, const B& expected, std::string_view name) {
-    return internal::fail_on_throw([&]{
-        const auto& got = code();
-        return is(got, expected, name);
-    }, name);
-}
-static inline bool is (const char* got, const char* expected, std::string_view name) {
-    return is_strcmp(got, expected, name);
-}
-
-template <class A, class B>
-bool isnt (const A& got, const B& unexpected, std::string_view name) {
-    return internal::fail_on_throw([&]{
-        return ok(got != unexpected, name);
-    }, name);
-}
-template <class A, class B>
-bool try_isnt (A code, const B& unexpected, std::string_view name) {
-    return internal::fail_on_throw([&]{
-        const auto& got = code();
-        return isnt(got, unexpected, name);
-    }, name);
-}
-static inline bool isnt (const char* got, const char* unexpected, std::string_view name) {
-    return isnt_strcmp(got, unexpected, name);
-}
-
-template <class E>
-bool throws (CallbackRef<void()> code, std::string_view name) {
-    try {
-        code();
-        fail(name);
-        internal::diag_didnt_throw(typeid(E));
-        return false;
-    }
-    catch (const E& e) {
-        return pass(name);
-    }
-    catch (const scary_exception& e) { throw; }
-    catch (const std::exception& e) {
-        fail(name);
-        internal::diag_wrong_exception(e, typeid(E));
-        return false;
-    }
-    catch (...) {
-        fail(name);
-        internal::diag_wrong_exception_nonstandard(typeid(E));
-        return false;
-    }
-}
-
-template <class E>
-bool throws_is (CallbackRef<void()> code, const E& expected, std::string_view name) {
-    try {
-        code();
-        fail(name);
-        internal::diag_didnt_throw(typeid(E));
-        return false;
-    }
-    catch (const E& e) {
-        if (e == expected) {
-            return pass(name);
-        }
-        else {
-            fail(name);
-            internal::diag_unexpected(e, expected);
-            return false;
-        }
-    }
-    catch (const scary_exception& e) { throw; }
-    catch (const std::exception& e) {
-        fail(name);
-        internal::diag_wrong_exception(e, typeid(E));
-        return false;
-    }
-    catch (...) {
-        fail(name);
-        internal::diag_wrong_exception_nonstandard(typeid(E));
-        return false;
-    }
-}
-
-template <class E>
-bool throws_what (CallbackRef<void()> code, std::string_view what, std::string_view name) {
-    try {
-        code();
-        fail(name);
-        internal::diag_didnt_throw(typeid(E));
-        return false;
-    }
-    catch (const E& e) {
-        if (e.what() == what) {
-            return pass(name);
-        }
-        else {
-            fail(name);
-            internal::diag_unexpected(e.what(), what);
-            return false;
-        }
-    }
-    catch (const scary_exception& e) { throw; }
-    catch (const std::exception& e) {
-        fail(name);
-        internal::diag_wrong_exception(e, typeid(E));
-        return false;
-    }
-    catch (...) {
-        fail(name);
-        internal::diag_wrong_exception_nonstandard(typeid(E));
-        return false;
-    }
-}
-
-template <class E>
-bool throws_check (CallbackRef<void()> code, CallbackRef<bool(const E&)> check, std::string_view name) {
-    try {
-        code();
-        fail(name);
-        internal::diag_didnt_throw(typeid(E));
-        return false;
-    }
-    catch (const E& e) {
-        if (check(e)) {
-            return pass(name);
-        }
-        else {
-            fail(name);
-            internal::diag_exception_failed_check(e);
-            return false;
-        }
-    }
-    catch (const scary_exception& e) { throw; }
-    catch (const std::exception& e) {
-        fail(name);
-        internal::diag_wrong_exception(e, typeid(E));
-        return false;
-    }
-    catch (...) {
-        fail(name);
-        internal::diag_wrong_exception_nonstandard(typeid(E));
-        return false;
-    }
-}
-
-///// Default show
-
-template <class T>
-std::string Show<T>::show (const T& v) {
-    if constexpr (std::is_same_v<T, bool>) {
-        return v ? "true" : "false";
-    }
-    else if constexpr (std::is_same_v<T, char>) {
-        return std::string("'") + v + "'";
-    }
-     // TODO: Generalize to anything that stringifies
-    else if constexpr (std::is_same_v<T, const char*>) {
-        return v ? "\"" + std::string(v) + "\"" : "nullptr";
-    }
-    else if constexpr (
-        std::is_array_v<T> &&
-        std::is_same_v<std::remove_cvref_t<std::remove_extent_t<T>>, char>
-    ) {
-        return "\"" + std::string(v) + "\"";
-    }
-    else if constexpr (std::is_same_v<T, std::string>) {
-        return "\"" + v + "\"";
-    }
-    else if constexpr (std::is_same_v<T, std::string_view>) {
-        return "\"" + std::string(v) + "\"";
-    }
-    else if constexpr (std::is_same_v<T, std::nullptr_t>) {
-        return "nullptr";
-    }
-    else if constexpr (std::is_same_v<T, std::exception>) {
-        return "exception of type " + internal::type_name(typeid(v)) + ": " + v.what();
-    }
-    else if constexpr (std::is_arithmetic_v<T>) {
-        return std::to_string(v);
-    }
-    else if constexpr (std::is_pointer_v<T>) {
-        return internal::show_ptr((void*)v);
-    }
-    else if constexpr (std::is_enum_v<T>) {
-        return "(enum value) " + std::to_string(std::underlying_type_t<T>(v));
-    }
-    else {
-        return "(unprintable object of type " + internal::type_name(typeid(T)) + ")";
-    }
-}
-
-namespace internal {
-    template <class A, class B>
-    void diag_unexpected(const A& got, const B& expected) {
-        diag("Expected " + Show<B>().show(expected));
-        diag("     got " + Show<A>().show(got));
-    }
-    template <class E>
-    void diag_exception_failed_check(const E& got) {
-        diag("Exception failed the check");
-        diag("     Got " + Show<E>().show(got));
-    }
-}
+inline int argc;
+inline char** argv;
 
 }  // namespace tap
 
+#include "tap.inline.h"
