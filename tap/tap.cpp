@@ -7,23 +7,20 @@ namespace tap {
 #ifdef TAP_SELF_TEST
 #ifndef TAP_DISABLE_TESTS
 
-static tap::TestSet self_tests ("dirt/tap/tap", []{
+static tap::TestSet tap_self_tests ("dirt/tap/tap", []{
     using namespace tap;
-    plan(51);
-    diag(std::to_string(sizeof(std::string)));
+    plan(49);
 
     pass("pass passes");
     ok(true, "ok on true passes");
     try_ok([]{return true;}, "try_ok works");
     is((int)32, (int)32, "is on equal ints passes");
-    try_is<int>([]{return 32;}, 32, "try_is works");
+    try_is([]{return 32;}, 32, "try_is works");
     is((float)32, (float)32, "is on equal floats passes");
     is((double)32, (double)32, "is on equal floats passes");
-    is_strcmp("asdf", "asdf", "is_strcmp on equal strings passes");
-    try_is_strcmp([]{return "asdf";}, "asdf", "try_is_strcmp works");
-    is_strcmp((const char*)NULL, (const char*)NULL, "is_strcmp on NULLS passes");
-    is("asdf", "asdf", "is on equal strings passes");
-    is((const char*)NULL, (const char*)NULL, "is on const char* NULLS passes");
+    is("asdf", "asdf", "is strcmp on equal strings passes");
+    try_is([]{return "asdf";}, "asdf", "try_is strcmp works");
+    is((const char*)NULL, (const char*)NULL, "is strcmp on NULLS passes");
     is((int*)NULL, (int*)NULL, "is on int* NULLS passes");
     int heyguys = 9;
     is(&heyguys, &heyguys, "is can compare pointers");
@@ -53,9 +50,9 @@ static tap::TestSet self_tests ("dirt/tap/tap", []{
     try_ok([]{return false;}, "try_ok can fail");
     todo("Testing block todo (and failures)", [&]{
         is((int)5, (int)3245, "is can fail");
-        is_strcmp("asdf", "fdsa", "is_strcmp can fail");
-        is_strcmp("sadf", NULL, "is_strcmp fails on single NULL");
-        is_strcmp((const char*)NULL, "sadf", "is_strcmp fails on single NULL");
+        is("asdf", "fdsa", "is strcmp can fail");
+        is("sadf", nullptr, "is strcmp fails on single NULL");
+        is((const char*)nullptr, "sadf", "is strcmp fails on single NULL");
         int nope = -9999;
         is(&heyguys, &nope, "is fails on different pointers");
         is(std::string("sadf"), std::string("qwert"), "is fails on different std::strings");
@@ -70,7 +67,7 @@ static tap::TestSet self_tests ("dirt/tap/tap", []{
             throw std::logic_error("false");
             return true;
         }, "try_ok catches and fails on exception");
-        try_is<int>([]{
+        try_is([]{
             throw std::logic_error("X");
             return 32;
         }, 32, "try_is catches and fails on exception");
