@@ -158,9 +158,13 @@ template <class A, class B>
 bool is (const A& got, const B& expected, std::string_view name) {
     return in::fail_on_throw([&]{
         bool res;
-         // Use strcmp if both args coerce to const char*, otherwise use
-         // operator==
-        if constexpr (requires (const char* p) { p = got; p = expected; }) {
+         // Use strcmp if both args coerce to const char* AND there is no custom
+         // operator== handling them (the builtin == for pointers is not a
+         // function, so it can't be called with operator==().).
+        if constexpr (
+            requires (const char* p) { p = got; p = expected; } &&
+            !requires { operator==(got, expected); }
+        ) {
             const char* g = got;
             const char* e = expected;
             if (!g || !e) res = g == e;
@@ -190,7 +194,10 @@ template <class A, class B>
 bool isnt (const A& got, const B& unexpected, std::string_view name) {
     return in::fail_on_throw([&]{
         bool res;
-        if constexpr (requires (const char* p) { p = got; p = unexpected; }) {
+        if constexpr (
+            requires (const char* p) { p = got; p = unexpected; } &&
+            !requires { operator==(got, unexpected); }
+        ) {
             const char* g = got;
             const char* e = unexpected;
             if (!g || !e) res = g != e;
