@@ -90,35 +90,37 @@ struct TestSet {
 
 ///// Testing functions
 
- // Do this at the beginning of your testing.  Give it as an argument the
- //  number of tests you plan to run.  If you run a different number, the
- //  test set is considered to have failed.
+ // Do this at the beginning of your testing.  Give it as an argument the number
+ // of tests you plan to run.  If you run a different number, the test set is
+ // considered to have failed.
 void plan (unsigned num_tests);
 
  // Alternatively, do this at the end of your testing.
 void done_testing ();
 
- // Run a test.  If succeeded is true, the test is successful, otherwise it
- //  is a failure.
+ // Run a test.  If succeeded is true, the test passes, otherwise it fails.
 bool ok (bool succeeded, std::string_view name = "");
  // The try_* versions of testing functions fail if the code throws an exception.
- //  Otherwise, they behave like the non-try versions with the returned result.
+ // Otherwise, they behave like the non-try versions with the returned result.
 template <class F>
 bool try_ok (F code, std::string_view name = "");
 
  // Run a test that succeeds if got == expected (with overloaded operator ==).
- //  If the test failed, it will try to tell you what it got vs. what it expected.
+ // If the test failed, it will try to tell you what it got vs. what it expected.
  // Will fail if the == operator throws an exception.
+ //
  // You probably know that you shouldn't use == to compare floating point numbers,
- //  so for those, look at within() and about().
+ // so for those, look at within() and about().
+ //
  // As a special case, you can use is() with const char* and it'll do a strcmp (with
- //  NULL checks).
+ // NULL checks).
 template <class A, class B>
 bool is (const A& got, const B& expected, std::string_view name = "");
 template <class F, class B>
 bool try_is (F code, const B& expected, std::string_view name = "");
 
- // Unlike is, isnt isn't that useful, but at least it catches exceptions in the != operator.
+ // Unlike is, isnt isn't that useful, but at least it catches exceptions in the
+ // != operator.
 template <class A, class B>
 bool isnt (const A& got, const B& unexpected, std::string_view name = "");
 template <class F, class B>
@@ -139,7 +141,7 @@ bool try_about (F&& code, double expected, std::string_view name = "") {
 }
 
  // Tests that code throws an exception of class Except.  If a different kind of
- //  exception is thrown, the test fails.
+ // exception is thrown, the test fails.
 template <class E = std::exception, class F>
 bool throws (F code, std::string_view name = "");
 
@@ -161,7 +163,7 @@ template <class F>
 bool doesnt_throw (F code, std::string_view name = "");
 
  // Automatically pass a test with this name.  Only resort to this if you can't
- //  make your test work with the other testing functions.
+ // make your test work with the other testing functions.
 bool pass (std::string_view name = "");
  // Likewise with fail.
 bool fail (std::string_view name = "");
@@ -173,7 +175,7 @@ bool try_pass (F code, std::string_view name = "") {
 }
 
  // Mark the next num tests as todo.  You must still run the tests.  If only
- //  todo tests fail, the test set is still considered successful.
+ // todo tests fail, the test set is still considered successful.
 void todo (unsigned num, std::string_view excuse = "");
  // Just todo one test.
 static inline void todo (std::string_view excuse = "") {
@@ -197,7 +199,8 @@ static inline void skip (std::string_view excuse = "") {
 void set_print (void(*)(std::string_view));
 
  // Convert an arbitrary item to a string.  Feel free to overload this for your
- //  own types.  Throwing exceptions from show() may cause duplicate test failures.
+ // own types.  Throwing exceptions from show() may cause duplicate test
+ // failures.
  // TODO: allow wholesale replacement of showing for ayu
 template <class T>
 struct Show {
@@ -209,28 +212,31 @@ void diag (std::string_view message);
 
 ///// UH-OH
 
- // When everything is wrong and you can't even continue testing.  Immediately fails
- //  the whole test set and calls exit(1).
+ // When everything is wrong and you can't even continue testing.  Immediately
+ // fails the whole test set and calls exit(1).
 void BAIL_OUT (std::string_view reason = "");
 
  // Testing functions normally catch exceptions, but they won't catch ones that
- //  inherit from this (unless it's a throws<>() and the exception matches it).
+ // inherit from this (unless it's a throws<>() and the exception matches it).
 struct scary_exception : std::exception { };
 
 ///// RUNNING TESTS
 
- // Do this in main to allow command-line testing.
+ // Do this in main to allow command-line testing.  If the command line contains
+ // the given flag, a test will be run or tests will be listed, and then the
+ // program will exit.
 void allow_testing (int argc, char** argv, std::string_view test_flag = "--test");
 
- // To run a test set manually, do this.  It will not exit unless BAIL_OUT is called.
+ // To run a test set manually, do this.  It will not exit (unless BAIL_OUT is
+ // called).
 void run_test (std::string_view name);
  // To list the tests manually, do this.  It will print test set names to stdout.
 void list_tests ();
 
  // Copies of the parameters passed to allow_testing that you can access from
- //  your tests.  These are not available if you directly call run_test.
-inline int argc;
-inline char** argv;
+ // your tests.  These are not available if you directly call run_test.
+inline int argc = 0;
+inline char** argv = nullptr;
 
 }  // namespace tap
 
