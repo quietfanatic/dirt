@@ -109,7 +109,7 @@ IRI current_base_iri () noexcept;
  // item_to_tree and item_from_tree.
 struct PushBaseLocation {
     Location old_base_location;
-    [[nodiscard]] PushBaseLocation (Location loc) noexcept;
+    [[nodiscard]] PushBaseLocation (const Location& loc) noexcept;
     ~PushBaseLocation ();
 };
 

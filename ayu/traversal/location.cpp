@@ -150,7 +150,7 @@ IRI current_base_iri () noexcept {
     return cur_base_iri;
 }
 
-PushBaseLocation::PushBaseLocation (Location loc) noexcept :
+PushBaseLocation::PushBaseLocation (const Location& loc) noexcept :
     old_base_location(move(cur_base_location))
 {
     cur_base_location = loc.root();
