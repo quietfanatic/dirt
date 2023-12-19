@@ -68,7 +68,7 @@ struct TraverseToTree {
 
 ///// STRATEGIES
 
-    NOINLINE static
+    static
     void use_to_tree (
         Tree& r, const Traversal& trav, ToTreeFunc<Mu>* f
     ) {
