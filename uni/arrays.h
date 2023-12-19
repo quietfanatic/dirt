@@ -35,12 +35,11 @@
  // terminated.
  //
  // Elements are allowed to throw exceptions from their default constructor,
- // copy constructor, or copy assignment operator. If this happens, all array
- // methods except for multi-element insert provide a mostly-strong exception
+ // copy constructor, or copy assignment operator. If this happens, array
+ // methods (unless otherwise noted) provide a mostly-strong exception
  // guarantee: All semantic state will be rewound to before the method was
  // called, but non-semantic state (such as capacity and whether a buffer is
- // shared) may be altered.  Multi-element insert will just terminate because
- // cleaning up would be too much work.
+ // shared) may be altered.
  //
  // Elements are assumed to NEVER throw exceptions from their move constructor,
  // move assignment operator, and destructor, even if those are not marked
@@ -739,11 +738,9 @@ struct ArrayInterface {
     void unsafe_set_size (usize s) {
         set_size(s);
     }
-     // You can call this if you've looped through the array and consumed all of
-     // its elements, so that none of them require destruction any more.
-    ALWAYS_INLINE
+    ALWAYS_INLINE constexpr
     void unsafe_clear_skip_destructors () {
-        SharableBuffer<T>::deallocate(impl.data);
+        if (impl.data) SharableBuffer<T>::deallocate(impl.data);
         impl = {};
     }
 
@@ -1429,6 +1426,47 @@ struct ArrayInterface {
         }
         else {
             set_owned_unique(do_erase(impl, b - impl.data, e - b), size() - (e - b));
+        }
+    }
+
+     // Call a function on every element in an array, destroying the array in
+     // the process.  The array will be cleared no matter what, even if f throws
+     // an exception.  The array will be cleared before the loop starts and not
+     // touched afterwards, so you are allowed to append more elements to the
+     // new version of the array while consuming the old one.  The newly
+     // appended elements will NOT be consumed, so to ensure all elements are
+     // consumed, you'll have to consume it again.
+     //
+     // This is roughly equivalent to
+     //
+     // for (auto tmp = move(array); elem : tmp) f(move(elem));
+     //
+     // except that each element will be destructed immediately after its
+     // iteration, instead of in a loop after all iterations are done.
+    template <class F>
+    void consume (F f) requires (
+        ac::is_Unique && requires (T v) { f(move(v)); }
+    ) {
+        if (!impl.data) return;
+        T* b = impl.data;
+        T* e = impl.data + impl.size;
+        impl = {};
+        T* p = b;
+        try {
+            for (; p < e; ++p) {
+                f(move(*p));
+                p->~T();
+            }
+            SharableBuffer<T>::deallocate(b);
+        }
+        catch (...) {
+             // If f throws, we can't undo destroying earlier elements, so just
+             // finish destroying the rest of them.
+            for (; p < e; ++p) {
+                p->~T();
+            }
+            SharableBuffer<T>::deallocate(b);
+            throw;
         }
     }
 

@@ -112,15 +112,14 @@ struct TraverseFromTree {
     NOINLINE static
     void do_swizzle (IFTContext& ctx) {
         expect(ctx.swizzle_ops);
-         // Do an explicit move construct to clear the source array
-        for (auto ops = move(ctx.swizzle_ops); auto& op : ops) {
+        ctx.swizzle_ops.consume([](SwizzleOp&& op){
             expect(op.loc);
             PushBaseLocation pbl (op.loc);
              // TODO: wrap error messages
             op.item.access(AccessMode::Modify, [&op](Mu& v){
                 op.f(v, op.tree);
             });
-        }
+        });
          // Swizzling might add more swizzle ops; this will happen if we're
          // swizzling a pointer which points to a separate resource; that
          // resource will be load()ed in op.f().
@@ -130,11 +129,11 @@ struct TraverseFromTree {
     NOINLINE static
     void do_init (IFTContext& ctx) {
         expect(ctx.init_ops);
-        for (auto ops = move(ctx.init_ops); auto& op : ops) {
+        ctx.init_ops.consume([](InitOp&& op){
             expect(op.loc);
             PushBaseLocation pbl (op.loc);
             op.item.access(AccessMode::Modify, *op.f);
-        }
+        });
          // Initting might add more swizzle or init ops.  It'd be weird, but
          // it's allowed for an init() to load another resource.
         do_swizzle_init(ctx);

@@ -129,13 +129,10 @@ struct TraverseToTree {
                     if (sub_tree.rep != Rep::Object) {
                         raise(e_General, "Included item did not serialize to an object");
                     }
-                    auto sub_object = TreeObject(move(sub_tree));
-                    for (auto& pair : sub_object) {
-                        new_object.emplace_back_expect_capacity(move(pair));
+                     // DON'T consume sub object because it could be shared.
+                    for (auto& pair : TreeObject(move(sub_tree))) {
+                        new_object.emplace_back_expect_capacity(pair);
                     }
-                     // All sub_object elements are now consumed, skip
-                     // destructor loop.
-                    sub_object.unsafe_clear_skip_destructors();
                 }
                 else {
                     new_object.emplace_back_expect_capacity(move(object[i]));
