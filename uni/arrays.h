@@ -270,15 +270,16 @@ struct ArrayInterface {
             std::memset(&o.impl, 0, sizeof(Impl));
         }
     }
-     // We need to default both move and copy constructors so that the Itanium
-     // C++ ABI can pass this in registers.
-    ArrayInterface (ArrayInterface&& o) requires (ac::trivially_copyable)
-        = default;
+
      // Move conversion.  Tries to make the moved-to array have the same
      // ownership mode as the moved-from array, and if that isn't supported,
      // copies the buffer.  Although move conversion will never fail for
      // copyable element types, it's disabled for StaticArray and Slice, and the
      // copy constructor from AnyArray to StaticArray is explicit.
+     //
+     // Note: Unlike the non-converting move-constructor, this can throw when
+     // converting from an AnyArray<T> to a UniqueArray<T> if T's copy
+     // constructor throws.
     template <class ac2> ALWAYS_INLINE constexpr
     ArrayInterface (ArrayInterface<ac2, T>&& o) requires (
         !ac::trivially_copyable && !ac2::trivially_copyable
@@ -294,6 +295,10 @@ struct ArrayInterface {
         }
         else never();
     }
+     // We need to default both move and copy constructors so that the Itanium
+     // C++ ABI can pass this in registers.
+    ArrayInterface (ArrayInterface&& o) requires (ac::trivially_copyable)
+        = default;
 
      // Copy construct.  Always copies the buffer for UniqueArray, never copies
      // the buffer for other array classes.
@@ -624,12 +629,16 @@ struct ArrayInterface {
 
     ///// ASSIGNMENT OPERATORS
     // These only take assignment from the exact same array class, relying on
-    // implicit coercion for the others.
+    // implicit coercion for the others.  In theory, we could optimize out some
+    // more on-stack moves by providing converting assignment operators, but
+    // when I tried that, the instruction counts ended up higher.  The extra
+    // complexity probably makes it harder for the optimizer.
+    //
     // There is an opportunity for optimization that we aren't taking, that
     // being for copy assignment to unique strings to reuse the allocated buffer
     // instead of making a new one.  Currently I think this is more complicated
-    // than it's worth.
-    // Also, we could maybe detect when assigning a substr of self to self.
+    // than it's worth.  Also, we could maybe detect when assigning a substr of
+    // self to self.
 
     ALWAYS_INLINE constexpr
     ArrayInterface& operator= (ArrayInterface&& o) requires (
@@ -726,11 +735,16 @@ struct ArrayInterface {
     void unsafe_set_empty () {
         impl = {};
     }
-     // This can be used if you have a buffer whose elements you know don't need
-     // destructing, but the buffer still needs to be freed.
     ALWAYS_INLINE constexpr
     void unsafe_set_size (usize s) {
         set_size(s);
+    }
+     // You can call this if you've looped through the array and consumed all of
+     // its elements, so that none of them require destruction any more.
+    ALWAYS_INLINE
+    void unsafe_clear_skip_destructors () {
+        SharableBuffer<T>::deallocate(impl.data);
+        impl = {};
     }
 
     ///// ACCESSORS
@@ -1544,7 +1558,7 @@ struct ArrayInterface {
                     return;
                 }
             }
-            if (std::is_trivially_destructible_v<T> || size() == 0) {
+            if constexpr (std::is_trivially_destructible_v<T>) {
                 SharableBuffer<T>::deallocate(impl.data);
             }
             else destroy(impl);
@@ -1556,7 +1570,6 @@ struct ArrayInterface {
     void destroy (Impl impl) {
         Self& self = reinterpret_cast<Self&>(impl);
         usize i = self.size();
-        expect(i > 0);
         while (i > 0) {
             impl.data[--i].~T();
         }

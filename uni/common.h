@@ -82,6 +82,7 @@ using std::move;
     #endif
 #endif
 
+ // TODO: DECLARE_ENUM_ARITHMETIC_OPERATORS
 #ifndef DECLARE_ENUM_BITWISE_OPERATORS
 #define DECLARE_ENUM_BITWISE_OPERATORS(T) \
 ALWAYS_INLINE constexpr T operator | (T a, T b) { \

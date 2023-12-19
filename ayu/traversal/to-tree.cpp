@@ -135,7 +135,7 @@ struct TraverseToTree {
                     }
                      // All sub_object elements are now consumed, skip
                      // destructor loop.
-                    sub_object.unsafe_set_size(0);
+                    sub_object.unsafe_clear_skip_destructors();
                 }
                 else {
                     new_object.emplace_back_expect_capacity(move(object[i]));
@@ -149,7 +149,7 @@ struct TraverseToTree {
                 expect(!pair.second.has_value());
             }
 #endif
-            object.unsafe_set_size(0);
+            object.unsafe_clear_skip_destructors();
             object = move(new_object);
         }
          // This will check for duplicates in debug mode.
