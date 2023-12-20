@@ -244,7 +244,7 @@ struct ArrayInterface {
     using const_reverse_iterator = std::reverse_iterator<const T*>;
     using mut_reverse_iterator =
         std::conditional_t<ac::supports_owned, std::reverse_iterator<T*>, void>;
-     // This one is useful though.
+     // This one are useful though.
     using SelfSlice = std::conditional_t<ac::is_String,
         ArrayInterface<ArrayClass::Str, T>,
         ArrayInterface<ArrayClass::Slice, T>
@@ -582,7 +582,7 @@ struct ArrayInterface {
         }
         catch (...) {
             while (i > 0) {
-                impl.data[--i].~T();
+                dat[--i].~T();
             }
             SharableBuffer<T>::deallocate(dat);
             throw;
@@ -1429,20 +1429,30 @@ struct ArrayInterface {
         }
     }
 
+    ///// ITERATING FUNCTIONS
+     // Normally I don't like to include extra utilities like this in-class, but
+     // consume() can't easily be implemented out-of-class efficiently.
+
      // Call a function on every element in an array, destroying the array in
-     // the process.  The array will be cleared no matter what, even if f throws
-     // an exception.  The array will be cleared before the loop starts and not
-     // touched afterwards, so you are allowed to append more elements to the
-     // new version of the array while consuming the old one.  The newly
-     // appended elements will NOT be consumed, so to ensure all elements are
-     // consumed, you'll have to consume it again.
+     // the process.  This is roughly equivalent to
      //
-     // This is roughly equivalent to
+     // for (auto tmp = move(array); auto& elem : tmp) f(move(elem));
      //
-     // for (auto tmp = move(array); elem : tmp) f(move(elem));
+     // except that each element will be destructed immediately after use,
+     // instead of in a second loop after all iterations are done.  All elements
+     // will be destroyed no matter what, even if f throws an exception.  The
+     // array will be cleared at the start, and you're allowed to append new
+     // elements onto the cleared array while consume() is running, so you can
+     // implement a processing queue such as
      //
-     // except that each element will be destructed immediately after its
-     // iteration, instead of in a loop after all iterations are done.
+     // while (actions) actions.consume([&](auto&& a){
+     //     for (auto& new_action : a.run()) {
+     //         actions.emplace_back(new_action);
+     //     }
+     // }
+     //
+     // Note that in most cases, destroying an array destroys the elements in
+     // back-to-front order, but consume() destroys the elements front-to-back.
     template <class F>
     void consume (F f) requires (
         ac::is_Unique && requires (T v) { f(move(v)); }
@@ -1453,7 +1463,7 @@ struct ArrayInterface {
         impl = {};
         T* p = b;
         try {
-            for (; p < e; ++p) {
+            for (; p != e; ++p) {
                 f(move(*p));
                 p->~T();
             }
@@ -1462,8 +1472,34 @@ struct ArrayInterface {
         catch (...) {
              // If f throws, we can't undo destroying earlier elements, so just
              // finish destroying the rest of them.
-            for (; p < e; ++p) {
+            for (; p != e; ++p) {
                 p->~T();
+            }
+            SharableBuffer<T>::deallocate(b);
+            throw;
+        }
+    }
+
+     // Consume array in reverse order (destroying elements back-to-front like
+     // usual).
+    template <class F>
+    void consume_reverse (F f) requires (
+        ac::is_Unique && requires (T v) { f(move(v)); }
+    ) {
+        if (!impl.data) return;
+        T* b = impl.data;
+        T* p = impl.data + impl.size;
+        impl = {};
+        try {
+            while (p != b) {
+                f(move(*--p));
+                p->~T();
+            }
+            SharableBuffer<T>::deallocate(b);
+        }
+        catch (...) {
+            while (p != b) {
+                (--p)->~T();
             }
             SharableBuffer<T>::deallocate(b);
             throw;
@@ -1607,9 +1643,9 @@ struct ArrayInterface {
     NOINLINE static
     void destroy (Impl impl) {
         Self& self = reinterpret_cast<Self&>(impl);
-        usize i = self.size();
-        while (i > 0) {
-            impl.data[--i].~T();
+        auto p = impl.data + self.size();
+        while (p != impl.data) {
+            (--p)->~T();
         }
         SharableBuffer<T>::deallocate(impl.data);
     }
