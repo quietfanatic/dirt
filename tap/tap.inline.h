@@ -511,8 +511,8 @@ void run_test (std::string_view name) {
 inline
 void run_test (std::string_view) {
     in::print("1..0 # SKIP this program was compiled with testing disabled\n");
-#endif
 }
+#endif
 
 inline
 void list_tests () {
