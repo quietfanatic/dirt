@@ -109,11 +109,13 @@ struct plusminus {
 
 } // in
 
+#ifndef TAP_DISABLE_TESTS
  // TODO: detect duplicate test names
 inline
 TestSet::TestSet (std::string_view name, void(* code )()) {
     in::testers().emplace_back(new in::TestSetData{std::string(name), code});
 }
+#endif
 
 inline
 void plan (unsigned num_tests) {
@@ -484,9 +486,9 @@ void allow_testing (int argc, char** argv, std::string_view test_flag) {
     }
 }
 
+#ifndef TAP_DISABLE_TESTS
 inline
 void run_test (std::string_view name) {
-#ifndef TAP_DISABLE_TESTS
     for (auto& t : in::testers()) {
         if (t->name == name) {
             try {
@@ -504,7 +506,10 @@ void run_test (std::string_view name) {
         }
     }
     in::print("1..1\nnot ok 1 - No test named " + std::string(name) + " has been compiled.\n");
+}
 #else
+inline
+void run_test (std::string_view) {
     in::print("1..0 # SKIP this program was compiled with testing disabled\n");
 #endif
 }
