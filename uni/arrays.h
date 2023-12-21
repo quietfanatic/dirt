@@ -199,7 +199,9 @@ concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<
  // it directly on the function causes an ICE on GCC.
  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112769
 template <class F, class T>
-concept ArrayIotaFunctionFor = requires (F f, usize i) { T(f(i)); };
+concept ArrayIotaFunctionFor =
+    requires (F f, usize i) { T(f(i)); } &&
+    !requires (F f, void p (const T&)) { p(f); };
 
  // A tag-like type representing a span of uninitialized data
 struct Uninitialized { usize size; };
@@ -567,7 +569,9 @@ struct ArrayInterface {
     }
 
      // Iota construction: Construct with a size and a function from indexes to
-     // elements.
+     // elements.  This is only enabled if f has signature of T(usize) and
+     // doesn't itself coerce to a T (in which case the (usize s, const T&)
+     // constructor will be selected instead).
     template <ArrayIotaFunctionFor<T> F> explicit
     ArrayInterface (usize s, F f) requires (
         ac::supports_owned

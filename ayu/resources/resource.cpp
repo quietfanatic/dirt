@@ -266,7 +266,7 @@ void save (Slice<Resource> reses) {
                 }
                 auto filename = scheme->get_file(res.data->name);
                 auto contents = tree_to_string(
-                    item_to_tree(&res.data->value, Location(res))
+                    item_to_tree(&res.data->value, Location(res)), PRETTY
                 );
                 committers[i] = [
                     contents{move(contents)},

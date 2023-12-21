@@ -113,7 +113,6 @@ struct TraverseFromTree {
     void do_swizzle (IFTContext& ctx) {
         expect(ctx.swizzle_ops);
         ctx.swizzle_ops.consume([](SwizzleOp&& op){
-            expect(op.loc);
             PushBaseLocation pbl (op.loc);
              // TODO: wrap error messages
             op.item.access(AccessMode::Modify, [&op](Mu& v){
@@ -130,7 +129,6 @@ struct TraverseFromTree {
     void do_init (IFTContext& ctx) {
         expect(ctx.init_ops);
         ctx.init_ops.consume([](InitOp&& op){
-            expect(op.loc);
             PushBaseLocation pbl (op.loc);
             op.item.access(AccessMode::Modify, *op.f);
         });
