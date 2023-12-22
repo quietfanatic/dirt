@@ -260,16 +260,8 @@ struct ArrayInterface {
      // Move construct.
     ALWAYS_INLINE constexpr
     ArrayInterface (ArrayInterface&& o) requires (!ac::trivially_copyable) {
-        if (std::is_constant_evaluated()) {
-            impl = o.impl;
-            o.impl = {};
-        }
-        else {
-             // This is the most optimizable way to move data, but it's not
-             // allowed at constexpr time.
-            std::memcpy(&impl, &o.impl, sizeof(Impl));
-            std::memset(&o.impl, 0, sizeof(Impl));
-        }
+        impl = o.impl;
+        o.impl = {};
     }
 
      // Move conversion.  Tries to make the moved-to array have the same
@@ -647,7 +639,6 @@ struct ArrayInterface {
     ArrayInterface& operator= (ArrayInterface&& o) requires (
         !ac::trivially_copyable
     ) {
-        if (&o == this) [[unlikely]] return *this;
         this->~ArrayInterface();
         return *new (this) ArrayInterface(move(o));
     }
