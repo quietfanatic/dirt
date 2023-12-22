@@ -63,15 +63,17 @@ struct TraverseGetKeys {
         }
     }
 
-    NOINLINE void use_computed_attrs (
+    void use_computed_attrs (
         const Traversal& trav, const Accessor* keys_acr
     ) {
-        keys_acr->read(*trav.address, [this](Mu& v){
+        keys_acr->read(*trav.address,
+            CallbackRef<void(Mu&)>(*this, [](auto& self, Mu& v)
+        {
             auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
             for (auto& key : item_keys) {
-                collect(AnyString(key));
+                self.collect(AnyString(key));
             }
-        });
+        }));
     }
 
     NOINLINE void use_delegate (
@@ -129,7 +131,12 @@ struct TraverseSetKeys {
             use_attrs(trav, optional, attrs);
         }
         else if (auto acr = trav.desc->keys_acr()) {
-            use_computed_attrs(trav, optional, acr);
+            if (!(acr->flags & AcrFlags::Readonly)) {
+                use_computed_attrs(trav, optional, acr);
+            }
+            else {
+                use_computed_attrs_readonly(trav, optional, acr);
+            }
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(trav, optional, acr);
@@ -181,28 +188,29 @@ struct TraverseSetKeys {
         }
     }
 
-    NOINLINE void use_computed_attrs (
-        const Traversal& trav, bool optional, const Accessor* keys_acr
+    void use_computed_attrs (
+        const Traversal& trav, bool, const Accessor* keys_acr
     ) {
-        if (!(keys_acr->flags & AcrFlags::Readonly)) {
-            keys_acr->write(*trav.address, [this](Mu& v){
+        keys_acr->write(*trav.address,
+            CallbackRef<void(Mu&)>(move(keys), [](auto&& keys, Mu& v){
                 reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
-            });
-        }
-        else {
-             // For readonly keys, get the keys and compare them.
-             // TODO: This can probably be optimized more
-            TraverseGetKeys tgk;
-            tgk.traverse(trav);
-            for (auto& key : tgk.keys) {
-                if (claim(key)) {
-                     // If any of the keys are present, it makes this item no
-                     // longer optional.
-                    optional = false;
-                }
-                else if (!optional) raise_AttrMissing(trav.desc, key);
+            })
+        );
+    }
+    NOINLINE void use_computed_attrs_readonly (
+        const Traversal& trav, bool optional, const Accessor*
+    ) {
+         // For readonly keys, get the keys and compare them.
+         // TODO: This can probably be optimized more
+        TraverseGetKeys tgk;
+        tgk.traverse(trav);
+        for (auto& key : tgk.keys) {
+            if (claim(key)) {
+                 // If any of the keys are present, it makes this item no
+                 // longer optional.
+                optional = false;
             }
-            return;
+            else if (!optional) raise_AttrMissing(trav.desc, key);
         }
     }
 
@@ -430,6 +438,8 @@ void item_set_length (const Reference& item, usize len, LocationRef loc) {
 
 namespace in {
 
+ // TODO: We don't need to use traversals for this, we can process the acrs
+ // directly.
 struct TraverseElem {
     NOINLINE static
     Reference start (const Reference& item, usize index, LocationRef loc) {
