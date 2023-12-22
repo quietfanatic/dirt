@@ -75,7 +75,7 @@ struct CallbackRef<Ret(Args...)> {
 #pragma GCC diagnostic ignored "-Wcast-function-type"
     template <class C>
     [[gnu::artificial]] ALWAYS_INLINE
-    constexpr CallbackRef (C&& c, std::type_identity_t<Ret(*)(C, Args...)> f) :
+    constexpr CallbackRef (C&& c, std::type_identity_t<Ret(*)(C&&, Args...)> f) :
         capture((void*)&c),
         wrapper(reinterpret_cast<decltype(wrapper)>(f))
     { }
