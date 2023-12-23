@@ -512,15 +512,16 @@ struct ArrayInterface {
             dat = (T*)std::memset((void*)dat, 0, s * sizeof(T));
         }
         else {
-            usize i = 0;
+            T* p = dat;
+            T* e = dat + s;
             try {
-                for (; i < s; ++i) {
-                    new ((void*)&dat[i]) T();
+                while (p != e) {
+                    new ((void*)p++) T();
                 }
             }
             catch (...) {
-                while (i > 0) {
-                    dat[--i].~T();
+                while (p != dat) {
+                    (--p)->~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
@@ -543,15 +544,16 @@ struct ArrayInterface {
             dat = (T*)std::memset((void*)dat, v, s);
         }
         else {
-            usize i = 0;
+            T* p = dat;
+            T* e = dat + s;
             try {
-                for (; i < s; ++i) {
-                    new ((void*)&dat[i]) T(v);
+                while (p != e) {
+                    new ((void*)p++) T(v);
                 }
             }
             catch (...) {
-                while (i > 0) {
-                    dat[--i].~T();
+                while (p != dat) {
+                    (--p)->~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
@@ -1071,26 +1073,19 @@ struct ArrayInterface {
         usize old_size = size();
         if (new_size <= old_size) [[unlikely]] return;
         reserve(new_size);
-        if constexpr (std::is_trivially_default_constructible_v<T>) {
-            std::memset(
-                (void*)(impl.data + old_size),
-                0,
-                (new_size - old_size) * sizeof(T)
-            );
+        T* b = impl.data + old_size;
+        T* e = impl.data + new_size;
+        T* p = b;
+        try {
+            while (p != e) {
+                new ((void*)p++) T();
+            }
         }
-        else {
-            usize i = old_size;
-            try {
-                for (; i < new_size; ++i) {
-                    new ((void*)&impl.data[i]) T();
-                }
+        catch (...) {
+            while (p != b) {
+                (--p)->~T();
             }
-            catch (...) {
-                while (i > old_size) {
-                    impl.data[i].~T();
-                }
-                throw;
-            }
+            throw;
         }
         set_size(new_size);
     }
@@ -1116,8 +1111,10 @@ struct ArrayInterface {
             set_size(new_size);
         }
         else if (unique()) {
-            for (usize i = old_size; i > new_size;) {
-                impl.data[--i].~T();
+            T* p = impl.data + new_size;
+            T* b = impl.data + old_size;
+            while (p != b) {
+                (--p)->~T();
             }
             set_size(new_size);
         }

@@ -287,6 +287,14 @@ auto b34b (StaticString a, AnyString b, StaticString c) {
     return r;
 }
 
+UniqueArray<AnyString> t35 () {
+    return UniqueArray<AnyString>(555);
+}
+
+UniqueArray<AnyString> t36 () {
+    return UniqueArray<AnyString>(555, "indestructible");
+}
+
 static tap::TestSet tests ("dirt/uni/arrays", []{
     using namespace tap;
     AnyArray<int> a;
