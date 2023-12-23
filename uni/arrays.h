@@ -166,7 +166,7 @@ concept ArrayIterator = requires (I i) { *i; ++i; };
  // T.
 template <class I, class T>
 concept ArrayIteratorFor = ArrayIterator<I> && std::is_same_v<
-    std::remove_cvref_t<decltype(*std::declval<I>())>,
+    std::remove_cvref_t<decltype(*std::declval<std::remove_cvref_t<I>>())>,
     std::remove_cv_t<T>
 >;
  // An ArraySentinelFor<Begin> is an iterator that can be compared to Begin with
@@ -193,7 +193,8 @@ concept ArrayContiguousIteratorFor =
  // An ArrayForwardIterator is one that can be copied, meaning that the array
  // can be walked through multiple times.
 template <class I>
-concept ArrayForwardIterator = ArrayIterator<I> && std::is_copy_constructible_v<I>;
+concept ArrayForwardIterator = ArrayIterator<I> &&
+    std::is_copy_constructible_v<std::remove_cvref_t<I>>;
 
  // Concept for iota construction.  We're only putting this here because putting
  // it directly on the function causes an ICE on GCC.
