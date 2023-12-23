@@ -520,7 +520,7 @@ struct ArrayInterface {
             }
             catch (...) {
                 while (i > 0) {
-                    impl.data[--i].~T();
+                    dat[--i].~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
@@ -551,7 +551,7 @@ struct ArrayInterface {
             }
             catch (...) {
                 while (i > 0) {
-                    impl.data[--i].~T();
+                    dat[--i].~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
