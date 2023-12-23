@@ -515,13 +515,13 @@ struct ArrayInterface {
             T* p = dat;
             T* e = dat + s;
             try {
-                while (p != e) {
-                    new ((void*)p++) T();
+                for (; p != e; p++) {
+                    new ((void*)p) T();
                 }
             }
             catch (...) {
-                while (p != dat) {
-                    (--p)->~T();
+                while (p-- != dat) {
+                    p->~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
@@ -544,16 +544,16 @@ struct ArrayInterface {
             dat = (T*)std::memset((void*)dat, v, s);
         }
         else {
-            T* p = dat;
+            T* p;
             T* e = dat + s;
             try {
-                while (p != e) {
-                    new ((void*)p++) T(v);
+                for (p = dat; p != e; ++p) {
+                    new ((void*)p) T(v);
                 }
             }
             catch (...) {
-                while (p != dat) {
-                    (--p)->~T();
+                while (p-- != dat) {
+                    p->~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
@@ -579,8 +579,8 @@ struct ArrayInterface {
             }
         }
         catch (...) {
-            while (i > 0) {
-                dat[--i].~T();
+            while (i-- > 0) {
+                dat[i].~T();
             }
             SharableBuffer<T>::deallocate(dat);
             throw;
@@ -1077,13 +1077,13 @@ struct ArrayInterface {
         T* e = impl.data + new_size;
         T* p = b;
         try {
-            while (p != e) {
-                new ((void*)p++) T();
+            for (; p != e; ++p) {
+                new ((void*)p) T();
             }
         }
         catch (...) {
-            while (p != b) {
-                (--p)->~T();
+            while (p-- != b) {
+                p->~T();
             }
             throw;
         }
@@ -1113,8 +1113,8 @@ struct ArrayInterface {
         else if (unique()) {
             T* p = impl.data + new_size;
             T* b = impl.data + old_size;
-            while (p != b) {
-                (--p)->~T();
+            while (p-- != b) {
+                p->~T();
             }
             set_size(new_size);
         }
@@ -1255,6 +1255,7 @@ struct ArrayInterface {
             return append_expect_capacity(move(b), usize(e - b));
         }
         else if constexpr (ArrayForwardIterator<Begin>) {
+             // TODO: remove this counting loop
             usize s = 0;
             for (auto p = b; p != e; ++p) ++s;
             return append_expect_capacity(move(b), s);
@@ -1483,15 +1484,15 @@ struct ArrayInterface {
         T* p = impl.data + impl.size;
         impl = {};
         try {
-            while (p != b) {
-                f(move(*--p));
+            while (p-- != b) {
+                f(move(*p));
                 p->~T();
             }
             SharableBuffer<T>::deallocate(b);
         }
         catch (...) {
-            while (p != b) {
-                (--p)->~T();
+            while (p-- != b) {
+                p->~T();
             }
             SharableBuffer<T>::deallocate(b);
             throw;
@@ -1660,8 +1661,8 @@ struct ArrayInterface {
         catch (...) {
              // You threw from the copy constructor!  Now we have to clean up
              // the mess.
-            while (i > 0) {
-                dat[--i].~T();
+            while (i-- > 0) {
+                dat[i].~T();
             }
             throw;
         }
@@ -1863,11 +1864,11 @@ struct ArrayInterface {
             }
             catch (...) {
                  // Yuck, someone threw an exception in a copy constructor!
-                while (tail_i > split) {
-                    dat[shift + --tail_i].~T();
+                while (tail_i-- > split) {
+                    dat[shift + tail_i].~T();
                 }
-                while (head_i > 0) {
-                    dat[--head_i].~T();
+                while (head_i-- > 0) {
+                    dat[head_i].~T();
                 }
                 throw;
             }
@@ -1907,10 +1908,10 @@ struct ArrayInterface {
             T* dat = SharableBuffer<T>::allocate(old_size - count);
             usize i = 0;
             try {
-                for (; i < offset; i++) {
+                for (; i < offset; ++i) {
                     new ((void*)&dat[i]) T(self.impl.data[i]);
                 }
-                for (; i < old_size - count; i++) {
+                for (; i < old_size - count; ++i) {
                     new ((void*)&dat[i]) T(self.impl.data[count + i]);
                 }
             }
