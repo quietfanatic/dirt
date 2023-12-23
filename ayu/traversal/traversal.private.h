@@ -82,13 +82,13 @@ struct ElemFuncTraversal : Traversal {
 
 template <class Base, class CB>
 struct CBTraversal : Base {
-    std::remove_reference_t<CB>* callback;
+    const std::remove_reference_t<CB>* callback;
 };
 
 template <class CB>
 static void trav_start (
     const Reference& ref, LocationRef loc, bool only_addressable,
-    AccessMode mode, CB cb
+    AccessMode mode, const CB& cb
 ) {
     expect(ref);
     CBTraversal<StartTraversal, CB> child;
@@ -145,7 +145,7 @@ static void trav_start (
 template <class Child, class CB>
 void trav_acr (
     const Traversal& parent, Child& child,
-    const Accessor* acr, AccessMode mode, CB cb
+    const Accessor* acr, AccessMode mode, const CB& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
@@ -178,7 +178,7 @@ catch (...) { parent.wrap_exception(); }
 template <class Child, class CB>
 void trav_reference (
     const Traversal& parent, Child& child,
-    const Reference& ref, AccessMode mode, CB cb
+    const Reference& ref, AccessMode mode, const CB& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ref.host.type.readonly();
@@ -219,7 +219,7 @@ catch (...) { parent.wrap_exception(); }
 
 template <class CB>
 void trav_delegate (
-    const Traversal& parent, const Accessor* acr, AccessMode mode, CB cb
+    const Traversal& parent, const Accessor* acr, AccessMode mode, const CB& cb
 ) {
     CBTraversal<DelegateTraversal, CB> child;
     child.op = DELEGATE;
@@ -232,7 +232,7 @@ void trav_delegate (
 template <class CB>
 void trav_attr (
     const Traversal& parent, const Accessor* acr, const StaticString& key,
-    AccessMode mode, CB cb
+    AccessMode mode, const CB& cb
 ) {
     CBTraversal<AttrTraversal, CB> child;
     child.op = ATTR;
@@ -243,7 +243,7 @@ void trav_attr (
 template <class CB>
 void trav_attr_func (
     const Traversal& parent, const Reference& ref, AttrFunc<Mu>* func,
-    const AnyString& key, AccessMode mode, CB cb
+    const AnyString& key, AccessMode mode, const CB& cb
 ) {
     CBTraversal<AttrFuncTraversal, CB> child;
     child.op = ATTR_FUNC;
@@ -255,7 +255,7 @@ void trav_attr_func (
 template <class CB>
 void trav_elem (
     const Traversal& parent, const Accessor* acr, usize index,
-    AccessMode mode, CB cb
+    AccessMode mode, const CB& cb
 ) {
     CBTraversal<ElemTraversal, CB> child;
     child.op = ELEM;
@@ -266,7 +266,7 @@ void trav_elem (
 template <class CB>
 void trav_elem_func (
     const Traversal& parent, const Reference& ref, ElemFunc<Mu>* func,
-    usize index, AccessMode mode, CB cb
+    usize index, AccessMode mode, const CB& cb
 ) {
     CBTraversal<ElemFuncTraversal, CB> child;
     child.op = ELEM_FUNC;
