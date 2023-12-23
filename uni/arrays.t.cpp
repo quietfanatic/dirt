@@ -184,6 +184,10 @@ void t25 (AnyArray<int>& a) {
     a.erase(44, 2);
 }
 
+void b25 (UniqueArray<int>& a) {
+    a.erase(44, 2);
+}
+
 const char* t26 (AnyArray<char>& a) {
     return a.c_str();
 }

@@ -1672,26 +1672,27 @@ struct ArrayInterface {
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End> static
     T* copy_fill (T* dat, Begin b, End e) requires (std::is_copy_constructible_v<T>) {
         static_assert(ArrayForwardIterator<Begin>);
-        usize s = 0;
-        if constexpr (requires { usize(e - b); }) {
-            s = usize(e - b);
+        T* out = dat;
+        try {
+            for (auto p = move(b); p != e; ++out, ++p) {
+                new ((void*)out) T(*p);
+            }
         }
-        else for (auto p = b; p != e; ++p) ++s;
-        return copy_fill(dat, move(b), s);
+        catch (...) {
+            while (out-- != dat) {
+                out->T();
+            }
+            throw;
+        }
     }
 
     template <ArrayIterator Ptr> [[gnu::malloc, gnu::returns_nonnull]] static
     T* allocate_copy (Ptr ptr, usize s)
-        noexcept(std::is_nothrow_copy_constructible_v<T>)
         requires (std::is_copy_constructible_v<T>)
     {
         expect(s > 0);
         T* dat = SharableBuffer<T>::allocate(s);
-         // Prevent warnings about "this throw will always terminate"
-        if constexpr(noexcept(std::is_nothrow_copy_constructible_v<T>)) {
-            return copy_fill(dat, ptr, s);
-        }
-        else try {
+        try {
             return copy_fill(dat, ptr, s);
         }
         catch (...) {
@@ -1701,7 +1702,9 @@ struct ArrayInterface {
     }
 
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* allocate_copy_noinline (const T* ptr, usize s) {
+    T* allocate_copy_noinline (const T* ptr, usize s)
+        noexcept(std::is_nothrow_copy_constructible_v<T>)
+    {
         return allocate_copy(ptr, s);
     }
 
@@ -1753,6 +1756,8 @@ struct ArrayInterface {
             std::is_trivially_move_constructible_v<T> &&
             std::is_trivially_destructible_v<T>
         ) {
+             // This works whether we're unique or not, so we don't need to
+             // branch until remove_ref().
             dat = (T*)std::memcpy(
                 (void*)dat, self.impl.data, s * sizeof(T)
             );
@@ -1776,7 +1781,7 @@ struct ArrayInterface {
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
              // Prevent warnings about "this throw will always terminate".  Also
-             // have to throw ac::is_Unique in here because we haven't actually
+             // have to put ac::is_Unique in here because we haven't actually
              // constexpr-branched on that yet, even though we'll never get here
              // with it true.
             if constexpr (
@@ -1794,6 +1799,7 @@ struct ArrayInterface {
             }
             --self.header().ref_count;
         }
+         // Not sure what else to do here.
         else require(std::is_copy_constructible_v<T>);
         return dat;
     }
@@ -1814,11 +1820,12 @@ struct ArrayInterface {
              // if they aren't marked noexcept.
             try {
                  // Move elements forward, starting at the back
-                for (usize i = self.size(); i > split; --i) {
-                    new ((void*)&self.impl.data[i-1 + shift]) T(
-                        move(self.impl.data[i-1])
+                usize i = self.size();
+                while (i-- > split) {
+                    new ((void*)&self.impl.data[i + shift]) T(
+                        move(self.impl.data[i])
                     );
-                    self.impl.data[i-1].~T();
+                    self.impl.data[i].~T();
                 }
             }
             catch (...) { never(); }
@@ -1879,10 +1886,22 @@ struct ArrayInterface {
         return dat;
     }
 
-    [[gnu::returns_nonnull]] NOINLINE static
-    T* do_erase (Impl impl, usize offset, usize count)
-        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
-    {
+    [[gnu::returns_nonnull]] static
+    T* do_erase (Impl impl, usize offset, usize count) {
+        if constexpr (
+            ac::is_Unique &&
+            std::is_trivially_move_assignable_v<T> &&
+            std::is_trivially_destructible_v<T>
+        ) {
+             // If all the above are true, do_erase reduces to a single call to
+             // memmove, so inline it.
+            return do_erase_inline(impl, offset, count);
+        }
+        else return do_erase_noinline(impl, offset, count);
+    }
+
+    [[gnu::returns_nonnull]] static
+    T* do_erase_inline (Impl impl, usize offset, usize count) {
         Self& self = reinterpret_cast<Self&>(impl);
         usize old_size = self.size();
         expect(count != 0);
@@ -1890,8 +1909,17 @@ struct ArrayInterface {
         if (self.unique()) {
             try {
                  // Move some elements over.  The destination will always
-                 // still exist so use operator=
-                for (usize i = offset; count + i < old_size; ++i) {
+                 // still exist so use operator=.  This would optimize better if
+                 // we used destructors and placement new, but that goes against
+                 // specifications, and this algo isn't that important.
+                if constexpr (std::is_trivially_move_assignable_v<T>) {
+                    std::memmove(
+                        self.impl.data + offset,
+                        self.impl.data + offset + count,
+                        old_size - offset - count
+                    );
+                }
+                else for (usize i = offset; count + i < old_size; ++i) {
                     self.impl.data[i] = move(
                         self.impl.data[count + i]
                     );
@@ -1921,8 +1949,8 @@ struct ArrayInterface {
                  // incompletely constructed target array.  Fortunately,
                  // unlike in do_split, the target array is completely
                  // contiguous.
-                while (i > 0) {
-                    dat[--i].~T();
+                while (i-- > 0) {
+                    dat[i].~T();
                 }
                 SharableBuffer<T>::deallocate(dat);
                 throw;
@@ -1931,6 +1959,13 @@ struct ArrayInterface {
             return dat;
         }
         else never();
+    }
+
+    [[gnu::returns_nonnull]] NOINLINE static
+    T* do_erase_noinline (Impl impl, usize offset, usize count)
+        noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
+    {
+        return do_erase_inline(impl, offset, count);
     }
 
     [[gnu::returns_nonnull]] NOINLINE static
@@ -1957,15 +1992,17 @@ constexpr bool operator== (
     usize as = a.size();
     usize bs = b.size();
     const T* ad = a.data();
-    const auto& bd = b.data();
+    auto bd = b.data();
     if (as != bs) return false;
      // Unlike most STL containers, this WILL short-circuit if the arrays have
      // the same data pointer and size.
     if constexpr (requires { ad == bd; }) {
         if (ad == bd) return true;
     }
-    if constexpr (std::is_scalar_v<T>) {
-        return std::memcmp(ad, bd, as) == 0;
+    if constexpr (std::is_scalar_v<T> &&
+        ArrayContiguousIteratorFor<decltype(bd), T>
+    ) {
+        return std::memcmp(ad, std::to_address(bd), as) == 0;
     }
     else {
         for (usize i = 0; i < as; ++i) {
@@ -1986,14 +2023,13 @@ bool operator== (
     usize as = a.size();
     usize bs = len - 1;
     const T* ad = a.data();
-    const auto& bd = b;
     if (as != bs) return false;
     if constexpr (std::is_scalar_v<T>) {
-        return std::memcmp(ad, bd, bs) == 0;
+        return std::memcmp(ad, b, bs) == 0;
     }
     else {
         for (usize i = 0; i < bs; ++i) {
-            if (!(ad[i] == bd[i])) {
+            if (!(ad[i] == b[i])) {
                 return false;
             }
         }
@@ -2012,15 +2048,25 @@ constexpr auto operator<=> (
     usize as = a.size();
     usize bs = b.size();
     const T* ad = a.data();
-    const auto& bd = b.data();
+    auto bd = b.data();
     if constexpr (requires { ad == bd; }) {
         if (as == bs && ad == bd) return 0 <=> 0;
     }
-    for (usize i = 0; i < as && i < bs; ++i) {
-        auto res = ad[i] <=> bd[i];
-        if (res != (0 <=> 0)) return res;
+    if constexpr (
+        std::is_scalar_v<T> &&
+        ArrayContiguousIteratorFor<decltype(bd), T>
+    ) {
+        int res = std::memcmp(ad, std::to_address(bd), as <= bs ? as : bs);
+        if (res) return res <=> 0;
+        else return as <=> bs;
     }
-    return as <=> bs;
+    else {
+        for (usize i = 0; i < as && i < bs; ++i) {
+            auto res = ad[i] <=> bd[i];
+            if (res != (0 <=> 0)) return res;
+        }
+        return as <=> bs;
+    }
 }
 template <class ac, class T, usize len>
 ALWAYS_INLINE constexpr
@@ -2031,12 +2077,18 @@ auto operator<=> (
     usize as = a.size();
     usize bs = len - 1;
     const T* ad = a.data();
-    const auto& bd = b;
-    for (usize i = 0; i < as && i < bs; ++i) {
-        auto res = ad[i] <=> bd[i];
-        if (res != (0 <=> 0)) return res;
+    if constexpr (std::is_scalar_v<T>) {
+        int res = std::memcmp(ad, b, as <= bs ? as : bs);
+        if (res) return res <=> 0;
+        else return as <=> bs;
     }
-    return as <=> bs;
+    else {
+        for (usize i = 0; i < as && i < bs; ++i) {
+            auto res = ad[i] <=> b[i];
+            if (res != (0 <=> 0)) return res;
+        }
+        return as <=> bs;
+    }
 }
 
 } // arrays
