@@ -1255,15 +1255,21 @@ struct ArrayInterface {
         if constexpr (requires { usize(e - b); }) {
             return append_expect_capacity(move(b), usize(e - b));
         }
-        else if constexpr (ArrayForwardIterator<Begin>) {
-             // TODO: remove this counting loop
-            usize s = 0;
-            for (auto p = b; p != e; ++p) ++s;
-            return append_expect_capacity(move(b), s);
-        }
         else {
-            for (auto p = move(b); p != e; ++p) {
-                push_back_expect_capacity(*b);
+             // Don't delegate to copy_fill because it doesn't have this
+             // expect()
+            T* out = impl.data;
+            try {
+                for (auto p = move(b); p != e; ++out, ++p) {
+                    expect(out < impl.data + size());
+                    new ((void*)out) T(*p);
+                }
+            }
+            catch (...) {
+                while (out-- != impl.data) {
+                    out->T();
+                }
+                throw;
             }
         }
     }
@@ -1671,7 +1677,6 @@ struct ArrayInterface {
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End> static
     T* copy_fill (T* dat, Begin b, End e) requires (std::is_copy_constructible_v<T>) {
-        static_assert(ArrayForwardIterator<Begin>);
         T* out = dat;
         try {
             for (auto p = move(b); p != e; ++out, ++p) {
