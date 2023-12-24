@@ -1112,10 +1112,10 @@ struct ArrayInterface {
             set_size(new_size);
         }
         else if (unique()) {
-            T* p = impl.data + new_size;
-            T* b = impl.data + old_size;
-            while (p-- != b) {
-                p->~T();
+            T* p = impl.data + old_size;
+            T* b = impl.data + new_size;
+            while (p != b) {
+                (--p)->~T();
             }
             set_size(new_size);
         }
