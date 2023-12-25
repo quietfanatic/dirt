@@ -509,8 +509,34 @@ AnyString IRI::spec_relative_to (const IRI& base) const noexcept {
         else return spec_;
     }
     else if (path() != base.path()) {
-         // Pulling apart path is NYI. TODO: make it YYI
-        return spec_.substr(authority_end);
+        if (!hierarchical() || !base.hierarchical()) {
+            return spec_;
+        }
+        Str spec_path = path();
+        Str base_path = base.path();
+        expect(spec_path[0] == '/' && base_path[0] == '/');
+         // First find the shared portion of the path up to the last shared /
+        usize shared_end = 1;
+        usize i;
+        for (i = 1; i < spec_path.size() && i < base_path.size(); i++) {
+            if (spec_path[i] != base_path[i]) break;
+            else if (spec_path[i] == '/') {
+                shared_end = i+1;
+            }
+        }
+        Str spec_rest = spec_.substr(authority_end + shared_end);
+        Str base_rest = base_path.substr(shared_end);
+         // Now add a .. for every / after that in the base
+        usize dotdots = 0;
+        for (auto c : base_rest) {
+            if (c == '/') dotdots += 1;
+        }
+        auto r = UniqueString(Capacity(dotdots * 3 + spec_rest.size()));
+        for (usize i = 0; i < dotdots; i++) {
+            r.append_expect_capacity("../");
+        }
+        r.append_expect_capacity(spec_rest);
+        return r;
     }
     else if (query() != base.query()) {
         return spec_.substr(path_end);
@@ -623,6 +649,11 @@ static tap::TestSet tests ("dirt/iri/iri", []{
             cases[i].i, " (", cases[i].b, ") error = ", uint16(cases[i].e)
         ));
     }
+    is(
+        IRI("foo://bar/bup/gak?bee").spec_relative_to(IRI("foo://bar/qal/por/bip")),
+        "../../bup/gak?bee",
+        "spec_relative_to"
+    );
     done_testing();
 });
 

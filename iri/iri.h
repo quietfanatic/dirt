@@ -70,10 +70,10 @@ constexpr uint32 maximum_length = uint16(-1);
  // Replace reserved characters with % sequences
 UniqueString encode (Str) noexcept;
  // Replace % sequences with their characters.  If there's an invalid escape
- // sequence, returns the empty string.
+ // sequence anywhere in the input, returns the empty string.
 UniqueString decode (Str) noexcept;
 
- // The first component that the given IRI reference has
+ // The first component that the given IRI reference has.
 enum class Relativity {
     Scheme,       // scheme://auth/path?query#fragment
     Authority,    // //auth/path?query#fragment
@@ -162,9 +162,7 @@ struct IRI {
     constexpr AnyString move_possibly_invalid_spec ();
 
      // Returns an IRI reference that's relative to base, or just spec() if
-     // this IRI has nothing in common with base.  Returning relative paths is
-     // not yet implemented, so if this IRI and base differ in their paths, an
-     // absolute path starting with / will be returned.
+     // this IRI has nothing in common with base.
     AnyString spec_relative_to (const IRI& base) const noexcept;
 
      // Check for existence of components.
@@ -254,7 +252,7 @@ struct IRI {
     const uint16 scheme_end = 0;
     const uint16 authority_end = 0;
     const uint16 path_end = 0;
-    const uint16 query_end = 0;
+    const uint16 query_end = 0; // reused to store error
 };
 
 } // namespace iri
@@ -262,5 +260,7 @@ struct IRI {
 // I was going to specialize std::hash, but using IRIs as keys in an
 // unordered_map would likely be a mistake, since you can just use Strings or
 // Strs instead with the same behavior but less weight.
+// TODO: do it anyway, unordered_map keys are a legitimate place to store
+// things.
 
 #include "iri-inline.h"
