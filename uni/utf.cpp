@@ -6,6 +6,12 @@ namespace uni {
  // dependency on something else.  The standard library's character conversion
  // system is a mess (more precisely, it's several messes all broken in
  // different ways).
+ //
+ // Note that allowing overlong sequences is considered a security flaw, since
+ // they could be used to smuggle syntactic ascii characters past a validator.
+ // We're passing overlong sequences through as latin-1 characters, under the
+ // assumption that bytes > 0x7f are unlikely to be considered syntactic
+ // characters.
 static usize to_utf16_buffer (char16* buffer, Str s) {
     char16* out = buffer;
     const char* end = s.end();
