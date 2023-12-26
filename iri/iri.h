@@ -262,10 +262,12 @@ struct IRI {
 
 } // namespace iri
 
-// I was going to specialize std::hash, but using IRIs as keys in an
-// unordered_map would likely be a mistake, since you can just use Strings or
-// Strs instead with the same behavior but less weight.
-// TODO: do it anyway, unordered_map keys are a legitimate place to store
-// things.
+ // Implement std::hash so you can use IRIs in unordered maps
+template <>
+struct std::hash<iri::IRI> {
+    std::size_t operator() (const iri::IRI& x) const {
+        return std::hash<uni::arrays::AnyString>{}(x.spec_);
+    }
+};
 
 #include "iri.inline.h"

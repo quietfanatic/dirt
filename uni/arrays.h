@@ -2094,9 +2094,8 @@ auto operator<=> (
 } // arrays
 } // uni
 
-namespace std {
 template <class ac, class T>
-struct hash<uni::ArrayInterface<ac, T>> {
+struct std::hash<uni::ArrayInterface<ac, T>> {
     uni::usize operator() (const uni::ArrayInterface<ac, T>& a) const {
          // Just do an x33 hash (djb2) on whatever std::hash returns for the
          // contents.  At least for libstdc++, hash is a no-op on basic integer
@@ -2110,4 +2109,3 @@ struct hash<uni::ArrayInterface<ac, T>> {
         return r;
     }
 };
-}
