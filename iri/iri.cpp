@@ -166,7 +166,7 @@ Relativity relativity (Str ref) noexcept {
         case '#': return Relativity::Fragment;
         default: break;
     }
-    for (char c : ref.substr(1)) {
+    for (char c : ref.slice(1)) {
         switch (c) {
             case ':': return Relativity::Scheme;
             case '/': case '?': case '#': return Relativity::RelativePath;
@@ -558,8 +558,14 @@ AnyString IRI::make_relative (const IRI& base) const noexcept {
         }
         else if (tail != path_end) {
              // Okay no query or fragment, so return the last path segment.
-             // TODO: This is WRONG if the segment contains a :!  We need to
-             // prepend ./
+             // BUT if it contains : we need to prepend ./ so it isn't
+             // interpreted as a scheme.
+            for (usize i = tail; i < path_end; i++) {
+                if (spec_[i] == '/') break;
+                else if (spec_[i] == ':') {
+                    return cat("./", spec_.slice(tail));
+                }
+            }
             goto return_tail;
         }
         else {
@@ -578,7 +584,7 @@ AnyString IRI::make_relative (const IRI& base) const noexcept {
         for (uint32 i = 0; i < dotdots; i++) {
             r.append_expect_capacity("../");
         }
-        r.append_expect_capacity(spec_.slice(tail, spec_.size()));
+        r.append_expect_capacity(spec_.slice(tail));
         return r;
     }
     never();
@@ -690,9 +696,59 @@ static tap::TestSet tests ("dirt/iri/iri", []{
         ));
     }
     is(
+        IRI("foo://bar/bup").make_relative(IRI("reb://bar/bup")),
+        "foo://bar/bup",
+        "make_relative with different scheme"
+    );
+    is(
+        IRI("foo://bar/bup").make_relative(IRI("foo://bob/bup")),
+        "//bar/bup",
+        "make_relative with different authority"
+    );
+    is(
+        IRI("foo:bar/bup").make_relative(IRI("foo:bar/bup")),
+        "foo:bar/bup",
+        "make_relative with non-heirarchical path"
+    );
+    is(
+        IRI("foo:bar/bup?qal").make_relative(IRI("foo:bar/bup?qal")),
+        "?qal",
+        "make_relative with non-hierarchical path and query"
+    );
+    is(
+        IRI("foo://bar/bup").make_relative(IRI("foo://bar/bup")),
+        "bup",
+        "make_relative with identical paths"
+    );
+    is(
+        IRI("foo://bar/bup/").make_relative(IRI("foo://bar/bup/")),
+        ".",
+        "make_relative with identical paths with /"
+    );
+    is(
+        IRI("foo://bar/bup:qal").make_relative(IRI("foo://bar/bup:qal")),
+        "./bup:qal",
+        "make_relative with in identical paths with :"
+    );
+    is(
         IRI("foo://bar/bup/gak?bee").make_relative(IRI("foo://bar/qal/por/bip")),
         "../../bup/gak?bee",
-        "make_relative"
+        "make_relative with ..s"
+    );
+    is(
+        IRI("foo://bar/bup?qal").make_relative(IRI("foo://bar/bup?qal")),
+        "?qal",
+        "make_relative ending with query"
+    );
+    is(
+        IRI("foo://bar/bup#qal").make_relative(IRI("foo://bar/bup#qal")),
+        "#qal",
+        "make_relative ending with fragment"
+    );
+    is(
+        IRI("foo://bar/bup?qal#gak").make_relative(IRI("foo://bar/bup?qal#gak")),
+        "#gak",
+        "make_relative ending with query and fragment"
     );
     done_testing();
 });
