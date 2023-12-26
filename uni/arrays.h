@@ -400,7 +400,10 @@ struct ArrayInterface {
     template <class T2, usize len> ALWAYS_INLINE constexpr
     explicit(!std::is_same_v<T2, T>)
     ArrayInterface (const T2(& o )[len]) requires (!ac::is_String) {
-        if constexpr (ac::supports_owned) {
+        if constexpr (len == 0) {
+            impl = {};
+        }
+        else if constexpr (ac::supports_owned) {
             set_copy(o, len);
         }
         else {
@@ -425,7 +428,10 @@ struct ArrayInterface {
             "isn't room for a NUL terminator"
         );
         expect(!o[len-1]);
-        if constexpr (ac::supports_static && std::is_same_v<T2, T>) {
+        if constexpr (len == 1) {
+            impl = {};
+        }
+        else if constexpr (ac::supports_static && std::is_same_v<T2, T>) {
             set_unowned(o, len-1);
         }
         else if constexpr (ac::supports_owned) {
@@ -446,7 +452,10 @@ struct ArrayInterface {
     ArrayInterface (T2(& o )[len]) requires (
         ac::is_String && !std::is_const_v<T2>
     ) {
-        if constexpr (ac::supports_owned) {
+        if constexpr (len == 0) {
+            impl = {};
+        }
+        else if constexpr (ac::supports_owned) {
             set_copy(o, len);
         }
         else {
