@@ -880,7 +880,7 @@ struct ArrayInterface {
      // end.
     ALWAYS_INLINE constexpr
     SelfSlice slice (usize start, usize end) const {
-        expect(start <= size() && end <= size());
+        expect(start <= end && end <= size());
         return SelfSlice(data() + start, end - start);
     }
      // Omitting the second argument defaults to size(), but parameter defaults
