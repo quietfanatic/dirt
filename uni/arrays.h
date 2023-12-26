@@ -2008,7 +2008,7 @@ template <class ac, class T, class B>
 constexpr bool operator== (
     const ArrayInterface<ac, T>& a, const B& b
 ) requires (
-    requires { usize(b.size()); a.data()[0] == b.data()[0]; }
+    requires { usize(b.size()); *a.data() == *b.data(); }
 ) {
     usize as = a.size();
     usize bs = b.size();
@@ -2020,23 +2020,15 @@ constexpr bool operator== (
     if constexpr (requires { ad == bd; }) {
         if (ad == bd) return true;
     }
-    if constexpr (std::is_scalar_v<T> &&
-        ArrayContiguousIteratorFor<decltype(bd), T>
-    ) {
-        return std::memcmp(ad, std::to_address(bd), as) == 0;
-    }
-    else {
-        for (usize i = 0; i < as; ++i) {
-            if (!(ad[i] == bd[i])) {
-                return false;
-            }
+    for (auto end = ad + as; ad != end; ++ad, ++bd) {
+        if (!(*ad == *bd)) {
+            return false;
         }
-        return true;
     }
+    return true;
 }
  // Allow comparing to raw char arrays for string types only.
-template <class ac, class T, usize len>
-ALWAYS_INLINE constexpr
+template <class ac, class T, usize len> constexpr
 bool operator== (
     const ArrayInterface<ac, T>& a, const T(& b )[len]
 ) requires (ac::is_String) {
@@ -2044,18 +2036,14 @@ bool operator== (
     usize as = a.size();
     usize bs = len - 1;
     const T* ad = a.data();
+    const T* bd = b;
     if (as != bs) return false;
-    if constexpr (std::is_scalar_v<T>) {
-        return std::memcmp(ad, b, bs) == 0;
-    }
-    else {
-        for (usize i = 0; i < bs; ++i) {
-            if (!(ad[i] == b[i])) {
-                return false;
-            }
+    for (auto end = ad + as; ad != end; ++ad, ++bd) {
+        if (!(*ad == *bd)) {
+            return false;
         }
-        return true;
     }
+    return true;
 }
 
  // I can't be bothered to learn what <=> is supposed to return.  They should
@@ -2064,7 +2052,7 @@ template <class ac, class T, class B>
 constexpr auto operator<=> (
     const ArrayInterface<ac, T>& a, const B& b
 ) requires (
-    requires { usize(b.size()); a.data()[0] <=> b.data()[0]; }
+    requires { usize(b.size()); *a.data() <=> *b.data(); }
 ) {
     usize as = a.size();
     usize bs = b.size();
@@ -2073,24 +2061,17 @@ constexpr auto operator<=> (
     if constexpr (requires { ad == bd; }) {
         if (as == bs && ad == bd) return 0 <=> 0;
     }
-    if constexpr (
-        std::is_scalar_v<T> &&
-        ArrayContiguousIteratorFor<decltype(bd), T>
+    for (
+        auto ae = ad + as, be = bd + bs;
+        ad != ae && bd != be;
+        ++ad, ++bd
     ) {
-        int res = std::memcmp(ad, std::to_address(bd), as <= bs ? as : bs);
-        if (res) return res <=> 0;
-        else return as <=> bs;
+        auto res = *ad <=> *bd;
+        if (res != (0 <=> 0)) return res;
     }
-    else {
-        for (usize i = 0; i < as && i < bs; ++i) {
-            auto res = ad[i] <=> bd[i];
-            if (res != (0 <=> 0)) return res;
-        }
-        return as <=> bs;
-    }
+    return as <=> bs;
 }
-template <class ac, class T, usize len>
-ALWAYS_INLINE constexpr
+template <class ac, class T, usize len> constexpr
 auto operator<=> (
     const ArrayInterface<ac, T>& a, const T(& b )[len]
 ) requires (ac::is_String) {
@@ -2098,18 +2079,16 @@ auto operator<=> (
     usize as = a.size();
     usize bs = len - 1;
     const T* ad = a.data();
-    if constexpr (std::is_scalar_v<T>) {
-        int res = std::memcmp(ad, b, as <= bs ? as : bs);
-        if (res) return res <=> 0;
-        else return as <=> bs;
+    const T* bd = b;
+    for (
+        auto ae = ad + as, be = bd + bs;
+        ad != ae && bd != be;
+        ++ad, ++bd
+    ) {
+        auto res = *ad <=> *bd;
+        if (res != (0 <=> 0)) return res;
     }
-    else {
-        for (usize i = 0; i < as && i < bs; ++i) {
-            auto res = ad[i] <=> b[i];
-            if (res != (0 <=> 0)) return res;
-        }
-        return as <=> bs;
-    }
+    return as <=> bs;
 }
 
 } // arrays

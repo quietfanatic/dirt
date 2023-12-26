@@ -601,6 +601,7 @@ AnyString IRI::make_relative (const IRI& base) const noexcept {
      // Everything up to the fragment is identical.  We can't return nothing, so
      // return the fragment even if they're the same.
     return_fragment: tail = query_end;
+     // Bundle these returns together because they do an allocation.
     return_tail: return spec_.slice(tail);
      // For whatever reason we couldn't make a relative reference so return the
      // whole thing.
@@ -662,7 +663,7 @@ constexpr TestCase cases [] = {
     {.i = "#bar", .b = "foo:?baz#qux", .s = "foo", .q = "baz", .f = "bar"},
     {.i = "foo:/ユニコード", .s = "foo", .p = "/ユニコード"},
     {.i = "foo://ユ/ニ?コー#ド", .s = "foo", .a = "ユ", .p = "/ニ", .q = "コー", .f = "ド"},
-    {.i = "ayu-test:/#bar/1/bu%2Fp//33/0/'3/''/'//", .s = "ayu-test", .p = "/", .f = "bar/1/bu%2Fp//33/0/'3/''/'//"},
+    {.i = "ayu-test:/#bar+1//bu%2Fp+33+0/3///", .s = "ayu-test", .p = "/", .f = "bar+1//bu%2Fp+33+0/3///"},
 };
 constexpr auto n_cases = sizeof(cases) / sizeof(cases[0]);
 
