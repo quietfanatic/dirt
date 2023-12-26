@@ -874,6 +874,13 @@ struct ArrayInterface {
         expect(start <= size() && end <= size());
         return SelfSlice(data() + start, end - start);
     }
+     // Omitting the second argument defaults to size(), but parameter defaults
+     // can't depend on this, so just make a different overload.
+    ALWAYS_INLINE constexpr
+    SelfSlice slice (usize start) const {
+        expect(start <= size());
+        return SelfSlice(data() + start, size() - start);
+    }
 
      // Substr takes an offset and a length, and caps both to the length of the
      // string.  Note that unlike the STL's substr, this returns a Slice/Str,
