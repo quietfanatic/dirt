@@ -500,64 +500,104 @@ IRI::IRI (Str spec, const IRI& base) noexcept {
     );
 }
 
-AnyString IRI::spec_relative_to (const IRI& base) const noexcept {
-    if (!*this) return "";
-    else if (!base) return spec_;
-    else if (scheme() != base.scheme()) return spec_;
-    else if (authority() != base.authority()) {
-        if (has_authority()) return spec_.substr(scheme_end + 1);
-        else return spec_;
+AnyString IRI::make_relative (const IRI& base) const noexcept {
+    uint32 tail;
+    if (base.empty()) goto return_everything;
+    else if (!*this || !base) return "";
+    else if (scheme_end + 1u == spec_.size() ||
+        spec_.slice(0, scheme_end) != base.spec_.slice(0, base.scheme_end)
+    ) {
+         // Schemes are different or we only have a scheme
+        goto return_everything;
     }
-    else if (path() != base.path()) {
-        if (!hierarchical() || !base.hierarchical()) {
-            return spec_;
+    else if (authority_end == spec_.size() ||
+        spec_.slice(scheme_end + 1, authority_end) !=
+        base.spec_.slice(base.scheme_end + 1, base.authority_end)
+    ) {
+         // Authorities are different or authority is the last component.
+        if (authority_end == scheme_end + 1u) {
+             // Wait, we doesn't even have an authority!
+            goto return_everything;
         }
-        Str spec_path = path();
-        Str base_path = base.path();
-        expect(spec_path[0] == '/' && base_path[0] == '/');
-         // First find the shared portion of the path up to the last shared /
-        usize shared_end = 1;
-        usize i;
-        for (i = 1; i < spec_path.size() && i < base_path.size(); i++) {
-            if (spec_path[i] != base_path[i]) break;
-            else if (spec_path[i] == '/') {
-                shared_end = i+1;
-            }
+        else {
+            tail = scheme_end + 1;
+            goto return_tail;
         }
-        Str spec_rest = spec_.substr(authority_end + shared_end);
-        Str base_rest = base_path.substr(shared_end);
-         // Now add a .. for every / after that in the base
-        usize dotdots = 0;
-        for (auto c : base_rest) {
-            if (c == '/') dotdots += 1;
-        }
-        auto r = UniqueString(Capacity(dotdots * 3 + spec_rest.size()));
-        for (usize i = 0; i < dotdots; i++) {
-            r.append_expect_capacity("../");
-        }
-        r.append_expect_capacity(spec_rest);
-        return r;
     }
-    else if (query() != base.query()) {
-        return spec_.substr(path_end);
+    else if (path_end == authority_end ||
+        spec_[authority_end] != '/' ||
+        base.spec_[authority_end] != '/'
+    ) {
+         // Don't pick apart non-hierarchical paths.
+        if (path_end != query_end) {
+            goto check_query;
+        }
+        else if (query_end != spec_.size()) {
+            goto return_fragment;
+        }
+        else goto return_everything;
     }
     else {
-         // Wait!  We're not allowed to return an empty string, so only chop off
-         // as much as we can.
-        if (query_end != spec_.size()) {
-            return spec_.substr(query_end);
+         // Okay now we need to traverse the hierarchical path.  We need to do
+         // this even if the paths are identical, because if there's no query or
+         // fragment, we need to return the last segment of the path.
+
+         // We already know path starts with a /.
+        tail = authority_end + 1;
+        uint32 i;
+        for (i = authority_end + 1; i < path_end && i < base.path_end; i++) {
+            if (spec_[i] != base.spec_[i]) goto found_difference;
+            else if (spec_[i] == '/') tail = i + 1;
         }
-        else if (path_end != spec_.size()) {
-            return spec_.substr(path_end);
+         // Okay, the paths are identical.  Is there a query or a fragment?
+        if (path_end != query_end) {
+            goto check_query;
         }
-        else if (authority_end != spec_.size()) {
-            return spec_.substr(authority_end);
+        else if (query_end != spec_.size()) {
+            goto return_fragment;
         }
-        else if (scheme_end + 1u != spec_.size()) {
-            return spec_.substr(scheme_end + 1);
+        else if (tail != path_end) {
+             // Okay no query or fragment, so return the last path segment.
+             // TODO: This is WRONG if the segment contains a :!  We need to
+             // prepend ./
+            goto return_tail;
         }
-        else return spec_;
+        else {
+             // The identical paths end in /, what do we do?  Uh.....I think
+             // we're supposed to return . then.
+            return ".";
+        }
+        found_difference:
+         // Okay the paths are different, so count how many extra segments are
+         // in the base, and prepend that many ../s.
+        uint32 dotdots = 0;
+        for (; i < base.path_end; i++) {
+            if (base.spec_[i] == '/') dotdots++;
+        }
+        auto r = UniqueString(Capacity(dotdots * 3 + (spec_.size() - tail)));
+        for (uint32 i = 0; i < dotdots; i++) {
+            r.append_expect_capacity("../");
+        }
+        r.append_expect_capacity(spec_.slice(tail, spec_.size()));
+        return r;
     }
+    never();
+    check_query:
+    if (query_end == spec_.size() ||
+        spec_.slice(path_end, query_end) !=
+        base.spec_.slice(base.path_end, base.query_end)
+    ) {
+         // Queries are different or no fragment
+        tail = path_end;
+        goto return_tail;
+    }
+     // Everything up to the fragment is identical.  We can't return nothing, so
+     // return the fragment even if they're the same.
+    return_fragment: tail = query_end;
+    return_tail: return spec_.slice(tail, spec_.size());
+     // For whatever reason we couldn't make a relative reference so return the
+     // whole thing.
+    return_everything: return spec_;
 }
 
 } using namespace iri;
@@ -650,9 +690,9 @@ static tap::TestSet tests ("dirt/iri/iri", []{
         ));
     }
     is(
-        IRI("foo://bar/bup/gak?bee").spec_relative_to(IRI("foo://bar/qal/por/bip")),
+        IRI("foo://bar/bup/gak?bee").make_relative(IRI("foo://bar/qal/por/bip")),
         "../../bup/gak?bee",
-        "spec_relative_to"
+        "make_relative"
     );
     done_testing();
 });

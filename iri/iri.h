@@ -161,10 +161,6 @@ struct IRI {
      // Steal the spec string even if it's invalid.
     constexpr AnyString move_possibly_invalid_spec ();
 
-     // Returns an IRI reference that's relative to base, or just spec() if
-     // this IRI has nothing in common with base.
-    AnyString spec_relative_to (const IRI& base) const noexcept;
-
      // Check for existence of components.
     constexpr bool has_scheme () const;
     constexpr bool has_authority () const;
@@ -173,6 +169,7 @@ struct IRI {
     constexpr bool has_fragment () const;
 
      // If there is a path and the path starts with /
+     // TODO: Should this return true if there's an authority but no path?
     constexpr bool hierarchical () const;
 
      // Get the scheme of the IRI.  Doesn't include the :.
@@ -184,12 +181,12 @@ struct IRI {
      // file:///foo/bar)
     constexpr Str authority () const;
      // Get the path component of the IRI.
-     //   scheme://host/path => /path
-     //   scheme://host/ => /
-     //   scheme://host => (empty, has_path will be false)
-     //   scheme:///path => /path
-     //   scheme:/path => /path
-     //   scheme:path => path
+     //   scheme://host/path -> /path
+     //   scheme://host/ -> /
+     //   scheme://host -> (empty, has_path will be false)
+     //   scheme:///path -> /path
+     //   scheme:/path -> /path
+     //   scheme:path -> path
      // If has_path is true, will always return non-empty.
     constexpr Str path () const;
      // Get the query.  Will not include the ?.  May be existent but empty.
@@ -200,7 +197,7 @@ struct IRI {
      // Returns a new IRI with just the scheme (and the colon).
     constexpr IRI with_scheme_only () const;
      // Get the origin (scheme plus authority if it exists).  Never ends with
-     // a /.
+     // a / (unless the authority exists and is empty, like foo://).
     constexpr IRI with_origin_only () const;
      // Get everything up to and including the last / in the path.  If this is
      // not a hierarchical scheme (path doesn't start with /), returns empty.
@@ -220,6 +217,14 @@ struct IRI {
     constexpr Str spec_without_fragment () const;
 
     constexpr Str path_without_filename () const;
+
+     // Get an IRI reference that's relative to base, such that
+     //     IRI(input.make_relative(base), base) == input
+     // If the base IRI is empty, returns input.spec() unchanged (to preserve
+     // the above equation).  If the base IRI is any other invalid IRI or the
+     // input IRI is invalid (including empty), returns the empty string.
+     // Otherwise never returns empty.
+    AnyString make_relative (const IRI& base) const noexcept;
 
      // Destruct this object
     constexpr ~IRI ();
@@ -263,4 +268,4 @@ struct IRI {
 // TODO: do it anyway, unordered_map keys are a legitimate place to store
 // things.
 
-#include "iri-inline.h"
+#include "iri.inline.h"

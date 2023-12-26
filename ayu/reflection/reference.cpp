@@ -41,7 +41,7 @@ static Tree Reference_to_tree (const Reference& v) {
     if (!v) return Tree(null);
     auto loc = reference_to_location(v);
     auto iri = location_to_iri(loc);
-    return Tree(iri.spec_relative_to(current_base_iri()));
+    return Tree(iri.make_relative(current_base_iri()));
 }
 static void Reference_from_tree (Reference& v, const Tree& tree) {
     switch (tree.form) {

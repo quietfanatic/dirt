@@ -207,7 +207,7 @@ concept ArrayIotaFunctionFor =
  // A tag-like type representing a span of uninitialized data
 struct Uninitialized { usize size; };
  // Requests constructing with the given capacity but size 0
-struct Capacity { usize cap; };
+struct Capacity { usize capacity; };
 
 ///// ARRAY INTERFACE
 // The shared interface for all the array classes
@@ -602,8 +602,8 @@ struct ArrayInterface {
     ArrayInterface (Capacity cap) requires (
         ac::supports_owned
     ) {
-        if (!cap.cap) { impl = {}; return; }
-        set_owned_unique(SharableBuffer<T>::allocate(cap.cap), 0);
+        if (!cap.capacity) { impl = {}; return; }
+        set_owned_unique(SharableBuffer<T>::allocate(cap.capacity), 0);
     }
 
      // std::initializer_list isn't very good for owned types because it
