@@ -502,8 +502,9 @@ IRI::IRI (Str spec, const IRI& base) noexcept {
 
 AnyString IRI::make_relative (const IRI& base) const noexcept {
     uint32 tail;
-    if (base.empty()) goto return_everything;
-    else if (!*this || !base) return "";
+    if (!*this) [[unlikely]] return "";
+    else if (base.empty()) goto return_everything;
+    else if (!base) [[unlikely]] return "";
     else if (scheme_end + 1u == spec_.size() ||
         spec_.slice(0, scheme_end) != base.spec_.slice(0, base.scheme_end)
     ) {
@@ -516,7 +517,7 @@ AnyString IRI::make_relative (const IRI& base) const noexcept {
     ) {
          // Authorities are different or authority is the last component.
         if (authority_end == scheme_end + 1u) {
-             // Wait, we doesn't even have an authority!
+             // Wait, we don't even have an authority!
             goto return_everything;
         }
         else {
@@ -600,7 +601,7 @@ AnyString IRI::make_relative (const IRI& base) const noexcept {
      // Everything up to the fragment is identical.  We can't return nothing, so
      // return the fragment even if they're the same.
     return_fragment: tail = query_end;
-    return_tail: return spec_.slice(tail, spec_.size());
+    return_tail: return spec_.slice(tail);
      // For whatever reason we couldn't make a relative reference so return the
      // whole thing.
     return_everything: return spec_;
