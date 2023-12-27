@@ -38,10 +38,19 @@ constexpr IRI file_root ("file:///");
 
  // Create an IRI from an OS filesystem path.  Will be converted to absolute
  // form, then appended to file_prefix.
-IRI iri_from_fs_path (Str, const IRI& base = IRI()) noexcept;
+IRI from_fs_path (Str, const IRI& base = IRI()) noexcept;
+
+ // Convenience (also one less allocation in some cases)
+namespace in {
+    IRI from_fs_path_sfp (const std::filesystem::path&, const IRI&) noexcept;
+}
+template <class P> requires (std::is_same_v<P, std::filesystem::path>)
+IRI from_fs_path (const P& p, const IRI& base = IRI()) noexcept {
+    return in::from_fs_path_sfp(p, base);
+}
 
  // Get a path from the given IRI.  The IRI must start with file:// and must not
  // have a query or fragment (to pull them off first, use iri.without_query()).
-UniqueString iri_to_fs_path (const IRI&) noexcept;
+UniqueString to_fs_path (const IRI&) noexcept;
 
 } // iri

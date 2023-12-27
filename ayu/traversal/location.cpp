@@ -197,7 +197,7 @@ AYU_DESCRIBE(ayu::Location,
     to_tree([](const Location& v){
         if (!v) return Tree("");
         auto iri = location_to_iri(v);
-        return Tree(iri.make_relative(current_base_iri()));
+        return Tree(iri.relative_to(current_base_iri()));
     }),
     from_tree([](Location& v, const Tree& t){
         auto rel = Str(t);

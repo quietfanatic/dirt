@@ -52,7 +52,7 @@ Str path_extension (Str path) noexcept {
     return "";
 }
 
-IRI iri_from_fs_path (Str path, const IRI& base) noexcept {
+IRI from_fs_path (Str path, const IRI& base) noexcept {
     if (!path) return IRI();
     if (!base.empty()) {
          // TODO: this won't work correctly with Windows drive letters.
@@ -68,7 +68,23 @@ IRI iri_from_fs_path (Str path, const IRI& base) noexcept {
     }
 }
 
-UniqueString iri_to_fs_path (const IRI& file_iri) noexcept {
+IRI in::from_fs_path_sfp (const std::filesystem::path& path, const IRI& base) noexcept {
+    if (path.empty()) return IRI();
+    if (!base.empty()) {
+         // TODO: this won't work correctly with Windows drive letters.
+        return IRI(encode_path(Str(path.generic_u8string())), base);
+    }
+    else {
+         // Might be either std::u8string or const std::u8string&
+        decltype(auto) abs = fs::absolute(path).generic_u8string();
+        expect(!abs.empty());
+         // File root already has a / for its path, so it'll work (kinda
+         // accidentally) with Windows drive letters.
+        return IRI(encode_path(Str(abs)), file_root);
+    }
+}
+
+UniqueString to_fs_path (const IRI& file_iri) noexcept {
     require(file_iri.scheme() == "file");
     require(file_iri.has_authority() && !file_iri.authority());
     require(!file_iri.has_query() && !file_iri.has_fragment());
@@ -93,8 +109,8 @@ static tap::TestSet tests ("dirt/iri/path", []{
     is(path_extension("foo.bar/baz."), "", "path_extension trailing dot ignored");
      // TODO: Make these tests work on Windows
      // TODO: test relative paths somehow
-    is(iri_from_fs_path("/foo/bar?baz").spec(), "file:///foo/bar%3Fbaz", "iri_from_fs_path");
-    is(iri_to_fs_path(IRI("file:///foo/bar%23baz")), "/foo/bar#baz", "iri_to_fs_path");
+    is(from_fs_path("/foo/bar?baz").spec(), "file:///foo/bar%3Fbaz", "from_fs_path");
+    is(to_fs_path(IRI("file:///foo/bar%23baz")), "/foo/bar#baz", "to_fs_path");
 
     done_testing();
 });

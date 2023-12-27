@@ -120,7 +120,7 @@ struct IRIParser {
                 break;
             }
             case Relativity::AbsolutePath: {
-                if (base.nonhierarchical()) return fail(Error::CouldNotResolve);
+                if (!base || base.nonhierarchical()) return fail(Error::CouldNotResolve);
                 prefix = base.spec_with_origin_only();
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
@@ -401,7 +401,7 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
     );
 }
 
-AnyString IRI::make_relative (const IRI& base) const noexcept {
+AnyString IRI::relative_to (const IRI& base) const noexcept {
     uint32 tail;
     if (!*this) [[unlikely]] return "";
     else if (base.empty()) goto return_everything;
@@ -609,59 +609,59 @@ static tap::TestSet tests ("dirt/iri/iri", []{
     //constexpr IRI invalid ("foo://bar/baz?qux#bap#bap");
 
     is(
-        IRI("foo://bar/bup").make_relative(IRI("reb://bar/bup")),
+        IRI("foo://bar/bup").relative_to(IRI("reb://bar/bup")),
         "foo://bar/bup",
-        "make_relative with different scheme"
+        "relative_to with different scheme"
     );
     is(
-        IRI("foo://bar/bup").make_relative(IRI("foo://bob/bup")),
+        IRI("foo://bar/bup").relative_to(IRI("foo://bob/bup")),
         "//bar/bup",
-        "make_relative with different authority"
+        "relative_to with different authority"
     );
     is(
-        IRI("foo:bar/bup").make_relative(IRI("foo:bar/bup")),
+        IRI("foo:bar/bup").relative_to(IRI("foo:bar/bup")),
         "foo:bar/bup",
-        "make_relative with non-heirarchical path"
+        "relative_to with non-heirarchical path"
     );
     is(
-        IRI("foo:bar/bup?qal").make_relative(IRI("foo:bar/bup?qal")),
+        IRI("foo:bar/bup?qal").relative_to(IRI("foo:bar/bup?qal")),
         "?qal",
-        "make_relative with non-hierarchical path and query"
+        "relative_to with non-hierarchical path and query"
     );
     is(
-        IRI("foo://bar/bup").make_relative(IRI("foo://bar/bup")),
+        IRI("foo://bar/bup").relative_to(IRI("foo://bar/bup")),
         "bup",
-        "make_relative with identical paths"
+        "relative_to with identical paths"
     );
     is(
-        IRI("foo://bar/bup/").make_relative(IRI("foo://bar/bup/")),
+        IRI("foo://bar/bup/").relative_to(IRI("foo://bar/bup/")),
         ".",
-        "make_relative with identical paths with /"
+        "relative_to with identical paths with /"
     );
     is(
-        IRI("foo://bar/bup:qal").make_relative(IRI("foo://bar/bup:qal")),
+        IRI("foo://bar/bup:qal").relative_to(IRI("foo://bar/bup:qal")),
         "./bup:qal",
-        "make_relative with in identical paths with :"
+        "relative_to with in identical paths with :"
     );
     is(
-        IRI("foo://bar/bup/gak?bee").make_relative(IRI("foo://bar/qal/por/bip")),
+        IRI("foo://bar/bup/gak?bee").relative_to(IRI("foo://bar/qal/por/bip")),
         "../../bup/gak?bee",
-        "make_relative with ..s"
+        "relative_to with ..s"
     );
     is(
-        IRI("foo://bar/bup?qal").make_relative(IRI("foo://bar/bup?qal")),
+        IRI("foo://bar/bup?qal").relative_to(IRI("foo://bar/bup?qal")),
         "?qal",
-        "make_relative ending with query"
+        "relative_to ending with query"
     );
     is(
-        IRI("foo://bar/bup#qal").make_relative(IRI("foo://bar/bup#qal")),
+        IRI("foo://bar/bup#qal").relative_to(IRI("foo://bar/bup#qal")),
         "#qal",
-        "make_relative ending with fragment"
+        "relative_to ending with fragment"
     );
     is(
-        IRI("foo://bar/bup?qal#gak").make_relative(IRI("foo://bar/bup?qal#gak")),
+        IRI("foo://bar/bup?qal#gak").relative_to(IRI("foo://bar/bup?qal#gak")),
         "#gak",
-        "make_relative ending with query and fragment"
+        "relative_to ending with query and fragment"
     );
     done_testing();
 });

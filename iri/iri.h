@@ -228,12 +228,12 @@ struct IRI {
     constexpr Str path_without_filename () const;
 
      // Get an IRI reference that's relative to base, such that
-     //     IRI(input.make_relative(base), base) == input
+     //     IRI(input.relative_to(base), base) == input
      // If the base IRI is empty, returns input.spec() unchanged (to preserve
      // the above equation).  If the base IRI is any other invalid IRI or the
      // input IRI is invalid (including empty), returns the empty string.
      // Otherwise never returns empty.
-    AnyString make_relative (const IRI& base) const noexcept;
+    AnyString relative_to (const IRI& base) const noexcept;
 
      // Destruct this object
     constexpr ~IRI ();
