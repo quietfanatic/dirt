@@ -72,6 +72,8 @@ UniqueString encode (Str) noexcept;
  // Replace % sequences with their characters.  If there's an invalid escape
  // sequence anywhere in the input, returns the empty string.
 UniqueString decode (Str) noexcept;
+ // Like encode(), but only encodes ?, #, and %.
+UniqueString encode_path (Str) noexcept;
 
  // The first component that the given IRI reference has.
 enum class Relativity {
@@ -128,6 +130,7 @@ struct IRI {
      // compile time (and kept for run time).  So it must be given an IRI that
      // is already fully resolved and canonical.  The base will be ignored.
     constexpr explicit IRI (Str ref, const IRI& base = IRI());
+
      // Construct an already-parsed IRI.  This will not do any validation.  If
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr explicit IRI (

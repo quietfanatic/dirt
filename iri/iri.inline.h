@@ -272,7 +272,7 @@ struct ConstexprValidator {
             switch (in[i]) {
                 case IRI_DIGIT: byte |= in[i] - '0'; break;
                 case IRI_UPPERHEX: byte |= in[i] - 'A' + 10; break;
-                case IRI_LOWERHEX: byte |= in[i] - 'a' + 10; break;
+                case IRI_LOWERHEX: ERROR_canonical_percent_sequence_must_be_uppercase();
                 default: ERROR_invalid_percent_sequence();
             }
         }
@@ -300,6 +300,7 @@ struct ConstexprValidator {
     [[noreturn]] static void ERROR_invalid_percent_sequence () { never(); }
     [[noreturn]] static void ERROR_character_must_canonically_be_percent_encoded () { never(); }
     [[noreturn]] static void ERROR_character_must_canonically_not_be_percent_encoded () { never(); }
+    [[noreturn]] static void ERROR_canonical_percent_sequence_must_be_uppercase () { never(); }
     [[noreturn]] static void ERROR_canonical_path_cannot_have_dot_or_dotdot () { never(); }
 };
 
