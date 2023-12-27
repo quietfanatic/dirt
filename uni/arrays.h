@@ -351,28 +351,25 @@ struct ArrayInterface {
             set_copy(o.data(), o.size());
         }
         else {
-            static_assert(ArrayLikeFor<O, T>,
-                "Cannot construct borrowed array from array-like type if its "
-                "element type does not match exactly."
-            );
             static_assert(ArrayContiguousIterator<decltype(o.data())>,
                 "Cannot construct borrowed from array-like type if its data() "
                 "returns a non-contiguous iterator."
             );
-            set_unowned(o.data(), o.size());
+            if constexpr (std::is_same_v<T, char> &&
+                std::is_same_v<std::remove_cvref_t<decltype(*o.data())>, char8_t>
+            ) {
+                 // Special case allow conveting char8_t to char
+                auto dat = &reinterpret_cast<const char&>(*o.data());
+                set_unowned(dat, o.size());
+            }
+            else {
+                static_assert(ArrayLikeFor<O, T>,
+                    "Cannot construct borrowed array from array-like type if "
+                    "its element type does not match exactly."
+                );
+                set_unowned(o.data(), o.size());
+            }
         }
-    }
-
-     // SPECIAL CASE allow construcing a Str from a char8 OtherArrayLike
-    template <OtherArrayLikeFor<char8_t> O> ALWAYS_INLINE constexpr explicit
-    ArrayInterface (const O& o) requires (
-        ac::is_String && ac::is_Slice && std::is_same_v<T, char>
-    ) {
-        static_assert(ArrayContiguousIterator<decltype(o.data())>,
-            "Cannot construct Slice from array-like type if its data() "
-            "returns a non-contiguous iterator."
-        );
-        set_unowned(reinterpret_cast<const char*>(o.data()), o.size());
     }
 
      // Constructing from const T* is only allowed for String classes.  It will
@@ -1128,8 +1125,8 @@ struct ArrayInterface {
             set_size(new_size);
         }
         else if (unique()) {
-            T* p = impl.data + old_size;
-            T* b = impl.data + new_size;
+            auto p = impl.data + old_size;
+            auto b = impl.data + new_size;
             while (p != b) {
                 (--p)->~T();
             }
