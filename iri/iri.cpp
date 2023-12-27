@@ -390,11 +390,11 @@ struct IRIParser {
     }
 };
 
-IRI::IRI (Str ref, const IRI& base) noexcept {
+IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
     IRIParser parser;
     parser.input = ref;
     parser.parse(base);
-    new (this) IRI(
+    return IRI(
         move(parser.output),
         parser.scheme_end, parser.authority_end,
         parser.path_end, parser.query_end
@@ -598,6 +598,16 @@ static tap::TestSet tests ("dirt/iri/iri", []{
             cases[i].i, " (", cases[i].b, ") error = ", uint16(cases[i].e)
         ));
     }
+
+     // Test compile-time IRI construction
+    constexpr IRI c1 ("foo://bar/baz?qux#bap");
+    is(c1.scheme(), "foo");
+    is(c1.authority(), "bar");
+    is(c1.path(), "/baz");
+    is(c1.query(), "qux");
+    is(c1.fragment(), "bap");
+    //constexpr IRI invalid ("foo://bar/baz?qux#bap#bap");
+
     is(
         IRI("foo://bar/bup").make_relative(IRI("reb://bar/bup")),
         "foo://bar/bup",

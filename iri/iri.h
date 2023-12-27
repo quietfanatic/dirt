@@ -122,13 +122,12 @@ struct IRI {
      // base is provided, resolved ref as a IRI reference (AKA a relative IRI)
      // with base as its base. If base is not provided, ref must be an absolute
      // IRI with scheme included.
-    explicit IRI (Str ref, const IRI& base = IRI()) noexcept;
-     // Construct an IRI from a static string at compile time.  Unlike the above
-     // constructor, this cannot canonicalize the IRI, because new strings can't
-     // be allocated at compile time (and kept around for run time).  So if this
-     // is given an IRI that's not in canonical format, it makes a compile-time
-     // error.
-    static consteval IRI Static (StaticString ref);
+     //
+     // The behavior of this function changes when run at constexpr time.  It
+     // cannot canonicalize the IRI, because new strings can't be allocated at
+     // compile time (and kept for run time).  So it must be given an IRI that
+     // is already fully resolved and canonical.  The base will be ignored.
+    constexpr explicit IRI (Str ref, const IRI& base = IRI());
      // Construct an already-parsed IRI.  This will not do any validation.  If
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr explicit IRI (

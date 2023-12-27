@@ -103,31 +103,7 @@ constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
 
 namespace in {
 
-constexpr void validate_percent (const char* in, const char* end) {
-    if (in + 3 > end) throw "Unfinished % sequence";
-    uint8 byte = 0;
-    for (int i = 1; i < 3; i++) {
-        byte <<= 4;
-        switch (in[i]) {
-            case IRI_DIGIT: byte |= in[i] - '0'; break;
-            case IRI_UPPERHEX: byte |= in[i] - 'A' + 10; break;
-            case IRI_LOWERHEX: byte |= in[i] - 'a' + 10; break;
-            default: throw "Invalid percent sequence";
-        }
-    }
-    switch (char(byte)) {
-        case IRI_GENDELIM: case IRI_SUBDELIM:
-        case IRI_FORBIDDEN: case IRI_IFFY: return;
-        default: throw "This character should not be %-encoded";
-    }
-}
-constexpr void validate_segment (const char* in) {
-    if (Str(in-3, 3) == "/.." || Str(in-2, 2) == "/.") {
-        throw "Canonical IRI cannot have .. or . segment in path";
-    }
-}
-
-struct Validator {
+struct ConstexprValidator {
     const char* begin;
     const char* in;
     const char* end;
@@ -136,9 +112,10 @@ struct Validator {
     uint16 path_end;
     uint16 query_end;
 
-    constexpr IRI parse (StaticString input) {
+    constexpr IRI parse (Str input, const IRI& base) {
+        if (!base.empty()) ERROR_cannot_resolve_relative_IRIs_at_constexpr_time();
         if (!input) return IRI();
-        if (input.size() > maximum_length) throw "Input is too long";
+        if (input.size() > maximum_length) ERROR_input_too_long();
         begin = in = input.begin();
         end = input.end();
         parse_scheme();
@@ -151,7 +128,7 @@ struct Validator {
     constexpr void parse_scheme () {
         switch (*in) {
             case IRI_LOWERCASE: in++; break;
-            default: throw "Invalid scheme";
+            default: ERROR_invalid_scheme();
         }
         while (in < end) switch (*in) {
             case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
@@ -169,9 +146,9 @@ struct Validator {
                     }
                     else return parse_nonhierarchical_path();
                 }
-            default: throw "Invalid scheme";
+            default: ERROR_invalid_scheme();
         }
-        throw "Not an absolute IRI";
+        ERROR_invalid_scheme();
     }
 
     constexpr void parse_authority() {
@@ -191,10 +168,10 @@ struct Validator {
                 authority_end = path_end = query_end = in - begin;
                 return parse_fragment();
             case '%':
-                in::validate_percent(in, end);
+                validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: throw "Character should be %-encoded.";
-            default: throw "Invalid authority";
+            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
+            default: ERROR_invalid_authority();
         }
         authority_end = path_end = query_end = in - begin;
         return;
@@ -209,23 +186,23 @@ struct Validator {
             case '-': case '_': case '~': case ':': case '@': case '.':
                 in++; break;
             case '/':
-                in::validate_segment(in);
+                validate_segment(in);
                 in++; break;
             case '?':
-                in::validate_segment(in);
+                validate_segment(in);
                 path_end = in - begin;
                 return parse_query();
             case '#':
-                in::validate_segment(in);
+                validate_segment(in);
                 path_end = query_end = in - begin;
                 return parse_fragment();
             case '%':
-                in::validate_percent(in, end);
+                validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: throw "This character should be %-encoded";
-            default: throw "Path is invalid";
+            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
+            default: ERROR_invalid_path();
         }
-        in::validate_segment(in);
+        validate_segment(in);
         path_end = query_end = in - begin;
         return;
     }
@@ -243,10 +220,10 @@ struct Validator {
                 path_end = query_end = in - begin;
                 return parse_fragment();
             case '%':
-                in::validate_percent(in, end);
+                validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: throw "This character should be %-encoded";
-            default: throw "Invalid path";
+            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
+            default: ERROR_invalid_path();
         }
         path_end = query_end = in - begin;
         return;
@@ -262,10 +239,10 @@ struct Validator {
                 query_end = in - begin;
                 return parse_fragment();
             case '%':
-                in::validate_percent(in, end);
+                validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: throw "This character should be %-encoded";
-            default: throw "Invalid query";
+            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
+            default: ERROR_invalid_query();
         }
         query_end = in - begin;
         return;
@@ -279,20 +256,63 @@ struct Validator {
                 in++;
                 break;
             case '%':
-                in::validate_percent(in, end);
+                validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: throw "This character should be %-encoded";
-            default: throw "Invalid fragment";
+            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
+            default: ERROR_invalid_fragment();
         }
         return;
     }
+
+    static constexpr void validate_percent (const char* in, const char* end) {
+        if (in + 3 > end) ERROR_invalid_percent_sequence();
+        uint8 byte = 0;
+        for (int i = 1; i < 3; i++) {
+            byte <<= 4;
+            switch (in[i]) {
+                case IRI_DIGIT: byte |= in[i] - '0'; break;
+                case IRI_UPPERHEX: byte |= in[i] - 'A' + 10; break;
+                case IRI_LOWERHEX: byte |= in[i] - 'a' + 10; break;
+                default: ERROR_invalid_percent_sequence();
+            }
+        }
+        switch (char(byte)) {
+            case IRI_GENDELIM: case IRI_SUBDELIM:
+            case IRI_FORBIDDEN: case IRI_IFFY: return;
+            default: ERROR_character_must_canonically_not_be_percent_encoded();
+        }
+    }
+
+    static constexpr void validate_segment (const char* in) {
+        if (Str(in-3, 3) == "/.." || Str(in-2, 2) == "/.") {
+            ERROR_canonical_path_cannot_have_dot_or_dotdot();
+        }
+    }
+
+     // Still the best (least worst) way to make compile-time error messages.
+    [[noreturn]] static void ERROR_cannot_resolve_relative_IRIs_at_constexpr_time () { never(); }
+    [[noreturn]] static void ERROR_input_too_long () { never(); }
+    [[noreturn]] static void ERROR_invalid_scheme () { never(); }
+    [[noreturn]] static void ERROR_invalid_authority () { never(); }
+    [[noreturn]] static void ERROR_invalid_path () { never(); }
+    [[noreturn]] static void ERROR_invalid_query () { never(); }
+    [[noreturn]] static void ERROR_invalid_fragment () { never(); }
+    [[noreturn]] static void ERROR_invalid_percent_sequence () { never(); }
+    [[noreturn]] static void ERROR_character_must_canonically_be_percent_encoded () { never(); }
+    [[noreturn]] static void ERROR_character_must_canonically_not_be_percent_encoded () { never(); }
+    [[noreturn]] static void ERROR_canonical_path_cannot_have_dot_or_dotdot () { never(); }
 };
+
+IRI parse_and_canonicalize (Str ref, const IRI& base) noexcept;
 
 } // in
 
-consteval IRI IRI::Static (StaticString ref) {
-    return in::Validator().parse(ref);
-}
+constexpr IRI::IRI (Str ref, const IRI& base) :
+    IRI(std::is_constant_evaluated()
+        ? in::ConstexprValidator().parse(ref, base)
+        : in::parse_and_canonicalize(ref, base)
+    )
+{ }
 
 constexpr IRI::IRI (const IRI& o) = default;
 constexpr IRI::IRI (IRI&& o) :

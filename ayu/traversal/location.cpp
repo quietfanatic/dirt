@@ -66,7 +66,7 @@ Reference reference_from_location (LocationRef loc) {
 
 namespace in {
 
-static constexpr IRI anonymous_iri = IRI::Static("ayu-anonymous:");
+static constexpr IRI anonymous_iri ("ayu-anonymous:");
 
 NOINLINE static
 UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
@@ -217,7 +217,7 @@ static tap::TestSet tests ("dirt/ayu/traversal/location", []{
 
     test::TestEnvironment env;
 
-    auto loc = location_from_iri(IRI::Static("ayu-test:/#/bar+1/bu%2Fp/+33+0/3//%2B/"));
+    auto loc = location_from_iri(IRI("ayu-test:/#/bar+1/bu%2Fp/+33+0/3//%2B/"));
     const Location* l = &loc;
     is(*l->key(), "", "Empty key");
     l = l->parent();
