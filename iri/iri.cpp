@@ -81,27 +81,6 @@ UniqueString decode (Str input) noexcept {
     return UniqueString::UnsafeConstructOwned(buf, out - buf);
 }
 
-UniqueString encode_path (Str input) noexcept {
-    if (!input) return "";
-    usize cap = input.size();
-    for (auto c : input) {
-        switch (c) {
-            case '?': case '#': case '%': cap += 2;
-            default: break;
-        }
-    }
-    char* buf = SharableBuffer<char>::allocate(cap);
-    char* out = buf;
-    for (auto c : input) {
-        switch (c) {
-            case '?': case '#': case '%':
-                out = write_percent(out, c); break;
-            default: *out++ = c; break;
-        }
-    }
-    return UniqueString::UnsafeConstructOwned(buf, out - buf);
-}
-
 struct IRIParser {
     Str input;
     UniqueString output;
@@ -141,7 +120,7 @@ struct IRIParser {
                 break;
             }
             case Relativity::AbsolutePath: {
-                if (!base.hierarchical()) return fail(Error::CouldNotResolve);
+                if (base.nonhierarchical()) return fail(Error::CouldNotResolve);
                 prefix = base.spec_with_origin_only();
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
@@ -684,7 +663,6 @@ static tap::TestSet tests ("dirt/iri/iri", []{
         "#gak",
         "make_relative ending with query and fragment"
     );
-    is(encode_path("foo/bar?qux#tal"), "foo/bar%3Fqux%23tal", "encode_path");
     done_testing();
 });
 

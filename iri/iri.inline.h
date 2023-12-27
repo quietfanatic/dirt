@@ -381,7 +381,10 @@ constexpr bool IRI::has_query () const { return scheme_end && query_end > path_e
 constexpr bool IRI::has_fragment () const { return scheme_end && spec_.size() > query_end; }
 
 constexpr bool IRI::hierarchical () const {
-    return has_path() && spec_[authority_end] == '/';
+    return has_authority() || (has_path() && spec_[authority_end] == '/');
+}
+constexpr bool IRI::nonhierarchical () const {
+    return has_path() && spec_[authority_end] != '/';
 }
 
 constexpr Str IRI::scheme () const {

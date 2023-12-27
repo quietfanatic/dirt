@@ -72,8 +72,6 @@ UniqueString encode (Str) noexcept;
  // Replace % sequences with their characters.  If there's an invalid escape
  // sequence anywhere in the input, returns the empty string.
 UniqueString decode (Str) noexcept;
- // Like encode(), but only encodes ?, #, and %.
-UniqueString encode_path (Str) noexcept;
 
  // The first component that the given IRI reference has.
 enum class Relativity {
@@ -100,7 +98,7 @@ enum class Error : uint16 {
     TooLong,
      // Was unable to resolve a relative IRI reference, because the base was
      // empty or invalid, or because the IRI reference was AbsolutePath or
-     // RelativePath, but the base was not hierarchical.
+     // RelativePath, but the base was nonhierarchical.
     CouldNotResolve,
      // The given component is invalid (contains invalid characters or ends in
      // whitespace).
@@ -176,9 +174,12 @@ struct IRI {
     constexpr bool has_query () const;
     constexpr bool has_fragment () const;
 
-     // If there is a path and the path starts with /
-     // TODO: Should this return true if there's an authority but no path?
+     // If there is an authority or a path that starts with /.
     constexpr bool hierarchical () const;
+     // If there is a path and it doesn't start with /.  This is almost the
+     // opposite of the above, but both will return false for an IRI that is
+     // just a scheme.
+    constexpr bool nonhierarchical () const;
 
      // Get the scheme of the IRI.  Doesn't include the :.
      // This will always return something for a valid IRI.
