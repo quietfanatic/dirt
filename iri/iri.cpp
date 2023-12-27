@@ -4,78 +4,6 @@
 
 namespace iri {
 
-#define IRI_UPPERCASE \
-         'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': \
-    case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': \
-    case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': \
-    case 'V': case 'W': case 'X': case 'Y': case 'Z'
-#define IRI_LOWERCASE \
-         'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': \
-    case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': \
-    case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': \
-    case 'v': case 'w': case 'x': case 'y': case 'z'
-#define IRI_DIGIT \
-         '0': case '1': case '2': case '3': case '4': \
-    case '5': case '6': case '7': case '8': case '9'
-#define IRI_UPPERHEX \
-         'A': case 'B': case 'C': case 'D': case 'E': case 'F'
-#define IRI_LOWERHEX \
-         'a': case 'b': case 'c': case 'd': case 'e': case 'f'
-#define IRI_GENDELIM \
-         ':': case '/': case '?': case '#': case '[': case ']': case '@'
-#define IRI_SUBDELIM \
-         '!': case '$': case '&': case '\'': case '(': case ')': \
-    case '*': case '+': case ',': case ';': case '='
-#define IRI_UNRESERVED_SYMBOL \
-         '-': case '.': case '_': case '~'
-#define IRI_FORBIDDEN \
-         0x00: case 0x01: case 0x02: case 0x03: case 0x04: case 0x05: \
-    case 0x06: case 0x07: case 0x08: case 0x09: case 0x0a: case 0x0b: \
-    case 0x0c: case 0x0d: case 0x0e: case 0x0f: \
-    case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: \
-    case 0x16: case 0x17: case 0x18: case 0x19: case 0x1a: case 0x1b: \
-    case 0x1c: case 0x1d: case 0x1e: case 0x1f: \
-    case 0x20: case 0x7f
-#define IRI_IFFY \
-         '<': case '>': case '"': case '{': case '}': case '|': case '\\': \
-    case '^': case '`'
-#define IRI_UTF8_HIGH \
-         char(0x80): case char(0x81): case char(0x82): case char(0x83): \
-    case char(0x84): case char(0x85): case char(0x86): case char(0x87): \
-    case char(0x88): case char(0x89): case char(0x8a): case char(0x8b): \
-    case char(0x8c): case char(0x8d): case char(0x8e): case char(0x8f): \
-    case char(0x90): case char(0x91): case char(0x92): case char(0x93): \
-    case char(0x94): case char(0x95): case char(0x96): case char(0x97): \
-    case char(0x98): case char(0x99): case char(0x9a): case char(0x9b): \
-    case char(0x9c): case char(0x9d): case char(0x9e): case char(0x9f): \
-    case char(0xa0): case char(0xa1): case char(0xa2): case char(0xa3): \
-    case char(0xa4): case char(0xa5): case char(0xa6): case char(0xa7): \
-    case char(0xa8): case char(0xa9): case char(0xaa): case char(0xab): \
-    case char(0xac): case char(0xad): case char(0xae): case char(0xaf): \
-    case char(0xb0): case char(0xb1): case char(0xb2): case char(0xb3): \
-    case char(0xb4): case char(0xb5): case char(0xb6): case char(0xb7): \
-    case char(0xb8): case char(0xb9): case char(0xba): case char(0xbb): \
-    case char(0xbc): case char(0xbd): case char(0xbe): case char(0xbf): \
-    case char(0xc0): case char(0xc1): case char(0xc2): case char(0xc3): \
-    case char(0xc4): case char(0xc5): case char(0xc6): case char(0xc7): \
-    case char(0xc8): case char(0xc9): case char(0xca): case char(0xcb): \
-    case char(0xcc): case char(0xcd): case char(0xce): case char(0xcf): \
-    case char(0xd0): case char(0xd1): case char(0xd2): case char(0xd3): \
-    case char(0xd4): case char(0xd5): case char(0xd6): case char(0xd7): \
-    case char(0xd8): case char(0xd9): case char(0xda): case char(0xdb): \
-    case char(0xdc): case char(0xdd): case char(0xde): case char(0xdf): \
-    case char(0xe0): case char(0xe1): case char(0xe2): case char(0xe3): \
-    case char(0xe4): case char(0xe5): case char(0xe6): case char(0xe7): \
-    case char(0xe8): case char(0xe9): case char(0xea): case char(0xeb): \
-    case char(0xec): case char(0xed): case char(0xee): case char(0xef): \
-    case char(0xf0): case char(0xf1): case char(0xf2): case char(0xf3): \
-    case char(0xf4): case char(0xf5): case char(0xf6): case char(0xf7): \
-    case char(0xf8): case char(0xf9): case char(0xfa): case char(0xfb): \
-    case char(0xfc): case char(0xfd): case char(0xfe): case char(0xff)
-#define IRI_UNRESERVED \
-         IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT: \
-    case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH
-
 static int read_percent (const char* in, const char* end) {
     if (in + 3 > end) [[unlikely]] return -1;
     uint8 byte = 0;
@@ -151,29 +79,6 @@ UniqueString decode (Str input) noexcept {
         else *out++ = *in++;
     }
     return UniqueString::UnsafeConstructOwned(buf, out - buf);
-}
-
-Relativity relativity (Str ref) noexcept {
-    if (ref.size() == 0) return Relativity::Scheme;
-    switch (ref[0]) {
-        case ':': return Relativity::Scheme;
-        case '/':
-            if (ref.size() > 1 && ref[1] == '/') {
-                return Relativity::Authority;
-            }
-            else return Relativity::AbsolutePath;
-        case '?': return Relativity::Query;
-        case '#': return Relativity::Fragment;
-        default: break;
-    }
-    for (char c : ref.slice(1)) {
-        switch (c) {
-            case ':': return Relativity::Scheme;
-            case '/': case '?': case '#': return Relativity::RelativePath;
-            default: break;
-        }
-    }
-    return Relativity::RelativePath;
 }
 
 struct IRIParser {
@@ -300,9 +205,7 @@ struct IRIParser {
         while (in < in_end) switch (*in) {
             case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
             case IRI_LOWERCASE: case IRI_DIGIT:
-            case IRI_UNRESERVED_SYMBOL:
-            case IRI_UTF8_HIGH:
-            case IRI_SUBDELIM:
+            case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH: case IRI_SUBDELIM:
             case ':': case '[': case ']': case '@':
                 *out++ = *in++; break;
             case '/':
@@ -408,8 +311,7 @@ struct IRIParser {
                 if (!(out = parse_percent(out, in, in_end))) {
                     return fail(Error::InvalidPercentSequence);
                 }
-                in += 3;
-                break;
+                in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++);
                 break;
@@ -459,8 +361,7 @@ struct IRIParser {
                 if (!(out = parse_percent(out, in, in_end))) {
                     return fail(Error::InvalidPercentSequence);
                 }
-                in += 3;
-                break;
+                in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++);
                 break;
@@ -489,11 +390,11 @@ struct IRIParser {
     }
 };
 
-IRI::IRI (Str spec, const IRI& base) noexcept {
+IRI::IRI (Str ref, const IRI& base) noexcept {
     IRIParser parser;
-    parser.input = spec;
+    parser.input = ref;
     parser.parse(base);
-    new (this) IRI (
+    new (this) IRI(
         move(parser.output),
         parser.scheme_end, parser.authority_end,
         parser.path_end, parser.query_end

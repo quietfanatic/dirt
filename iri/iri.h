@@ -86,7 +86,7 @@ enum class Relativity {
  // Return what kind of relative reference this is.  This only does basic
  // detection, and when given an invalid reference, may return anything.  To be
  // sure that the reference is valid, resolve it into a full IRI.
-Relativity relativity (Str) noexcept;
+constexpr Relativity relativity (Str);
 
  // What went wrong when parsing an IRI
 enum class Error : uint16 {
@@ -123,9 +123,15 @@ struct IRI {
      // with base as its base. If base is not provided, ref must be an absolute
      // IRI with scheme included.
     explicit IRI (Str ref, const IRI& base = IRI()) noexcept;
+     // Construct an IRI from a static string at compile time.  Unlike the above
+     // constructor, this cannot canonicalize the IRI, because new strings can't
+     // be allocated at compile time (and kept around for run time).  So if this
+     // is given an IRI that's not in canonical format, it makes a compile-time
+     // error.
+    static consteval IRI Static (StaticString ref);
      // Construct an already-parsed IRI.  This will not do any validation.  If
      // you provide invalid parameters, you will wreak havoc and mayhem.
-    constexpr IRI (
+    constexpr explicit IRI (
         AnyString spec,
         uint16 scheme_end, uint16 authority_end,
         uint16 path_end, uint16 query_end
