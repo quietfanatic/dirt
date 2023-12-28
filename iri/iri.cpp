@@ -244,6 +244,7 @@ struct IRIParser {
             case IRI_DIGIT: case IRI_SUBDELIM:
             case IRI_UTF8_HIGH:
             case '-': case '_': case '~': case ':': case '@': case '.':
+            case '[': case ']':
                 *out++ = *in++; break;
             case '/': case '?': case '#':
                 return finish_segment(out, in, in_end);
@@ -298,8 +299,8 @@ struct IRIParser {
             case IRI_UPPERCASE: case IRI_LOWERCASE:
             case IRI_DIGIT: case IRI_SUBDELIM:
             case IRI_UTF8_HIGH:
-            case '-': case '_': case '~':
-            case ':': case '@': case '/':
+            case '-': case '_': case '~': case ':': case '@': case '/':
+            case '[': case ']':
                 *out++ = *in++; break;
             case '?':
                 path_end = out - output.begin();
@@ -327,7 +328,7 @@ struct IRIParser {
         *out++ = *in++;
         while (in < in_end) switch (*in) {
             case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?':
+            case ':': case '@': case '/': case '?': case '[': case ']':
                 *out++ = *in++; break;
             case '#':
                 query_end = out - output.begin();
@@ -354,7 +355,7 @@ struct IRIParser {
          // case it's ambiguous how to parse it, so we won't try.
         while (in < in_end) switch (*in) {
             case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?':
+            case ':': case '@': case '/': case '?': case '[': case ']':
                 *out++ = *in++;
                 break;
             case '%':

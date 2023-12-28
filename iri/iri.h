@@ -217,15 +217,13 @@ struct IRI {
     constexpr IRI without_fragment () const;
 
      // The following are the same as above, but return a raw Str instead of a
-     // new IRI.  This saves a string copy, but can cost an extra parse if you
-     // turn the Str back into an IRI.
+     // new IRI.  This saves a refcount, but can cost an extra parse if you turn
+     // the Str back into an IRI.
     constexpr Str spec_with_scheme_only () const;
     constexpr Str spec_with_origin_only () const;
     constexpr Str spec_without_filename () const;
     constexpr Str spec_without_query () const;
     constexpr Str spec_without_fragment () const;
-
-    constexpr Str path_without_filename () const;
 
      // Get an IRI reference that's relative to base, such that
      //     IRI(input.relative_to(base), base) == input

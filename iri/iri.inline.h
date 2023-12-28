@@ -469,13 +469,6 @@ constexpr Str IRI::spec_without_fragment () const {
     return spec_.slice(0, query_end);
 }
 
-constexpr Str IRI::path_without_filename () const {
-    if (!hierarchical()) return "";
-    uint32 i = path_end;
-    while (spec_[i-1] != '/') --i;
-    return spec_.slice(authority_end, i);
-}
-
 constexpr IRI::~IRI () { }
 
 } // iri
