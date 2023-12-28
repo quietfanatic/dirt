@@ -5,8 +5,9 @@ namespace fs = std::filesystem;
 
 namespace iri {
 
- // There's probably a better way but eh
-constexpr bool on_windows = std::is_same_v<fs::path::value_type, wchar_t>;
+constexpr bool backwards_slashes = fs::path::preferred_separator == '\\';
+
+///// PATH MANIPULATION
 
 UniqueString encode_path (Str input) noexcept {
     if (!input) return "";
@@ -24,7 +25,7 @@ UniqueString encode_path (Str input) noexcept {
         switch (c) {
             case IRI_FORBIDDEN: case IRI_IFFY:
             case '?': case '#': case '%': {
-                if constexpr (on_windows) {
+                if constexpr (backwards_slashes) {
                     if (c == '\\') {
                         *out++ = '/'; break;
                     }
@@ -64,41 +65,62 @@ Str path_extension (Str path) noexcept {
     return "";
 }
 
+///// FILE SCHEME IRIS
+
+const IRI& working_directory () noexcept {
+     // Make sure to tack a / on the end or relative resolving won't work
+    static IRI r = from_fs_path(
+        cat(fs::current_path().generic_u8string(), '/')
+    );
+    return r;
+}
+
+///// TO/FROM FILESYSTEM PATHS
+
 IRI from_fs_path (Str path, const IRI& base) noexcept {
     if (!path) return IRI();
-    if constexpr (on_windows) {
+    if constexpr (backwards_slashes) {
+        auto encoded = encode_path(path);
          // Gotta work around Windows' weird absolute path format.  This
          // code is untested and also assumes that the provided path is a
          // valid Windows path.  If not, unintuitive results may occur.
-        auto encoded = encode_path(path);
         if (encoded.size() >= 2 && encoded[1] == ':') {
+            expect(
+                encoded.size() >= 3 &&
+                ((encoded[0] >= 'a' && encoded[0] <= 'z') ||
+                 (encoded[0] >= 'A' && encoded[0] <= 'Z')) &&
+                (encoded[2] == '\\' || encoded[2] == '/')
+            );
              // We have a drive letter.
-            return IRI(cat('/', encoded));
+            return IRI(cat('/', encoded), file_scheme);
         }
         else if (encoded[0] == '/') {
              // Who uses drive-relative paths?
              // Uh...get the drive letter from the base IRI I guess
-            auto base_path = base.path();
+            auto base_path = (
+                !base.empty() ? base : working_directory()
+            ).path();
             require(base_path.size() >= 3 &&
                 base_path[0] == '/' && base_path[2] == ':'
             );
-            return IRI(cat(base_path.slice(0, 3), encoded));
+            return IRI(cat(base_path.slice(0, 3), encoded), file_scheme);
         }
         else {
              // Ordinary relative path
-            return IRI(encoded, base);
+            return IRI(encoded, !base.empty() ? base : working_directory());
         }
     }
-    else if (!base.empty()) {
-        return IRI(encode_path(path), base);
+    else if (path[0] == '/') {
+         // Trim multiple /s so they don't get interpreted as an authority
+        while (path.size() >= 2 && path[1] == '/') {
+            path = path.slice(1);
+        }
+         // Don't call working_directory() here because it calls us.
+        return IRI(encode_path(path), file_scheme);
     }
-    else {
-         // Might be either std::u8string or const std::u8string&
-        decltype(auto) abs = fs::absolute(path).generic_u8string();
-        expect(!abs.empty());
-        expect(abs[0] == '/' && (abs.size() == 1 || abs[1] != '/'));
-        return IRI(encode_path(Str(abs)), file_scheme);
-    }
+    else return IRI(
+        encode_path(path), !base.empty() ? base : working_directory()
+    );
 }
 
 UniqueString to_fs_path (const IRI& iri) noexcept {
@@ -106,7 +128,7 @@ UniqueString to_fs_path (const IRI& iri) noexcept {
     require(!iri.authority());
     require(iri.hierarchical());
     require(!iri.has_query() && !iri.has_fragment());
-    if constexpr (on_windows) {
+    if constexpr (backwards_slashes) {
          // chop initial / (its existence is guaranteed by hierarchical())
         return decode(iri.path().slice(1));
     }
@@ -114,6 +136,8 @@ UniqueString to_fs_path (const IRI& iri) noexcept {
 }
 
 } // iri
+
+///// TESTS
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"

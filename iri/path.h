@@ -12,6 +12,8 @@
 namespace iri {
 using namespace uni;
 
+///// PATH MANIPULATION
+
  // Converts a filesystem path into a string appropriate for use in an IRI path.
  // %-encodes characters that can't be in a path (a subset of those encoded by
  // encode()), and on systems with \s a separators, converts \s to /s.
@@ -39,7 +41,16 @@ Str path_parent (Str) noexcept;
  // character.
 Str path_extension (Str) noexcept;
 
+///// FILE SCHEME IRIS
+
 constexpr IRI file_scheme ("file:");
+
+ // Get a file: IRI corresponding to the working directory the program was run
+ // from.  WARNING: this is cached and only generated once.  You shouldn't be
+ // chdiring in the middle of a program anyway.
+const IRI& working_directory () noexcept;
+
+///// TO/FROM FILESYSTEM PATHS
 
  // Create an IRI from an OS filesystem path.  Will be converted to absolute
  // form, then appended to file_scheme.  The (empty) authority will be omitted,
