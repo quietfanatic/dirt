@@ -13,7 +13,7 @@ UniqueString encode_path (Str input) noexcept {
     usize cap = input.size();
     for (auto c : input) {
         switch (c) {
-             // TODO: encode forbidden characters too
+            case IRI_FORBIDDEN: case IRI_IFFY:
             case '?': case '#': case '%': cap += 2;
             default: break;
         }
@@ -22,18 +22,20 @@ UniqueString encode_path (Str input) noexcept {
     char* out = buf;
     for (auto c : input) {
         switch (c) {
-             // TODO: encode forbidden characters too
-            case '?':
-                *out++ = '%'; *out++ = '3'; *out++ = 'F'; break;
-            case '#':
-                *out++ = '%'; *out++ = '2'; *out++ = '3'; break;
-            case '%':
-                *out++ = '%'; *out++ = '2'; *out++ = '5'; break;
-            case '\\':
-                if constexpr (fs::path::preferred_separator == '\\') {
-                    *out++ = '/'; break;
+            case IRI_FORBIDDEN: case IRI_IFFY:
+            case '?': case '#': case '%': {
+                if constexpr (on_windows) {
+                    if (c == '\\') {
+                        *out++ = '/'; break;
+                    }
                 }
-                else [[fallthrough]];
+                uint8 high = uint8(c) >> 4;
+                uint8 low = uint8(c) & 0xf;
+                *out++ = '%';
+                *out++ = high >= 10 ? high - 10 + 'A' : high + '0';
+                *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
+                break;
+            }
             default: *out++ = c; break;
         }
     }
