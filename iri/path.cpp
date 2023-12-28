@@ -5,11 +5,15 @@ namespace fs = std::filesystem;
 
 namespace iri {
 
+ // There's probably a better way but eh
+constexpr bool on_windows = std::is_same_v<fs::path::value_type, wchar_t>;
+
 UniqueString encode_path (Str input) noexcept {
     if (!input) return "";
     usize cap = input.size();
     for (auto c : input) {
         switch (c) {
+             // TODO: encode forbidden characters too
             case '?': case '#': case '%': cap += 2;
             default: break;
         }
@@ -18,12 +22,18 @@ UniqueString encode_path (Str input) noexcept {
     char* out = buf;
     for (auto c : input) {
         switch (c) {
+             // TODO: encode forbidden characters too
             case '?':
                 *out++ = '%'; *out++ = '3'; *out++ = 'F'; break;
             case '#':
                 *out++ = '%'; *out++ = '2'; *out++ = '3'; break;
             case '%':
                 *out++ = '%'; *out++ = '2'; *out++ = '5'; break;
+            case '\\':
+                if constexpr (fs::path::preferred_separator == '\\') {
+                    *out++ = '/'; break;
+                }
+                else [[fallthrough]];
             default: *out++ = c; break;
         }
     }
@@ -54,41 +64,51 @@ Str path_extension (Str path) noexcept {
 
 IRI from_fs_path (Str path, const IRI& base) noexcept {
     if (!path) return IRI();
-    if (!base.empty()) {
-         // TODO: this won't work correctly with Windows drive letters.
+    if constexpr (on_windows) {
+         // Gotta work around Windows' weird absolute path format.  This
+         // code is untested and also assumes that the provided path is a
+         // valid Windows path.  If not, unintuitive results may occur.
+        auto encoded = encode_path(path);
+        if (encoded.size() >= 2 && encoded[1] == ':') {
+             // We have a drive letter.
+            return IRI(cat('/', encoded));
+        }
+        else if (encoded[0] == '/') {
+             // Who uses drive-relative paths?
+             // Uh...get the drive letter from the base IRI I guess
+            auto base_path = base.path();
+            require(base_path.size() >= 3 &&
+                base_path[0] == '/' && base_path[2] == ':'
+            );
+            return IRI(cat(base_path.slice(0, 3), encoded));
+        }
+        else {
+             // Ordinary relative path
+            return IRI(encoded, base);
+        }
+    }
+    else if (!base.empty()) {
         return IRI(encode_path(path), base);
     }
     else {
          // Might be either std::u8string or const std::u8string&
         decltype(auto) abs = fs::absolute(path).generic_u8string();
         expect(!abs.empty());
-         // File root already has a / for its path, so it'll work (kinda
-         // accidentally) with Windows drive letters.
-        return IRI(encode_path(Str(abs)), file_root);
+        expect(abs[0] == '/' && (abs.size() == 1 || abs[1] != '/'));
+        return IRI(encode_path(Str(abs)), file_scheme);
     }
 }
 
-IRI in::from_fs_path_sfp (const std::filesystem::path& path, const IRI& base) noexcept {
-    if (path.empty()) return IRI();
-    if (!base.empty()) {
-         // TODO: this won't work correctly with Windows drive letters.
-        return IRI(encode_path(Str(path.generic_u8string())), base);
+UniqueString to_fs_path (const IRI& iri) noexcept {
+    require(iri.scheme() == "file");
+    require(!iri.authority());
+    require(iri.hierarchical());
+    require(!iri.has_query() && !iri.has_fragment());
+    if constexpr (on_windows) {
+         // chop initial / (its existence is guaranteed by hierarchical())
+        return decode(iri.path().slice(1));
     }
-    else {
-         // Might be either std::u8string or const std::u8string&
-        decltype(auto) abs = fs::absolute(path).generic_u8string();
-        expect(!abs.empty());
-         // File root already has a / for its path, so it'll work (kinda
-         // accidentally) with Windows drive letters.
-        return IRI(encode_path(Str(abs)), file_root);
-    }
-}
-
-UniqueString to_fs_path (const IRI& file_iri) noexcept {
-    require(file_iri.scheme() == "file");
-    require(file_iri.has_authority() && !file_iri.authority());
-    require(!file_iri.has_query() && !file_iri.has_fragment());
-    return decode(file_iri.path());
+    else return decode(iri.path());
 }
 
 } // iri
@@ -109,8 +129,8 @@ static tap::TestSet tests ("dirt/iri/path", []{
     is(path_extension("foo.bar/baz."), "", "path_extension trailing dot ignored");
      // TODO: Make these tests work on Windows
      // TODO: test relative paths somehow
-    is(from_fs_path("/foo/bar?baz").spec(), "file:///foo/bar%3Fbaz", "from_fs_path");
-    is(to_fs_path(IRI("file:///foo/bar%23baz")), "/foo/bar#baz", "to_fs_path");
+    is(from_fs_path("/foo/bar?baz").spec(), "file:/foo/bar%3Fbaz", "from_fs_path");
+    is(to_fs_path(IRI("file:/foo/bar%23baz")), "/foo/bar#baz", "to_fs_path");
 
     done_testing();
 });

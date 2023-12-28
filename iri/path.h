@@ -12,8 +12,13 @@
 namespace iri {
 using namespace uni;
 
- // Like encode(), but only percent-encodes ?, #, and %.
+ // Converts a filesystem path into a string appropriate for use in an IRI path.
+ // %-encodes characters that can't be in a path (a subset of those encoded by
+ // encode()), and on systems with \s a separators, converts \s to /s.
 UniqueString encode_path (Str) noexcept;
+ // Just an alias for decode().  Does NOT convert /s back to \s.
+ // TODO: should it?
+inline UniqueString decode_path (Str s) { return iri::decode(s); }
 
  // Return the path without the filename at the end.  The return value always
  // ends in a slash.
@@ -30,27 +35,20 @@ Str path_parent (Str) noexcept;
 
  // Get the filename extension, if any; that is, everything after the last dot
  // in the last segment of the path, or empty if there is no dot.  Does not
- // include the dot.
+ // include the dot.  TODO: return empty for files whose only dot is the first
+ // character.
 Str path_extension (Str) noexcept;
 
- // The IRI representing the root of the filesystem.
-constexpr IRI file_root ("file:///");
+constexpr IRI file_scheme ("file:");
 
  // Create an IRI from an OS filesystem path.  Will be converted to absolute
- // form, then appended to file_prefix.
+ // form, then appended to file_scheme.  The (empty) authority will be omitted,
+ // meaning file:/foo/bar, not file:///foo/bar.  If base is not provided,
+ // relative paths will be resolved against the current working directory.
 IRI from_fs_path (Str, const IRI& base = IRI()) noexcept;
 
- // Convenience (also one less allocation in some cases)
-namespace in {
-    IRI from_fs_path_sfp (const std::filesystem::path&, const IRI&) noexcept;
-}
-template <class P> requires (std::is_same_v<P, std::filesystem::path>)
-IRI from_fs_path (const P& p, const IRI& base = IRI()) noexcept {
-    return in::from_fs_path_sfp(p, base);
-}
-
- // Get a path from the given IRI.  The IRI must start with file:// and must not
- // have a query or fragment (to pull them off first, use iri.without_query()).
+ // Get a path from the given IRI.  The IRI must start with file:/ and must not
+ // have an non-empty authority or a query or fragment.
 UniqueString to_fs_path (const IRI&) noexcept;
 
 } // iri
