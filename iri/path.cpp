@@ -1,5 +1,6 @@
 #include "path.h"
 
+#include "../whereami/whereami.h"
 #include <filesystem>
 namespace fs = std::filesystem;
 
@@ -72,6 +73,19 @@ const IRI& working_directory () noexcept {
     static IRI r = from_fs_path(
         cat(fs::current_path().generic_u8string(), '/')
     );
+    return r;
+}
+
+const IRI& program_location () noexcept {
+    static IRI r = []{
+        int len = wai_getExecutablePath(nullptr, 0, nullptr);
+        expect(len > 0);
+        auto path = (char*)std::malloc(len);
+        expect(wai_getExecutablePath(path, len, nullptr) == len);
+        IRI r = from_fs_path(Str(path, len));
+        std::free(path);
+        return r;
+    }();
     return r;
 }
 

@@ -1,8 +1,7 @@
 #pragma once
 
 #include <memory>
- // TODO don't rely on SDL for a non-gui library hahaha
-#include <SDL2/SDL_filesystem.h>
+#include "../../iri/path.h"
 #include "../../tap/tap.h"
 #include "../resources/document.h"
 #include "../resources/scheme.h"
@@ -17,13 +16,11 @@ namespace ayu::test {
     struct TestEnvironment {
         std::unique_ptr<TestResourceScheme> trs;
         TestEnvironment () {
-             // SDL does a whole lot of work to find this, which I cannot
-             // reproduce.
-            char* base = SDL_GetBasePath();
+            auto testdir = IRI("res/dirt/ayu/test", iri::program_location());
+            require(testdir);
             trs = std::make_unique<test::TestResourceScheme>(
-                "ayu-test", cat(base, "res/dirt/ayu/test")
+                "ayu-test", iri::to_fs_path(testdir)
             );
-            SDL_free(base);
         }
     };
 }

@@ -50,12 +50,21 @@ constexpr IRI file_scheme ("file:");
  // chdiring in the middle of a program anyway.
 const IRI& working_directory () noexcept;
 
+ // Get a file: IRI corresponding to the location of the currently running
+ // program.  This is also only generated once, but if you somehow manage to
+ // change the location of the program while running it, you deserve whatever
+ // happens.
+ //
+ // Use program_location().without_filename() to get the directory containing
+ // the program.
+const IRI& program_location () noexcept;
+
 ///// TO/FROM FILESYSTEM PATHS
 
  // Create an IRI from an OS filesystem path.  Will be converted to absolute
  // form, then appended to file_scheme.  The (empty) authority will be omitted,
  // meaning file:/foo/bar, not file:///foo/bar.  If base is not provided,
- // relative paths will be resolved against the current working directory.
+ // relative paths will be resolved against working_directory().
 IRI from_fs_path (Str, const IRI& base = IRI()) noexcept;
 
  // Get a path from the given IRI.  The IRI must start with file:/ and must not

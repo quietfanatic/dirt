@@ -21,6 +21,8 @@ into its own repo.  So far there is:
  - glow: Some thin wrappers around OpenGL objects for use with ayu.
  - control: Types representing keyboard and mouse inputs, and a command system,
    all made to work with ayu.
+ - whereami: Get the directory of the executable.
+   From https://github.com/gpakosz/whereami
  - wind: A thin wrapper around SDL\_Window for use with ayu.
 
 ### BUILDING AND USAGE
