@@ -625,7 +625,7 @@ struct ArrayInterface {
     }
      // So use this named constructor instead.
     template <class... Args> ALWAYS_INLINE static
-    ArrayInterface Make (Args&&... args) requires (ac::supports_owned) {
+    ArrayInterface make (Args&&... args) requires (ac::supports_owned) {
         ArrayInterface r (Capacity(sizeof...(args)));
         (r.emplace_back_expect_capacity(std::forward<Args>(args)), ...);
         return r;
