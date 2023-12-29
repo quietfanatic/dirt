@@ -14,9 +14,10 @@ int natural_compare (Str a, Str b) noexcept {
     auto ap = a.begin();
     auto bp = b.begin();
     while (ap != a.end() && bp != b.end()) {
-         // If one has a number but not the other, the number comes first
-        if (std::isdigit(*ap) && !std::isdigit(*bp)) return -1;
-        if (!std::isdigit(*ap) && std::isdigit(*bp)) return 1;
+         // If one has a number but not the other, the number comes afterwards.
+         // e.g. image.png before image2.png
+        if (std::isdigit(*ap) && !std::isdigit(*bp)) return 1;
+        if (!std::isdigit(*ap) && std::isdigit(*bp)) return -1;
          // Skip but count zeroes
         usize azeros = 0;
         usize bzeros = 0;
@@ -69,9 +70,9 @@ static tap::TestSet tests ("dirt/uni/text", []{
     is(natural_compare("3", "2"), 1);
     is(natural_compare("a1b", "a10b"), -1);
     is(natural_compare("a9b", "a10b"), -1);
-    is(natural_compare("a9b", "ab"), -1);
+    is(natural_compare("a9b", "ab"), 1);
     is(natural_compare("a1b", "a01b"), -1);
-    is(natural_compare("a0", "a "), -1);
+    is(natural_compare("a0", "a "), 1);
     is(natural_compare("a b", "ab"), -1);
     is(natural_compare("01", "001"), -1);
     done_testing();
