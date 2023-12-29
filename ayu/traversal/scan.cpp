@@ -150,7 +150,10 @@ struct TraverseScan {
         for (uint i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
-            Location child_loc = Location(loc, i);
+             // It'd be weird to specify collapse_optional for non-computed
+             // elems, but it's valid.
+            Location child_loc =
+                trav.collapse_optional ? *loc : Location(loc, i);
              // TODO: verify that the child item is array-like.
             bool r = false;
             trav_elem(trav, acr, i, AccessMode::Read,
@@ -176,7 +179,8 @@ struct TraverseScan {
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            Location child_loc = Location(loc, i);
+            Location child_loc =
+                trav.collapse_optional ? *loc : Location(loc, i);
             bool r = false;
             trav_elem_func(trav, ref, f, i, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)

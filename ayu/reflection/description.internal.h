@@ -29,7 +29,7 @@ struct Description : ComparableAddress {
         PREFER_OBJECT = 1 << 1,
         PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
          // Can select some faster algorithms when this is false.
-        HAS_INCLUDED_ATTRS = 1 << 2,
+        SHOULD_REBUILD_OBJECT = 1 << 2,
     };
     uint16 flags = 0;
 

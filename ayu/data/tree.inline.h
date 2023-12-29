@@ -107,7 +107,9 @@ constexpr Tree::Tree (const Tree& o) :
 }
 
 constexpr Tree::~Tree () {
-    if (rep < 0 && data.as_char_ptr) {
+     // At constant evaluation time we're not allowed to access the wrong union
+     // member, so just don't.
+    if (rep < 0 && !std::is_constant_evaluated() && data.as_char_ptr) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }

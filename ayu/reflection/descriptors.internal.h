@@ -22,6 +22,17 @@ namespace ayu::in {
 // static objects.  To get around this, we are representing all "pointers" as
 // offsets from the beginning of the description object.
 
+///// SILLY COMPILE-TIME ERROR MESSAGES
+
+template <class T>
+static void duplicate_descriptors_in_AYU_DESCRIBE () { }
+static void element_in_AYU_DESCRIBE_is_not_a_descriptor_for_this_type () { }
+static void attrs_cannot_be_combined_with_keys_and_attr_func_in_AYU_DESCRIBE () { }
+static void keys_and_attr_func_must_be_together_in_AYU_DESCRIBE () { }
+static void elems_cannot_be_combined_with_length_and_elem_func_in_AYU_DESCRIBE () { }
+static void length_and_elem_func_must_be_together_in_AYU_DESCRIBE () { }
+static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
+
 ///// MEMORY LAYOUT
 
  // We could use [[no_unique_address]] but this is more aggressive at optimizing
@@ -271,10 +282,12 @@ struct AttrsDcrWith : AttrsDcr<T> {
             ) - static_cast<ComparableAddress*>(this);
         }
     }
-    constexpr bool has_included_attrs () {
+    constexpr bool should_rebuild_object () {
         bool r = false;
         attrs.for_each([&]<class Attr>(const Attr& attr){
-            r |= !!(attr.acr.attr_flags & AttrFlags::Include);
+            r |= !!(attr.acr.attr_flags &
+                (AttrFlags::Include|AttrFlags::CollapseOptional)
+            );
         });
         return r;
     }
@@ -287,7 +300,11 @@ struct ElemDcrWith : ElemDcr<T> {
     Acr acr;
     constexpr ElemDcrWith (const Acr& a) :
         acr(constexpr_acr(a))
-    { }
+    {
+        if (acr.attr_flags & AttrFlags::CollapseOptional) {
+            elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE();
+        }
+    }
 };
 
 template <class T>
@@ -385,15 +402,6 @@ using FullDescription = Cat<
     decltype(Dcrs::make_static(std::declval<Dcrs>()))...
 >;
 
- // Jank compile-time error messages
-template <class T>
-static void duplicate_descriptors_in_AYU_DESCRIBE () { }
-static void element_in_AYU_DESCRIBE_is_not_a_descriptor_for_this_type () { }
-static void attrs_cannot_be_combined_with_keys_and_attr_func_in_AYU_DESCRIBE () { }
-static void keys_and_attr_func_must_be_together_in_AYU_DESCRIBE () { }
-static void elems_cannot_be_combined_with_length_and_elem_func_in_AYU_DESCRIBE () { }
-static void length_and_elem_func_must_be_together_in_AYU_DESCRIBE () { }
-
 template <class T, class... Dcrs>
 constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const Dcrs&... dcrs) {
     using Desc = FullDescription<T, Dcrs...>;
@@ -460,8 +468,8 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
                 header.flags |= Description::PREFER_OBJECT;
             }
             Dcr* attrs = desc.template get<Dcr>(0);
-            if (attrs->has_included_attrs()) {
-                header.flags |= Description::HAS_INCLUDED_ATTRS;
+            if (attrs->should_rebuild_object()) {
+                header.flags |= Description::SHOULD_REBUILD_OBJECT;
             }
         }
         else if constexpr (std::is_base_of_v<KeysDcr<T>, Dcr>) {

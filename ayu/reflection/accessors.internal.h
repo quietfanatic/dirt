@@ -48,8 +48,12 @@ enum AttrFlags : uint8 {
      // addition, this item will be able to be upcasted to the type of the attr
      // if it is addressable.  This is not currently supported on elems.
     Include = 0x2,
+     // If this is set, map an empty array to the attribute being missing from
+     // the object, and an array of one element to the attribute being present
+     // with that element as its value.
+    CollapseOptional = 0x04,
      // If this is set, the attr will not be serialized in to_tree.
-    Invisible = 0x4,
+    Invisible = 0x8,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 } using _::AttrFlags;

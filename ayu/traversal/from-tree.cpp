@@ -278,6 +278,7 @@ struct TraverseFromTree {
         expect(tree.rep == Rep::Object);
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
+            auto flags = attr->acr()->attr_flags;
              // First try matching attr directly even if it's included
             uint32* prev_next; uint32 j;
             for (
@@ -287,16 +288,20 @@ struct TraverseFromTree {
             ) {
                 auto& [key, value] = tree.data.as_object_ptr[j];
                 if (key == attr->key) {
+                     // TODO: avoid copy for non-collapsed case?
+                    auto real_value = flags & AttrFlags::CollapseOptional
+                        ? Tree(TreeArray::make(value))
+                        : value;
                     trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
-                        [&value](const Traversal& child)
-                    { traverse(child, value); });
+                        [&real_value](const Traversal& child)
+                    { traverse(child, real_value); });
                      // Claim attr by deleting link
                     *prev_next = next_list[j];
                     goto next_attr;
                 }
             }
-             // No match, try including
-            if (attr->acr()->attr_flags & AttrFlags::Include) {
+             // No match, try including, optional, collapsing
+            if (flags & AttrFlags::Include) {
                 trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                     [&tree, next_list](const Traversal& child)
                 {
@@ -304,8 +309,15 @@ struct TraverseFromTree {
                      // The claim_* stack doesn't call finish_item so call it here.
                 });
             }
-             // Maybe it's optional then?
-            else if (attr->acr()->attr_flags & AttrFlags::Optional) {
+            else if (flags & AttrFlags::Optional) {
+                 // Leave the attribute in its default-constructed state.
+            }
+            else if (flags & AttrFlags::CollapseOptional) {
+                 // Deserialize from empty array
+                static constexpr auto empty = Tree(TreeArray());
+                trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
+                    [](const Traversal& child)
+                { traverse(child, empty); });
             }
              // Nope, there's nothing more we can do.
             else raise_AttrMissing(trav.desc, attr->key);

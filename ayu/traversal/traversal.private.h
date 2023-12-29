@@ -35,6 +35,8 @@ struct Traversal {
      // non-pass-through item is encountered, the traversal's callback will not
      // be called.
     bool only_addressable;
+     // Parent has collapse_optional flag set
+    bool collapse_optional;
      // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.
     bool addressable;
@@ -97,6 +99,7 @@ static void trav_start (
     child.parent = null;
     child.readonly = ref.host.type.readonly();
     child.only_addressable = only_addressable;
+    child.collapse_optional = false;
     child.op = START;
     child.reference = &ref;
     child.location = loc;
@@ -150,6 +153,7 @@ void trav_acr (
     child.parent = &parent;
     child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
     child.only_addressable = parent.only_addressable;
+    child.collapse_optional = acr->attr_flags & AttrFlags::CollapseOptional;
     child.acr = acr;
     child.desc = DescriptionPrivate::get(acr->type(parent.address));
     child.address = acr->address(*parent.address);
@@ -183,6 +187,7 @@ void trav_reference (
     child.parent = &parent;
     child.readonly = parent.readonly | ref.host.type.readonly();
     child.only_addressable = parent.only_addressable;
+    child.collapse_optional = false;
     if (!ref.acr) [[likely]] {
         child.desc = DescriptionPrivate::get(ref.host.type);
         child.address = ref.host.address;

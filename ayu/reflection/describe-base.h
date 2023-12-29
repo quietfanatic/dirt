@@ -217,6 +217,20 @@ struct _AYU_DescribeBase {
      //     may either ignore inheritance and provide this attribute with `key`,
      //     or it may provide all of this attribute's attributes directly
      //     without `key`.  If include is specified, then optional is ignored.
+     //   - collapse_optional: Only for item types that serialize to an array of
+     //     0 or 1 elements (such as std::optional).  An empty array corresponds
+     //     to the attribute being entirely missing from the object, and an
+     //     array of one element corresponds to the attribute's value being that
+     //     one element.  In other words,
+     //     { // without collapse_optional
+     //         opt_present: [foobar]
+     //         opt_absent: []
+     //     }
+     //     { // with collapse_optional
+     //         opt_present: foobar
+     //     }
+     //     If the item serializes to an non-array or an array of more than one
+     //     element, an exception will be thrown.
      //   - invisible: This attribute will not be read when serializing, but it
      //     will still be written when deserializing (unless it's also optional,
      //     which it probably should be).  If your attribute has a readonly
@@ -656,6 +670,7 @@ struct _AYU_DescribeBase {
     static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
+    static constexpr in::AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
     static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;
     static constexpr in::AcrFlags prefer_hex = in::AcrFlags::PreferHex;
     static constexpr in::AcrFlags prefer_compact = in::AcrFlags::PreferCompact;

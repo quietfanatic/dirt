@@ -109,11 +109,13 @@ struct TraverseToTree {
         }
          // Then if there are included attrs, rebuild the object while
          // flattening them.
-        if (trav.desc->flags & Description::HAS_INCLUDED_ATTRS) {
+        if (trav.desc->flags & Description::SHOULD_REBUILD_OBJECT) {
              // Determine length for preallocation
             usize len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
-                if (attrs->attr(i)->acr()->attr_flags & AttrFlags::Include) {
+                auto flags = attrs->attr(i)->acr()->attr_flags;
+                if (flags & (AttrFlags::Include|AttrFlags::CollapseOptional)) {
+                     // This works for both include and collapse_optional
                     len = len + object[i].second.length - 1;
                 }
             }
@@ -122,7 +124,8 @@ struct TraverseToTree {
              // Selectively flatten
             for (uint i = 0; i < attrs->n_attrs; i++) {
                 auto attr = attrs->attr(i);
-                if (attr->acr()->attr_flags & AttrFlags::Include) {
+                auto flags = attr->acr()->attr_flags;
+                if (flags & AttrFlags::Include) {
                      // Consume the string too while we're here
                     AnyString(move(object[i].first));
                     Tree sub_tree = move(object[i].second);
@@ -133,6 +136,20 @@ struct TraverseToTree {
                     for (auto& pair : TreeObject(move(sub_tree))) {
                         new_object.emplace_back_expect_capacity(pair);
                     }
+                }
+                else if (flags & AttrFlags::CollapseOptional) {
+                    auto key = move(object[i].first);
+                    Tree sub_tree = move(object[i].second);
+                    if (sub_tree.rep != Rep::Array || sub_tree.length > 1) {
+                        raise(e_General,
+                            "Attribute with collapse_optional did not "
+                            "serialize to an array of 0 or 1 elements"
+                        );
+                    }
+                    if (auto a = TreeArray(move(sub_tree))) {
+                        new_object.emplace_back(move(object[i].first), a[0]);
+                    }
+                    else { } // Drop the attr
                 }
                 else {
                     new_object.emplace_back_expect_capacity(move(object[i]));

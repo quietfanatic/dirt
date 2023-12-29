@@ -21,10 +21,9 @@
 #include "describe-base.h"
 #include "reference.h"
 
- // std::optional serializes to null for nullopt and whatever it contains
- // otherwise.  Yes, that means that this won't serialize properly if the
- // contained object itself serializes to null.  Hopefully this won't be a
- // problem.
+ // std::optional serializes to [] for nullopt and [value] for value.  To make
+ // it serialize to (missing from object) for nullopt and value for value, use
+ // the collapse_optional flag on the parent object's attr.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::optional<T>),
@@ -32,16 +31,23 @@ AYU_DESCRIBE_TEMPLATE(
         static uni::UniqueString r = uni::cat(ayu::Type::CppType<T>().name(), '?');
         return uni::StaticString(r);
     }),
-    desc::values(
-        desc::value(ayu::null, std::optional<T>())
-    ),
-    desc::delegate(desc::template ref_func<T>(
-     // This aggressively de-nulls the optional.  Is that what we want to do?
-        [](std::optional<T>& v)->T&{
-            if (!v) v.emplace();
-            return *v;
+    desc::length(desc::template value_funcs<uni::usize>(
+        [](const std::optional<T>& v){ return uni::usize(v.has_value()); },
+        [](std::optional<T>& v, uni::usize len){
+            if (len > 1) {
+                ayu::raise_LengthRejected(
+                    ayu::Type::CppType<std::optional<T>>(), 0, 1, len
+                );
+            }
+            if (len) v.emplace();
         }
-    ))
+    )),
+    desc::elem_func([](std::optional<T>& v, uni::usize i){
+        if (i < v.has_value()) {
+            return ayu::Reference(std::to_address(v));
+        }
+        else return ayu::Reference();
+    })
 )
 
  // uni arrays
