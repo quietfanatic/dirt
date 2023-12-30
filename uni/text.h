@@ -32,4 +32,7 @@ constexpr char to_hex_digit (uint8 digit) {
     else return 0;
 }
 
+ // Transforms ' into '\'' for use in bash command arguments.
+UniqueString escape_for_shell (Str);
+
 } // namespace uni
