@@ -83,6 +83,11 @@ inline namespace buffers {
          // Allocate the exact amount without rounding (may waste space)
         [[gnu::malloc, gnu::returns_nonnull]] static
         T* allocate_exact (usize cap) {
+            static_assert(
+                alignof(T) <= 8,
+                "SharableBuffer and uni array types with elements that have "
+                "align > 8 are NYI."
+            );
              // Use uint64 instead of usize because on 32-bit platforms we need
              // to make sure we don't overflow usize.
             uint64 bytes = sizeof(SharedBufferHeader) + (uint64)cap * sizeof(T);
