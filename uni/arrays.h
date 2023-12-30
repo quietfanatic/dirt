@@ -240,7 +240,7 @@ struct ArrayInterface {
     using const_reverse_iterator = std::reverse_iterator<const T*>;
     using mut_reverse_iterator =
         std::conditional_t<ac::supports_owned, std::reverse_iterator<T*>, void>;
-     // This one are useful though.
+     // This one is useful though.
     using SelfSlice = std::conditional_t<ac::is_String,
         ArrayInterface<ArrayClass::Str, T>,
         ArrayInterface<ArrayClass::Slice, T>
@@ -882,6 +882,8 @@ struct ArrayInterface {
      // Slice takes two offsets and does not do bounds checking (except in debug
      // builds).  Unlike operator[], the offsets are allowed to be one off the
      // end.
+     // TODO: Return StaticString for StaticString.  Maybe even change SelfSlice
+     // to Static* for Static*
     ALWAYS_INLINE constexpr
     SelfSlice slice (usize start, usize end) const {
         expect(start <= end && end <= size());

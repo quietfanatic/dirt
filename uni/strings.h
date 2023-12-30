@@ -151,12 +151,26 @@ UniqueString cat (Head&& h, const Tail&... t) {
 }
 inline UniqueString cat () { return ""; }
 
-
  // In-place-modify version of cat.  Named with the English prefix "en" meaning
  // "to" or "onto" or "unto".
 template <class Head, class... Tail> inline
 Head& encat (Head& h, const Tail&... t) {
     return h = cat(move(h), t...);
+}
+
+ // TODO: support other array and string separators
+inline
+UniqueArray<Str> split (char sep, Str s) {
+    UniqueArray<Str> r;
+    const char* start = s.begin();
+    for (const char* p = s.begin(); p != s.end(); p++) {
+        if (*p == sep) {
+            r.push_back(Str(start, p));
+            start = p + 1;
+        }
+    }
+    r.push_back(Str(start, s.end()));
+    return r;
 }
 
 } // strings
