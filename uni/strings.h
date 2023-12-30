@@ -151,6 +151,14 @@ UniqueString cat (Head&& h, const Tail&... t) {
 }
 inline UniqueString cat () { return ""; }
 
+
+ // In-place-modify version of cat.  Named with the English prefix "en" meaning
+ // "to" or "onto" or "unto".
+template <class Head, class... Tail> inline
+Head& encat (Head& h, const Tail&... t) {
+    return h = cat(move(h), t...);
+}
+
 } // strings
 } // uni
 
