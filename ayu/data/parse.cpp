@@ -76,7 +76,7 @@ struct Parser {
                     in++; break;
                 case ':': {
                      // Allow :: for c++ types
-                    if (in < end && in[1] == ':') {
+                    if (in + 1 < end && in[1] == ':') {
                         in += 2;
                         break;
                     }
