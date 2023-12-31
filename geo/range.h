@@ -35,6 +35,17 @@ struct GRange {
     }
      // No operator bool because it's not clear whether it should check if the
      // range is empty (size == 0) or if the range is {0, 0}
+
+     // Allow iterating
+    struct iterator {
+        T v;
+         // Bare minimum syntax
+        friend bool operator != (const iterator& a, const iterator& b) {
+            return a.v != b.v;
+        }
+        iterator& operator ++ () { v++; return *this; }
+        const T& operator* () const { return v; }
+    };
 };
 
 template <class T>
@@ -48,11 +59,15 @@ struct TypeTraits<GRange<T>> {
 
 ///// PROPERTIES
 
- // If T is a pointer, supports range-for-loops.  Yay!
+ // Support range-for loops
 template <class T>
-constexpr const T& begin (const GRange<T>& a) { return a.l; }
+constexpr GRange<T>::iterator begin (const GRange<T>& a) {
+    return typename GRange<T>::iterator{a.l};
+}
 template <class T>
-constexpr const T& end (const GRange<T>& a) { return a.r; }
+constexpr GRange<T>::iterator end (const GRange<T>& a) {
+    return typename GRange<T>::iterator{a.r};
+}
 template <class T>
 constexpr auto size (const GRange<T>& a) { return a.r - a.l; }
 
