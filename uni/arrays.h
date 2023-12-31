@@ -352,13 +352,13 @@ struct ArrayInterface {
                 "Cannot construct borrowed from array-like type if its data() "
                 "returns a non-contiguous iterator."
             );
+            using T2 = std::remove_cvref_t<decltype(*o.data())>;
+             // Allow reinterpretations between same-size integers and chars.
             if constexpr (
-                (std::is_same_v<T, char> &&
-                 std::is_same_v<std::remove_cvref_t<decltype(*o.data())>, char8_t>) ||
-                (std::is_same_v<T, char8_t> &&
-                 std::is_same_v<std::remove_cvref_t<decltype(*o.data())>, char>)
+                std::is_integral_v<T> && !std::is_same_v<T, bool> &&
+                std::is_integral_v<T2> && !std::is_same_v<T2, bool> &&
+                sizeof(T) == sizeof(T2)
             ) {
-                 // Special case allow converting between char8_t and char
                 auto dat = &reinterpret_cast<const T&>(*o.data());
                 set_unowned(dat, o.size());
             }
