@@ -2044,7 +2044,12 @@ bool operator== (
     const T* ad = a.data();
     const T* bd = b;
     if (as != bs) return false;
-    for (auto end = ad + as; ad != end; ++ad, ++bd) {
+    if constexpr (std::is_scalar_v<T>) {
+         // Raw char arrays are likely to be short and of known length, so
+         // requesting memcmp tends to optimize well.
+        return std::memcmp(ad, bd, as) == 0;
+    }
+    else for (auto end = ad + as; ad != end; ++ad, ++bd) {
         if (!(*ad == *bd)) {
             return false;
         }
