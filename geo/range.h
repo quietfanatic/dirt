@@ -44,8 +44,13 @@ struct GRange {
             return a.v != b.v;
         }
         iterator& operator ++ () { v++; return *this; }
-        const T& operator* () const { return v; }
+        T operator* () const { return v; }
     };
+     // Allow indexing too I guess
+    T operator [] (usize i) const {
+        expect(T(l+i) < r);
+        return T(l+i);
+    }
 };
 
 template <class T>
