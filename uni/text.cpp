@@ -1,7 +1,5 @@
 #include "text.h"
 
-#include <cctype>
-
 namespace uni {
 
  // From what I see, different implementations of natural sort vary on their
@@ -12,51 +10,56 @@ namespace uni {
  // I'm going to side with nemo's behavior because it looks easier. : )
 int natural_compare (Str a, Str b) noexcept {
     auto ap = a.begin();
+    auto ae = a.end();
     auto bp = b.begin();
-    while (ap != a.end() && bp != b.end()) {
+    auto be = b.end();
+    while (ap != ae && bp != be) {
          // If one has a number but not the other, the number comes afterwards.
          // e.g. image.png before image2.png
-        if (std::isdigit(*ap) && !std::isdigit(*bp)) return 1;
-        if (!std::isdigit(*ap) && std::isdigit(*bp)) return -1;
-         // Skip but count zeroes
-        usize azeros = 0;
-        usize bzeros = 0;
-        while (*ap == '0') {
-            azeros++; ap++;
-            if (ap == a.end()) break;
-        }
-        while (*bp == '0') {
-            bzeros++; bp++;
-            if (bp == b.end()) break;
-        }
-         // Capture run of digits
-        auto anumstart = ap;
-        auto bnumstart = bp;
-        while (ap != a.end() && std::isdigit(*ap)) ap++;
-        while (bp != b.end() && std::isdigit(*bp)) bp++;
-        auto anumlen = ap - anumstart;
-        auto bnumlen = bp - bnumstart;
-         // If there are more digits (after zeros), it comes after
-        if (anumlen != bnumlen) {
-            return anumlen < bnumlen ? -1 : 1;
-        }
-         // Otherwise, compare digits in the number
-        for (isize i = 0; i < anumlen; i++) {
-            if (anumstart[i] != bnumstart[i]) {
-                return (anumstart[i] > bnumstart[i])
-                     - (anumstart[i] < bnumstart[i]);
+        if (*ap >= '0' && *ap <= '9') {
+            if (!(*bp >= '0' && *bp <= '9')) return 1;
+             // Skip zeroes
+            auto az = ap;
+            auto bz = bp;
+            while (ap != ae && *ap == '0') ap++;
+            while (bp != be && *bp == '0') bp++;
+             // Capture run of digits
+            auto an = ap;
+            auto bn = bp;
+            while (ap != ae && *ap >= '0' && *ap <= '9') ap++;
+            while (bp != be && *bp >= '0' && *bp <= '9') bp++;
+             // If there are more digits (after zeros), it comes after
+            if (ap - an != bp - bn) {
+                return ap - an < bp - bn ? -1 : 1;
             }
+             // Otherwise, compare digits in the number
+            while (an != ap) {
+                if (uint8(*an) != uint8(*bn)) {
+                    return uint8(*an) < uint8(*bn) ? -1 : 1;
+                }
+                an++; bn++;
+            }
+             // Digits are the same, so if there are more zeros put it after
+            if (ap - az != bp - bz) {
+                return ap - az < bp - bz ? -1 : 1;
+            }
+            if (ap == ae) {
+                return bp == be ? 0 : -1;
+            }
+            else if (bp == be) return 1;
+             // Zeros and digits are the same so continue with nondigits
+            goto nondigit;
         }
-         // Digits are the same, so if there are more zeros put it after
-        if (azeros != bzeros) return azeros < bzeros ? -1 : 1;
-         // Zeros and digits are the same so just compare a non-digit character
-        if (ap != a.end() && bp != b.end()) {
-            if (*ap != *bp) return *ap < *bp ? -1 : 1;
-            ap++; bp++;
+        else if (*bp >= '0' && *bp <= '9') return -1;
+
+        nondigit:
+        if (uint8(*ap) != uint8(*bp)) {
+            return uint8(*ap) < uint8(*bp) ? -1 : 1;
         }
+        ap++; bp++;
     }
      // Ran out of one side, so whichever has more left comes after
-    return a.end() - ap < b.end() - bp ? -1 : 1;
+    return ap == ae ? -1 : bp == be ? 1 : 0;
 }
 
 UniqueString escape_for_shell (Str in) {
@@ -81,11 +84,12 @@ static tap::TestSet tests ("dirt/uni/text", []{
     is(natural_compare("3", "2"), 1);
     is(natural_compare("a1b", "a10b"), -1);
     is(natural_compare("a9b", "a10b"), -1);
-    is(natural_compare("a9b", "ab"), 1);
-    is(natural_compare("a1b", "a01b"), -1);
-    is(natural_compare("a0", "a "), 1);
+    is(natural_compare("a9b", "ab"), 1, "Numbers come after no numbers");
+    is(natural_compare("a1b", "a01b"), -1, "More zeroes come after less zeroes");
+    is(natural_compare("a", "a "), -1, "Longer comes after");
     is(natural_compare("a b", "ab"), -1);
     is(natural_compare("01", "001"), -1);
+    is(natural_compare("a", "あ"), -1, "Put unicode after ascii");
     done_testing();
 });
 #endif
