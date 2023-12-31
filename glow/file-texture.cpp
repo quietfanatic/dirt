@@ -50,7 +50,7 @@ FileTexture::FileTexture (std::string filename, uint32 target) : Texture(target)
             break;
         default: {
              // Nontrivial format, so ask SDL to convert
-            uni::warn_utf8("Weird image format, converting\n");
+            uni::warn_utf8(uni::cat("Weird image format, converting ", filename, "\n"));
             uint32 sdl_format;
             if (SDL_ISPIXELFORMAT_ALPHA(surf->format->format)) {
                 sdl_format = SDL_PIXELFORMAT_RGBA32;
