@@ -1,5 +1,8 @@
 #include "file-texture.h"
 
+//TEMP
+#include "../uni/io.h"
+
 #include <SDL2/SDL_image.h>
 #include "../glow/gl.h"
 
@@ -46,6 +49,8 @@ FileTexture::FileTexture (std::string filename, uint32 target) : Texture(target)
             type = GL_UNSIGNED_BYTE;
             break;
         default: {
+             // Nontrivial format, so ask SDL to convert
+            uni::warn_utf8("Weird image format, converting\n");
             uint32 sdl_format;
             if (SDL_ISPIXELFORMAT_ALPHA(surf->format->format)) {
                 sdl_format = SDL_PIXELFORMAT_RGBA32;
@@ -59,7 +64,6 @@ FileTexture::FileTexture (std::string filename, uint32 target) : Texture(target)
                 format = GL_RGB;
                 type = GL_UNSIGNED_BYTE;
             }
-             // Nontrivial format, so ask SDL to convert
             SDL_Surface* new_surf = require_sdl(
                 SDL_ConvertSurfaceFormat(surf, sdl_format, 0)
             );
