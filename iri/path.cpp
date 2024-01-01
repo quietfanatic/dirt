@@ -44,6 +44,14 @@ UniqueString encode_path (Str input) noexcept {
     return UniqueString::UnsafeConstructOwned(buf, out - buf);
 }
 
+Str path_filename (Str path) noexcept {
+    if (!path) return path;
+    for (const char* p = path.end(); p != path.begin(); --p) {
+        if (p[-1] == '/') return Str(p, path.end());
+    }
+    return path;
+}
+
 Str path_without_filename (Str path) noexcept {
     if (!path) return path;
     for (const char* p = path.end(); p != path.begin(); --p) {

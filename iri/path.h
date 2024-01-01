@@ -22,6 +22,9 @@ UniqueString encode_path (Str) noexcept;
  // TODO: should it?
 inline UniqueString decode_path (Str s) { return iri::decode(s); }
 
+ // Returns everything after the last slash.
+Str path_filename (Str) noexcept;
+
  // Return the path without the filename at the end.  The return value always
  // ends in a slash.
  //    path_without_filename("foo/bar") == "foo/"
