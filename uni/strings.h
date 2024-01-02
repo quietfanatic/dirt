@@ -109,6 +109,11 @@ void cat_append (UniqueString& h, const Tail&... t) {
     }
 }
 
+ // Apparently it's illegal to pass null to memcpy even if the size is 0.
+inline void* safe_memcpy (void* dst, const void* src, usize size) {
+    return size ? std::memcpy(dst, src, size) : dst;
+}
+
 template <class Head, class... Tail> ALWAYS_INLINE
 UniqueString cat_construct (Head&& h, const Tail&... t) {
      // Record of investigations: I was poking around in the disassembly on an
@@ -122,9 +127,9 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
     usize cap = h.size();
     (cat_add_no_overflow(cap, t.size()), ...);
     auto r = UniqueString(Capacity(cap));
-    char* pos = h.size() + (char*)std::memcpy(r.data(), h.data(), h.size());
+    char* pos = h.size() + (char*)safe_memcpy(r.data(), h.data(), h.size());
     ((
-        pos = t.size() + (char*)std::memcpy(pos, t.data(), t.size())
+        pos = t.size() + (char*)safe_memcpy(pos, t.data(), t.size())
     ), ...);
     r.impl.size = pos - r.impl.data;
     return r;

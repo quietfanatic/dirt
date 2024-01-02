@@ -2004,6 +2004,8 @@ bool operator== (
     const T* bd = b;
     if (as != bs) return false;
     if constexpr (std::is_scalar_v<T>) {
+         // Apparent it's illegal to pass null to memcmp even if size is 0.
+        if (bs == 0) return true;
          // Raw char arrays are likely to be short and of known length, so
          // requesting memcmp tends to optimize well.
         return std::memcmp(ad, bd, as * sizeof(T)) == 0;
