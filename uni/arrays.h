@@ -217,12 +217,10 @@ struct ArrayInterface {
     using Class = ac;
     using Self = ArrayInterface<ac, T>;
     using Impl = ArrayImplementation<ac, T>;
-  private:
-    Impl impl;
-    template <class, class>
-    friend struct ArrayInterface;
-  public:
 
+     // You can manipulate the impl directly to skip reference counting if you
+     // know what you're doing.
+    Impl impl;
 
     ///// TYPEDEFS
      // These are fairly unnecessary, but they're here to match STL containers.
@@ -710,52 +708,6 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     ~ArrayInterface () requires (!ac::trivially_copyable) { remove_ref(); }
     ~ArrayInterface () requires (ac::trivially_copyable) = default;
-
-    ///// BYPASSING REFERENCE COUNTING
-     // These manipulate the array without touching any reference counts,
-     // constructors, or destructors, so obviously only do it if you know what
-     // you're doing.
-    ALWAYS_INLINE static constexpr
-    Self UnsafeConstructOwned (T* d, usize s) {
-        Self r;
-        r.set_owned(d, s);
-        return r;
-    }
-    ALWAYS_INLINE constexpr
-    void unsafe_set_owned (T* d, usize s) {
-#ifndef NDEBUG
-         // All these expects bog the optimizer down.
-        if (d) {
-            expect(s <= max_size_);
-            expect(s <= SharableBuffer<T>::header(d)->capacity);
-            expect(SharableBuffer<T>::header(d)->capacity >= min_capacity);
-            expect(SharableBuffer<T>::header(d)->capacity <= max_capacity);
-        }
-        else expect(!s);
-#endif
-        set_owned(d, s);
-    }
-    ALWAYS_INLINE constexpr
-    void unsafe_set_unowned (T* d, usize s) {
-#ifndef NDEBUG
-        if (d) expect(s <= max_size_);
-        else expect(!s);
-#endif
-        set_unowned(d, s);
-    }
-    ALWAYS_INLINE constexpr
-    void unsafe_set_empty () {
-        impl = {};
-    }
-    ALWAYS_INLINE constexpr
-    void unsafe_set_size (usize s) {
-        set_size(s);
-    }
-    ALWAYS_INLINE constexpr
-    void unsafe_clear_skip_destructors () {
-        if (impl.data) SharableBuffer<T>::deallocate(impl.data);
-        impl = {};
-    }
 
     ///// ACCESSORS
 

@@ -27,24 +27,23 @@ UniqueString string_from_file (AnyString filename) {
     }
 
     fseek(f, 0, SEEK_END);
-    usize size = ftell(f);
+    long size = ftell(f);
+    require(usize(size) < AnyString::max_size_);
+    auto r = UniqueString(Uninitialized(size));
     rewind(f);
 
-    char* buf = SharableBuffer<char>::allocate(size);
-    usize did_read = fread(buf, 1, size, f);
-    if (did_read != size) {
+    usize did_read = fread(r.data(), 1, r.size(), f);
+    if (did_read != r.size()) {
         int errnum = errno;
         fclose(f);
-        SharableBuffer<char>::deallocate(buf);
         raise_io_error(e_ReadFailed, "Failed to read from ", filename, errnum);
     }
 
     if (fclose(f) != 0) {
         int errnum = errno;
-        SharableBuffer<char>::deallocate(buf);
         raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
     }
-    return UniqueString::UnsafeConstructOwned(buf, size);
+    return r;
 }
 
 void string_to_file (Str content, AnyString filename) {

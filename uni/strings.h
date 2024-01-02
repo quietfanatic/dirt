@@ -105,7 +105,7 @@ void cat_append (UniqueString& h, const Tail&... t) {
         ((
             pos = t.size() + (char*)std::memcpy(pos, t.data(), t.size())
         ), ...);
-        h.unsafe_set_size(pos - h.begin());
+        h.impl.size = pos - h.impl.data;
     }
 }
 
@@ -126,7 +126,7 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
     ((
         pos = t.size() + (char*)std::memcpy(pos, t.data(), t.size())
     ), ...);
-    r.unsafe_set_size(pos - r.begin());
+    r.impl.size = pos - r.impl.data;
     return r;
 }
 

@@ -163,8 +163,8 @@ struct TraverseToTree {
                 expect(!pair.second.has_value());
             }
 #endif
-            object.unsafe_clear_skip_destructors();
-            object = move(new_object);
+            SharableBuffer<TreePair>::deallocate(object.impl.data);
+            new (&object) TreeObject(move(new_object));
         }
          // This will check for duplicates in debug mode.
         new (&r) Tree(move(object));

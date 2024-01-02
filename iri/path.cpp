@@ -20,6 +20,7 @@ UniqueString encode_path (Str input) noexcept {
             default: break;
         }
     }
+    require(cap < iri::maximum_length);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
     for (auto c : input) {
@@ -41,7 +42,9 @@ UniqueString encode_path (Str input) noexcept {
             default: *out++ = c; break;
         }
     }
-    return UniqueString::UnsafeConstructOwned(buf, out - buf);
+    UniqueString r;
+    r.impl = {uint32(out - buf), buf};
+    return r;
 }
 
 Str path_filename (Str path) noexcept {

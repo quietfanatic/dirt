@@ -53,14 +53,14 @@ constexpr Tree::Tree (AnyString v, TreeFlags f) :
     flags(f), length(v.size()), data{.as_char_ptr = v.data()}
 {
     require(v.size() <= uint32(-2));
-    v.unsafe_set_empty();
+    v.impl = {};
 }
 constexpr Tree::Tree (TreeArray v, TreeFlags f) :
     form(Form::Array), rep(in::Rep::Array), flags(f),
     length(v.size()), data{.as_array_ptr = v.data()}
 {
     require(v.size() <= uint32(-2));
-    v.unsafe_set_empty();
+    v.impl = {};
 }
 constexpr Tree::Tree (TreeObject v, TreeFlags f) :
     form(Form::Object), rep(in::Rep::Object), flags(f),
@@ -76,14 +76,14 @@ constexpr Tree::Tree (TreeObject v, TreeFlags f) :
         expect(v[i].first != v[j].first);
     }
 #endif
-    v.unsafe_set_empty();
+    v.impl = {};
 }
 inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
     form(Form::Error), rep(in::Rep::Error), flags(f), length(1), data{}
 {
     auto e = SharedArray<std::exception_ptr>(1, move(v));
     const_cast<const std::exception_ptr*&>(data.as_error_ptr) = e.data();
-    e.unsafe_set_empty();
+    e.impl = {};
 }
  // I wish I could use is_constant_evaluated before selecting whether to use the
  // member initializers, for optimization.  It might be possible with some
@@ -182,9 +182,9 @@ constexpr Tree::operator AnyString () const& {
             if (data.as_char_ptr) {
                 ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
             }
-            return SharedString::UnsafeConstructOwned(
-                const_cast<char*>(data.as_char_ptr), length
-            );
+            AnyString r;
+            r.impl = {length << 1 | 1, const_cast<char*>(data.as_char_ptr)};
+            return r;
         }
         default: in::raise_TreeWrongForm(*this, Form::String);
     }
@@ -194,9 +194,8 @@ inline Tree::operator AnyString () && {
         case in::Rep::StaticString:
             return StaticString(data.as_char_ptr, length);
         case in::Rep::SharedString: {
-            auto r = SharedString::UnsafeConstructOwned(
-                const_cast<char*>(data.as_char_ptr), length
-            );
+            AnyString r;
+            r.impl = {length << 1 | 1, const_cast<char*>(data.as_char_ptr)};
             new (this) Tree();
             return r;
         }
@@ -215,15 +214,14 @@ constexpr Tree::operator TreeArray () const& {
     if (data.as_array_ptr) {
         ++SharableBuffer<Tree>::header(data.as_array_ptr)->ref_count;
     }
-    return TreeArray::UnsafeConstructOwned(
-        const_cast<Tree*>(data.as_array_ptr), length
-    );
+    TreeArray r;
+    r.impl = {length, const_cast<Tree*>(data.as_array_ptr)};
+    return r;
 }
 inline Tree::operator TreeArray () && {
     if (rep != in::Rep::Array) in::raise_TreeWrongForm(*this, Form::Array);
-    auto r = TreeArray::UnsafeConstructOwned(
-        const_cast<Tree*>(data.as_array_ptr), length
-    );
+    TreeArray r;
+    r.impl = {length, const_cast<Tree*>(data.as_array_ptr)};
     new (this) Tree();
     return r;
 }
@@ -236,15 +234,14 @@ constexpr Tree::operator TreeObject () const& {
     if (data.as_object_ptr) {
         ++SharableBuffer<TreePair>::header(data.as_object_ptr)->ref_count;
     }
-    return TreeObject::UnsafeConstructOwned(
-        const_cast<TreePair*>(data.as_object_ptr), length
-    );
+    TreeObject r;
+    r.impl = {length, const_cast<TreePair*>(data.as_object_ptr)};
+    return r;
 }
 inline Tree::operator TreeObject () && {
     if (rep != in::Rep::Object) in::raise_TreeWrongForm(*this, Form::Object);
-    auto r = TreeObject::UnsafeConstructOwned(
-        const_cast<TreePair*>(data.as_object_ptr), length
-    );
+    TreeObject r;
+    r.impl = {length, const_cast<TreePair*>(data.as_object_ptr)};
     new (this) Tree();
     return r;
 }

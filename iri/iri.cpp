@@ -50,6 +50,7 @@ UniqueString encode (Str input) noexcept {
             default: break;
         }
     }
+    require(cap < maximum_length);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
     for (auto c : input) {
@@ -60,11 +61,14 @@ UniqueString encode (Str input) noexcept {
             default: *out++ = c; break;
         }
     }
-    return UniqueString::UnsafeConstructOwned(buf, out - buf);
+    UniqueString r;
+    r.impl = {uint32(out - buf), buf};
+    return r;
 }
 
 UniqueString decode (Str input) noexcept {
     if (!input) return "";
+    require(input.size() < maximum_length);
     const char* in = input.begin();
     const char* end = input.end();
     char* buf = SharableBuffer<char>::allocate(input.size());
@@ -78,7 +82,9 @@ UniqueString decode (Str input) noexcept {
         }
         else *out++ = *in++;
     }
-    return UniqueString::UnsafeConstructOwned(buf, out - buf);
+    UniqueString r;
+    r.impl = {uint32(out - buf), buf};
+    return r;
 }
 
 struct IRIParser {
@@ -381,7 +387,7 @@ struct IRIParser {
         expect(authority_end <= path_end);
         expect(path_end <= query_end);
         expect(query_end <= out - output.begin());
-        output.unsafe_set_size(out - output.begin());
+        output.impl.size = out - output.begin();
     }
 
     [[gnu::cold]] void fail (Error err) {

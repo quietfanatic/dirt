@@ -25,7 +25,7 @@ struct Printer {
     [[gnu::noinline]]
     char* extend (char* p, usize more = 1) {
         char* old_start = output.data();
-        output.unsafe_set_size(p - old_start);
+        output.impl.size = p - old_start;
         output.reserve_plenty(p - old_start + more);
         end = output.data() + output.capacity();
         return p - old_start + output.data();
@@ -308,7 +308,7 @@ struct Printer {
     UniqueString print (TreeRef t) {
         char* p = print_tree(output.data(), t, 0);
         if (opts & PRETTY) p = pchar(p, '\n');
-        output.unsafe_set_size(p - output.data());
+        output.impl.size = p - output.impl.data;
         if (output.size() < 128) output.shrink_to_fit();
         return move(output);
     }
