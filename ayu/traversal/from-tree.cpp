@@ -307,7 +307,6 @@ struct TraverseFromTree {
                     [&tree, next_list](const Traversal& child)
                 {
                     claim_attrs(child, tree, next_list);
-                     // The claim_* stack doesn't call finish_item so call it here.
                 });
             }
             else if (flags & AttrFlags::Optional) {
@@ -324,6 +323,7 @@ struct TraverseFromTree {
             else raise_AttrMissing(trav.desc, attr->key);
             next_attr:;
         }
+         // The claim_* stack doesn't call finish_item so call it here.
         finish_item(trav, tree);
     }
 

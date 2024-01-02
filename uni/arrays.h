@@ -1979,6 +1979,7 @@ constexpr bool operator== (
     if (as != bs) return false;
      // Unlike most STL containers, this WILL short-circuit if the arrays have
      // the same data pointer and size.
+     // TODO: this is incorrect for floating point values, so just don't
     if constexpr (requires { ad == bd; }) {
         if (ad == bd) return true;
     }
