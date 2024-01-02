@@ -71,7 +71,7 @@ static void verify_tree_for_scheme (
     if (tree.form == Form::Null) {
         raise_ResourceValueEmpty("load", res);
     }
-    auto a = TreeArraySlice(tree);
+    auto a = Slice<Tree>(tree);
     if (a.size() == 2) {
         Type type = Type(Str(a[0]));
         if (!scheme->accepts_type(type)) {

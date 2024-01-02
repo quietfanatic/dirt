@@ -319,7 +319,7 @@ struct Parser {
             }
             Tree key;
             in = parse_term(in, key);
-            if (key.rep != Rep::SharedString) {
+            if (key.form != Form::String) {
                 error(in, "Can't use non-string as key in object");
             }
             in = skip_ws(in);
@@ -349,7 +349,7 @@ struct Parser {
     const char* parse_shortcut_name (const char* in, AnyString& r) {
         Tree name;
         auto end = parse_term(in, name);
-        if (name.rep != Rep::SharedString) [[unlikely]] {
+        if (name.form != Form::String) [[unlikely]] {
             error(in, "Can't use non-string as shortcut name");
         }
         new (&r) AnyString(move(name));
@@ -570,42 +570,42 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("\"asdfasdf\\x");
     y("\"asdf\\u0037asdf\"", Tree("asdf7asdf"));
     y("\"asdf\\uD83C\\uDF31asdf\"", Tree("asdf🌱asdf"));
-    y("[]", Tree(TreeArray{}));
+    y("[]", Tree(AnyArray<Tree>{}));
     n("[,]");
     n("[,,,,,]");
-    y("[0 1 foo]", Tree(TreeArray{Tree(0), Tree(1), Tree("foo")}));
-    y("{}", Tree(TreeObject{}));
+    y("[0 1 foo]", Tree(AnyArray<Tree>{Tree(0), Tree(1), Tree("foo")}));
+    y("{}", Tree(AnyArray<TreePair>{}));
     n("{,}");
-    y("{\"asdf\":\"foo\"}", Tree(TreeObject{TreePair{"asdf", Tree("foo")}}));
-    y("{\"asdf\":0}", Tree(TreeObject{TreePair{"asdf", Tree(0)}}));
-    y("{asdf:0}", Tree(TreeObject{TreePair{"asdf", Tree(0)}}));
+    y("{\"asdf\":\"foo\"}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree("foo")}}));
+    y("{\"asdf\":0}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree(0)}}));
+    y("{asdf:0}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree(0)}}));
     n("{0:0}");
     y("{a:0 \"null\":1 \"0\":foo}",
-        Tree(TreeObject{
+        Tree(AnyArray<TreePair>{
             TreePair{"a", Tree(0)},
             TreePair{"null", Tree(1)},
             TreePair{"0", Tree("foo")}
         })
     );
     y("[[0 1] [[2] [3 4]]]",
-        Tree(TreeArray{
-            Tree(TreeArray{Tree(0), Tree(1)}),
-            Tree(TreeArray{
-                Tree(TreeArray{Tree(2)}),
-                Tree(TreeArray{Tree(3), Tree(4)})
+        Tree(AnyArray<Tree>{
+            Tree(AnyArray<Tree>{Tree(0), Tree(1)}),
+            Tree(AnyArray<Tree>{
+                Tree(AnyArray<Tree>{Tree(2)}),
+                Tree(AnyArray<Tree>{Tree(3), Tree(4)})
             })
         })
     );
-    y("[0,1,]", Tree(TreeArray{Tree(0), Tree(1)}));
+    y("[0,1,]", Tree(AnyArray<Tree>{Tree(0), Tree(1)}));
     n("[0,,1,]");
     n("[0,1,,]");
     y("&foo 1", Tree(1));
     y("&foo:1 *foo", Tree(1));
     y("&\"null\":4 *\"null\"", Tree(4));
-    y("[&foo 1 *foo]", Tree(TreeArray{Tree(1), Tree(1)}));
-    y("[&foo:1 *foo]", Tree(TreeArray{Tree(1)}));
-    y("{&key asdf:*key}", Tree(TreeObject{TreePair{"asdf", Tree("asdf")}}));
-    y("{&borp:\"bump\" *borp:*borp}", Tree(TreeObject{TreePair{"bump", Tree("bump")}}));
+    y("[&foo 1 *foo]", Tree(AnyArray<Tree>{Tree(1), Tree(1)}));
+    y("[&foo:1 *foo]", Tree(AnyArray<Tree>{Tree(1)}));
+    y("{&key asdf:*key}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree("asdf")}}));
+    y("{&borp:\"bump\" *borp:*borp}", Tree(AnyArray<TreePair>{TreePair{"bump", Tree("bump")}}));
     y("3 --4", Tree(3));
     y("#", Tree("#"));
     y("#foo", Tree("#foo"));

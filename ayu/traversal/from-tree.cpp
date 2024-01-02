@@ -227,13 +227,14 @@ struct TraverseFromTree {
          // In theory, we could make the worst-case O(n) as well by stuffing the
          // keys in an unordered_map or something, but the extra overhead is
          // unlikely to be worth it.
-        auto next_list_buf = std::unique_ptr<uint32[]>(new uint32[tree.length + 1]);
-        for (uint32 i = 0; i < tree.length; i++) next_list_buf[i] = i;
-        next_list_buf[tree.length] = -1;
+        auto len = tree.meta >> 1;
+        auto next_list_buf = std::unique_ptr<uint32[]>(new uint32[len + 1]);
+        for (uint32 i = 0; i < len; i++) next_list_buf[i] = i;
+        next_list_buf[len] = -1;
 
         claim_attrs_use_attrs(trav, tree, &next_list_buf[0] + 1, attrs);
         if (next_list_buf[0] != uint32(-1)) {
-            expect(tree.rep == Rep::Object);
+            expect(tree.form == Form::Object);
             raise_AttrRejected(
                 trav.desc, tree.data.as_object_ptr[next_list_buf[0]].first
             );
@@ -247,10 +248,10 @@ struct TraverseFromTree {
     ) {
          // Computed attrs always take the entire object, so we don't need to
          // allocate a next_list.
-        expect(tree.rep == Rep::Object);
-        set_keys(trav, TreeObjectSlice(tree), keys_acr);
-        expect(tree.rep == Rep::Object);
-        for (auto& pair : TreeObjectSlice(tree)) {
+        expect(tree.form == Form::Object);
+        set_keys(trav, Slice<TreePair>(tree), keys_acr);
+        expect(tree.form == Form::Object);
+        for (auto& pair : Slice<TreePair>(tree)) {
             write_computed_attr(trav, pair, f);
         }
         finish_item(trav, tree);
@@ -275,7 +276,7 @@ struct TraverseFromTree {
         const Traversal& trav, const Tree& tree, uint32* next_list,
         const AttrsDcrPrivate* attrs
     ) {
-        expect(tree.rep == Rep::Object);
+        expect(tree.form == Form::Object);
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto flags = attr->acr()->attr_flags;
@@ -283,14 +284,14 @@ struct TraverseFromTree {
             uint32* prev_next; uint32 j;
             for (
                 prev_next = &next_list[-1], j = *prev_next;
-                j < tree.length;
+                j < tree.meta >> 1;
                 prev_next = &next_list[j], j = *prev_next
             ) {
                 auto& [key, value] = tree.data.as_object_ptr[j];
                 if (key == attr->key) {
                      // TODO: avoid copy for non-collapsed case?
                     auto real_value = flags & AttrFlags::CollapseOptional
-                        ? Tree(TreeArray::make(value))
+                        ? Tree(AnyArray<Tree>::make(value))
                         : value;
                     trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                         [&real_value](const Traversal& child)
@@ -314,7 +315,7 @@ struct TraverseFromTree {
             }
             else if (flags & AttrFlags::CollapseOptional) {
                  // Deserialize from empty array
-                static constexpr auto empty = Tree(TreeArray());
+                static constexpr auto empty = Tree(AnyArray<Tree>());
                 trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                     [](const Traversal& child)
                 { traverse(child, empty); });
@@ -333,13 +334,13 @@ struct TraverseFromTree {
     ) {
          // We should only get here if a parent item included a child item that
          // has computed attrs.
-        expect(tree.rep == Rep::Object);
-        set_keys(trav, TreeObjectSlice(tree), keys_acr);
-        expect(tree.rep == Rep::Object);
+        expect(tree.form == Form::Object);
+        set_keys(trav, Slice<TreePair>(tree), keys_acr);
+        expect(tree.form == Form::Object);
         uint32* prev_next; uint32 i;
         for (
             prev_next = &next_list[-1], i = *prev_next;
-            i < tree.length;
+            i < tree.meta >> 1;
             prev_next = &next_list[i], i = *prev_next
         ) {
             write_computed_attr(trav, tree.data.as_object_ptr[i], f);
@@ -351,7 +352,7 @@ struct TraverseFromTree {
 
     static
     void set_keys (
-        const Traversal& trav, TreeObjectSlice object,
+        const Traversal& trav, Slice<TreePair> object,
         const Accessor* keys_acr
     ) {
         if (!(keys_acr->flags & AcrFlags::Readonly)) {
@@ -426,8 +427,8 @@ struct TraverseFromTree {
         ) {
             min -= 1;
         }
-        expect(tree.rep == Rep::Array);
-        auto array = TreeArraySlice(tree);
+        expect(tree.form == Form::Array);
+        auto array = Slice<Tree>(tree);
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }
@@ -445,9 +446,9 @@ struct TraverseFromTree {
         const Traversal& trav, const Tree& tree,
         const Accessor* length_acr, ElemFunc<Mu>* f
     ) {
-        expect(tree.rep == Rep::Array);
+        expect(tree.form == Form::Array);
         if (!(length_acr->flags & AcrFlags::Readonly)) {
-            length_acr->write(*trav.address, [len{tree.length}](Mu& v){
+            length_acr->write(*trav.address, [len{tree.meta >> 1}](Mu& v){
                 reinterpret_cast<usize&>(v) = len;
             });
         }
@@ -457,11 +458,12 @@ struct TraverseFromTree {
             length_acr->read(*trav.address, [&len](Mu& v){
                 len = reinterpret_cast<usize&>(v);
             });
-            if (tree.length != len) {
-                raise_LengthRejected(trav.desc, len, len, tree.length);
+            if (tree.meta >> 1 != len) {
+                raise_LengthRejected(trav.desc, len, len, tree.meta >> 1);
             }
         }
-        auto array = TreeArraySlice(tree);
+         // TODO: try putting this at the top
+        auto array = Slice<Tree>(tree);
         for (usize i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);

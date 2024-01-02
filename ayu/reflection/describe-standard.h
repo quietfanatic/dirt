@@ -318,7 +318,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
         else if (tree.form == ayu::Form::Array) {
-            auto a = ayu::TreeArraySlice(tree);
+            auto a = uni::Slice<ayu::Tree>(tree);
             if (a.size() != n) {
                 ayu::raise_LengthRejected(
                     ayu::Type::CppType<char[n]>(), n, n, a.size()

@@ -45,8 +45,6 @@ struct Dynamic;
  // data/tree.h
 struct Tree;
 using TreeRef = CRef<Tree, 16>;
-using TreeArray = SharedArray<Tree>;
-using TreeArraySlice = Slice<Tree>;
  // Since GCC 12.0, std::pair has extra concept shenanigans that cause weird
  // complicated errors when used with ArrayInterface, so we're throwing it in
  // the trash.
@@ -57,8 +55,6 @@ struct Pair {
     B second;
 };
 using TreePair = Pair<AnyString, Tree>;
-using TreeObject = SharedArray<TreePair>;
-using TreeObjectSlice = Slice<TreePair>;
 
  // Unknown type that will never be defined.  This has a similar role to void,
  // except:

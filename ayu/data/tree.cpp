@@ -11,26 +11,27 @@ void delete_Tree_data (TreeRef t) noexcept {
      // Manually delete all the elements.  We can't call UniqueArray<*>'s
      // destructor because we've already run the reference count down to 0, and
      // it debug-asserts that the reference count is 1.
-    switch (t->rep) {
-        case Rep::SharedString: {
+    expect(t->meta & 1);
+    switch (t->form) {
+        case Form::String: {
             SharableBuffer<const char>::deallocate(t->data.as_char_ptr);
             break;
         }
-        case Rep::Array: {
-            for (usize i = 0; i < t->length; i++) {
-                t->data.as_array_ptr[i].~Tree();
+        case Form::Array: {
+            for (auto& e : Slice<Tree>(*t)) {
+                e.~Tree();
             }
             SharableBuffer<const Tree>::deallocate(t->data.as_array_ptr);
             break;
         }
-        case Rep::Object: {
-            for (usize i = 0; i < t->length; i++) {
-                t->data.as_object_ptr[i].~TreePair();
+        case Form::Object: {
+            for (auto& p : Slice<TreePair>(*t)) {
+                p.~TreePair();
             }
             SharableBuffer<const TreePair>::deallocate(t->data.as_object_ptr);
             break;
         }
-        case Rep::Error: {
+        case Form::Error: {
             t->data.as_error_ptr->~exception_ptr();
             SharableBuffer<const std::exception_ptr>::deallocate(t->data.as_error_ptr);
             break;
@@ -40,9 +41,7 @@ void delete_Tree_data (TreeRef t) noexcept {
 }
 
 void raise_TreeWrongForm (TreeRef t, Form form) {
-    if (t->rep == Rep::Error) std::rethrow_exception(std::exception_ptr(*t));
-     // TODO: require
-    else if (t->form == form) never();
+    if (t->form == Form::Error) std::rethrow_exception(std::exception_ptr(*t));
     else raise(e_TreeWrongForm, cat(
         "Tried to use tree of form ", item_to_string(&t->form),
         " as form ", item_to_string(&form)
@@ -71,7 +70,7 @@ bool tree_eq_array (const Tree* a, const Tree* b, usize s) {
 }
 
 NOINLINE
-bool tree_eq_object (TreeObjectSlice a, TreeObjectSlice b) {
+bool tree_eq_object (Slice<TreePair> a, Slice<TreePair> b) {
     expect(a.size() == b.size());
     expect(a.size() > 0 && b.size() > 0);
     expect(a.data() != b.data());
@@ -91,55 +90,51 @@ bool tree_eq_object (TreeObjectSlice a, TreeObjectSlice b) {
 
 NOINLINE
 bool operator == (const Tree& a, const Tree& b) noexcept {
-    if (a.rep != b.rep) {
-         // Special case int/float comparisons
-        if (a.rep == Rep::Int64 && b.rep == Rep::Double) {
-            return a.data.as_int64 == b.data.as_double;
+    if (a.form != b.form) return false;
+    else switch (a.form) {
+        case Form::Null: return true;
+        case Form::Bool: return a.data.as_bool == b.data.as_bool;
+        case Form::Number: {
+            if (a.meta) {
+                if (b.meta) {
+                    auto av = a.data.as_double;
+                    auto bv = b.data.as_double;
+                    return av == bv || (av != av && bv != bv);
+                }
+                else return a.data.as_double == b.data.as_int64;
+            }
+            else if (b.meta) {
+                return a.data.as_int64 == b.data.as_double;
+            }
+            else return a.data.as_int64 == b.data.as_int64;
         }
-        else if (a.rep == Rep::Double && b.rep == Rep::Int64) {
-            return a.data.as_double == b.data.as_int64;
-        }
-         // Comparison between different-lifetime strings
-        else if ((a.rep == Rep::StaticString && b.rep == Rep::SharedString)
-              || (a.rep == Rep::SharedString && b.rep == Rep::StaticString)
-        ) goto strs;
-         // Otherwise different reps = different values.
-        return false;
-    }
-    else switch (a.rep) {
-        case Rep::Null: return true;
-        case Rep::Bool:
-        case Rep::Int64: return a.data.as_int64 == b.data.as_int64;
-        case Rep::Double: {
-            auto av = a.data.as_double;
-            auto bv = b.data.as_double;
-            return av == bv || (av != av && bv != bv);
-        }
-        case Rep::StaticString:
-        case Rep::SharedString: goto strs;
-        case Rep::Array: {
-            if (a.length != b.length) return false;
-            if (a.length == 0) return true;
-            if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
-            return tree_eq_array(a.data.as_array_ptr, b.data.as_array_ptr, a.length);
-        }
-        case Rep::Object: {
-            if (a.length != b.length) return false;
-            if (a.length == 0) return true;
-            if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
-            return tree_eq_object(
-                TreeObjectSlice(a.data.as_object_ptr, a.length),
-                TreeObjectSlice(b.data.as_object_ptr, b.length)
+        case Form::String: {
+            if (a.meta >> 1 != b.meta >> 1) return false;
+            if (a.meta >> 1 == 0) return true;
+            if (a.data.as_char_ptr == b.data.as_char_ptr) return true;
+            return tree_eq_str(
+                a.data.as_char_ptr, b.data.as_char_ptr, a.meta >> 1
             );
         }
-        case Rep::Error: return false;
+        case Form::Array: {
+            if (a.meta >> 1 != b.meta >> 1) return false;
+            if (a.meta >> 1 == 0) return true;
+            if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
+            return tree_eq_array(
+                a.data.as_array_ptr, b.data.as_array_ptr, a.meta >> 1
+            );
+        }
+        case Form::Object: {
+            if (a.meta >> 1 != b.meta >> 1) return false;
+            if (a.meta >> 1 == 0) return true;
+            if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
+            return tree_eq_object(
+                Slice<TreePair>(a.data.as_object_ptr, a.meta >> 1),
+                Slice<TreePair>(b.data.as_object_ptr, b.meta >> 1)
+            );
+        }
+        case Form::Error: return false;
         default: never();
-    }
-    strs: {
-        if (a.length != b.length) return false;
-        if (a.length == 0) return true;
-        if (a.data.as_char_ptr == b.data.as_char_ptr) return true;
-        return tree_eq_str(a.data.as_char_ptr, b.data.as_char_ptr, a.length);
     }
 }
 
@@ -188,16 +183,16 @@ static tap::TestSet tests ("dirt/ayu/data/tree", []{
     throws_code<e_TreeCantRepresent>([]{
         uint8(Tree(-1));
     }, "Can't convert -1 to uint8");
-    is(Tree(TreeArray{Tree(3), Tree(4)}), Tree(TreeArray{Tree(3), Tree(4)}), "Compare arrays.");
-    isnt(Tree(TreeArray{Tree(3), Tree(4)}), Tree(TreeArray{Tree(4), Tree(3)}), "Compare unequal arrays.");
+    is(Tree(AnyArray<Tree>{Tree(3), Tree(4)}), Tree(AnyArray<Tree>{Tree(3), Tree(4)}), "Compare arrays.");
+    isnt(Tree(AnyArray<Tree>{Tree(3), Tree(4)}), Tree(AnyArray<Tree>{Tree(4), Tree(3)}), "Compare unequal arrays.");
     is(
-        Tree(TreeObject{TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}}),
-        Tree(TreeObject{TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}}),
-        "TreeObject with same attributes in different order are equal"
+        Tree(AnyArray<TreePair>{TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}}),
+        Tree(AnyArray<TreePair>{TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}}),
+        "AnyArray<TreePair> with same attributes in different order are equal"
     );
     isnt(
-        Tree(TreeObject{TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}}),
-        Tree(TreeObject{TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}, TreePair{"c", Tree(3)}}),
+        Tree(AnyArray<TreePair>{TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}}),
+        Tree(AnyArray<TreePair>{TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}, TreePair{"c", Tree(3)}}),
         "Extra attribute in second object makes it unequal"
     );
     done_testing();

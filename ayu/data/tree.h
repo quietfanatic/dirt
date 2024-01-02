@@ -52,20 +52,8 @@ DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 
 struct Tree {
     const Form form;
-    const int8 rep;
      // Only the flags can be modified after construction.
     TreeFlags flags;
-     // Only defined for certain forms.
-    const uint32 length;
-    const union {
-        bool as_bool;
-        int64 as_int64;
-        double as_double;
-        const char* as_char_ptr;
-        const Tree* as_array_ptr;
-        const TreePair* as_object_ptr;
-        const std::exception_ptr* as_error_ptr;
-    } data;
 
     constexpr bool has_value () const { return form != Form::Undefined; }
 
@@ -109,12 +97,12 @@ struct Tree {
 
      // plain (not signed or unsigned) chars are represented as strings
      // This is not optimal but who serializes individual 8-bit code units
-    explicit Tree (char v, TreeFlags f = {}) : Tree(SharedString(1,v), f) { }
+    explicit Tree (char v, TreeFlags f = {}) : Tree(UniqueString(1,v), f) { }
     explicit constexpr Tree (AnyString, TreeFlags = {});
     explicit Tree (Str16 v, TreeFlags f = {}) : Tree(from_utf16(v), f) { }
 
-    explicit constexpr Tree (TreeArray, TreeFlags = {});
-    explicit constexpr Tree (TreeObject, TreeFlags = {});
+    explicit constexpr Tree (AnyArray<Tree>, TreeFlags = {});
+    explicit constexpr Tree (AnyArray<TreePair>, TreeFlags = {});
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
     ///// CONVERSION FROM TREE
@@ -138,14 +126,14 @@ struct Tree {
      // Warning 2: The Str will be invalidated when this Tree is destructed.
     explicit constexpr operator Str () const;
     explicit constexpr operator AnyString () const&;
-    explicit operator AnyString () &&;
+    explicit constexpr operator AnyString () &&;
     explicit operator UniqueString16 () const;
-    explicit constexpr operator TreeArraySlice () const;
-    explicit constexpr operator TreeArray () const&;
-    explicit operator TreeArray () &&;
-    explicit constexpr operator TreeObjectSlice () const;
-    explicit constexpr operator TreeObject () const&;
-    explicit operator TreeObject () &&;
+    explicit constexpr operator Slice<Tree> () const;
+    explicit constexpr operator AnyArray<Tree> () const&;
+    explicit constexpr operator AnyArray<Tree> () &&;
+    explicit constexpr operator Slice<TreePair> () const;
+    explicit constexpr operator AnyArray<TreePair> () const&;
+    explicit constexpr operator AnyArray<TreePair> () &&;
     explicit operator std::exception_ptr () const;
 
     ///// CONVENIENCE
@@ -160,6 +148,22 @@ struct Tree {
     constexpr const Tree& operator[] (Str key) const;
      // Throws if the tree is not an array or the index is out of bounds.
     constexpr const Tree& operator[] (usize index) const;
+
+    ///// INTERNAL
+
+     // For Form::Number: 0 = integer, 2 = floating
+     // For Form::String|Array|Object|Error: impl.sizex2_with_owned
+     // For all types: meta & 1 means we need to refcount.
+    uint32 meta;
+    union {
+        bool as_bool;
+        int64 as_int64;
+        double as_double;
+        const char* as_char_ptr;
+        const Tree* as_array_ptr;
+        const TreePair* as_object_ptr;
+        const std::exception_ptr* as_error_ptr;
+    } data;
 };
  // Make sure earlier CRef<Tree, 16> alias is correct
 static_assert(sizeof(Tree) == sizeof(TreeRef));
@@ -168,9 +172,7 @@ static_assert(sizeof(Tree) == sizeof(TreeRef));
  //  - Unlike float and double, Tree(NAN) == Tree(NAN).
  //  - Like float and double, -0.0 == +0.0.
  //  - Objects are equal if they have all the same attributes, but the
- //  attributes don't have to be in the same order.  Note that comparing
- //  TreeObjects or TreeObjectSlices will NOT do an order-independent
- //  comparison, it'll just do ordinary array comparison.
+ //  attributes don't have to be in the same order.
 bool operator == (const Tree& a, const Tree& b) noexcept;
 
  // Tried to get something out of a tree that was the wrong form.

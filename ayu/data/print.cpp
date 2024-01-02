@@ -146,21 +146,19 @@ struct Printer {
     }
 
     static usize approx_width (TreeRef t) {
-        switch (t->rep) {
-            case Rep::StaticString:
-            case Rep::SharedString: return t->length;
-            case Rep::Array: {
+        switch (t->form) {
+            case Form::String: return t->meta >> 1;
+            case Form::Array: {
                 usize r = 2;
-                for (usize i = 0; i < t->length; ++i) {
-                    r += 1 + approx_width(t->data.as_array_ptr[i]);
+                for (auto& e : Slice<Tree>(*t)) {
+                    r += 1 + approx_width(e);
                 }
                 return r;
             }
-            case Rep::Object: {
+            case Form::Object: {
                 usize r = 2;
-                for (usize i = 0; i < t->length; ++i) {
-                    r += 2 + t->data.as_object_ptr[i].first.size() +
-                        approx_width(t->data.as_object_ptr[i].second);
+                for (auto& [key, value] : Slice<TreePair>(*t)) {
+                    r += 2 + key.size() + approx_width(value);
                 }
                 return r;
             }
@@ -169,40 +167,41 @@ struct Printer {
     }
 
     char* print_tree (char* p, TreeRef t, uint ind) {
-        switch (t->rep) {
-            case Rep::Null: return pstr(p, "null");
-            case Rep::Bool: {
+        switch (t->form) {
+            case Form::Null: return pstr(p, "null");
+            case Form::Bool: {
                 auto s = t->data.as_bool ? Str("true") : Str("false");
                 return pstr(p, s);
             }
-            case Rep::Int64: {
-                bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
-                return print_int64(p, t->data.as_int64, hex);
-            }
-            case Rep::Double: {
-                double v = t->data.as_double;
-                if (v != v) {
-                    return pstr(p, opts & JSON ? "null" : "+nan");
-                }
-                else if (v == +inf) {
-                    return pstr(p, opts & JSON ? Str("1e999") : Str("+inf"));
-                }
-                else if (v == -inf) {
-                    return pstr(p, opts & JSON ? Str("-1e999") : Str("-inf"));
-                }
-                else if (v == 0) {
-                    if (1.0/v == -inf) {
-                        p = pchar(p, '-');
+            case Form::Number: {
+                if (t->meta) {
+                    double v = t->data.as_double;
+                    if (v != v) {
+                        return pstr(p, opts & JSON ? "null" : "+nan");
                     }
-                    return pchar(p, '0');
+                    else if (v == +inf) {
+                        return pstr(p, opts & JSON ? Str("1e999") : Str("+inf"));
+                    }
+                    else if (v == -inf) {
+                        return pstr(p, opts & JSON ? Str("-1e999") : Str("-inf"));
+                    }
+                    else if (v == 0) {
+                        if (1.0/v == -inf) {
+                            p = pchar(p, '-');
+                        }
+                        return pchar(p, '0');
+                    }
+                    else {
+                        bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
+                        return print_double(p, v, hex);
+                    }
                 }
                 else {
                     bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
-                    return print_double(p, v, hex);
+                    return print_int64(p, t->data.as_int64, hex);
                 }
             }
-            case Rep::StaticString:
-            case Rep::SharedString: {
+            case Form::String: {
                  // The expanded form of a string uses raw newlines and tabs
                  // instead of escaping them.  Ironically, this takes fewer
                  // characters than the compact form, so expand it when not
@@ -210,11 +209,11 @@ struct Printer {
                 bool expand = !(opts & PRETTY) ? true
                             : t->flags & TreeFlags::PreferExpanded ? true
                             : t->flags & TreeFlags::PreferCompact ? false
-                            : t->length > 50;
+                            : t->meta >> 1 > 50;
                 return print_string(p, Str(*t), expand);
             }
-            case Rep::Array: {
-                auto a = TreeArraySlice(*t);
+            case Form::Array: {
+                auto a = Slice<Tree>(*t);
                 if (a.empty()) {
                     return pstr(p, "[]");
                 }
@@ -252,8 +251,8 @@ struct Printer {
                 if (expand) p = print_newline(p, ind);
                 return pchar(p, ']');
             }
-            case Rep::Object: {
-                auto o = TreeObjectSlice(*t);
+            case Form::Object: {
+                auto o = Slice<TreePair>(*t);
                 if (o.empty()) {
                     return pstr(p, "{}");
                 }
@@ -289,7 +288,7 @@ struct Printer {
                 if (expand) p = print_newline(p, ind);
                 return pchar(p, '}');
             }
-            case Rep::Error: {
+            case Form::Error: {
                 try {
                     std::rethrow_exception(std::exception_ptr(*t));
                 }

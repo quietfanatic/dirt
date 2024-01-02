@@ -63,14 +63,14 @@ ayu::Tree Statement_to_tree (const Statement& s) {
      // Serialize the args and stick the command name in front
      // TODO: allow constructing readonly Reference from const Dynamic
     auto args_tree = ayu::item_to_tree(const_cast<ayu::Dynamic&>(s.args).ptr());
-    auto a = ayu::TreeArray(move(args_tree));
+    auto a = AnyArray<ayu::Tree>(move(args_tree));
     a.emplace(a.begin(), Str(s.command->name));
     return ayu::Tree(move(a));
 }
 void Statement_from_tree (Statement& s, const ayu::Tree& t) {
      // Get the command from the first elem, then args from the rest.
      // TODO: optional parameters
-    auto a = ayu::TreeArray(t);
+    auto a = AnyArray<ayu::Tree>(t);
     if (a.size() == 0) {
         s = {}; return;
     }

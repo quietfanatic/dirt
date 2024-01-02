@@ -116,7 +116,7 @@ struct TraverseToTree {
                 auto flags = attrs->attr(i)->acr()->attr_flags;
                 if (flags & (AttrFlags::Include|AttrFlags::CollapseOptional)) {
                      // This works for both include and collapse_optional
-                    len = len + object[i].second.length - 1;
+                    len = len + (object[i].second.meta >> 1) - 1;
                 }
             }
              // Allocate
@@ -129,24 +129,24 @@ struct TraverseToTree {
                      // Consume the string too while we're here
                     AnyString(move(object[i].first));
                     Tree sub_tree = move(object[i].second);
-                    if (sub_tree.rep != Rep::Object) {
+                    if (sub_tree.form != Form::Object) {
                         raise(e_General, "Included item did not serialize to an object");
                     }
                      // DON'T consume sub object because it could be shared.
-                    for (auto& pair : TreeObject(move(sub_tree))) {
+                    for (auto& pair : AnyArray<TreePair>(move(sub_tree))) {
                         new_object.emplace_back_expect_capacity(pair);
                     }
                 }
                 else if (flags & AttrFlags::CollapseOptional) {
                     auto key = move(object[i].first);
                     Tree sub_tree = move(object[i].second);
-                    if (sub_tree.rep != Rep::Array || sub_tree.length > 1) {
+                    if (sub_tree.form != Form::Array || (sub_tree.meta >> 1) > 1) {
                         raise(e_General,
                             "Attribute with collapse_optional did not "
                             "serialize to an array of 0 or 1 elements"
                         );
                     }
-                    if (auto a = TreeArray(move(sub_tree))) {
+                    if (auto a = AnyArray<Tree>(move(sub_tree))) {
                         new_object.emplace_back(move(object[i].first), a[0]);
                     }
                     else { } // Drop the attr
@@ -160,11 +160,13 @@ struct TraverseToTree {
 #ifndef NDEBUG
             for (auto& pair : object) {
                 expect(!pair.first.owned());
-                expect(!pair.second.has_value());
+                expect(!(pair.second.meta & 1));
             }
 #endif
             SharableBuffer<TreePair>::deallocate(object.impl.data);
-            new (&object) TreeObject(move(new_object));
+            new (&object) UniqueArray<TreePair>(
+                AnyArray<TreePair>(move(new_object))
+            );
         }
          // This will check for duplicates in debug mode.
         new (&r) Tree(move(object));

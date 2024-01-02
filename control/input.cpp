@@ -158,8 +158,8 @@ Str input_to_string (const Input& input) {
 
  // These are for the AYU_DESCRIBE.  We're separating them for easier debugging.
 static ayu::Tree input_to_tree (const Input& input) {
-    ayu::TreeArray a;
-    if (input.type == NONE) return ayu::Tree(a);
+    UniqueArray<ayu::Tree> a;
+    if (input.type == NONE) return ayu::Tree(move(a));
     if (input.ctrl) a.emplace_back("ctrl");
     if (input.alt) a.emplace_back("alt");
     if (input.shift) a.emplace_back("shift");
@@ -190,7 +190,7 @@ static ayu::Tree input_to_tree (const Input& input) {
     return ayu::Tree(move(a));
 }
 static void input_from_tree (Input& input, const ayu::Tree& tree) {
-    auto a = ayu::TreeArraySlice(tree);
+    auto a = Slice<ayu::Tree>(tree);
     input = {};
     for (auto& e : a) {
         if (e.form == ayu::Form::Number) {
