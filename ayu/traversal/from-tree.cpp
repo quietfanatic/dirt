@@ -447,8 +447,9 @@ struct TraverseFromTree {
         const Accessor* length_acr, ElemFunc<Mu>* f
     ) {
         expect(tree.form == Form::Array);
+        auto array = Slice<Tree>(tree);
         if (!(length_acr->flags & AcrFlags::Readonly)) {
-            length_acr->write(*trav.address, [len{tree.meta >> 1}](Mu& v){
+            length_acr->write(*trav.address, [len{array.size()}](Mu& v){
                 reinterpret_cast<usize&>(v) = len;
             });
         }
@@ -458,12 +459,10 @@ struct TraverseFromTree {
             length_acr->read(*trav.address, [&len](Mu& v){
                 len = reinterpret_cast<usize&>(v);
             });
-            if (tree.meta >> 1 != len) {
+            if (array.size() != len) {
                 raise_LengthRejected(trav.desc, len, len, tree.meta >> 1);
             }
         }
-         // TODO: try putting this at the top
-        auto array = Slice<Tree>(tree);
         for (usize i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);

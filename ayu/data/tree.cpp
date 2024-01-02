@@ -54,31 +54,25 @@ void raise_TreeCantRepresent (StaticString type_name, TreeRef t) {
     ));
 }
 
-NOINLINE
-bool tree_eq_str (const char* a, const char* b, usize s) {
-    expect(s > 0);
-    return memcmp(a, b, s) == 0;
-}
-
+ // NOINLINE these so they don't make operator== push and pop a bunch of
+ // registers.
 NOINLINE
 bool tree_eq_array (const Tree* a, const Tree* b, usize s) {
     expect(s > 0);
-    for (usize i = 0; i < s; i++) {
-        if (a[i] != b[i]) return false;
+    for (auto ae = a + s; a != ae; a++, b++) {
+        if (*a != *b) return false;
     }
     return true;
 }
 
 NOINLINE
-bool tree_eq_object (Slice<TreePair> a, Slice<TreePair> b) {
-    expect(a.size() == b.size());
-    expect(a.size() > 0 && b.size() > 0);
-    expect(a.data() != b.data());
+bool tree_eq_object (const TreePair* a, const TreePair* b, usize s) {
+    expect(s > 0);
      // Allow attributes to be in different orders
-    for (auto& ap : a) {
-        for (auto& bp : b) {
-            if (ap.first == bp.first) {
-                if (ap.second == bp.second) break;
+    for (auto ae = a + s; a != ae; a++) {
+        for (auto be = b + s; b != be; b++) {
+            if (a->first == b->first) {
+                if (a->second == b->second) break;
                 else return false;
             }
         }
@@ -109,12 +103,8 @@ bool operator == (const Tree& a, const Tree& b) noexcept {
             else return a.data.as_int64 == b.data.as_int64;
         }
         case Form::String: {
-            if (a.meta >> 1 != b.meta >> 1) return false;
-            if (a.meta >> 1 == 0) return true;
-            if (a.data.as_char_ptr == b.data.as_char_ptr) return true;
-            return tree_eq_str(
-                a.data.as_char_ptr, b.data.as_char_ptr, a.meta >> 1
-            );
+            return Str(a.data.as_char_ptr, a.meta >> 1) ==
+                   Str(b.data.as_char_ptr, b.meta >> 1);
         }
         case Form::Array: {
             if (a.meta >> 1 != b.meta >> 1) return false;
@@ -129,8 +119,7 @@ bool operator == (const Tree& a, const Tree& b) noexcept {
             if (a.meta >> 1 == 0) return true;
             if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
             return tree_eq_object(
-                Slice<TreePair>(a.data.as_object_ptr, a.meta >> 1),
-                Slice<TreePair>(b.data.as_object_ptr, b.meta >> 1)
+                a.data.as_object_ptr, b.data.as_object_ptr, a.meta >> 1
             );
         }
         case Form::Error: return false;

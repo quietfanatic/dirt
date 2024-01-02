@@ -58,6 +58,7 @@
 #include "buffers.h"
 #include "common.h"
 #include "copy-ref.h"
+#include "memeq.h"
 
 namespace uni {
 inline namespace strings { namespace in { struct Cats; } }
@@ -1981,6 +1982,12 @@ constexpr bool operator== (
     if constexpr (requires { ad == bd; }) {
         if (ad == bd) return true;
     }
+    if constexpr (
+        std::is_scalar_v<T> && !std::is_floating_point_v<T> &&
+        ArrayContiguousIteratorFor<decltype(bd), T>
+    ) {
+        return uni::memeq(ad, std::to_address(bd), as);
+    }
     for (auto end = ad + as; ad != end; ++ad, ++bd) {
         if (!(*ad == *bd)) {
             return false;
@@ -2002,7 +2009,7 @@ bool operator== (
     if constexpr (std::is_scalar_v<T>) {
          // Raw char arrays are likely to be short and of known length, so
          // requesting memcmp tends to optimize well.
-        return std::memcmp(ad, bd, as) == 0;
+        return std::memcmp(ad, bd, as * sizeof(T)) == 0;
     }
     else for (auto end = ad + as; ad != end; ++ad, ++bd) {
         if (!(*ad == *bd)) {
