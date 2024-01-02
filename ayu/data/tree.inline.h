@@ -35,7 +35,7 @@ constexpr Tree::Tree (Null, TreeFlags f) :
  // Use .as_int64 to write all of data
 template <class T> requires (std::is_same_v<T, bool>)
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Bool), rep(in::Rep::Bool), flags(f), length(0), data{.as_int64 = v}
+    form(Form::Bool), rep(in::Rep::Bool), flags(f), length(0), data{.as_bool = v}
 { }
 template <class T> requires (
     std::is_integral_v<T> &&
