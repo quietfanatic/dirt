@@ -109,6 +109,8 @@ bool operator == (const Tree& a, const Tree& b) noexcept {
         case Form::Array: {
             if (a.meta >> 1 != b.meta >> 1) return false;
             if (a.meta >> 1 == 0) return true;
+             // Usually short-circuiting isn't worth it but array and especially
+             // object comparison is pretty costly.
             if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
             return tree_eq_array(
                 a.data.as_array_ptr, b.data.as_array_ptr, a.meta >> 1

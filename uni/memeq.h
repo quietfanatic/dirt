@@ -8,34 +8,42 @@ namespace uni {
  // because the compiler can't vectorize loops with sequential memory accesses
  // (it doesn't know when the memory will become invalid).
  //
- // This requires that either the pointers are 8-byte-aligned or the CPU
- // supports misaligned access without too much performance penalty.  I believe
- // this is the case for most modern CPUs.
- //
- // My (very cursory) measurements indicate this is faster than using memcmp
- // (which is itself faster than trying to use __memcmpeq), at least for
- // relatively short strings.
+ // Use memcmp instead of this when...
+ //   - ...the size is likely to be large.  I'd guess memcmp starts to win at
+ //     around a hundred or two hundred bytes or so.
+ //   - ...the size is known at compile-time.  If the size is small and known at
+ //     compile-time, then the compiler can optimize memcmp into very small and
+ //     fast code.
+ //   - ...you think you'll be running on hardward where misaligned access is
+ //     illegal or very slow.  This should still work correctly, but memcmp will
+ //     be faster.  TODO: detect those platforms with a huge mess of macros?
 NOINLINE constexpr bool memeq (const void* a, const void* b, usize s) {
     if (std::is_constant_evaluated()) {
-         // memcmp gets special treatment for being constexpr
+         // The algorithm below can't be constexpr because of reinterpret_casts,
+         // so use memcmp which gets special treatment to be constexpr.
         return std::memcmp(a, b, s) == 0;
     }
     auto ap = (const char*)a;
     auto bp = (const char*)b;
-     // Modern CPUs can do 16 or more bytes at a time, but it's difficult to
-     // make the compiler do this portably (__int128 doesn't work) and it's
-     // unlikely to be that helpful for common string lengths.
+     // Modern CPUs can do 16 or more bytes at a time, but I can't coax the
+     // compiler into doing that, and it probably isn't really worth it for the
+     // sizes of strings we're likely to be comparing.
     if (s >= 8) {
         auto ae = ap + s - 8;
         auto be = bp + s - 8;
         for (; ap < ae; ap += 8, bp += 8) {
-            if (*(uint64*)ap != *(uint64*)bp) return false;
+             // We're still using memcmp internally because making misaligned
+             // pointers is UB in C and C++.  This compiles to exactly the same
+             // code as *(uint64*)ap != *(uint64*)bp.
+            if (std::memcmp(ap, bp, 8) != 0) return false;
         }
-        return *(uint64*)ae == *(uint64*)be;
+        return std::memcmp(ae, be, 8) == 0;
     }
     else if (s >= 4) {
-        return *(uint32*)ap == *(uint32*)bp &&
-               *(uint32*)(ap + s - 4) == *(uint32*)(bp + s - 4);
+         // In the case of s == 4, these reads will overlap exactly, but it's
+         // not worth doing another branch to check for that.
+        return std::memcmp(ap, bp, 4) == 0 &&
+               std::memcmp(ap + s - 4, bp + s - 4, 4) == 0;
     }
     else {
          // This unrolls better than the pointer version, and unrolling three
@@ -47,5 +55,13 @@ NOINLINE constexpr bool memeq (const void* a, const void* b, usize s) {
         return true;
     }
 }
+ // This seems to be significantly faster than memcmp for shortish strings,
+ // according to my (highly sketchy) measurements.  Digging through my system's
+ // header files, I also found __memcmpeq, but not only is there a comment
+ // saying not to call it manually, it ended up being slower than memcmp.
+ // __memcmpeq seems to use AVX2 (32-byte vectors) on my system, which is way
+ // overkill for shortish strings, whereas memcmp just uses SSE2 (16-byte
+ // vectors).  It might end up being faster at a few hundred bytes or so, but
+ // who knows.
 
 } // uni

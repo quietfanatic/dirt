@@ -1977,12 +1977,8 @@ constexpr bool operator== (
     const T* ad = a.data();
     auto bd = b.data();
     if (as != bs) return false;
-     // Unlike most STL containers, this WILL short-circuit if the arrays have
-     // the same data pointer and size.
-     // TODO: this is incorrect for floating point values, so just don't
-    if constexpr (requires { ad == bd; }) {
-        if (ad == bd) return true;
-    }
+     // In some cases we could short-circuit if ad == bd, but it's probably not
+     // worth it since it's unlikely to be the case.
     if constexpr (
         std::is_scalar_v<T> && !std::is_floating_point_v<T> &&
         ArrayContiguousIteratorFor<decltype(bd), T>
