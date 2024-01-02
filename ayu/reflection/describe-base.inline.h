@@ -349,9 +349,8 @@ AYU_DESCRIBE_TEMPLATE_BEGIN(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
     __VA_ARGS__ \
 AYU_DESCRIBE_TEMPLATE_END(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
 
- // The 1+ is to suppress a "will never be NULL" warning
 #define AYU_DESCRIBE_INSTANTIATE(T) \
-static_assert(1+&ayu_desc::_AYU_Describe<T>::_ayu_description);
+static_assert(&ayu_desc::_AYU_Describe<T>::_ayu_description);
 
 #define AYU_FRIEND_DESCRIBE(T) \
     friend struct ::ayu_desc::_AYU_Describe<T>;
