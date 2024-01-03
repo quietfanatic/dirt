@@ -17,11 +17,14 @@ namespace in {
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
 
+    static constexpr uint32 max_depth = 1000;
+
 ///// TOP
 
     const char* end;
     const char* begin;
     const AnyString& filename;
+    uint32 shallowth;
 
     Parser (Str s, const AnyString& filename) :
         end(s.end()),
@@ -30,6 +33,7 @@ struct Parser {
     { }
 
     Tree parse () {
+        shallowth = max_depth + 2;
         const char* in = begin;
          // Skip BOM
         if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
@@ -40,6 +44,7 @@ struct Parser {
         in = parse_term(in, r);
         in = skip_ws(in);
         if (in != end) error(in, "Extra stuff at end of document");
+        expect(shallowth == max_depth + 2);
         return r;
     }
 
@@ -294,12 +299,14 @@ struct Parser {
 ///// COMPOUND
 
     NOINLINE const char* got_array (const char* in, Tree& r) {
+        if (!--shallowth) error(in, "Exceeded limit of 1000 nested arrays/objects");
         UniqueArray<Tree> a;
         in++;  // for the [
         in = skip_ws(in);
         while (in < end) {
             if (*in == ']') {
                 new (&r) Tree(move(a));
+                ++shallowth;
                 return in + 1;
             }
             in = parse_term(in, a.emplace_back());
@@ -309,12 +316,14 @@ struct Parser {
     }
 
     NOINLINE const char* got_object (const char* in, Tree& r) {
+        if (!--shallowth) error(in, "Exceeded limit of 1000 nested arrays/objects");
         UniqueArray<TreePair> o;
         in++;  // for the {
         in = skip_ws(in);
         while (in < end) {
             if (*in == '}') {
                 new (&r) Tree(move(o));
+                ++shallowth;
                 return in + 1;
             }
             Tree key;

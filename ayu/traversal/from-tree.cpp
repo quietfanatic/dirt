@@ -148,7 +148,6 @@ struct TraverseFromTree {
          // Now the behavior depends on what kind of tree we've been given
         else if (tree.form == Form::Object) {
             if (auto attrs = trav.desc->attrs()) {
-                 // TODO: shortcut empty attrs?
                 use_attrs(trav, tree, attrs);
             }
             else if (auto keys = trav.desc->keys_acr()) {
@@ -209,9 +208,57 @@ struct TraverseFromTree {
 
 ///// OBJECT STRATEGIES
 
-    NOINLINE static
+
+    static
     void use_attrs (
         const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
+    ) {
+         // We need to allocate an array of integers to keep track of claimed
+         // keys on objects.  For small (that is, not huge) objects, we want to
+         // allocate on the stack.  Normally you'd use a variable-length array
+         // for this, but it seems that at least on my compiler, VLAs have a
+         // granularity of 4096 bytes and are not very well optimized, so we're
+         // just going to pick a few fixed values for our array size.  The
+         // function stub for allocating stack is very small, so having multiple
+         // of these is cheap (and generally the smallest one will be picked
+         // anyway).
+        constexpr usize stack_capacity_1 = 256; // 63 keys
+        constexpr usize stack_capacity_2 = 2048; // 511 keys
+        auto len = tree.meta >> 1;
+        if (len + 1 <= stack_capacity_1 / 4) {
+            use_attrs_stack<stack_capacity_1>(trav, tree, attrs);
+        }
+#ifdef __linux__
+        else if (len + 1 <= stack_capacity_2 / 4) {
+            use_attrs_stack<stack_capacity_2>(trav, tree, attrs);
+        }
+#endif
+        else {
+            use_attrs_heap(trav, tree, attrs);
+        }
+    }
+
+    template <usize capacity> NOINLINE static
+    void use_attrs_stack (
+        const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
+    ) {
+        uint32 stack_buf [capacity / 4];
+        use_attrs(trav, tree, attrs, stack_buf);
+    }
+
+    NOINLINE static
+    void use_attrs_heap (
+        const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
+    ) {
+        auto len = tree.meta >> 1;
+        auto heap_buf = std::unique_ptr<uint32[]>(new uint32[len + 1]);
+        use_attrs(trav, tree, attrs, &heap_buf[0]);
+    }
+
+    NOINLINE static
+    void use_attrs (
+        const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs,
+        uint32* next_list_buf
     ) {
          // Build a linked list of indexes so that we can claim attrs in
          // constant time.  next_list = next_list_buffer + 1, so that:
@@ -234,7 +281,6 @@ struct TraverseFromTree {
          // keys in an unordered_map or something, but the extra overhead is
          // unlikely to be worth it.
         auto len = tree.meta >> 1;
-        auto next_list_buf = std::unique_ptr<uint32[]>(new uint32[len + 1]);
         for (uint32 i = 0; i < len; i++) next_list_buf[i] = i;
         next_list_buf[len] = -1;
 
