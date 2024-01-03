@@ -1983,14 +1983,22 @@ constexpr bool operator== (
         std::is_scalar_v<T> && !std::is_floating_point_v<T> &&
         ArrayContiguousIteratorFor<decltype(bd), T>
     ) {
+         // memcmp is kind of excessive for comparing short strings for
+         // equality.  It uses vector instructions, does alignment checks for
+         // overreading, and does extra work to compare the strings for
+         // lesserness or greaterness.  If you expect your strings to be very
+         // long, it may be faster to call memcmp yourself, but for ordinary
+         // sized strings our implementation of memeq is faster.
         return uni::memeq(ad, std::to_address(bd), as);
     }
-    for (auto end = ad + as; ad != end; ++ad, ++bd) {
-        if (!(*ad == *bd)) {
-            return false;
+    else {
+        for (auto end = ad + as; ad != end; ++ad, ++bd) {
+            if (!(*ad == *bd)) {
+                return false;
+            }
         }
+        return true;
     }
-    return true;
 }
  // Allow comparing to raw char arrays for string types only.
 template <class ac, class T, usize len> constexpr
@@ -2003,19 +2011,21 @@ bool operator== (
     const T* ad = a.data();
     const T* bd = b;
     if (as != bs) return false;
-    if constexpr (std::is_scalar_v<T>) {
+    if constexpr (std::is_scalar_v<T> && !std::is_floating_point_v<T>) {
          // Apparent it's illegal to pass null to memcmp even if size is 0.
         if (bs == 0) return true;
          // Raw char arrays are likely to be short and of known length, so
          // requesting memcmp tends to optimize well.
         return std::memcmp(ad, bd, as * sizeof(T)) == 0;
     }
-    else for (auto end = ad + as; ad != end; ++ad, ++bd) {
-        if (!(*ad == *bd)) {
-            return false;
+    else {
+        for (auto end = ad + as; ad != end; ++ad, ++bd) {
+            if (!(*ad == *bd)) {
+                return false;
+            }
         }
+        return true;
     }
-    return true;
 }
 
  // I can't be bothered to learn what <=> is supposed to return.  They should
@@ -2030,9 +2040,6 @@ constexpr auto operator<=> (
     usize bs = b.size();
     const T* ad = a.data();
     auto bd = b.data();
-    if constexpr (requires { ad == bd; }) {
-        if (as == bs && ad == bd) return 0 <=> 0;
-    }
     for (
         auto ae = ad + as, be = bd + bs;
         ad != ae && bd != be;
