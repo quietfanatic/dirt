@@ -30,6 +30,8 @@ struct Description : ComparableAddress {
         PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
          // Can select some faster algorithms when this is false.
         SHOULD_REBUILD_OBJECT = 1 << 2,
+         // Faster values() processing
+        ALL_VALUES_STRINGS = 1 << 3,
     };
     uint16 flags = 0;
 

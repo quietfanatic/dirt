@@ -171,7 +171,13 @@ struct TraverseFromTree {
         }
         else if (auto values = trav.desc->values()) {
              // All other tree types support the values descriptor
-            use_values(trav, tree, values);
+            if (trav.desc->flags & Description::ALL_VALUES_STRINGS) {
+                if (tree.form == Form::String) {
+                    use_values_all_strings(trav, tree, values);
+                }
+                else no_match(trav, tree);
+            }
+            else use_values(trav, tree, values);
         }
         else no_match(trav, tree);
     }
@@ -475,6 +481,22 @@ struct TraverseFromTree {
     }
 
 ///// OTHER STRATEGIES
+
+    NOINLINE static
+    void use_values_all_strings (
+        const Traversal& trav, const Tree& tree, const ValuesDcrPrivate* values
+    ) {
+        for (uint i = 0; i < values->n_values; i++) {
+            auto value = values->value(i);
+            expect(tree.form == Form::String);
+            expect(value->name.form == Form::String);
+            if (Str(tree) == Str(value->name)) {
+                values->assign(*trav.address, *value->get_value());
+                return finish_item(trav, tree);
+            }
+        }
+        no_match(trav, tree);
+    }
 
     NOINLINE static
     void use_values (

@@ -248,6 +248,13 @@ struct ValuesDcrWith : ValuesDcr<T> {
             ) - static_cast<const ComparableAddress*>(this);
         }
     }
+    constexpr bool all_strings () {
+        bool r = true;
+        values.for_each([&](const auto& value){
+            r &= value.name.form == Form::String;
+        });
+        return r;
+    }
 };
 
 template <class T>
@@ -284,7 +291,7 @@ struct AttrsDcrWith : AttrsDcr<T> {
     }
     constexpr bool should_rebuild_object () {
         bool r = false;
-        attrs.for_each([&]<class Attr>(const Attr& attr){
+        attrs.for_each([&](const auto& attr){
             r |= !!(attr.acr.attr_flags &
                 (AttrFlags::Include|AttrFlags::CollapseOptional)
             );
@@ -461,6 +468,10 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
         }
         else if constexpr (std::is_base_of_v<ValuesDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(ValuesDcr, values)
+            Dcr* values = desc.template get<Dcr>(0);
+            if (values->all_strings()) {
+                header.flags |= Description::ALL_VALUES_STRINGS;
+            }
         }
         else if constexpr (std::is_base_of_v<AttrsDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(AttrsDcr, attrs)
