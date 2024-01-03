@@ -95,9 +95,7 @@ ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
         ((outer->flags & AcrFlags::PassThroughAddressable) &
          (inner->flags & AcrFlags::PassThroughAddressable))
     ), outer(outer), inner(inner)
-{
-    outer->inc(); inner->inc();
-}
+{ }
 Type ChainAcr::_type (const Accessor* acr, Mu* v) {
     auto self = static_cast<const ChainAcr*>(acr);
      // Most accessors ignore the parameter, so we can usually skip the

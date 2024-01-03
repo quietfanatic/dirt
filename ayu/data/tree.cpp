@@ -69,10 +69,12 @@ NOINLINE
 bool tree_eq_object (const TreePair* a, const TreePair* b, usize s) {
     expect(s > 0);
      // Allow attributes to be in different orders
-    for (auto ae = a + s; a != ae; a++) {
-        for (auto be = b + s; b != be; b++) {
-            if (a->first == b->first) {
-                if (a->second == b->second) break;
+    auto ae = a + s;
+    auto be = b + s;
+    for (auto ap = a; ap != ae; ap++) {
+        for (auto bp = b; bp != be; bp++) {
+            if (ap->first == bp->first) {
+                if (ap->second == bp->second) break;
                 else return false;
             }
         }

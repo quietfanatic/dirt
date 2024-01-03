@@ -197,7 +197,7 @@ struct TraverseScan {
         const Accessor* acr
     ) {
         if (cb(trav, loc)) return true;
-        bool r;
+        bool r = false;
         trav_delegate(trav, acr, AccessMode::Read,
             [&r, loc, cb](const Traversal& child)
         { r = traverse(child, loc, cb); });

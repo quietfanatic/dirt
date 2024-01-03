@@ -110,7 +110,9 @@ struct Accessor {
      // modified.  Yes, this does mean that if an accessor accumulates enough
      // references to overflow the count it won't be deleted.  I doubt you'll
      // care.  (Usually refcounts are marked mutable, but that's illegal in
-     // constexpr classes.)
+     // constexpr classes.)  Note also that the refcount starts at 1, so when
+     // constructing a Reference or a ChainAcr with a new Accessor*, don't call
+     // inc() on it.
     uint16 ref_count = 1;
     AcrFlags flags = {};
      // These belong on AttrDcr and ElemDcr but we're storing them here to
