@@ -1,4 +1,4 @@
- // Arrays that can be shared (ref-counted) or static
+// Arrays that can be shared (ref-counted) or static
  //
  // This header provides a constellation of array and string classes that share
  // a common interface and differ by ownership model.  They're largely
@@ -632,11 +632,18 @@ struct ArrayInterface {
         }
     }
      // So use this named constructor instead.
-    template <class... Args> ALWAYS_INLINE static
-    ArrayInterface make (Args&&... args) requires (ac::supports_owned) {
-        ArrayInterface r (Capacity(sizeof...(args)));
-        (r.emplace_back_expect_capacity(std::forward<Args>(args)), ...);
+    template <class Head, class... Tail> ALWAYS_INLINE static
+    ArrayInterface make (Head&& head, Tail&&... tail) requires (
+        ac::supports_owned
+    ) {
+        ArrayInterface r (Capacity(1 + sizeof...(tail)));
+        r.emplace_back_expect_capacity(std::forward<Head>(head));
+        (r.emplace_back_expect_capacity(std::forward<Tail>(tail)), ...);
         return r;
+    }
+    ALWAYS_INLINE static constexpr
+    ArrayInterface make () requires (ac::supports_owned) {
+        return ArrayInterface();
     }
 
     ///// ASSIGNMENT OPERATORS
