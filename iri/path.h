@@ -27,16 +27,17 @@ Str path_filename (Str) noexcept;
 
  // Return the path without the filename at the end.  The return value always
  // ends in a slash.
- //    path_without_filename("foo/bar") == "foo/"
- //    path_without_filename("foo/") == "foo/"
- //    path_without_filename("foo") == "./"
-Str path_without_filename (Str) noexcept;
+ //    path_chop_filename("foo/bar") == "foo/"
+ //    path_chop_filename("foo/") == "foo/"
+ //    path_chop_filename("foo") == "./"
+Str path_chop_filename (Str) noexcept;
 
  // Same as above, but without the trailing slash.
- //    path_parent("foo/bar") == "foo"
- //    path_parent("foo/") == "foo"
- //    path_parent("foo") == "."
-Str path_parent (Str) noexcept;
+ //    path_chop_last_slash("foo/bar") == "foo"
+ //    path_chop_last_slash("foo/") == "foo"
+ //    path_chop_last_slash("foo") == "."
+ //    path_chop_last_slash("/") == ""
+Str path_chop_last_slash (Str) noexcept;
 
  // Get the filename extension, if any; that is, everything after the last dot
  // in the last segment of the path, or empty if there is no dot.  Does not
@@ -58,7 +59,7 @@ const IRI& working_directory () noexcept;
  // change the location of the program while running it, you deserve whatever
  // happens.
  //
- // Use program_location().without_filename() to get the directory containing
+ // Use program_location().chop_filename() to get the directory containing
  // the program.
 const IRI& program_location () noexcept;
 

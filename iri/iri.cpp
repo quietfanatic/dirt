@@ -120,14 +120,17 @@ struct IRIParser {
             }
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_with_scheme_only();
+                 // TODO: avoid unnecessary with these?
+                prefix = base.chop_authority().spec();
                 scheme_end = base.scheme_end;
                 next = &IRIParser::parse_authority;
                 break;
             }
             case Relativity::AbsolutePath: {
-                if (!base || base.nonhierarchical()) return fail(Error::CouldNotResolve);
-                prefix = base.spec_with_origin_only();
+                if (!base || base.nonhierarchical()) {
+                    return fail(Error::CouldNotResolve);
+                }
+                prefix = base.chop_path().spec();
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 next = &IRIParser::parse_absolute_path;
@@ -135,7 +138,7 @@ struct IRIParser {
             }
             case Relativity::RelativePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
-                prefix = base.spec_without_filename();
+                prefix = base.chop_filename().spec();
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 next = &IRIParser::parse_relative_path;
@@ -143,7 +146,7 @@ struct IRIParser {
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_without_query();
+                prefix = base.chop_query().spec();
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
@@ -152,7 +155,7 @@ struct IRIParser {
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_without_fragment();
+                prefix = base.chop_fragment().spec();
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;

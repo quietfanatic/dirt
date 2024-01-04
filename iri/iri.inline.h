@@ -315,7 +315,9 @@ constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
     spec_(move(spec)), scheme_end(c), authority_end(p), path_end(q), query_end(h)
 { }
 
-constexpr IRI::IRI (Error code) : query_end(uint16(code)) { }
+constexpr IRI::IRI (Error code, const AnyString& spec) :
+    spec_(spec), query_end(uint16(code))
+{ expect(code != Error::NoError && code != Error::Empty); }
 
 constexpr IRI::IRI (const IRI& o) = default;
 constexpr IRI::IRI (IRI&& o) :
@@ -365,7 +367,7 @@ constexpr const AnyString& IRI::possibly_invalid_spec () const {
 }
 
 constexpr AnyString IRI::move_spec () {
-    if (!scheme_end) return "";
+    if (!scheme_end) [[unlikely]] return "";
     AnyString r = move(spec_);
     *this = IRI();
     return r;
@@ -410,85 +412,92 @@ constexpr Str IRI::fragment () const {
     return spec_.slice(query_end + 1, spec_.size());
 }
 
-constexpr IRI IRI::with_scheme_only () const {
-    if (!scheme_end) return IRI(Error::InputInvalid);
+constexpr IRI IRI::chop_authority () const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
     return IRI(
-        spec_.shrunk(scheme_end+1),
+        spec_.chop(scheme_end+1),
         scheme_end, scheme_end+1, scheme_end+1, scheme_end+1
     );
 }
-constexpr IRI IRI::with_origin_only () const {
-    if (!scheme_end) return IRI(Error::InputInvalid);
+constexpr IRI IRI::chop_path () const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
     return IRI(
-        spec_.shrunk(authority_end),
+        spec_.chop(authority_end),
         scheme_end, authority_end, authority_end, authority_end
     );
 }
-constexpr IRI IRI::without_filename () const {
-    if (!scheme_end) return IRI(Error::InputInvalid);
-    if (!hierarchical()) return IRI(Error::CouldNotResolve);
+constexpr IRI IRI::chop_filename () const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
+    if (!hierarchical()) [[unlikely]] return IRI(Error::CouldNotResolve);
     uint32 i = path_end;
     while (spec_[i-1] != '/') --i;
     return IRI(
-        spec_.shrunk(i),
+        spec_.chop(i),
         scheme_end, authority_end, i, i
     );
 }
-constexpr IRI IRI::without_last_segment () const {
-    if (!scheme_end) return IRI(Error::InputInvalid);
-    if (!hierarchical()) return IRI(Error::CouldNotResolve);
+constexpr IRI IRI::chop_last_slash () const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
+    if (!hierarchical()) [[unlikely]] return IRI(Error::CouldNotResolve);
     uint32 i = path_end;
     while (spec_[i-1] != '/') --i;
     --i;
-    if (i == authority_end) return IRI(Error::PathOutsideRoot);
+    if (i == authority_end) [[unlikely]] return IRI(Error::PathOutsideRoot);
     return IRI(
-        spec_.shrunk(i),
+        spec_.chop(i),
         scheme_end, authority_end, i, i
     );
 }
-constexpr IRI IRI::without_query () const {
-    if (!scheme_end) return IRI(Error::InputInvalid);
+constexpr IRI IRI::chop_query () const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
     return IRI(
-        spec_.shrunk(path_end),
+        spec_.chop(path_end),
         scheme_end, authority_end, path_end, path_end
     );
 }
-constexpr IRI IRI::without_fragment () const {
-    if (!scheme_end) return IRI(Error::InputInvalid);
+constexpr IRI IRI::chop_fragment () const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
     return IRI(
-        spec_.shrunk(query_end),
+        spec_.chop(query_end),
         scheme_end, authority_end, path_end, query_end
     );
 }
 
-constexpr Str IRI::spec_with_scheme_only () const {
-    if (!scheme_end) return "";
-    return spec_.slice(0, scheme_end + 1);
+constexpr IRI IRI::chop (usize new_size) const {
+    if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
+    if (new_size > spec_.size()) [[unlikely]] return *this;
+    if (new_size <= scheme_end) [[unlikely]] {
+        return IRI(Error::SchemeInvalid, spec_.chop(new_size));
+    }
+    if (spec_[new_size-1] == '%' || spec_[new_size-2] == '%') [[unlikely]] {
+        return IRI(Error::PercentSequenceInvalid, spec_.chop(new_size));
+    }
+    if (has_authority() && new_size == usize(scheme_end) + 2) {
+         // Tried to chop between the //s introducing the authority.  Not sure
+         // what error code to return in this case, since the resulting IRI
+         // isn't actually invalid, we're just rejecting it because its meaning
+         // has changed in an unintended way.
+        return IRI(Error::InputInvalid, spec_.chop(new_size));
+    }
+    uint16 a = authority_end;
+    uint16 p = path_end;
+    uint16 q = query_end;
+    if (new_size < authority_end) {
+        a = p = q = new_size;
+    }
+    else if (new_size < path_end) {
+        p = q = new_size;
+    }
+    else if (new_size < query_end) {
+        q = new_size;
+    }
+    return IRI(
+        spec_.chop(new_size), scheme_end, a, p, q
+    );
 }
-constexpr Str IRI::spec_with_origin_only () const {
-    if (!scheme_end) return "";
-    return spec_.slice(0, authority_end);
-}
-constexpr Str IRI::spec_without_filename () const {
-    if (!hierarchical()) return "";
-    uint32 i = path_end;
-    while (spec_[i-1] != '/') --i;
-    return spec_.slice(0, i);
-}
-constexpr Str IRI::spec_without_last_segment () const {
-    if (!hierarchical()) return "";
-    uint32 i = path_end;
-    while (spec_[i-1] != '/') --i;
-    if (i != authority_end) --i;
-    return spec_.slice(0, i);
-}
-constexpr Str IRI::spec_without_query () const {
-    if (!scheme_end) return "";
-    return spec_.slice(0, path_end);
-}
-constexpr Str IRI::spec_without_fragment () const {
-    if (!scheme_end) return "";
-    return spec_.slice(0, query_end);
+constexpr IRI IRI::chop (const char* new_end) const {
+    expect(new_end >= spec_.begin() && new_end <= spec_.end());
+    return chop(new_end - spec_.begin());
 }
 
 constexpr IRI::~IRI () { }

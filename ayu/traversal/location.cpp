@@ -102,7 +102,7 @@ Location location_from_iri (const IRI& iri) {
     if (!iri.has_fragment()) raise(e_LocationIRIInvalid, cat(
         "IRI does not have a #fragment: ", iri.possibly_invalid_spec()
     ));
-    auto root_iri = iri.without_fragment();
+    auto root_iri = iri.chop_fragment();
     Location r = root_iri == current_base_iri()
         ? current_base_location()
         : Location(Resource(root_iri));
@@ -145,7 +145,7 @@ Location current_base_location () noexcept { return cur_base_location; }
 
 IRI current_base_iri () noexcept {
     if (!cur_base_iri) {
-        cur_base_iri = location_to_iri(cur_base_location).without_fragment();
+        cur_base_iri = location_to_iri(cur_base_location).chop_fragment();
     }
     return cur_base_iri;
 }

@@ -142,10 +142,10 @@ struct IRI {
         uint16 path_end, uint16 query_end
     );
 
-     // Construct an invalid IRI representing the given error condition.
-     // possibly_invalid_spec() will be empty.  If given Error::NoError,
-     // produces the empty IRI (error() == Error::Empty) instead.
-    constexpr explicit IRI (Error code);
+     // Construct an invalid IRI with the given values for error() and
+     // possibly_invalid_spec().  Debug assert or undefined behavior if given
+     // Error::NoError or Error::Empty.
+    constexpr explicit IRI (Error code, const AnyString& = "");
 
      // Copy and move construction and assignment
     constexpr IRI (const IRI& o);
@@ -215,35 +215,31 @@ struct IRI {
     constexpr Str fragment () const;
 
      // Returns a new IRI with just the scheme (and the colon).
-    constexpr IRI with_scheme_only () const;
+    constexpr IRI chop_authority () const;
      // Get the origin (scheme plus authority if it exists).  Never ends with
      // a / (unless the authority exists and is empty, like foo://).
-    constexpr IRI with_origin_only () const;
+    constexpr IRI chop_path () const;
      // Get everything up to and including the last / in the path.  If the path
      // already ends in /, returns the same IRI (but without the query or
      // fragment).  If the IRI is not hierarchical (path doesn't start with /),
      // returns an invalid IRI with error() == Error::CouldNotResolve.
-    constexpr IRI without_filename () const;
-     // Like without_filename but also takes off the last /.  If the path ends
-     // with /, just the / will be taken off.  If the path doesn't contain any
-     // /s after the root, returns an invalid IRI with error() ==
+    constexpr IRI chop_filename () const;
+     // Like chop_filename but also takes off the last /.  If the path ends with
+     // /, just the / will be taken off.  If the path doesn't contain any /s
+     // after the root, returns an invalid IRI with error() ==
      // Error::PathOutsideRoot.  If the IRI is not hierarchical returns an
      // invalid IRI with Error::CouldNotResolve.
-    constexpr IRI without_last_segment () const;
+    constexpr IRI chop_last_slash () const;
      // Get the scheme, authority, and path but not the query or fragment.
-    constexpr IRI without_query () const;
+    constexpr IRI chop_query () const;
      // Get everything but the fragment
-    constexpr IRI without_fragment () const;
+    constexpr IRI chop_fragment () const;
 
-     // The following are the same as above, but return a raw Str instead of a
-     // new IRI.  This saves a refcount, but can cost an extra parse if you turn
-     // the Str back into an IRI.
-    constexpr Str spec_with_scheme_only () const;
-    constexpr Str spec_with_origin_only () const;
-    constexpr Str spec_without_filename () const;
-    constexpr Str spec_without_last_segment () const;
-    constexpr Str spec_without_query () const;
-    constexpr Str spec_without_fragment () const;
+     // Chop the IRI at a semi-arbitrary position.  You are not allowed to chop
+     // in the middle of a %-sequence, before the first : after the scheme, or
+     // between the //s that introduce the authority.
+    constexpr IRI chop (usize new_size) const;
+    constexpr IRI chop (const char* new_end) const;
 
      // Get an IRI reference that's relative to base, such that
      //     IRI(input.relative_to(base), base) == input

@@ -55,7 +55,7 @@ Str path_filename (Str path) noexcept {
     return path;
 }
 
-Str path_without_filename (Str path) noexcept {
+Str path_chop_filename (Str path) noexcept {
     if (!path) return path;
     for (const char* p = path.end(); p != path.begin(); --p) {
         if (p[-1] == '/') return Str(path.begin(), p);
@@ -63,10 +63,10 @@ Str path_without_filename (Str path) noexcept {
     return "./";
 }
 
-Str path_parent (Str path) noexcept {
+Str path_chop_last_slash (Str path) noexcept {
     if (!path) return path;
-    Str wf = path_without_filename(path);
-    return wf.shrunk(wf.size() - 1);
+    Str wf = path_chop_filename(path);
+    return wf.chop(wf.size() - 1);
 }
 
 Str path_extension (Str path) noexcept {
@@ -172,9 +172,9 @@ static tap::TestSet tests ("dirt/iri/path", []{
     using namespace iri;
 
     is(encode_path("foo/bar?qux#tal"), "foo/bar%3Fqux%23tal", "encode_path");
-    is(path_without_filename("foo/bar"), "foo/", "path_without_filename foo/bar");
-    is(path_without_filename("foo/"), "foo/", "path_without_filename foo/");
-    is(path_without_filename("foo"), "./", "path_without_filename foo");
+    is(path_chop_filename("foo/bar"), "foo/", "path_chop_filename foo/bar");
+    is(path_chop_filename("foo/"), "foo/", "path_chop_filename foo/");
+    is(path_chop_filename("foo"), "./", "path_chop_filename foo");
     is(path_extension("foo/bar.baz"), "baz", "path_extension");
     is(path_extension("foo.bar/baz"), "", "path_extension none");
     is(path_extension("foo.bar/baz."), "", "path_extension trailing dot ignored");
