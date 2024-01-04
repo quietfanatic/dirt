@@ -97,7 +97,7 @@ but not required between attributes.  Keys named `null`, `true`, or `false` must
 be quoted, just as with strings.  The order of attributes in an object should be
 preserved for readability, but should not be semantically significant.  If you
 think you want an object with order-significant attributes, use an array of
-pairs instead.
+arrays instead.
 
 ### Other Syntax
 
@@ -140,8 +140,7 @@ valid AYU document, and a valid AYU document can be rewritten as a valid JSON
 document, with the following caveats:
 - JSON does not support `+nan`.  Serializers should use `null` instead, and
   deserializers should accept `null` as a floating point number equivalent
-  to `+nan`.  This may potentially lead to ambiguities for certain types such as
-  C++'s `std::optional<float>`.
+  to `+nan`.
 - JSON does not support `+inf` and `-inf`.  Instead, these should be written
   with a number outside of double floating-point range for JSON (canonically
   `1e999` and `-1e999`).
@@ -155,6 +154,9 @@ is the value.
 [app::Settings {foo:3 bar:4}]
 [std::vector<int32> [408 502]]
 ```
+
+Types that may or may not contain a value are typically represented as an array
+of zero or one element.
 
 The AYU data language does not natively support references, but the AYU
 serialization library supports references in the form of IRI strings.  As an
