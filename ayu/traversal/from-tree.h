@@ -63,12 +63,28 @@ void item_from_tree (
 inline void item_from_string (
     const Reference& item, Str src, LocationRef loc = Location()
 ) {
-    return item_from_tree(item, tree_from_string(src), loc);
+    auto tree = tree_from_string(src);
+    return item_from_tree(item, tree, loc);
 }
 inline void item_from_file (
     const Reference& item, AnyString filename, LocationRef loc = Location()
 ) {
-    return item_from_tree(item, tree_from_file(move(filename)), loc);
+    auto tree = tree_from_file(move(filename));
+    return item_from_tree(item, tree, loc);
+}
+
+inline void item_from_list_string (
+    const Reference& item, Str src, LocationRef loc = Location()
+) {
+    auto tree = Tree(tree_list_from_string(src));
+    return item_from_tree(item, tree, loc);
+}
+
+inline void item_from_list_file (
+    const Reference& item, AnyString filename, LocationRef loc = Location()
+) {
+    auto tree = Tree(tree_list_from_file(move(filename)));
+    return item_from_tree(item, tree, loc);
 }
 
  // Called item_from_tree on an item that doesn't have any way of doing the

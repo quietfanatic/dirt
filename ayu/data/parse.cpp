@@ -52,6 +52,24 @@ struct Parser {
         return r;
     }
 
+    UniqueArray<Tree> parse_list () {
+        shallowth = max_depth;
+        const char* in = begin;
+        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
+            in += 3;
+        }
+        UniqueArray<Tree> r;
+        in = skip_ws(in);
+        while (in != end) {
+            Tree e;
+            in = parse_term(in, e);
+            r.push_back(move(e));
+            in = skip_comma(in);
+        }
+        expect(shallowth == max_depth);
+        return r;
+    }
+
 ///// TERM
 
     NOINLINE const char* parse_term (const char* in, Tree& r) {
@@ -528,10 +546,21 @@ Tree tree_from_string (Str s, const AnyString& filename) {
     return Parser(s, filename).parse();
 }
 
+UniqueArray<Tree> tree_list_from_string (Str s, const AnyString& filename) {
+    require(s.size() <= AnyString::max_size_);
+    return Parser(s, filename).parse_list();
+}
+
 Tree tree_from_file (MoveRef<AnyString> filename_) {
     auto filename = *move(filename_);
     UniqueString s = string_from_file(filename);
     return tree_from_string(s, move(filename));
+}
+
+UniqueArray<Tree> tree_list_from_file (MoveRef<AnyString> filename_) {
+    auto filename = *move(filename_);
+    UniqueString s = string_from_file(filename);
+    return tree_list_from_string(s, move(filename));
 }
 
 } using namespace ayu;
