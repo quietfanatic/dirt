@@ -105,6 +105,17 @@ struct Tree {
     explicit constexpr Tree (AnyArray<TreePair>, TreeFlags = {});
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
+     // Convenience array/object construction
+    template <class... Args> static constexpr
+    Tree array (Args&&... args) {
+        return Tree(AnyArray<Tree>::make(std::forward<Args>(args)...));
+    }
+
+    template <class... Args> static constexpr
+    Tree object (Args&&... args) {
+        return Tree(AnyArray<TreePair>::make(std::forward<Args>(args)...));
+    }
+
     ///// CONVERSION FROM TREE
      // These throw if the tree is not the right form or if
      // the requested type cannot store the value, e.g. try to convert to a

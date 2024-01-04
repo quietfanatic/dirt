@@ -176,16 +176,16 @@ static tap::TestSet tests ("dirt/ayu/data/tree", []{
     throws_code<e_TreeCantRepresent>([]{
         uint8(Tree(-1));
     }, "Can't convert -1 to uint8");
-    is(Tree(AnyArray<Tree>{Tree(3), Tree(4)}), Tree(AnyArray<Tree>{Tree(3), Tree(4)}), "Compare arrays.");
-    isnt(Tree(AnyArray<Tree>{Tree(3), Tree(4)}), Tree(AnyArray<Tree>{Tree(4), Tree(3)}), "Compare unequal arrays.");
+    is(Tree::array(Tree(3), Tree(4)), Tree::array(Tree(3), Tree(4)), "Compare arrays.");
+    isnt(Tree::array(Tree(3), Tree(4)), Tree::array(Tree(4), Tree(3)), "Compare unequal arrays.");
     is(
-        Tree(AnyArray<TreePair>{TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}}),
-        Tree(AnyArray<TreePair>{TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}}),
+        Tree::object(TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}),
+        Tree::object(TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}),
         "AnyArray<TreePair> with same attributes in different order are equal"
     );
     isnt(
-        Tree(AnyArray<TreePair>{TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}}),
-        Tree(AnyArray<TreePair>{TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}, TreePair{"c", Tree(3)}}),
+        Tree::object(TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}),
+        Tree::object(TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}, TreePair{"c", Tree(3)}),
         "Extra attribute in second object makes it unequal"
     );
     done_testing();

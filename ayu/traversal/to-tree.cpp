@@ -164,9 +164,7 @@ struct TraverseToTree {
             }
 #endif
             SharableBuffer<TreePair>::deallocate(object.impl.data);
-            new (&object) UniqueArray<TreePair>(
-                AnyArray<TreePair>(move(new_object))
-            );
+            new (&object) UniqueArray<TreePair>(move(new_object));
         }
          // This will check for duplicates in debug mode.
         new (&r) Tree(move(object));

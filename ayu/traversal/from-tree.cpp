@@ -355,7 +355,7 @@ struct TraverseFromTree {
                 if (key == attr->key) {
                      // TODO: avoid copy for non-collapsed case?
                     auto real_value = flags & AttrFlags::CollapseOptional
-                        ? Tree(AnyArray<Tree>::make(value))
+                        ? Tree::array(value)
                         : value;
                     trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                         [&real_value](const Traversal& child)
@@ -378,7 +378,7 @@ struct TraverseFromTree {
             }
             else if (flags & AttrFlags::CollapseOptional) {
                  // Deserialize from empty array
-                static constexpr auto empty = Tree(AnyArray<Tree>());
+                static constexpr auto empty = Tree::array();
                 trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                     [](const Traversal& child)
                 { traverse(child, empty); });

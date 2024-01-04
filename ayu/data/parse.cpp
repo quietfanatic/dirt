@@ -585,42 +585,42 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("\"asdfasdf\\x");
     y("\"asdf\\u0037asdf\"", Tree("asdf7asdf"));
     y("\"asdf\\uD83C\\uDF31asdf\"", Tree("asdf🌱asdf"));
-    y("[]", Tree(AnyArray<Tree>{}));
+    y("[]", Tree::array());
     n("[,]");
     n("[,,,,,]");
-    y("[0 1 foo]", Tree(AnyArray<Tree>{Tree(0), Tree(1), Tree("foo")}));
-    y("{}", Tree(AnyArray<TreePair>{}));
+    y("[0 1 foo]", Tree::array(Tree(0), Tree(1), Tree("foo")));
+    y("{}", Tree::object());
     n("{,}");
-    y("{\"asdf\":\"foo\"}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree("foo")}}));
-    y("{\"asdf\":0}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree(0)}}));
-    y("{asdf:0}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree(0)}}));
+    y("{\"asdf\":\"foo\"}", Tree::object(TreePair{"asdf", Tree("foo")}));
+    y("{\"asdf\":0}", Tree::object(TreePair{"asdf", Tree(0)}));
+    y("{asdf:0}", Tree::object(TreePair{"asdf", Tree(0)}));
     n("{0:0}");
     y("{a:0 \"null\":1 \"0\":foo}",
-        Tree(AnyArray<TreePair>{
+        Tree::object(
             TreePair{"a", Tree(0)},
             TreePair{"null", Tree(1)},
             TreePair{"0", Tree("foo")}
-        })
+        )
     );
     y("[[0 1] [[2] [3 4]]]",
-        Tree(AnyArray<Tree>{
-            Tree(AnyArray<Tree>{Tree(0), Tree(1)}),
-            Tree(AnyArray<Tree>{
-                Tree(AnyArray<Tree>{Tree(2)}),
-                Tree(AnyArray<Tree>{Tree(3), Tree(4)})
-            })
-        })
+        Tree::array(
+            Tree::array(Tree(0), Tree(1)),
+            Tree::array(
+                Tree::array(Tree(2)),
+                Tree::array(Tree(3), Tree(4))
+            )
+        )
     );
-    y("[0,1,]", Tree(AnyArray<Tree>{Tree(0), Tree(1)}));
+    y("[0,1,]", Tree::array(Tree(0), Tree(1)));
     n("[0,,1,]");
     n("[0,1,,]");
     y("&foo 1", Tree(1));
     y("&foo:1 *foo", Tree(1));
     y("&\"null\":4 *\"null\"", Tree(4));
-    y("[&foo 1 *foo]", Tree(AnyArray<Tree>{Tree(1), Tree(1)}));
-    y("[&foo:1 *foo]", Tree(AnyArray<Tree>{Tree(1)}));
-    y("{&key asdf:*key}", Tree(AnyArray<TreePair>{TreePair{"asdf", Tree("asdf")}}));
-    y("{&borp:\"bump\" *borp:*borp}", Tree(AnyArray<TreePair>{TreePair{"bump", Tree("bump")}}));
+    y("[&foo 1 *foo]", Tree::array(Tree(1), Tree(1)));
+    y("[&foo:1 *foo]", Tree::array(Tree(1)));
+    y("{&key asdf:*key}", Tree::object(TreePair{"asdf", Tree("asdf")}));
+    y("{&borp:\"bump\" *borp:*borp}", Tree::object(TreePair{"bump", Tree("bump")}));
     y("3 --4", Tree(3));
     y("#", Tree("#"));
     y("#foo", Tree("#foo"));
@@ -645,9 +645,9 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
         big.push_back_expect_capacity(']');
     }
     n(StaticString(big));
-    auto redwood = Tree(AnyArray<Tree>());
+    auto redwood = Tree::array();
     for (usize i = 0; i < 199; i++) {
-        redwood = Tree(AnyArray<Tree>::make(redwood));
+        redwood = Tree::array(redwood);
     }
     y(StaticString(big.slice(1, 401)), redwood);
     done_testing();
