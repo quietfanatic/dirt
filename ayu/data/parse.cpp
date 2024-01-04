@@ -303,7 +303,7 @@ struct Parser {
 ///// COMPOUND
 
     NOINLINE const char* got_array (const char* in, Tree& r) {
-        if (!--shallowth) error(in, "Exceeded limit of 1000 nested arrays/objects");
+        if (!--shallowth) error(in, "Exceeded limit of 200 nested arrays/objects");
         UniqueArray<Tree> a;
         in++;  // for the [
         in = skip_ws(in);
@@ -320,7 +320,7 @@ struct Parser {
     }
 
     NOINLINE const char* got_object (const char* in, Tree& r) {
-        if (!--shallowth) error(in, "Exceeded limit of 1000 nested arrays/objects");
+        if (!--shallowth) error(in, "Exceeded limit of 200 nested arrays/objects");
         UniqueArray<TreePair> o;
         in++;  // for the {
         in = skip_ws(in);
