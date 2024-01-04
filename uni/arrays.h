@@ -1115,7 +1115,7 @@ struct ArrayInterface {
      // slice(0, new_size), but avoids an allocate_copy for shared arrays.
     constexpr
     Self chop (usize new_size) const& {
-        if (new_size >= size()) [[unlikely]] return *this;
+        expect(new_size <= size());
         if constexpr (ac::is_Unique) {
              // Copying then shrinking UniqueArray wastes a lot of work.
             return Self(data(), new_size);
@@ -1126,20 +1126,15 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE constexpr
     Self chop (usize new_size) && {
+        expect(new_size <= size());
         Self r = move(*this);
         r.shrink(new_size);
         return r;
     }
     ALWAYS_INLINE constexpr
-    Self chop (const T* new_end) const& {
-        expect(new_end >= begin() && new_end <= end());
-        return chop(new_end - begin());
-    }
+    Self chop (const T* new_end) const& { return chop(new_end - begin()); }
     ALWAYS_INLINE constexpr
-    Self chop (const T* new_end) && {
-        expect(new_end >= begin() && new_end <= end());
-        return chop(new_end - begin());
-    }
+    Self chop (const T* new_end) && { return chop(new_end - begin()); }
 
      // Construct an element on the end of the array, increasing its size by 1.
     template <class... Args>
