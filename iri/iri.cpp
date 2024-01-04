@@ -120,8 +120,7 @@ struct IRIParser {
             }
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
-                 // TODO: avoid unnecessary with these?
-                prefix = base.chop_authority().spec();
+                prefix = base.spec_.chop(base.scheme_end + 1);
                 scheme_end = base.scheme_end;
                 next = &IRIParser::parse_authority;
                 break;
@@ -130,7 +129,7 @@ struct IRIParser {
                 if (!base || base.nonhierarchical()) {
                     return fail(Error::CouldNotResolve);
                 }
-                prefix = base.chop_path().spec();
+                prefix = base.spec_.chop(base.authority_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 next = &IRIParser::parse_absolute_path;
@@ -138,7 +137,9 @@ struct IRIParser {
             }
             case Relativity::RelativePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
-                prefix = base.chop_filename().spec();
+                usize i = base.path_end;
+                while (base.spec_[i-1] != '/') --i;
+                prefix = base.spec_.chop(i);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 next = &IRIParser::parse_relative_path;
@@ -146,7 +147,7 @@ struct IRIParser {
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.chop_query().spec();
+                prefix = base.spec_.chop(base.path_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
@@ -155,7 +156,7 @@ struct IRIParser {
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.chop_fragment().spec();
+                prefix = base.spec_.chop(base.query_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
