@@ -177,7 +177,7 @@ struct IRIParser {
         switch (*in) {
             case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
             case IRI_LOWERCASE: *out++ = *in++; break;
-            default: return fail(Error::InvalidScheme);
+            default: return fail(Error::SchemeInvalid);
         }
         while (in < in_end) switch (*in) {
             case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
@@ -196,7 +196,7 @@ struct IRIParser {
                     }
                     else return parse_nonhierarchical_path(out, in, in_end);
                 }
-            default: return fail(Error::InvalidScheme);
+            default: return fail(Error::SchemeInvalid);
         }
          // We should not have been called if the input doesn't have a :
         never();
@@ -225,12 +225,12 @@ struct IRIParser {
                 return parse_fragment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
-                    return fail(Error::InvalidPercentSequence);
+                    return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++); break;
-            default: return fail(Error::InvalidAuthority);
+            default: return fail(Error::AuthorityInvalid);
         }
         authority_end = path_end = query_end = out - output.begin();
         return done(out, in, in_end);
@@ -256,12 +256,12 @@ struct IRIParser {
                 return finish_segment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
-                    return fail(Error::InvalidPercentSequence);
+                    return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++); break;
-            default: return fail(Error::InvalidPath);
+            default: return fail(Error::PathInvalid);
         }
         return finish_segment(out, in, in_end);
     }
@@ -316,13 +316,13 @@ struct IRIParser {
                 return parse_fragment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
-                    return fail(Error::InvalidPercentSequence);
+                    return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++);
                 break;
-            default: return fail(Error::InvalidPath);
+            default: return fail(Error::PathInvalid);
         }
         path_end = query_end = out - output.begin();
         return done(out, in, in_end);
@@ -341,12 +341,12 @@ struct IRIParser {
                 return parse_fragment(out, in, in_end);
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
-                    return fail(Error::InvalidPercentSequence);
+                    return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++); break;
-            default: return fail(Error::InvalidQuery);
+            default: return fail(Error::QueryInvalid);
         }
         query_end = out - output.begin();
         return done(out, in, in_end);
@@ -366,14 +366,14 @@ struct IRIParser {
                 break;
             case '%':
                 if (!(out = parse_percent(out, in, in_end))) {
-                    return fail(Error::InvalidPercentSequence);
+                    return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
             case IRI_IFFY:
                 out = write_percent(out, *in++);
                 break;
             default: {
-                return fail(Error::InvalidFragment);
+                return fail(Error::FragmentInvalid);
             }
         }
         return done(out, in, in_end);

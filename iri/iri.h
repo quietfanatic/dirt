@@ -104,17 +104,17 @@ enum class Error : uint16 {
     CouldNotResolve,
      // The given component is invalid (contains invalid characters or ends in
      // whitespace).
-    InvalidScheme,
-    InvalidAuthority,
-    InvalidPath,
-    InvalidQuery,
-    InvalidFragment,
+    SchemeInvalid,
+    AuthorityInvalid,
+    PathInvalid,
+    QueryInvalid,
+    FragmentInvalid,
      // The path had too many .. segments.  This is a deviation from the URI
      // specs, which say that http://example.com/../foo should be canonicalized
      // into http://example.com/foo.  This library errors instead.
     PathOutsideRoot,
      // There's a % that isn't followed by two hexadecimal digits.
-    InvalidPercentSequence,
+    PercentSequenceInvalid,
 };
 
 struct IRI {
