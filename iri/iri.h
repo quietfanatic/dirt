@@ -115,6 +115,9 @@ enum class Error : uint16 {
     PathOutsideRoot,
      // There's a % that isn't followed by two hexadecimal digits.
     PercentSequenceInvalid,
+     // Tried to do a transformation on an invalid IRI.  The return of
+     // possibly_invalid_spec() will probably be the empty string.
+    InputInvalid
 };
 
 struct IRI {
@@ -139,6 +142,11 @@ struct IRI {
         uint16 path_end, uint16 query_end
     );
 
+     // Construct an invalid IRI representing the given error condition.
+     // possibly_invalid_spec() will be empty.  If given Error::NoError,
+     // produces the empty IRI (error() == Error::Empty) instead.
+    constexpr explicit IRI (Error code);
+
      // Copy and move construction and assignment
     constexpr IRI (const IRI& o);
     constexpr IRI (IRI&& o);
@@ -146,11 +154,12 @@ struct IRI {
     constexpr IRI& operator = (IRI&& o);
 
      // Returns whether this IRI is valid or not.  If the IRI is invalid, all
-     // bool accessors will return false and all string and IRI accessors will
-     // return empty.
+     // bool accessors will return false, all Str accessors will return empty,
+     // and all IRI accessors will return an invalid IRI with error() ==
+     // Error::InputInvalid.
     constexpr bool valid () const;
-     // Returns whether this IRI is empty.  The empty IRI is also invalid, but
-     // not all invalid IRIs are empty.
+     // Returns whether this IRI is the empty IRI.  The empty IRI is also
+     // invalid, but not all invalid IRIs are empty.
     constexpr bool empty () const;
      // Equivalent to valid()
     explicit constexpr operator bool () const;
@@ -211,14 +220,15 @@ struct IRI {
      // a / (unless the authority exists and is empty, like foo://).
     constexpr IRI with_origin_only () const;
      // Get everything up to and including the last / in the path.  If the path
-     // ends in /, returns the same IRI (but without the query or fragment).
-     // If the IRI is not hierarchical (path doesn't start with /), returns an
-     // invalid IRI with error() == Error::CouldNotResolve.
+     // already ends in /, returns the same IRI (but without the query or
+     // fragment).  If the IRI is not hierarchical (path doesn't start with /),
+     // returns an invalid IRI with error() == Error::CouldNotResolve.
     constexpr IRI without_filename () const;
      // Like without_filename but also takes off the last /.  If the path ends
-     // with /, just the / will be taken off.  If the path is the root (contains
-     // only a /), returns an invalid IRI with error() ==
-     // Error::PathOutsideRoot.
+     // with /, just the / will be taken off.  If the path doesn't contain any
+     // /s after the root, returns an invalid IRI with error() ==
+     // Error::PathOutsideRoot.  If the IRI is not hierarchical returns an
+     // invalid IRI with Error::CouldNotResolve.
     constexpr IRI without_last_segment () const;
      // Get the scheme, authority, and path but not the query or fragment.
     constexpr IRI without_query () const;

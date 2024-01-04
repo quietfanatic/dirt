@@ -97,10 +97,6 @@ constexpr Relativity relativity (Str ref) {
     return Relativity::RelativePath;
 }
 
-constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
-    spec_(move(spec)), scheme_end(c), authority_end(p), path_end(q), query_end(h)
-{ }
-
 namespace in {
 
 struct ConstexprValidator {
@@ -315,6 +311,12 @@ constexpr IRI::IRI (Str ref, const IRI& base) :
     )
 { }
 
+constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
+    spec_(move(spec)), scheme_end(c), authority_end(p), path_end(q), query_end(h)
+{ }
+
+constexpr IRI::IRI (Error code) : query_end(uint16(code)) { }
+
 constexpr IRI::IRI (const IRI& o) = default;
 constexpr IRI::IRI (IRI&& o) :
     spec_(move(const_cast<AnyString&>(o.spec_))),
@@ -344,7 +346,7 @@ constexpr IRI& IRI::operator = (IRI&& o) {
 }
 
 constexpr bool IRI::valid () const { return scheme_end; }
-constexpr bool IRI::empty () const { return spec_.empty(); }
+constexpr bool IRI::empty () const { return !scheme_end && !query_end; }
 constexpr IRI::operator bool () const { return scheme_end; }
 constexpr Error IRI::error () const {
     if (scheme_end) return Error::NoError;
@@ -409,21 +411,22 @@ constexpr Str IRI::fragment () const {
 }
 
 constexpr IRI IRI::with_scheme_only () const {
-    if (!scheme_end) return IRI();
+    if (!scheme_end) return IRI(Error::InputInvalid);
     return IRI(
         spec_.shrunk(scheme_end+1),
         scheme_end, scheme_end+1, scheme_end+1, scheme_end+1
     );
 }
 constexpr IRI IRI::with_origin_only () const {
-    if (!scheme_end) return IRI();
+    if (!scheme_end) return IRI(Error::InputInvalid);
     return IRI(
         spec_.shrunk(authority_end),
         scheme_end, authority_end, authority_end, authority_end
     );
 }
 constexpr IRI IRI::without_filename () const {
-    if (!hierarchical()) return IRI();
+    if (!scheme_end) return IRI(Error::InputInvalid);
+    if (!hierarchical()) return IRI(Error::CouldNotResolve);
     uint32 i = path_end;
     while (spec_[i-1] != '/') --i;
     return IRI(
@@ -432,24 +435,26 @@ constexpr IRI IRI::without_filename () const {
     );
 }
 constexpr IRI IRI::without_last_segment () const {
-    if (!hierarchical()) return IRI();
+    if (!scheme_end) return IRI(Error::InputInvalid);
+    if (!hierarchical()) return IRI(Error::CouldNotResolve);
     uint32 i = path_end;
     while (spec_[i-1] != '/') --i;
-    if (i != authority_end) --i;
+    --i;
+    if (i == authority_end) return IRI(Error::PathOutsideRoot);
     return IRI(
         spec_.shrunk(i),
         scheme_end, authority_end, i, i
     );
 }
 constexpr IRI IRI::without_query () const {
-    if (!scheme_end) return IRI();
+    if (!scheme_end) return IRI(Error::InputInvalid);
     return IRI(
         spec_.shrunk(path_end),
         scheme_end, authority_end, path_end, path_end
     );
 }
 constexpr IRI IRI::without_fragment () const {
-    if (!scheme_end) return IRI();
+    if (!scheme_end) return IRI(Error::InputInvalid);
     return IRI(
         spec_.shrunk(query_end),
         scheme_end, authority_end, path_end, query_end
