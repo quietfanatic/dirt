@@ -214,23 +214,35 @@ struct TraverseFromTree {
         const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
     ) {
          // We need to allocate an array of integers to keep track of claimed
-         // keys on objects.  For small (that is, not huge) objects, we want to
-         // allocate on the stack.  Normally you'd use a variable-length array
-         // for this, but it seems that at least on my compiler, VLAs have a
-         // granularity of 4096 bytes and are not very well optimized, so we're
-         // just going to pick a few fixed values for our array size.  The
+         // keys on objects.  For small (that is, not enormous) objects, we want
+         // to allocate on the stack.  Normally you'd use a variable-length
+         // array for this, but it seems that at least on my compiler, VLAs have
+         // a granularity of 4096 bytes and are not very well optimized, so
+         // we're just going to pick a few fixed values for our array size.  The
          // function stub for allocating stack is very small, so having multiple
-         // of these is cheap (and generally the smallest one will be picked
-         // anyway).
+         // of these is cheap.
+         //
+         // There isn't a lot of meaning to these numbers, but they should at
+         // least be multiples of 16 (the granularity for stack allocations).
+        constexpr usize stack_capacity_0 = 64; // 15 keys
         constexpr usize stack_capacity_1 = 256; // 63 keys
-        constexpr usize stack_capacity_2 = 2048; // 511 keys
+        constexpr usize stack_capacity_2 = 1024; // 255 keys
+        constexpr usize stack_capacity_3 = 4096; // 1023 keys
         auto len = tree.meta >> 1;
-        if (len + 1 <= stack_capacity_1 / 4) {
+        if (len + 1 <= stack_capacity_0 / 4) {
+            use_attrs_stack<stack_capacity_0>(trav, tree, attrs);
+        }
+        else if (len + 1 <= stack_capacity_1 / 4) {
             use_attrs_stack<stack_capacity_1>(trav, tree, attrs);
         }
-#ifdef __linux__
         else if (len + 1 <= stack_capacity_2 / 4) {
             use_attrs_stack<stack_capacity_2>(trav, tree, attrs);
+        }
+         // Linux has a larger stack limit than other OSes so it's safe to use
+         // more stack space.  Linux: 8M, Windows: 1M, MacOS: 512K
+#ifdef __linux__
+        else if (len + 1 <= stack_capacity_3 / 4) {
+            use_attrs_stack<stack_capacity_3>(trav, tree, attrs);
         }
 #endif
         else {
@@ -242,8 +254,8 @@ struct TraverseFromTree {
     void use_attrs_stack (
         const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
     ) {
-        uint32 stack_buf [capacity / 4];
-        use_attrs(trav, tree, attrs, stack_buf);
+        uint32 next_list_buf [capacity / 4];
+        use_attrs(trav, tree, attrs, next_list_buf);
     }
 
     NOINLINE static
@@ -251,8 +263,8 @@ struct TraverseFromTree {
         const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
     ) {
         auto len = tree.meta >> 1;
-        auto heap_buf = std::unique_ptr<uint32[]>(new uint32[len + 1]);
-        use_attrs(trav, tree, attrs, &heap_buf[0]);
+        auto next_list_buf = std::unique_ptr<uint32[]>(new uint32[len + 1]);
+        use_attrs(trav, tree, attrs, &next_list_buf[0]);
     }
 
     NOINLINE static

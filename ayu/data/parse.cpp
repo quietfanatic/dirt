@@ -17,7 +17,11 @@ namespace in {
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
 
-    static constexpr uint32 max_depth = 1000;
+     // Limit how many nested arrays and objects we have.  If you have that much
+     // data in a structured text format, you're going to have performance
+     // problems anyway, and you should offload some of it to binary or flat
+     // text formats.
+    static constexpr uint32 max_depth = 200;
 
 ///// TOP
 
@@ -33,7 +37,7 @@ struct Parser {
     { }
 
     Tree parse () {
-        shallowth = max_depth + 2;
+        shallowth = max_depth + 1;
         const char* in = begin;
          // Skip BOM
         if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
@@ -44,7 +48,7 @@ struct Parser {
         in = parse_term(in, r);
         in = skip_ws(in);
         if (in != end) error(in, "Extra stuff at end of document");
-        expect(shallowth == max_depth + 2);
+        expect(shallowth == max_depth + 1);
         return r;
     }
 
@@ -520,19 +524,21 @@ struct Parser {
 
  // Finally:
 Tree tree_from_string (Str s, const AnyString& filename) {
+    require(s.size() <= AnyString::max_size_);
     return Parser(s, filename).parse();
 }
 
 Tree tree_from_file (MoveRef<AnyString> filename_) {
     auto filename = *move(filename_);
     UniqueString s = string_from_file(filename);
-    return tree_from_string(move(s), move(filename));
+    return tree_from_string(s, move(filename));
 }
 
 } using namespace ayu;
 
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
+#include "print.h"
 
 static tap::TestSet tests ("dirt/ayu/data/parse", []{
     using namespace tap;
@@ -630,6 +636,20 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("&&a 1");
     n("& a 1");
     n("[+nana]");
+     // Test depth limit
+    auto big = UniqueString(Capacity(402));
+    for (usize i = 0; i < 201; i++) {
+        big.push_back_expect_capacity('[');
+    }
+    for (usize i = 0; i < 201; i++) {
+        big.push_back_expect_capacity(']');
+    }
+    n(StaticString(big));
+    auto redwood = Tree(AnyArray<Tree>());
+    for (usize i = 0; i < 199; i++) {
+        redwood = Tree(AnyArray<Tree>::make(redwood));
+    }
+    y(StaticString(big.slice(1, 401)), redwood);
     done_testing();
 });
 #endif
