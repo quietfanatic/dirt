@@ -431,6 +431,16 @@ constexpr IRI IRI::without_filename () const {
         scheme_end, authority_end, i, i
     );
 }
+constexpr IRI IRI::without_last_segment () const {
+    if (!hierarchical()) return IRI();
+    uint32 i = path_end;
+    while (spec_[i-1] != '/') --i;
+    if (i != authority_end) --i;
+    return IRI(
+        spec_.shrunk(i),
+        scheme_end, authority_end, i, i
+    );
+}
 constexpr IRI IRI::without_query () const {
     if (!scheme_end) return IRI();
     return IRI(
@@ -458,6 +468,13 @@ constexpr Str IRI::spec_without_filename () const {
     if (!hierarchical()) return "";
     uint32 i = path_end;
     while (spec_[i-1] != '/') --i;
+    return spec_.slice(0, i);
+}
+constexpr Str IRI::spec_without_last_segment () const {
+    if (!hierarchical()) return "";
+    uint32 i = path_end;
+    while (spec_[i-1] != '/') --i;
+    if (i != authority_end) --i;
     return spec_.slice(0, i);
 }
 constexpr Str IRI::spec_without_query () const {

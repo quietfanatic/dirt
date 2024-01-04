@@ -50,7 +50,9 @@
 // yourself on the results when you want to decode them.
 //
 // The IRI class is pretty lightweight, with one reference-counted string and
-// four uint16s.  16 bytes on 32-bit and 24 bytes on 64-bit.
+// four uint16s.  16 bytes on 32-bit and 24 bytes on 64-bit.  However it is NOT
+// threadsafe.  If you want to pass IRIs between threads, martial them through
+// UniqueString first.
 //
 // There are no facilities for parsing query strings yet.
 //
@@ -208,9 +210,16 @@ struct IRI {
      // Get the origin (scheme plus authority if it exists).  Never ends with
      // a / (unless the authority exists and is empty, like foo://).
     constexpr IRI with_origin_only () const;
-     // Get everything up to and including the last / in the path.  If this is
-     // not a hierarchical scheme (path doesn't start with /), returns empty.
+     // Get everything up to and including the last / in the path.  If the path
+     // ends in /, returns the same IRI (but without the query or fragment).
+     // If the IRI is not hierarchical (path doesn't start with /), returns an
+     // invalid IRI with error() == Error::CouldNotResolve.
     constexpr IRI without_filename () const;
+     // Like without_filename but also takes off the last /.  If the path ends
+     // with /, just the / will be taken off.  If the path is the root (contains
+     // only a /), returns an invalid IRI with error() ==
+     // Error::PathOutsideRoot.
+    constexpr IRI without_last_segment () const;
      // Get the scheme, authority, and path but not the query or fragment.
     constexpr IRI without_query () const;
      // Get everything but the fragment
@@ -222,6 +231,7 @@ struct IRI {
     constexpr Str spec_with_scheme_only () const;
     constexpr Str spec_with_origin_only () const;
     constexpr Str spec_without_filename () const;
+    constexpr Str spec_without_last_segment () const;
     constexpr Str spec_without_query () const;
     constexpr Str spec_without_fragment () const;
 
