@@ -214,6 +214,9 @@ struct IRI {
      // Get the fragment.  Will not include the #.  May be existent but empty.
     constexpr Str fragment () const;
 
+     // None of the chop_* methods do a new string allocation, they just bump
+     // the reference count of the underlying string.
+
      // Returns a new IRI with just the scheme (and the colon).
     constexpr IRI chop_authority () const;
      // Get the origin (scheme plus authority if it exists).  Never ends with
@@ -237,7 +240,9 @@ struct IRI {
 
      // Chop the IRI at a semi-arbitrary position.  You are not allowed to chop
      // in the middle of a %-sequence, before the first : after the scheme, or
-     // between the //s that introduce the authority.
+     // between the //s that introduce the authority.  This library does not
+     // parse the authority, so if you chop in the middle of the authority, you
+     // may produce an invalid authority.
     constexpr IRI chop (usize new_size) const;
     constexpr IRI chop (const char* new_end) const;
 
@@ -278,9 +283,9 @@ struct IRI {
 
     const AnyString spec_;
     const uint16 scheme_end = 0;
-    const uint16 authority_end = 0;
+    const uint16 authority_end = 0; // reused to store error
     const uint16 path_end = 0;
-    const uint16 query_end = 0; // reused to store error
+    const uint16 query_end = 0;
 };
 
 } // namespace iri

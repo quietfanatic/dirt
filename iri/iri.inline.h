@@ -316,7 +316,7 @@ constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
 { }
 
 constexpr IRI::IRI (Error code, const AnyString& spec) :
-    spec_(spec), query_end(uint16(code))
+    spec_(spec), authority_end(uint16(code))
 { expect(code != Error::NoError && code != Error::Empty); }
 
 constexpr IRI::IRI (const IRI& o) = default;
@@ -348,12 +348,12 @@ constexpr IRI& IRI::operator = (IRI&& o) {
 }
 
 constexpr bool IRI::valid () const { return scheme_end; }
-constexpr bool IRI::empty () const { return !scheme_end && !query_end; }
+constexpr bool IRI::empty () const { return !scheme_end && !authority_end; }
 constexpr IRI::operator bool () const { return scheme_end; }
 constexpr Error IRI::error () const {
     if (scheme_end) return Error::NoError;
     else if (spec_.empty()) return Error::Empty;
-    else return Error(query_end);
+    else return Error(authority_end);
 }
 
 static constexpr const AnyString empty_string = StaticString();
@@ -379,8 +379,8 @@ constexpr AnyString IRI::move_possibly_invalid_spec () {
 }
 
 constexpr bool IRI::has_scheme () const { return scheme_end; }
-constexpr bool IRI::has_authority () const { return authority_end >= scheme_end + 3; }
-constexpr bool IRI::has_path () const { return path_end > authority_end; }
+constexpr bool IRI::has_authority () const { return scheme_end && authority_end >= scheme_end + 3; }
+constexpr bool IRI::has_path () const { return scheme_end && path_end > authority_end; }
 constexpr bool IRI::has_query () const { return scheme_end && query_end > path_end; }
 constexpr bool IRI::has_fragment () const { return scheme_end && spec_.size() > query_end; }
 

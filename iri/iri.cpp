@@ -396,8 +396,8 @@ struct IRIParser {
 
     [[gnu::cold]] void fail (Error err) {
         output = input;
-        scheme_end = authority_end = path_end = 0;
-        query_end = uint16(err);
+        scheme_end = path_end = query_end = 0;
+        authority_end = uint16(err);
     }
 };
 
@@ -415,8 +415,10 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
 AnyString IRI::relative_to (const IRI& base) const noexcept {
     uint32 tail;
     if (!*this) [[unlikely]] return "";
-    else if (base.empty()) goto return_everything;
-    else if (!base) [[unlikely]] return "";
+    else if (!base) {
+        if (base.empty()) goto return_everything;
+        else [[unlikely]] return "";
+    }
     else if (scheme_end + 1u == spec_.size() ||
         spec_.slice(0, scheme_end) != base.spec_.slice(0, base.scheme_end)
     ) {
@@ -476,6 +478,7 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
             for (usize i = tail; i < path_end; i++) {
                 if (spec_[i] == '/') break;
                 else if (spec_[i] == ':') {
+                    expect(spec_.size() < maximum_length);
                     return cat("./", spec_.slice(tail));
                 }
             }
@@ -493,7 +496,9 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
         for (; i < base.path_end; i++) {
             if (base.spec_[i] == '/') dotdots++;
         }
-        auto r = UniqueString(Capacity(dotdots * 3 + (spec_.size() - tail)));
+        usize cap = dotdots * 3 + (spec_.size() - tail);
+        expect(cap < UniqueString::max_size_);
+        auto r = UniqueString(Capacity(cap));
         for (uint32 i = 0; i < dotdots; i++) {
             r.append_expect_capacity("../");
         }
@@ -514,7 +519,10 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
      // return the fragment even if they're the same.
     return_fragment: tail = query_end;
      // Bundle these returns together because they do an allocation.
-    return_tail: return spec_.slice(tail);
+    return_tail: {
+        expect(spec_.size() < maximum_length);
+        return spec_.slice(tail);
+    }
      // For whatever reason we couldn't make a relative reference so return the
      // whole thing.
     return_everything: return spec_;

@@ -849,15 +849,19 @@ struct ArrayInterface {
      // to Static* for Static*
     ALWAYS_INLINE constexpr
     SelfSlice slice (usize start, usize end) const {
-        expect(start <= end && end <= size());
-        return SelfSlice(data() + start, end - start);
+        expect(start <= end && end <= size()); // for safety
+        auto r = SelfSlice(data() + start, end - start);
+        expect(r.size() <= size()); // for optimization
+        return r;
     }
      // Omitting the second argument defaults to size(), but parameter defaults
      // can't depend on this, so just make a different overload.
     ALWAYS_INLINE constexpr
     SelfSlice slice (usize start) const {
         expect(start <= size());
-        return SelfSlice(data() + start, size() - start);
+        auto r = SelfSlice(data() + start, size() - start);
+        expect(r.size() <= size());
+        return r;
     }
 
      // Substr takes an offset and a length, and caps both to the length of the

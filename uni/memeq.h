@@ -20,7 +20,8 @@ namespace uni {
  //
  // Unlike memcmp, you are allowed to pass nullptrs if s == 0.
 constexpr bool memeq (const void* a, const void* b, std::size_t s) {
-     // Only run this on architectures that we know support misaligned access.
+     // Only run this on architectures that we know have reasonably fast
+     // misaligned access.
 #if defined(__amd64__) || defined(__aarch64__) || defined(_M_X64) || defined(_M_ARM64)
     if (std::is_constant_evaluated()) {
          // The algorithm below can't be constexpr because of reinterpret_casts,
@@ -46,7 +47,7 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
                  // *(uint64*)ap != *(uint64*)bp.
                 if (std::memcmp(ap, bp, 8) != 0) return false;
             }
-             // Finish off with the possibly overlapping eight bytes.
+             // Finish off with the possibly overlapping final eight bytes.
             return std::memcmp(ae, be, 8) == 0;
         }
         else if (s >= 4) {

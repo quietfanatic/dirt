@@ -104,8 +104,8 @@ const IRI& program_location () noexcept {
 
 IRI from_fs_path (Str path, const IRI& base) noexcept {
     if (!path) return IRI();
+    auto encoded = encode_path(path);
     if constexpr (backwards_slashes) {
-        auto encoded = encode_path(path);
          // Gotta work around Windows' weird absolute path format.  This
          // code is untested and also assumes that the provided path is a
          // valid Windows path.  If not, unintuitive results may occur.
@@ -141,10 +141,10 @@ IRI from_fs_path (Str path, const IRI& base) noexcept {
             path = path.slice(1);
         }
          // Don't call working_directory() here because it calls us.
-        return IRI(encode_path(path), file_scheme);
+        return IRI(encoded, file_scheme);
     }
     else return IRI(
-        encode_path(path), !base.empty() ? base : working_directory()
+        encoded, !base.empty() ? base : working_directory()
     );
 }
 
