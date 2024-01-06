@@ -2104,3 +2104,17 @@ struct std::hash<uni::ArrayInterface<ac, T>> {
         return r;
     }
 };
+
+#ifndef TAP_DISABLE_TESTS
+#include "../tap/tap.h"
+namespace tap {
+template <class ac>
+struct Show<uni::ArrayInterface<ac, char>> {
+    std::string show (const uni::ArrayInterface<ac, char>& v) {
+        std::string r (v.size() + 2, '"');
+        std::memcpy(r.data() + 1, v.data(), v.size());
+        return r;
+    }
+};
+}
+#endif

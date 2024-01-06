@@ -6,19 +6,150 @@
 namespace uni {
 inline namespace strings {
 
- // Literal suffix for StaticString.  This is usually unnecessary.
+ // Concatenation for character strings.  Returns the result of converting all
+ // the arguments to strings, concatenated into a single string.
+template <class Head, class... Tail>
+UniqueString cat (Head&& h, const Tail&... t);
+UniqueString cat ();
+
+ // In-place-modifying version of cat.  Named with the English prefix "en"
+ // meaning "to" or "onto" or "unto".
+template <class Head, class... Tail> inline
+Head& encat (Head& h, const Tail&... t) {
+    return h = cat(move(h), t...);
+}
+
+ // Trait for string conversions.  This must have:
+ //    using Self = Type;
+ // where Type has either these methods:
+ //    usize size () const;
+ //    const char* data () const;
+ // or these methods:
+ //    usize size () const;
+ //    char* write (char* out) const;  // returns out + size()
+ // It's acceptable and normal to define Self = StringConversion<Type> and
+ // define .size() and .data() on StringConversion<Type> itself.
+template <class T>
+struct StringConversion;
+
+// A special object to pass to cat() which uses a function to generate strings
+// (or anything that can be converted to strings) and joins them with the given
+// separator.  The passed-in function will be called TWICE for every number from
+// 0 to n-1, the first time with size() called on each result, and the second
+// time with data() called on each result.  If the function is too expensive to
+// call twice, you should first cache the results in an array and then call
+// Caterator on the array.
+template <class F>
+struct Caterator {
+    Str separator;
+    usize n;
+    const F& f;
+
+    constexpr Caterator (Str s, usize n, const F& f) :
+        separator(s), n(n), f(f)
+    { }
+
+     // Shortcut for joining an array.
+    template <class A>
+    constexpr Caterator (Str s, const A& a) :
+        separator(s), n(a.size()), f([&a](usize i){
+            return a[i];
+        })
+    { }
+
+    constexpr usize size () const;
+    char* write (char* out) const;
+};
+
+ // Literal suffix for StaticString.  This is usually unnecessary, as raw
+ // const char[] arrays are generally treated as static strings by the arrays
+ // library.
 consteval StaticString operator""_s (const char* p, usize s) {
     return StaticString(p, s);
 }
 
- // Trait for string conversions.  This MUST have:
- //    using Self = <type>;
- // where <type> is any type matching
- //    requires (Self v, usize s, const char* p) { s = v.size(); p = v.data(); }
- // It's acceptable to define Self = StringConversion<type> and define .size()
- // and .data() on StringConversiontype> itself.
-template <class T>
-struct StringConversion;
+///// INTERNAL STUFF
+
+namespace in {
+
+ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, usize b) {
+    expect(a + b >= a);
+    expect(a + b >= b);
+    a += b;
+}
+
+ // Write conversion objects with .data()
+template <class T> requires (
+    requires (T t, usize s, const char* p) { s = t.size(); p = t.data(); }
+)
+ALWAYS_INLINE char* cat_write (char* out, const T& t) {
+    usize s = t.size();
+    const char* p = t.data();
+     // Apparently it's illegal to pass null to memcpy even if the size is 0.  This
+     // is irritating because every known implementation of memcpy will just no-op
+     // for 0 size like you'd expect, but the standards say Undefined Behavior.
+    return s ? s + (char*)std::memcpy(out, p, s) : out;
+}
+
+ // Capitulate to things returning char8_t*
+template <class T> requires (
+    requires (T t, usize s, const char8_t* p) { s = t.size(); p = t.data(); }
+)
+ALWAYS_INLINE char* cat_write (char* out, const T& t) {
+    usize s = t.size();
+    const char8_t* p = t.data();
+     // Apparently it's illegal to pass null to memcpy even if the size is 0.  This
+     // is irritating because every known implementation of memcpy will just no-op
+     // for 0 size like you'd expect, but the standards say Undefined Behavior.
+    return s ? s + (char*)std::memcpy(out, p, s) : out;
+}
+
+ // Write conversion objects with .write()
+template <class T> requires (
+    requires (T t, usize s, char* out) { s = t.size(); out = t.write(out); }
+)
+ALWAYS_INLINE char* cat_write (char* out, const T& t) {
+    return t.write(out);
+}
+
+template <class... Tail> ALWAYS_INLINE
+void cat_append (UniqueString& h, const Tail&... t) {
+    if constexpr (sizeof...(Tail) > 0) {
+        usize cap = h.size();
+        (cat_add_no_overflow(cap, t.size()), ...);
+        h.reserve_plenty(cap);
+        char* out = h.end();
+        ((
+            out = cat_write(out, t)
+        ), ...);
+        h.impl.size = out - h.impl.data;
+    }
+}
+
+template <class Head, class... Tail> ALWAYS_INLINE
+UniqueString cat_construct (Head&& h, const Tail&... t) {
+     // Record of investigations: I was poking around in the disassembly on an
+     // optimized build, and found that this function was producing a call to
+     // UniqueString::remove_ref, which indicated that a move construct (and
+     // destruct) was happening, instead of the NVRO I expected.  After some
+     // investigation, it turned out that wrapping the entire function in an
+     // if constexpr was screwing with GCC's NVRO but only when LTO was enabled.
+     // (Also, I was misunderstanding this variadic folding syntax and was using
+     // if constexpr to compensate, so it is no longer necessary).
+    usize cap = h.size();
+    (cat_add_no_overflow(cap, t.size()), ...);
+    auto r = UniqueString(Capacity(cap));
+    char* out = cat_write(r.impl.data, h);
+    ((
+        out = cat_write(out, t)
+    ), ...);
+    r.impl.size = out - r.impl.data;
+    return r;
+}
+
+} // in
+
+///// DEFAULT STRING CONVERSIONS
 
 template <>
 struct StringConversion<char> {
@@ -50,6 +181,8 @@ template <> constexpr uint32 max_digits<float> = 16;
 template <> constexpr uint32 max_digits<double> = 24;
 template <> constexpr uint32 max_digits<long double> = 48; // dunno, seems safe
 
+ // This does an extra copy of the characters, which may not be optimal, but
+ // it's better than doing the entire conversion twice.
 template <class T> requires (std::is_arithmetic_v<T>)
 struct StringConversion<T> {
     using Self = StringConversion<T>;
@@ -93,60 +226,40 @@ struct StringConversion<T> {
     using Self = Str;
 };
 
-namespace in {
+///// CATERATOR IMPLEMENTATION
 
-ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, usize b) {
-    expect(a + b >= a);
-    expect(a + b >= b);
-    a += b;
-}
-
-template <class... Tail> ALWAYS_INLINE
-void cat_append (UniqueString& h, const Tail&... t) {
-    if constexpr (sizeof...(Tail) > 0) {
-        usize cap = h.size();
-        (cat_add_no_overflow(cap, t.size()), ...);
-        h.reserve_plenty(cap);
-        char* pos = h.end();
-        ((
-            pos = t.size() + (char*)std::memcpy(pos, t.data(), t.size())
-        ), ...);
-        h.impl.size = pos - h.impl.data;
+template <class F>
+ALWAYS_INLINE constexpr usize Caterator<F>::size () const {
+    usize r = separator.size() * (n ? n-1 : 0);
+    for (usize i = 0; i < n; i++) {
+        r += typename StringConversion<decltype(f(i))>::Self(f(i)).size();
     }
-}
-
- // Apparently it's illegal to pass null to memcpy even if the size is 0.  This
- // is irritating because every known implementation of memcpy will just no-op
- // for 0 size like you'd expect, but the standards say Undefined Behavior.
-inline void* safe_memcpy (void* dst, const void* src, usize size) {
-    return size ? std::memcpy(dst, src, size) : dst;
-}
-
-template <class Head, class... Tail> ALWAYS_INLINE
-UniqueString cat_construct (Head&& h, const Tail&... t) {
-     // Record of investigations: I was poking around in the disassembly on an
-     // optimized build, and found that this function was producing a call to
-     // UniqueString::remove_ref, which indicated that a move construct (and
-     // destruct) was happening, instead of the NVRO I expected.  After some
-     // investigation, it turned out that wrapping the entire function in an
-     // if constexpr was screwing with GCC's NVRO but only when LTO was enabled.
-     // (Also, I was misunderstanding this variadic folding syntax and was using
-     // if constexpr to compensate, so it is no longer necessary).
-    usize cap = h.size();
-    (cat_add_no_overflow(cap, t.size()), ...);
-    auto r = UniqueString(Capacity(cap));
-    char* pos = h.size() + (char*)safe_memcpy(r.data(), h.data(), h.size());
-    ((
-        pos = t.size() + (char*)safe_memcpy(pos, t.data(), t.size())
-    ), ...);
-    r.impl.size = pos - r.impl.data;
     return r;
 }
+template <class F>
+ALWAYS_INLINE char* Caterator<F>::write (char* out) const {
+    if (n) {
+        usize i = 0;
+        out = in::cat_write(out,
+            typename StringConversion<decltype(f(i))>::Self(f(i))
+        );
+        for (i = 1; i < n; i++) {
+            out = in::cat_write(out, separator);
+            out = in::cat_write(out,
+                typename StringConversion<decltype(f(i))>::Self(f(i))
+            );
+        }
+    }
+    return out;
+}
 
-} // in
+template <class F>
+struct StringConversion<Caterator<F>> {
+    using Self = Caterator<F>;
+};
 
- // Concatenation for character strings.  Returns the result of printing all the
- // arguments, concatenated into a single string.
+///// CAT IMPLEMENTATION
+
 template <class Head, class... Tail> inline
 UniqueString cat (Head&& h, const Tail&... t) {
     if constexpr (std::is_same_v<Head&&, UniqueString&&>) {
@@ -164,39 +277,5 @@ UniqueString cat (Head&& h, const Tail&... t) {
 }
 inline UniqueString cat () { return ""; }
 
- // In-place-modify version of cat.  Named with the English prefix "en" meaning
- // "to" or "onto" or "unto".
-template <class Head, class... Tail> inline
-Head& encat (Head& h, const Tail&... t) {
-    return h = cat(move(h), t...);
-}
-
- // TODO: support other array and string separators
-inline
-UniqueArray<Str> split (char sep, Str s) {
-    UniqueArray<Str> r;
-    const char* start = s.begin();
-    for (const char* p = s.begin(); p != s.end(); p++) {
-        if (*p == sep) {
-            r.push_back(Str(start, p));
-            start = p + 1;
-        }
-    }
-    r.push_back(Str(start, s.end()));
-    return r;
-}
-
 } // strings
 } // uni
-
-#ifndef TAP_DISABLE_TESTS
-#include "../tap/tap.h"
-namespace tap {
-template <class ac>
-struct Show<uni::ArrayInterface<ac, char>> {
-    std::string show (const uni::ArrayInterface<ac, char>& v) {
-        return std::string(uni::cat("\"", v, "\""));
-    }
-};
-}
-#endif
