@@ -13,22 +13,26 @@ namespace in {
 struct Printer {
     char* end;
     PrintOptions opts;
-    UniqueString output;
+    char* begin;
 
-    Printer (PrintOptions f) :
-        opts(f),
-        output(Capacity(256))
-    { end = output.data() + 256; }
+    Printer (PrintOptions f) : end(null), opts(f), begin(null) { }
 
-    ~Printer () { }
+    ~Printer () {
+        if (begin) SharableBuffer<char>::deallocate(begin);
+    }
 
-    [[gnu::noinline]]
+    NOINLINE
     char* extend (char* p, usize more = 1) {
-        char* old_start = output.data();
-        output.impl.size = p - old_start;
-        output.reserve_plenty(p - old_start + more);
-        end = output.data() + output.capacity();
-        return p - old_start + output.data();
+        char* old_begin = begin;
+        char* new_begin = SharableBuffer<char>::allocate_plenty(
+            p - old_begin + more
+        );
+        begin = (char*)std::memcpy(
+            new_begin, old_begin, p - old_begin
+        );
+        end = begin + SharableBuffer<char>::header(begin)->capacity;
+        SharableBuffer<char>::deallocate(old_begin);
+        return p - old_begin + begin;
     }
 
     char* pchar (char* p, char c) {
@@ -305,11 +309,20 @@ struct Printer {
     }
 
     UniqueString print (TreeRef t) {
-        char* p = print_tree(output.data(), t, 0);
+        usize capacity = 256;
+        begin = SharableBuffer<char>::allocate_exact(capacity);
+        end = begin + capacity;
+         // Do it
+        char* p = print_tree(begin, t, 0);
         if (opts & PRETTY) p = pchar(p, '\n');
-        output.impl.size = p - output.impl.data;
-        if (output.size() < 128) output.shrink_to_fit();
-        return move(output);
+         // Make return
+        UniqueString r;
+        r.impl.size = p - begin;
+        r.impl.data = begin;
+         // Don't waste too much space
+        if (r.impl.size < (end - begin) / 2) r.shrink_to_fit();
+        begin = null;
+        return r;
     }
 };
 
