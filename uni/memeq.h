@@ -56,16 +56,11 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
             return std::memcmp(ap, bp, 4) == 0 &&
                    std::memcmp(ap + s - 4, bp + s - 4, 4) == 0;
         }
-         // Not worth doing comparisons of size 2
-        else {
-             // Indexing unrolls better than pointer-bumping, and unrolling
-             // three iterations doesn't take much more space than the original
-             // loop.  Also the compiler unrolls it better than I can manually.
-            for (std::size_t i = 0; i < s; i++) {
-                if (ap[i] != bp[i]) return false;
-            }
-            return true;
+        else if (s >= 2) {
+            if (std::memcmp(ap, bp, 2) != 0) return false;
+            return s == 2 || ap[2] == bp[2];
         }
+        else return s == 0 || ap[0] == bp[0];
     }
 #else
      // Misaligned access may not be supported, so play it safe.
