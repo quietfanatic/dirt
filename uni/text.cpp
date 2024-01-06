@@ -62,17 +62,6 @@ int natural_compare (Str a, Str b) noexcept {
     return ap == ae ? -1 : bp == be ? 1 : 0;
 }
 
-UniqueString escape_for_shell (Str in) {
-    usize len = in.size();
-    for (auto& c : in) if (c == '\'') len += 3;
-    auto out = UniqueString(Capacity(len));
-    for (auto& c : in) {
-        if (c == '\'') out.append_expect_capacity("'\\''");
-        else out.push_back_expect_capacity(c);
-    }
-    return out;
-}
-
 } using namespace uni;
 
 #ifndef TAP_DISABLE_TESTS
