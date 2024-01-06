@@ -11,8 +11,12 @@ consteval StaticString operator""_s (const char* p, usize s) {
     return StaticString(p, s);
 }
 
-namespace in {
-
+ // Trait for string conversions.  This MUST have:
+ //    using Self = <type>;
+ // where <type> is any type matching
+ //    requires (Self v, usize s, const char* p) { s = v.size(); p = v.data(); }
+ // It's acceptable to define Self = StringConversion<type> and define .size()
+ // and .data() on StringConversiontype> itself.
 template <class T>
 struct StringConversion;
 
@@ -89,6 +93,8 @@ struct StringConversion<T> {
     using Self = Str;
 };
 
+namespace in {
+
 ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, usize b) {
     expect(a + b >= a);
     expect(a + b >= b);
@@ -109,7 +115,9 @@ void cat_append (UniqueString& h, const Tail&... t) {
     }
 }
 
- // Apparently it's illegal to pass null to memcpy even if the size is 0.
+ // Apparently it's illegal to pass null to memcpy even if the size is 0.  This
+ // is irritating because every known implementation of memcpy will just no-op
+ // for 0 size like you'd expect, but the standards say Undefined Behavior.
 inline void* safe_memcpy (void* dst, const void* src, usize size) {
     return size ? std::memcpy(dst, src, size) : dst;
 }
@@ -121,7 +129,7 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
      // UniqueString::remove_ref, which indicated that a move construct (and
      // destruct) was happening, instead of the NVRO I expected.  After some
      // investigation, it turned out that wrapping the entire function in an
-     // if constexpr was screwing with GCC's NVRO only when LTO was enabled.
+     // if constexpr was screwing with GCC's NVRO but only when LTO was enabled.
      // (Also, I was misunderstanding this variadic folding syntax and was using
      // if constexpr to compensate, so it is no longer necessary).
     usize cap = h.size();
@@ -143,15 +151,15 @@ template <class Head, class... Tail> inline
 UniqueString cat (Head&& h, const Tail&... t) {
     if constexpr (std::is_same_v<Head&&, UniqueString&&>) {
         in::cat_append(h,
-            typename in::StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
+            typename StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
         );
         return move(h);
     }
     else return in::cat_construct(
-        typename in::StringConversion<std::remove_cvref_t<Head>>::Self(
+        typename StringConversion<std::remove_cvref_t<Head>>::Self(
             std::forward<Head>(h)
         ),
-        typename in::StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
+        typename StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
     );
 }
 inline UniqueString cat () { return ""; }
