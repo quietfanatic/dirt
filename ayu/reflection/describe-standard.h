@@ -69,22 +69,6 @@ AYU_DESCRIBE_TEMPLATE(
 )
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
-    AYU_DESCRIBE_TEMPLATE_TYPE(uni::SharedArray<T>),
-    desc::name([]{
-        static uni::UniqueString r = uni::cat(
-            "uni::SharedArray<", ayu::Type::CppType<T>().name(), '>'
-        );
-        return uni::StaticString(r);
-    }),
-    desc::length(desc::template value_methods<
-        uni::usize, &uni::SharedArray<T>::size, &uni::SharedArray<T>::resize
-    >()),
-    desc::elem_func([](uni::SharedArray<T>& v, uni::usize i){
-        return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
-    })
-)
-AYU_DESCRIBE_TEMPLATE(
-    AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(uni::AnyArray<T>),
     desc::name([]{
         static uni::UniqueString r = uni::cat(

@@ -7,7 +7,7 @@
 namespace uni {
 inline namespace buffers {
 
-    struct alignas(8) SharedBufferHeader {
+    struct alignas(8) SharableBufferHeader {
          // Number of typed elements this buffer can hold
         const uint32 capacity;
          // Ref count.  For uniquely owned buffers, this is always 1.
@@ -22,8 +22,8 @@ inline namespace buffers {
         SharableBuffer () = delete;
 
         ALWAYS_INLINE static
-        SharedBufferHeader* header (const T* data) {
-            return (SharedBufferHeader*)data - 1;
+        SharableBufferHeader* header (const T* data) {
+            return (SharableBufferHeader*)data - 1;
         }
 
         static constexpr usize max_capacity = uint32(-1);
@@ -90,9 +90,9 @@ inline namespace buffers {
             );
              // Use uint64 instead of usize because on 32-bit platforms we need
              // to make sure we don't overflow usize.
-            uint64 bytes = sizeof(SharedBufferHeader) + (uint64)cap * sizeof(T);
+            uint64 bytes = sizeof(SharableBufferHeader) + (uint64)cap * sizeof(T);
             require(bytes <= usize(-1));
-            auto header = (SharedBufferHeader*)std::malloc(bytes);
+            auto header = (SharableBufferHeader*)std::malloc(bytes);
             const_cast<uint32&>(header->capacity) = cap;
             header->ref_count = 1;
             return (T*)(header + 1);
@@ -100,7 +100,7 @@ inline namespace buffers {
 
         [[gnu::nonnull(1)]] ALWAYS_INLINE static
         void deallocate (T* buf) {
-            std::free((SharedBufferHeader*)buf - 1);
+            std::free((SharableBufferHeader*)buf - 1);
         }
     };
 }

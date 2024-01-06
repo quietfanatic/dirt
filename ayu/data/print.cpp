@@ -350,10 +350,10 @@ static tap::TestSet tests ("dirt/ayu/data/print", []{
 
     test::TestEnvironment env;
 
-    SharedString pretty = string_from_file(resource_filename("ayu-test:/print-pretty.ayu"));
-    SharedString compact = string_from_file(resource_filename("ayu-test:/print-compact.ayu"));
-    SharedString pretty_json = string_from_file(resource_filename("ayu-test:/print-pretty.json"));
-    SharedString compact_json = string_from_file(resource_filename("ayu-test:/print-compact.json"));
+    auto pretty = string_from_file(resource_filename("ayu-test:/print-pretty.ayu"));
+    auto compact = string_from_file(resource_filename("ayu-test:/print-compact.ayu"));
+    auto pretty_json = string_from_file(resource_filename("ayu-test:/print-pretty.json"));
+    auto compact_json = string_from_file(resource_filename("ayu-test:/print-compact.json"));
      // Remove final LF
     compact.pop_back();
     compact_json.pop_back();

@@ -32,12 +32,21 @@ Head& encat (Head& h, const Tail&... t) {
 template <class T>
 struct StringConversion;
 
-// A special object to pass to cat() which uses a function to generate strings
-// (or anything that can be converted to strings) and joins them with the given
-// separator.  The passed-in function will be called TWICE for every number from
-// 0 to n-1, the first time with size() called on each result, and the second
-// time with data() called on each result.  If the function is too expensive to
-// call twice, you should first cache the results in an array and then call
+// Caterator (concatenating iterator) is a special object to pass to cat() which
+// uses a function to generate strings (or anything that can be converted to
+// strings) and joins them with the given separator.  The passed-in function
+// will be called TWICE for every number from 0 to n-1, the first time with
+// size() called on each result, and the second time with data() called on each
+// result.
+//
+// If the function is simple, Caterator is likely to be more efficient than
+// calling cat() multiple times, because each call to cat() might have to
+// reallocate the output string.  If the function is simple and returns a Str,
+// the optimizer can probably split the calculation of the Str into its size and
+// its data, and calculate only the size in the first loop and the data in the
+// second loop.
+// If the function is complicated, and it would be slow to loop over it twice,
+// you can try caching the results in an array instead, and then calling
 // Caterator on the array.
 template <class F>
 struct Caterator {

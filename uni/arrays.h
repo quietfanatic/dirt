@@ -76,13 +76,6 @@ struct ArrayInterface;
 template <class T>
 using AnyArray = ArrayInterface<ArrayClass::AnyArray, T>;
 
- // An array that can only reference shared data.  There isn't much reason to
- // use this instead of AnyArray, but it's here as an intermediate between AnyArray
- // and UniqueArray.  This should probably be renamed because its name suggests
- // it might be have shared mutability, but it does not.
-template <class T>
-using SharedArray = ArrayInterface<ArrayClass::SharedArray, T>;
-
  // An array that guarantees unique ownership, allowing mutation without
  // copy-on-write.  This has the same role as std::vector.
 template <class T>
@@ -110,8 +103,6 @@ using Slice = ArrayInterface<ArrayClass::Slice, T>;
 template <class T>
 using GenericAnyString = ArrayInterface<ArrayClass::AnyString, T>;
 template <class T>
-using GenericSharedString = ArrayInterface<ArrayClass::SharedString, T>;
-template <class T>
 using GenericUniqueString = ArrayInterface<ArrayClass::UniqueString, T>;
 template <class T>
 using GenericStaticString = ArrayInterface<ArrayClass::StaticString, T>;
@@ -119,19 +110,16 @@ template <class T>
 using GenericStr = ArrayInterface<ArrayClass::Str, T>;
 
 using AnyString = GenericAnyString<char>;
-using SharedString = GenericSharedString<char>;
 using UniqueString = GenericUniqueString<char>;
 using StaticString = GenericStaticString<char>;
 using Str = GenericStr<char>;
 
 using AnyString16 = GenericAnyString<char16>;
-using SharedString16 = GenericSharedString<char16>;
 using UniqueString16 = GenericUniqueString<char16>;
 using StaticString16 = GenericStaticString<char16>;
 using Str16 = GenericStr<char16>;
 
 using AnyString32 = GenericAnyString<char32>;
-using SharedString32 = GenericSharedString<char32>;
 using UniqueString32 = GenericUniqueString<char32>;
 using StaticString32 = GenericStaticString<char32>;
 using Str32 = GenericStr<char32>;
@@ -894,7 +882,7 @@ struct ArrayInterface {
         SharableBuffer<T>::capacity_for_size(max_size_);
 
      // Returns if this array is owned (has a shared or unique buffer).  If
-     // this returns true, then there is a SharedBufferHeader behind data().
+     // this returns true, then there is a SharableBufferHeader behind data().
      // Returns false for empty arrays.
     ALWAYS_INLINE constexpr
     bool owned () const {
@@ -1512,7 +1500,7 @@ struct ArrayInterface {
 
   private:
     ALWAYS_INLINE
-    SharedBufferHeader& header () const {
+    SharableBufferHeader& header () const {
          // TODO static_assert
         expect(ac::supports_owned);
         return *SharableBuffer<T>::header(impl.data);

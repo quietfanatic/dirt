@@ -13,7 +13,6 @@ namespace ArrayClass {
     struct Defaults {
         static constexpr bool is_String = false;
         static constexpr bool is_Any = false;
-        static constexpr bool is_Shared = false;
         static constexpr bool is_Unique = false;
         static constexpr bool is_Static = false;
         static constexpr bool is_Slice = false;
@@ -29,14 +28,6 @@ namespace ArrayClass {
         static constexpr bool supports_static = true;
     };
     struct AnyString : AnyArray {
-        static constexpr bool is_String = true;
-    };
-    struct SharedArray : Defaults {
-        static constexpr bool is_Shared = true;
-        static constexpr bool supports_share = true;
-        static constexpr bool supports_owned = true;
-    };
-    struct SharedString : SharedArray {
         static constexpr bool is_String = true;
     };
     struct UniqueArray : Defaults {
@@ -83,16 +74,6 @@ struct ArrayImplementation<ArrayClass::AnyString, T> {
     T* data;
 };
 
-template <class T>
-struct ArrayImplementation<ArrayClass::SharedArray, T> {
-    uint32 size;
-    T* data;
-};
-template <class T>
-struct ArrayImplementation<ArrayClass::SharedString, T> {
-    uint32 size;
-    T* data;
-};
 
 template <class T>
 struct ArrayImplementation<ArrayClass::UniqueArray, T> {

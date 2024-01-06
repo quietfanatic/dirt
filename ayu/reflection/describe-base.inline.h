@@ -52,7 +52,7 @@ template <class N>
     requires (requires (T v) { T(move(v)); })
 constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
      // Be aggressive about converting to StaticString to make sure nothing goes
-     // through the non-constexpr SharedString path.
+     // through the non-constexpr path.
     if constexpr (
         !requires { Null(n); } &&
         requires { StaticString(n); }

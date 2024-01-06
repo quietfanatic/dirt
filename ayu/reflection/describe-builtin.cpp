@@ -33,10 +33,6 @@ AYU_DESCRIBE(uni::UniqueString,
     to_tree([](const UniqueString& v){ return Tree(AnyString(v)); }),
     from_tree([](UniqueString& v, const Tree& t){ v = AnyString(t); })
 )
-AYU_DESCRIBE(uni::SharedString,
-    to_tree([](const SharedString& v){ return Tree(AnyString(v)); }),
-    from_tree([](SharedString& v, const Tree& t){ v = AnyString(t); })
-)
 
  // Str is a reference-like type so it can't be deserialized because the data
  // structure containing it would most likely outlive the tree it came from.
