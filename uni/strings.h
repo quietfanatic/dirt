@@ -26,7 +26,10 @@ Head& encat (Head& h, const Tail&... t) {
  //    const char* data () const;
  // or these methods:
  //    usize size () const;
- //    char* write (char* out) const;  // returns out + size()
+ //    char* write (char* out) const;  // returns out + amount written
+ // If using the write() method, it's okay for size() to return a little more
+ // than write() actually writes.
+ //
  // It's acceptable and normal to define Self = StringConversion<Type> and
  // define .size() and .data() on StringConversion<Type> itself.
 template <class T>
@@ -67,7 +70,7 @@ struct Caterator {
     { }
 
     constexpr usize size () const;
-    char* write (char* out) const;
+    constexpr char* write (char* out) const;
 };
 
  // Literal suffix for StaticString.  This is usually unnecessary, as raw
@@ -143,7 +146,7 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
      // destruct) was happening, instead of the NVRO I expected.  After some
      // investigation, it turned out that wrapping the entire function in an
      // if constexpr was screwing with GCC's NVRO but only when LTO was enabled.
-     // (Also, I was misunderstanding this variadic folding syntax and was using
+     // (Also, I was misunderstanding the variadic folding syntax and was using
      // if constexpr to compensate, so it is no longer necessary).
     usize cap = h.size();
     (cat_add_no_overflow(cap, t.size()), ...);
@@ -155,6 +158,19 @@ UniqueString cat_construct (Head&& h, const Tail&... t) {
     r.impl.size = out - r.impl.data;
     return r;
 }
+
+template <class T> constexpr uint32 max_digits;
+template <> constexpr uint32 max_digits<uint8> = 3;
+template <> constexpr uint32 max_digits<int8> = 4;
+template <> constexpr uint32 max_digits<uint16> = 5;
+template <> constexpr uint32 max_digits<int16> = 6;
+template <> constexpr uint32 max_digits<uint32> = 10;
+template <> constexpr uint32 max_digits<int32> = 11;
+template <> constexpr uint32 max_digits<uint64> = 20;
+template <> constexpr uint32 max_digits<int64> = 20;
+template <> constexpr uint32 max_digits<float> = 16;
+template <> constexpr uint32 max_digits<double> = 24;
+template <> constexpr uint32 max_digits<long double> = 48; // dunno, seems safe
 
 } // in
 
@@ -177,44 +193,57 @@ struct StringConversion<bool> {
     ALWAYS_INLINE constexpr const char* data () const { return &c; }
 };
 
-template <class T> constexpr uint32 max_digits;
-template <> constexpr uint32 max_digits<uint8> = 3;
-template <> constexpr uint32 max_digits<int8> = 4;
-template <> constexpr uint32 max_digits<uint16> = 5;
-template <> constexpr uint32 max_digits<int16> = 6;
-template <> constexpr uint32 max_digits<uint32> = 10;
-template <> constexpr uint32 max_digits<int32> = 11;
-template <> constexpr uint32 max_digits<uint64> = 20;
-template <> constexpr uint32 max_digits<int64> = 20;
-template <> constexpr uint32 max_digits<float> = 16;
-template <> constexpr uint32 max_digits<double> = 24;
-template <> constexpr uint32 max_digits<long double> = 48; // dunno, seems safe
-
- // This does an extra copy of the characters, which may not be optimal, but
- // it's better than doing the entire conversion twice.
-template <class T> requires (std::is_arithmetic_v<T>)
+template <class T> requires (std::is_integral_v<T>)
 struct StringConversion<T> {
     using Self = StringConversion<T>;
-    char digits [max_digits<T>];
+    T v;
+     // Get a close upper bound for the number of digits.
+    ALWAYS_INLINE constexpr usize size () const {
+        if (!v) return 1;
+        std::make_unsigned_t<T> abs = v < 0 ? -v : v;
+         // The number of bits/digits is actually 1 larger than the log base
+         // 2/10 of the number.
+        uint8 log2v = std::bit_width(abs) - 1;
+         // ln(2)/ln(10) == 0.301029995663981... which we'll round up to 1/3.
+         // We could use a closer number like 0.31, but using integer division
+         // makes it easier for the optimizer to do range analysis.  Either way,
+         // we're only going to be overallocating by a byte or two.
+        uint8 log10v = log2v / 3;
+        return (v < 0) + log10v + 1;
+    }
+    constexpr char* write (char* out) const {
+        auto [ptr, ec] = std::to_chars(out, out + in::max_digits<T>, v);
+        expect(ec == std::errc());
+#ifdef NDEBUG
+        expect(usize(ptr - out) <= size());
+#endif
+        return ptr;
+    }
+};
+
+ // This does an extra copy of the characters, which may not be optimal, but
+ // it's better than doing the entire conversion twice, and estimating the
+ // length ahead of time is much harder for floating point numbers.
+template <class T> requires (std::is_floating_point_v<T>)
+struct StringConversion<T> {
+    using Self = StringConversion<T>;
+    char digits [in::max_digits<T>];
     uint32 len;
     constexpr StringConversion (T v) {
-        if constexpr (std::is_floating_point_v<T>) {
-            if (v != v) {
-                std::memcpy(digits, "+nan", len = 4);
-                return;
-            }
-            else if (v == std::numeric_limits<T>::infinity()) {
-                std::memcpy(digits, "+inf", len = 4);
-                return;
-            }
-            else if (v == -std::numeric_limits<T>::infinity()) {
-                std::memcpy(digits, "-inf", len = 4);
-                return;
-            }
+        if (v != v) {
+            std::memcpy(digits, "+nan", len = 4);
         }
-        auto [ptr, ec] = std::to_chars(digits, digits + max_digits<T>, v);
-        expect(ec == std::errc());
-        len = ptr - digits;
+        else if (v == std::numeric_limits<T>::infinity()) {
+            std::memcpy(digits, "+inf", len = 4);
+        }
+        else if (v == -std::numeric_limits<T>::infinity()) {
+            std::memcpy(digits, "-inf", len = 4);
+        }
+        else {
+            auto [ptr, ec] = std::to_chars(digits, digits + in::max_digits<T>, v);
+            expect(ec == std::errc());
+            len = ptr - digits;
+        }
     }
     ALWAYS_INLINE constexpr usize size () const { return len; }
     ALWAYS_INLINE constexpr const char* data () const { return digits; }
@@ -246,7 +275,7 @@ ALWAYS_INLINE constexpr usize Caterator<F>::size () const {
     return r;
 }
 template <class F>
-ALWAYS_INLINE char* Caterator<F>::write (char* out) const {
+ALWAYS_INLINE constexpr char* Caterator<F>::write (char* out) const {
     if (n) {
         usize i = 0;
         out = in::cat_write(out,
