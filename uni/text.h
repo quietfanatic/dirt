@@ -32,4 +32,20 @@ constexpr char to_hex_digit (uint8 digit) {
     else return 0;
 }
 
+inline UniqueString ascii_to_upper (Str s) {
+    return UniqueString(s.size(), [s](usize i){
+        char c = s[i];
+        if (c >= 'a' && c <= 'z') c &= ~('a' & ~'A');
+        return c;
+    });
+}
+
+inline UniqueString ascii_to_lower (Str s) {
+    return UniqueString(s.size(), [s](usize i){
+        char c = s[i];
+        if (c >= 'A' && c <= 'Z') c |= ('a' & ~'A');
+        return c;
+    });
+}
+
 } // namespace uni
