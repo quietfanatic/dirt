@@ -23,12 +23,13 @@ bool input_matches_event (const Input& input, SDL_Event* event) noexcept {
         }
         case SDL_MOUSEBUTTONDOWN: {
             if (input.code != event->button.button) return false;
+            auto modstate = SDL_GetModState();
             return (!!(input.flags & InputFlags::Ctrl) ==
-                    !!(SDL_GetModState() & KMOD_CTRL))
+                    !!(modstate & KMOD_CTRL))
                 && (!!(input.flags & InputFlags::Alt) ==
-                    !!(SDL_GetModState() & KMOD_ALT))
+                    !!(modstate & KMOD_ALT))
                 && (!!(input.flags & InputFlags::Shift) ==
-                    !!(SDL_GetModState() & KMOD_SHIFT));
+                    !!(modstate & KMOD_SHIFT));
         }
         default: return false;
     }
