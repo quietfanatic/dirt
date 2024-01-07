@@ -150,7 +150,7 @@ Input input_from_string (Str name) {
         case hash32("button5"):
         case hash32("btn5"): return {.type = InputType::Button, .code = SDL_BUTTON_X2};
          // TODO: throw exception
-        default: return {};
+        default: raise(e_General, cat("Unknown input descriptor: ", name));
     }
 }
 
