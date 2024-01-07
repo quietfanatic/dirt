@@ -26,12 +26,12 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
     if (std::is_constant_evaluated()) {
          // The algorithm below can't be constexpr because of reinterpret_casts,
          // so use memcmp which gets special treatment to be constexpr.
-        return std::memcmp(a, b, s) == 0;
+        return s == 0 || std::memcmp(a, b, s) == 0;
     }
     else {
         auto ap = (const char*)a;
         auto bp = (const char*)b;
-         // Modern X64 CPUs have instructions to work with 16 or evem 32 bytes
+         // Modern X64 CPUs have instructions to work with 16 or even 32 bytes
          // at a time, but they can have stricter alignment requirements, so the
          // compiler won't use them if the pointers aren't aligned.  They're
          // probably excessive for common string lengths anyway.
@@ -64,7 +64,7 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
     }
 #else
      // Misaligned access may not be supported, so play it safe.
-    return std::memcmp(a, b, s) == 0;
+    return s == 0 || std::memcmp(a, b, s) == 0;
 #endif
 }
  // This seems to be significantly faster than memcmp for shortish strings,
