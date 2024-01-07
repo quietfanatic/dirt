@@ -20,7 +20,8 @@ enum class InputType : uint8 {
 enum class InputFlags : uint8 {
     Ctrl = 1,
     Alt = 2,
-    Shift = 4
+    Shift = 4,
+    Repeatable = 8,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(InputFlags)
 

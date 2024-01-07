@@ -10,7 +10,9 @@ namespace control {
 bool input_matches_event (const Input& input, SDL_Event* event) noexcept {
     switch (event->type) {
         case SDL_KEYDOWN: {
-            if (event->key.repeat) return false;
+            if (event->key.repeat && !(input.flags & InputFlags::Repeatable)) {
+                return false;
+            }
             if (input.code != event->key.keysym.sym) return false;
             return (!!(input.flags & InputFlags::Ctrl) ==
                     !!(event->key.keysym.mod & KMOD_CTRL))
@@ -184,6 +186,7 @@ Str input_to_string (const Input& input) {
 static ayu::Tree input_to_tree (const Input& input) {
     UniqueArray<ayu::Tree> a;
     if (!!(input.type == InputType::None)) return ayu::Tree(move(a));
+    if (!!(input.flags & InputFlags::Repeatable)) a.emplace_back("repeatable");
     if (!!(input.flags & InputFlags::Ctrl)) a.emplace_back("ctrl");
     if (!!(input.flags & InputFlags::Alt)) a.emplace_back("alt");
     if (!!(input.flags & InputFlags::Shift)) a.emplace_back("shift");
@@ -227,7 +230,8 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
         }
         else {
             auto name = Str(e);
-            if (name == "ctrl") input.flags |= InputFlags::Ctrl;
+            if (name == "repeatable") input.flags |= InputFlags::Repeatable;
+            else if (name == "ctrl") input.flags |= InputFlags::Ctrl;
             else if (name == "alt") input.flags |= InputFlags::Alt;
             else if (name == "shift") input.flags |= InputFlags::Shift;
             else {
