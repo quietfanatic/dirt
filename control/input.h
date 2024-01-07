@@ -11,14 +11,14 @@ union SDL_Event;
 namespace control {
 using namespace uni;
 
-enum InputType : uint8 {
-    NONE,
-    KEY,  // Use SDLK_* values
-    BUTTON  // USE SDL_BUTTON_* values
+enum class InputType : uint8 {
+    None,
+    Key,  // Use SDLK_* values
+    Button  // USE SDL_BUTTON_* values
 };
 
 struct Input {
-    InputType type = NONE;
+    InputType type = InputType::None;
     bool ctrl = false;
     bool alt = false;
     bool shift = false;

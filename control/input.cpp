@@ -45,7 +45,7 @@ void send_input_as_event (const Input& input, int window) noexcept {
     if (input.alt) send_key_event(SDL_KEYDOWN, SDLK_LALT, window);
     if (input.shift) send_key_event(SDL_KEYDOWN, SDLK_LSHIFT, window);
     switch (input.type) {
-        case KEY: {
+        case InputType::Key: {
             auto event = new_event();
             event.type = SDL_KEYDOWN;
             event.key.windowID = window;
@@ -59,7 +59,7 @@ void send_input_as_event (const Input& input, int window) noexcept {
             SDL_PushEvent(&event);
             break;
         }
-        case BUTTON: {
+        case InputType::Button: {
             auto event = new_event();
             event.type = SDL_MOUSEBUTTONDOWN;
             event.window.windowID = window;
@@ -80,17 +80,17 @@ Input input_from_integer (int i) noexcept {
     switch (i) {
         case 0: case 1: case 2: case 3: case 4:
         case 5: case 6: case 7: case 8: case 9:
-            return {.type = KEY, .code = SDLK_0 + i};
+            return {.type = InputType::Key, .code = SDLK_0 + i};
          // SDLK_* constants have bit 30 set
         default: return {
-            .type = KEY,
+            .type = InputType::Key,
             .code = (1<<30) | i
         };
     }
 }
 
 int input_to_integer (const Input& input) noexcept {
-    if (input.type != KEY) return -1;
+    if (input.type != InputType::Key) return -1;
     switch (input.code) {
         case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
         case SDLK_5: case SDLK_6: case SDLK_7: case SDLK_8: case SDLK_9:
@@ -101,7 +101,7 @@ int input_to_integer (const Input& input) noexcept {
 
 Input input_from_string (Str name) {
     switch (hash32(name)) {
-#define KEY(name, sdlk) case hash32(name): return {.type = KEY, .code = sdlk};
+#define KEY(name, sdlk) case hash32(name): return {.type = InputType::Key, .code = sdlk};
 #define ALT(name, sdlk) KEY(name, sdlk)
 #include "keys-table.private.h"
 #undef ALT
@@ -110,19 +110,19 @@ Input input_from_string (Str name) {
         case hash32("button1"):
         case hash32("btn1"):
         case hash32("leftbutton"):
-        case hash32("leftbtn"): return {.type = BUTTON, .code = SDL_BUTTON_LEFT};
+        case hash32("leftbtn"): return {.type = InputType::Button, .code = SDL_BUTTON_LEFT};
         case hash32("button2"):
         case hash32("btn2"):
         case hash32("middlebutton"):
-        case hash32("middlebtn"): return {.type = BUTTON, .code = SDL_BUTTON_MIDDLE};
+        case hash32("middlebtn"): return {.type = InputType::Button, .code = SDL_BUTTON_MIDDLE};
         case hash32("button3"):
         case hash32("btn3"):
         case hash32("rightbutton"):
-        case hash32("rightbtn"): return {.type = BUTTON, .code = SDL_BUTTON_RIGHT};
+        case hash32("rightbtn"): return {.type = InputType::Button, .code = SDL_BUTTON_RIGHT};
         case hash32("button4"):
-        case hash32("btn4"): return {.type = BUTTON, .code = SDL_BUTTON_X1};
+        case hash32("btn4"): return {.type = InputType::Button, .code = SDL_BUTTON_X1};
         case hash32("button5"):
-        case hash32("btn5"): return {.type = BUTTON, .code = SDL_BUTTON_X2};
+        case hash32("btn5"): return {.type = InputType::Button, .code = SDL_BUTTON_X2};
          // TODO: throw exception
         default: return {};
     }
@@ -130,8 +130,8 @@ Input input_from_string (Str name) {
 
 Str input_to_string (const Input& input) {
     switch (input.type) {
-        case NONE: return "none";
-        case KEY: {
+        case InputType::None: return "none";
+        case InputType::Key: {
             switch (input.code) {
 #define KEY(name, sdlk) case sdlk: return name;
 #define ALT(name, sdlk) // ignore alternatives
@@ -142,7 +142,7 @@ Str input_to_string (const Input& input) {
                 default: return "";
             }
         }
-        case BUTTON: {
+        case InputType::Button: {
             switch (input.code) {
                 case SDL_BUTTON_LEFT: return "button1";
                 case SDL_BUTTON_MIDDLE: return "button2";
@@ -159,12 +159,12 @@ Str input_to_string (const Input& input) {
  // These are for the AYU_DESCRIBE.  We're separating them for easier debugging.
 static ayu::Tree input_to_tree (const Input& input) {
     UniqueArray<ayu::Tree> a;
-    if (input.type == NONE) return ayu::Tree(move(a));
+    if (input.type == InputType::None) return ayu::Tree(move(a));
     if (input.ctrl) a.emplace_back("ctrl");
     if (input.alt) a.emplace_back("alt");
     if (input.shift) a.emplace_back("shift");
     switch (input.type) {
-        case KEY: {
+        case InputType::Key: {
             switch (input.code) {
                 case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
                 case SDLK_5: case SDLK_6: case SDLK_7: case SDLK_8: case SDLK_9:
@@ -179,7 +179,7 @@ static ayu::Tree input_to_tree (const Input& input) {
             }
             break;
         }
-        case BUTTON: {
+        case InputType::Button: {
             Str name = input_to_string(input);
             require(!name.empty());
             a.emplace_back(name);
@@ -194,7 +194,7 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
     input = {};
     for (auto& e : a) {
         if (e.form == ayu::Form::Number) {
-            if (input.type != NONE) {
+            if (input.type != InputType::None) {
                 ayu::raise(ayu::e_General, "Too many descriptors for Input");
             }
             Input tmp = input_from_integer(int(e));
@@ -207,7 +207,7 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
             else if (name == "alt") input.alt = true;
             else if (name == "shift") input.shift = true;
             else {
-                if (input.type != NONE) {
+                if (input.type != InputType::None) {
                     ayu::raise(ayu::e_General, "Too many descriptors for Input");
                 }
                 Input tmp = input_from_string(name);
@@ -246,22 +246,22 @@ static tap::TestSet tests ("dirt/control/input", []{
     auto test = [&](Str s, Input expect){
         test2(s, expect, s);
     };
-    test("[]", {NONE, 0, 0, 0, 0});
-    test("[a]", {KEY, 0, 0, 0, SDLK_a});
-    test("[0]", {KEY, 0, 0, 0, SDLK_0});
-    test("[7]", {KEY, 0, 0, 0, SDLK_7});
-    test("[space]", {KEY, 0, 0, 0, SDLK_SPACE});
-    test2("[\" \"]", {KEY, 0, 0, 0, SDLK_SPACE}, "[space]");
-    test("[ctrl p]", {KEY, 1, 0, 0, SDLK_p});
-    test("[shift r]", {KEY, 0, 0, 1, SDLK_r});
-    test("[f11]", {KEY, 0, 0, 0, SDLK_F11});
-    test("[alt enter]", {KEY, 0, 1, 0, SDLK_RETURN});
-    test2("[alt return]", {KEY, 0, 1, 0, SDLK_RETURN}, "[alt enter]");
-    test("[ctrl alt shift t]", {KEY, 1, 1, 1, SDLK_t});
-    test2("[v alt shift ctrl]", {KEY, 1, 1, 1, SDLK_v}, "[ctrl alt shift v]");
-    test("[265]", {KEY, 0, 0, 0, (1<<30) | 265});
-    test("[ctrl 265]", {KEY, 1, 0, 0, (1<<30) | 265});
-    test("[shift button1]", {BUTTON, 0, 0, 1, SDL_BUTTON_LEFT});
+    test("[]", {InputType::None, 0, 0, 0, 0});
+    test("[a]", {InputType::Key, 0, 0, 0, SDLK_a});
+    test("[0]", {InputType::Key, 0, 0, 0, SDLK_0});
+    test("[7]", {InputType::Key, 0, 0, 0, SDLK_7});
+    test("[space]", {InputType::Key, 0, 0, 0, SDLK_SPACE});
+    test2("[\" \"]", {InputType::Key, 0, 0, 0, SDLK_SPACE}, "[space]");
+    test("[ctrl p]", {InputType::Key, 1, 0, 0, SDLK_p});
+    test("[shift r]", {InputType::Key, 0, 0, 1, SDLK_r});
+    test("[f11]", {InputType::Key, 0, 0, 0, SDLK_F11});
+    test("[alt enter]", {InputType::Key, 0, 1, 0, SDLK_RETURN});
+    test2("[alt return]", {InputType::Key, 0, 1, 0, SDLK_RETURN}, "[alt enter]");
+    test("[ctrl alt shift t]", {InputType::Key, 1, 1, 1, SDLK_t});
+    test2("[v alt shift ctrl]", {InputType::Key, 1, 1, 1, SDLK_v}, "[ctrl alt shift v]");
+    test("[265]", {InputType::Key, 0, 0, 0, (1<<30) | 265});
+    test("[ctrl 265]", {InputType::Key, 1, 0, 0, (1<<30) | 265});
+    test("[shift button1]", {InputType::Button, 0, 0, 1, SDL_BUTTON_LEFT});
 
     done_testing();
 });
