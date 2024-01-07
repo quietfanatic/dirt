@@ -11,16 +11,22 @@ bool input_matches_event (const Input& input, SDL_Event* event) noexcept {
     switch (event->type) {
         case SDL_KEYDOWN: {
             if (event->key.repeat) return false;
-            return input.code == event->key.keysym.sym
-                && (input.ctrl == !!(event->key.keysym.mod & KMOD_CTRL))
-                && (input.alt == !!(event->key.keysym.mod & KMOD_ALT))
-                && (input.shift == !!(event->key.keysym.mod & KMOD_SHIFT));
+            if (input.code != event->key.keysym.sym) return false;
+            return (!!(input.flags & InputFlags::Ctrl) ==
+                    !!(event->key.keysym.mod & KMOD_CTRL))
+                && (!!(input.flags & InputFlags::Alt) ==
+                    !!(event->key.keysym.mod & KMOD_ALT))
+                && (!!(input.flags & InputFlags::Shift) ==
+                    !!(event->key.keysym.mod & KMOD_SHIFT));
         }
         case SDL_MOUSEBUTTONDOWN: {
-            return input.code == event->button.button
-                && (input.ctrl == !!(SDL_GetModState() & KMOD_CTRL))
-                && (input.alt == !!(SDL_GetModState() & KMOD_ALT))
-                && (input.shift == !!(SDL_GetModState() & KMOD_SHIFT));
+            if (input.code != event->button.button) return false;
+            return (!!(input.flags & InputFlags::Ctrl) ==
+                    !!(SDL_GetModState() & KMOD_CTRL))
+                && (!!(input.flags & InputFlags::Alt) ==
+                    !!(SDL_GetModState() & KMOD_ALT))
+                && (!!(input.flags & InputFlags::Shift) ==
+                    !!(SDL_GetModState() & KMOD_SHIFT));
         }
         default: return false;
     }
@@ -41,9 +47,15 @@ static void send_key_event (int type, int code, int window) {
 }
 
 void send_input_as_event (const Input& input, int window) noexcept {
-    if (input.ctrl) send_key_event(SDL_KEYDOWN, SDLK_LCTRL, window);
-    if (input.alt) send_key_event(SDL_KEYDOWN, SDLK_LALT, window);
-    if (input.shift) send_key_event(SDL_KEYDOWN, SDLK_LSHIFT, window);
+    if (!!(input.flags & InputFlags::Ctrl)) {
+        send_key_event(SDL_KEYDOWN, SDLK_LCTRL, window);
+    }
+    if (!!(input.flags & InputFlags::Alt)) {
+        send_key_event(SDL_KEYDOWN, SDLK_LALT, window);
+    }
+    if (!!(input.flags & InputFlags::Shift)) {
+        send_key_event(SDL_KEYDOWN, SDLK_LSHIFT, window);
+    }
     switch (input.type) {
         case InputType::Key: {
             auto event = new_event();
@@ -51,9 +63,15 @@ void send_input_as_event (const Input& input, int window) noexcept {
             event.key.windowID = window;
              // Ignore scancode for now
             event.key.keysym.sym = input.code;
-            event.key.keysym.mod = input.ctrl * KMOD_LCTRL
-                                | input.alt * KMOD_LALT
-                                | input.shift * KMOD_LSHIFT;
+            if (!!(input.flags & InputFlags::Ctrl)) {
+                event.key.keysym.mod |= KMOD_LCTRL;
+            }
+            if (!!(input.flags & InputFlags::Alt)) {
+                event.key.keysym.mod |= KMOD_LALT;
+            }
+            if (!!(input.flags & InputFlags::Shift)) {
+                event.key.keysym.mod |= KMOD_LSHIFT;
+            }
             SDL_PushEvent(&event);
             event.type = SDL_KEYUP;
             SDL_PushEvent(&event);
@@ -71,9 +89,15 @@ void send_input_as_event (const Input& input, int window) noexcept {
         }
         default: require(false);
     }
-    if (input.shift) send_key_event(SDL_KEYUP, SDLK_LSHIFT, window);
-    if (input.alt) send_key_event(SDL_KEYUP, SDLK_LALT, window);
-    if (input.ctrl) send_key_event(SDL_KEYUP, SDLK_LCTRL, window);
+    if (!!(input.flags & InputFlags::Ctrl)) {
+        send_key_event(SDL_KEYUP, SDLK_LCTRL, window);
+    }
+    if (!!(input.flags & InputFlags::Alt)) {
+        send_key_event(SDL_KEYUP, SDLK_LALT, window);
+    }
+    if (!!(input.flags & InputFlags::Shift)) {
+        send_key_event(SDL_KEYUP, SDLK_LSHIFT, window);
+    }
 }
 
 Input input_from_integer (int i) noexcept {
@@ -159,10 +183,10 @@ Str input_to_string (const Input& input) {
  // These are for the AYU_DESCRIBE.  We're separating them for easier debugging.
 static ayu::Tree input_to_tree (const Input& input) {
     UniqueArray<ayu::Tree> a;
-    if (input.type == InputType::None) return ayu::Tree(move(a));
-    if (input.ctrl) a.emplace_back("ctrl");
-    if (input.alt) a.emplace_back("alt");
-    if (input.shift) a.emplace_back("shift");
+    if (!!(input.type == InputType::None)) return ayu::Tree(move(a));
+    if (!!(input.flags & InputFlags::Ctrl)) a.emplace_back("ctrl");
+    if (!!(input.flags & InputFlags::Alt)) a.emplace_back("alt");
+    if (!!(input.flags & InputFlags::Shift)) a.emplace_back("shift");
     switch (input.type) {
         case InputType::Key: {
             switch (input.code) {
@@ -203,9 +227,9 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
         }
         else {
             auto name = Str(e);
-            if (name == "ctrl") input.ctrl = true;
-            else if (name == "alt") input.alt = true;
-            else if (name == "shift") input.shift = true;
+            if (name == "ctrl") input.flags |= InputFlags::Ctrl;
+            else if (name == "alt") input.flags |= InputFlags::Alt;
+            else if (name == "shift") input.flags |= InputFlags::Shift;
             else {
                 if (input.type != InputType::None) {
                     ayu::raise(ayu::e_General, "Too many descriptors for Input");
@@ -237,31 +261,29 @@ static tap::TestSet tests ("dirt/control/input", []{
         Input got;
         ayu::item_from_string(&got, s);
         is(got.type, expect.type, uni::cat(s, " - type is correct"));
-        is(got.ctrl, expect.ctrl, uni::cat(s, " - ctrl is correct"));
-        is(got.alt, expect.alt, uni::cat(s, " - alt is correct"));
-        is(got.shift, expect.shift, uni::cat(s, " - shift is correct"));
+        is(got.flags, expect.flags, uni::cat(s, " - flags are correct"));
         is(got.code, expect.code, uni::cat(s, " - code is correct"));
         is(ayu::item_to_string(&expect), s2, uni::cat(s, " - item_to_string"));
     };
     auto test = [&](Str s, Input expect){
         test2(s, expect, s);
     };
-    test("[]", {InputType::None, 0, 0, 0, 0});
-    test("[a]", {InputType::Key, 0, 0, 0, SDLK_a});
-    test("[0]", {InputType::Key, 0, 0, 0, SDLK_0});
-    test("[7]", {InputType::Key, 0, 0, 0, SDLK_7});
-    test("[space]", {InputType::Key, 0, 0, 0, SDLK_SPACE});
-    test2("[\" \"]", {InputType::Key, 0, 0, 0, SDLK_SPACE}, "[space]");
-    test("[ctrl p]", {InputType::Key, 1, 0, 0, SDLK_p});
-    test("[shift r]", {InputType::Key, 0, 0, 1, SDLK_r});
-    test("[f11]", {InputType::Key, 0, 0, 0, SDLK_F11});
-    test("[alt enter]", {InputType::Key, 0, 1, 0, SDLK_RETURN});
-    test2("[alt return]", {InputType::Key, 0, 1, 0, SDLK_RETURN}, "[alt enter]");
-    test("[ctrl alt shift t]", {InputType::Key, 1, 1, 1, SDLK_t});
-    test2("[v alt shift ctrl]", {InputType::Key, 1, 1, 1, SDLK_v}, "[ctrl alt shift v]");
-    test("[265]", {InputType::Key, 0, 0, 0, (1<<30) | 265});
-    test("[ctrl 265]", {InputType::Key, 1, 0, 0, (1<<30) | 265});
-    test("[shift button1]", {InputType::Button, 0, 0, 1, SDL_BUTTON_LEFT});
+    test("[]", {InputType::None, InputFlags{0}, 0});
+    test("[a]", {InputType::Key, InputFlags{0}, SDLK_a});
+    test("[0]", {InputType::Key, InputFlags{0}, SDLK_0});
+    test("[7]", {InputType::Key, InputFlags{0}, SDLK_7});
+    test("[space]", {InputType::Key, InputFlags{0}, SDLK_SPACE});
+    test2("[\" \"]", {InputType::Key, InputFlags{0}, SDLK_SPACE}, "[space]");
+    test("[ctrl p]", {InputType::Key, InputFlags{1}, SDLK_p});
+    test("[shift r]", {InputType::Key, InputFlags{4}, SDLK_r});
+    test("[f11]", {InputType::Key, InputFlags{0}, SDLK_F11});
+    test("[alt enter]", {InputType::Key, InputFlags{2}, SDLK_RETURN});
+    test2("[alt return]", {InputType::Key, InputFlags{2}, SDLK_RETURN}, "[alt enter]");
+    test("[ctrl alt shift t]", {InputType::Key, InputFlags{7}, SDLK_t});
+    test2("[v alt shift ctrl]", {InputType::Key, InputFlags{7}, SDLK_v}, "[ctrl alt shift v]");
+    test("[265]", {InputType::Key, InputFlags{0}, (1<<30) | 265});
+    test("[ctrl 265]", {InputType::Key, InputFlags{1}, (1<<30) | 265});
+    test("[shift button1]", {InputType::Button, InputFlags{4}, SDL_BUTTON_LEFT});
 
     done_testing();
 });

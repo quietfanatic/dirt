@@ -17,11 +17,16 @@ enum class InputType : uint8 {
     Button  // USE SDL_BUTTON_* values
 };
 
+enum class InputFlags : uint8 {
+    Ctrl = 1,
+    Alt = 2,
+    Shift = 4
+};
+DECLARE_ENUM_BITWISE_OPERATORS(InputFlags)
+
 struct Input {
     InputType type = InputType::None;
-    bool ctrl = false;
-    bool alt = false;
-    bool shift = false;
+    InputFlags flags = InputFlags{0};
     int32 code = 0;
 };
 
