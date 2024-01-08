@@ -48,12 +48,14 @@ enum AttrFlags : uint8 {
      // addition, this item will be able to be upcasted to the type of the attr
      // if it is addressable.  This is not currently supported on elems.
     Include = 0x2,
+     // If this is set, the attr will not be serialized in to_tree.
+    Invisible = 0x4,
+     // If this is set, the attr will not be deserialized in from_tree.
+    Ignore = 0x8,
      // If this is set, map an empty array to the attribute being missing from
      // the object, and an array of one element to the attribute being present
      // with that element as its value.
-    CollapseOptional = 0x04,
-     // If this is set, the attr will not be serialized in to_tree.
-    Invisible = 0x8,
+    CollapseOptional = 0x10,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 } using _::AttrFlags;
@@ -548,7 +550,10 @@ void ConstantAcr1<To>::_access (
 ) {
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstantAcr2<Mu, To>*>(acr);
-    cb(reinterpret_cast<Mu&>(const_cast<To&>(self->value)));
+     // Do reinterpret_cast then const_cast, because doing it in the other order
+     // with std::nullptr_t causes "Error: reinterpret_cast casts away
+     // qualifiers".  I guess std::nullptr_t is always const?
+    cb(const_cast<Mu&>(reinterpret_cast<const Mu&>(self->value)));
 }
 template <class To>
 void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {

@@ -353,13 +353,16 @@ struct TraverseFromTree {
             ) {
                 auto& [key, value] = tree.data.as_object_ptr[j];
                 if (key == attr->key) {
-                     // TODO: avoid copy for non-collapsed case?
-                    auto real_value = flags & AttrFlags::CollapseOptional
-                        ? Tree::array(value)
-                        : value;
-                    trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
-                        [&real_value](const Traversal& child)
-                    { traverse(child, real_value); });
+                    if (!(flags & AttrFlags::Ignore)) {
+                         // TODO: avoid refcount for non-collapsed case?
+                        auto real_value = flags & AttrFlags::CollapseOptional
+                            ? Tree::array(value)
+                            : value;
+                        trav_attr(trav, attr->acr(), attr->key,
+                            AccessMode::Write,
+                            [&real_value](const Traversal& child)
+                        { traverse(child, real_value); });
+                    }
                      // Claim attr by deleting link
                     *prev_next = next_list[j];
                     goto next_attr;

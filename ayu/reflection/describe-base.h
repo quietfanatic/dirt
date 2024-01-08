@@ -217,6 +217,15 @@ struct _AYU_DescribeBase {
      //     may either ignore inheritance and provide this attribute with `key`,
      //     or it may provide all of this attribute's attributes directly
      //     without `key`.  If include is specified, then optional is ignored.
+     //   - invisible: This attribute will not be read when serializing, but it
+     //     will still be written when deserializing (unless it's also optional
+     //     or ignore, which it probably should be).  If your attribute has a
+     //     readonly accessor, you probably want to make it invisible; otherwise
+     //     it will make the whole item readonly.
+     //   - ignore: This attribute will not be written when deserializing, but
+     //     it will still be read when serializing (unless it's also invisible,
+     //     which it probably should be).  Use this if you have an obsolete
+     //     attribute that no longer has meaning.
      //   - collapse_optional: Only for item types that serialize to an array of
      //     0 or 1 elements (such as std::optional).  An empty array corresponds
      //     to the attribute being entirely missing from the object, and an
@@ -231,11 +240,6 @@ struct _AYU_DescribeBase {
      //     }
      //     If the item serializes to an non-array or an array of more than one
      //     element, an exception will be thrown.
-     //   - invisible: This attribute will not be read when serializing, but it
-     //     will still be written when deserializing (unless it's also optional,
-     //     which it probably should be).  If your attribute has a readonly
-     //     accessor, you probably want to make it invisible; otherwise it will
-     //     make the whole item readonly.
     template <class Acr>
     static constexpr auto attr (
         StaticString key,
@@ -326,7 +330,11 @@ struct _AYU_DescribeBase {
      //   - invisible: This elem will not be serialized during the to_tree
      //     operation.  This will likely break your serialization round-trip
      //     unless the invisible elem is on the end, because it will reorder
-     //     later attrs.  You probably want this elem to be optional too.
+     //     later attrs.  You probably want this elem to be optional or ignored
+     //     too.
+     //   - ignore: This elem will not be written during the from_tree
+     //     operation.  This will likely break things unless the ignored elem is
+     //     on the end, becaue it will reorder later attrs.
     template <class Acr>
     static constexpr auto elem (
         const Acr& accessor, in::AttrFlags = {}
@@ -665,11 +673,12 @@ struct _AYU_DescribeBase {
         return init([](T& v){ (v.*m)(); });
     }
 
-    ///// INTERNAL
+    ///// FLAGS AND INTERNAL STUFF
 
     static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
+    static constexpr in::AttrFlags ignore = in::AttrFlags::Ignore;
     static constexpr in::AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
     static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;
     static constexpr in::AcrFlags prefer_hex = in::AcrFlags::PreferHex;
