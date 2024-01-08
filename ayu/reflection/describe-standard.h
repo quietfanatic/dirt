@@ -7,6 +7,7 @@
 
 #include <array>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <tuple>
@@ -28,11 +29,13 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::optional<T>),
     desc::name([]{
-        static uni::UniqueString r = uni::cat(ayu::Type::CppType<T>().name(), '?');
+        static uni::UniqueString r = uni::cat(
+            ayu::Type::CppType<T>().name(), '?'
+        );
         return uni::StaticString(r);
     }),
     desc::length(desc::template value_funcs<uni::usize>(
-        [](const std::optional<T>& v){ return uni::usize(v.has_value()); },
+        [](const std::optional<T>& v){ return uni::usize(!!v); },
         [](std::optional<T>& v, uni::usize len){
             if (len > 1) {
                 ayu::raise_LengthRejected(
@@ -40,10 +43,44 @@ AYU_DESCRIBE_TEMPLATE(
                 );
             }
             if (len) v.emplace();
+            else v.reset();
         }
     )),
     desc::elem_func([](std::optional<T>& v, uni::usize i){
-        if (i < v.has_value()) {
+        if (i < !!v) {
+            return ayu::Reference(std::to_address(v));
+        }
+        else return ayu::Reference();
+    })
+)
+
+ // std::unique_ptr behaves like std::optional; an empty array means null, and
+ // an array of one element means it contains that element.  This currently does
+ // not support polymorphic objects, but it could in the future (with an array
+ // of size two).
+AYU_DESCRIBE_TEMPLATE(
+    AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
+    AYU_DESCRIBE_TEMPLATE_TYPE(std::unique_ptr<T>),
+    desc::name([]{
+        static uni::UniqueString r = uni::cat(
+            "std::unique_ptr<", ayu::Type::CppType<T>().name(), '>'
+        );
+        return uni::StaticString(r);
+    }),
+    desc::length(desc::template value_funcs<uni::usize>(
+        [](const std::unique_ptr<T>& v){ return uni::usize(!!v); },
+        [](std::unique_ptr<T>& v, uni::usize len){
+            if (len > 1) {
+                ayu::raise_LengthRejected(
+                    ayu::Type::CppType<std::unique_ptr<T>>(), 0, 1, len
+                );
+            }
+            if (len) v.emplace();
+            else v.reset();
+        }
+    )),
+    desc::elem_func([](std::unique_ptr<T>& v, uni::usize i){
+        if (i < !!v) {
             return ayu::Reference(std::to_address(v));
         }
         else return ayu::Reference();

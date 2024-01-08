@@ -44,10 +44,10 @@ namespace ayu::test {
         int c;
     };
 
-    struct InheritTest : BaseTest {
+    struct IncludeTest : BaseTest {
         int d;
     };
-    struct InheritOptionalTest : BaseTest {
+    struct IncludeOptionalTest : BaseTest {
         int d;
     };
 
@@ -127,16 +127,16 @@ AYU_DESCRIBE(ayu::test::BaseTest,
         attr("c", member(&BaseTest::c))
     )
 )
-AYU_DESCRIBE(ayu::test::InheritTest,
+AYU_DESCRIBE(ayu::test::IncludeTest,
     attrs(
         attr("BaseTest", base<BaseTest>(), include),
-        attr("d", &InheritTest::d)
+        attr("d", &IncludeTest::d)
     )
 )
-AYU_DESCRIBE(ayu::test::InheritOptionalTest,
+AYU_DESCRIBE(ayu::test::IncludeOptionalTest,
     attrs(
         attr("BaseTest", base<BaseTest>(), include|optional),
-        attr("d", &InheritOptionalTest::d)
+        attr("d", &IncludeOptionalTest::d)
     )
 )
 AYU_DESCRIBE(ayu::test::ElemTest,
@@ -312,17 +312,17 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         "item_from_tree with base attr throws when collapsed but include is not specified"
     );
 
-    auto it = InheritTest{{{99, 88}, 77}, 66};
+    auto it = IncludeTest{{{99, 88}, 77}, 66};
     Tree itt = item_to_tree(&it);
-    is(itt, tree_from_string("{MemberTest:{a:99,b:88} c:77 d:66}"), "Inherit works with item_to_tree");
+    is(itt, tree_from_string("{MemberTest:{a:99,b:88} c:77 d:66}"), "Include works with item_to_tree");
     Tree from_tree_it1 = tree_from_string("{d:55 c:44 MemberTest:{a:33 b:22}}");
     item_from_tree(&it, from_tree_it1);
-    is(it.a, 33, "Inherit works with item_from_tree");
+    is(it.a, 33, "Include works with item_from_tree");
     Tree from_tree_it2 = tree_from_string("{d:51 BaseTest:{c:41 MemberTest:{b:31 a:21}}}");
     item_from_tree(&it, from_tree_it2);
-    is(it.b, 31, "Inherit works when not collapsed");
+    is(it.b, 31, "Include works when not collapsed");
 
-    auto iot = InheritOptionalTest{{{23, 24}, 25}, 26};
+    auto iot = IncludeOptionalTest{{{23, 24}, 25}, 26};
     throws_code<e_AttrMissing>([&]{
         item_from_tree(&iot, tree_from_string("{d:44}"));
     }, "Optional doesn't work with include");
