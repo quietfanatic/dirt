@@ -376,7 +376,7 @@ struct TraverseFromTree {
                     claim_attrs(child, tree, next_list);
                 });
             }
-            else if (flags & AttrFlags::Optional) {
+            else if (flags & (AttrFlags::Optional|AttrFlags::Ignore)) {
                  // Leave the attribute in its default-constructed state.
             }
             else if (flags & AttrFlags::CollapseOptional) {

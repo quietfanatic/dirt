@@ -224,8 +224,8 @@ struct _AYU_DescribeBase {
      //     it will make the whole item readonly.
      //   - ignore: This attribute will not be written when deserializing, but
      //     it will still be read when serializing (unless it's also invisible,
-     //     which it probably should be).  Use this if you have an obsolete
-     //     attribute that no longer has meaning.
+     //     which it probably should be).  Implies optional.  Use this if you
+     //     have an obsolete attribute that no longer has meaning.
      //   - collapse_optional: Only for item types that serialize to an array of
      //     0 or 1 elements (such as std::optional).  An empty array corresponds
      //     to the attribute being entirely missing from the object, and an
