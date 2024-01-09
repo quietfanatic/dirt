@@ -240,6 +240,18 @@ KeepLocationCache::~KeepLocationCache () {
     }
 }
 
+static PushLikelyReference* first_plr = null;
+
+PushLikelyReference::PushLikelyReference (Reference r, Location l) noexcept :
+    reference(r), location(l), next(first_plr)
+{
+#ifndef NDEBUG
+    require(reference_from_location(location) == reference);
+#endif
+    first_plr = this;
+}
+PushLikelyReference::~PushLikelyReference () { first_plr = next; }
+
 bool scan_pointers (
     Pointer base_item, LocationRef base_loc,
     CallbackRef<bool(Pointer, LocationRef)> cb
@@ -307,7 +319,10 @@ bool scan_universe_references (
 
 Location find_pointer (Pointer item) {
     if (!item) return Location();
-    else if (auto cache = get_location_cache()) {
+    for (auto plr = first_plr; plr; plr = plr->next) {
+        if (Reference(item) == plr->reference) return plr->location;
+    }
+    if (auto cache = get_location_cache()) {
         auto it = cache->find(item);
         if (it != cache->end()) {
              // Reject non-readonly pointer to readonly location
@@ -336,7 +351,10 @@ Location find_pointer (Pointer item) {
 
 Location find_reference (const Reference& item) {
     if (!item) return Location();
-    else if (auto cache = get_location_cache()) {
+    for (auto plr = first_plr; plr; plr = plr->next) {
+        if (item == plr->reference) return plr->location;
+    }
+    if (auto cache = get_location_cache()) {
         if (Mu* address = item.address()) {
              // Addressable! This will be fast.
             auto it = cache->find(Pointer(item.type(), address));

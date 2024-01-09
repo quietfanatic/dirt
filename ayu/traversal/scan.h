@@ -3,7 +3,9 @@
 
 #pragma once
 #include "../common.h"
+#include "../reflection/reference.h"
 #include "../reflection/type.h"
+#include "location.h"
 
 namespace ayu {
 
@@ -33,6 +35,17 @@ Location reference_to_location (const Reference&);
 struct KeepLocationCache {
     KeepLocationCache () noexcept;
     ~KeepLocationCache ();
+};
+
+ // While this is alive, if find_pointer() or find_reference() is called with
+ // thie Reference, skip the scanning process and return this location.
+struct PushLikelyReference {
+    PushLikelyReference (Reference, Location) noexcept;
+    ~PushLikelyReference ();
+
+    Reference reference;
+    Location location;
+    PushLikelyReference* next;
 };
 
 ///// Scanning operations

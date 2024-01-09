@@ -99,9 +99,8 @@ Location location_from_iri (const IRI& iri) {
     if (!iri) raise(e_LocationIRIInvalid, cat(
         "IRI is an invalid IRI by itself: ", iri.possibly_invalid_spec()
     ));
-    if (!iri.has_fragment()) raise(e_LocationIRIInvalid, cat(
-        "IRI does not have a #fragment: ", iri.possibly_invalid_spec()
-    ));
+     // We could require that the location has a fragment, but instead lets
+     // consider the lack of fragment to be equivalent to an empty fragment.
     auto root_iri = iri.chop_fragment();
     Location r = root_iri == current_base_iri()
         ? current_base_location()

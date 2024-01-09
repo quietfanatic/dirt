@@ -60,7 +60,7 @@ struct TraverseToTree {
             }
             else never();
         }
-        if (auto acr = trav.desc->delegate_acr()) {
+        else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, acr);
         }
         else fail(trav);
