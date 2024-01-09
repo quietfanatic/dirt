@@ -370,6 +370,7 @@ struct TraverseFromTree {
             }
              // No match, try including, optional, collapsing
             if (flags & AttrFlags::Include) {
+                 // Included.  Recurse with the same tree.
                 trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                     [&tree, next_list](const Traversal& child)
                 {
@@ -379,12 +380,27 @@ struct TraverseFromTree {
             else if (flags & (AttrFlags::Optional|AttrFlags::Ignore)) {
                  // Leave the attribute in its default-constructed state.
             }
-            else if (flags & AttrFlags::CollapseOptional) {
-                 // Deserialize from empty array
-                static constexpr auto empty = Tree::array();
+            else if (flags & (AttrFlags::CollapseEmpty|AttrFlags::CollapseOptional)) {
+                 // If the attribute was not provided and has a collapse flag
+                 // set, deserialize the item with an empty array or object.
+                static constexpr auto empty_array = Tree::array();
+                static constexpr auto empty_object = Tree::object();
+                const Tree* value = &empty_array;
+                if (flags & AttrFlags::CollapseEmpty) {
+                     // TODO: This does an extraneous indirect call to get the
+                     // child type, just so we can decide whether to give it an
+                     // empty object or array.  Is there any way to eliminate
+                     // this?
+                    auto child_desc = DescriptionPrivate::get(
+                        attr->acr()->type(trav.address)
+                    );
+                    if (child_desc->preference() == Description::PREFER_OBJECT) {
+                        value = &empty_object;
+                    }
+                }
                 trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
-                    [](const Traversal& child)
-                { traverse(child, empty); });
+                    [value](const Traversal& child)
+                { traverse(child, *value); });
             }
              // Nope, there's nothing more we can do.
             else raise_AttrMissing(trav.desc, attr->key);

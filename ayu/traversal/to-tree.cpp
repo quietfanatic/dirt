@@ -114,6 +114,9 @@ struct TraverseToTree {
             usize len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
                 auto flags = attrs->attr(i)->acr()->attr_flags;
+                 // Ignore CollapseEmpty; it can only decrease the length by 1,
+                 // and the calculation for whether to do it is a bit
+                 // complicated, so I'd rather just overallocate.
                 if (flags & (AttrFlags::Include|AttrFlags::CollapseOptional)) {
                      // This works for both include and collapse_optional
                     len = len + (object[i].second.meta >> 1) - 1;
@@ -125,34 +128,47 @@ struct TraverseToTree {
             for (uint i = 0; i < attrs->n_attrs; i++) {
                 auto attr = attrs->attr(i);
                 auto flags = attr->acr()->attr_flags;
+                auto key = move(object[i].first);
+                Tree value = move(object[i].second);
                 if (flags & AttrFlags::Include) {
-                     // Consume the string too while we're here
-                    AnyString(move(object[i].first));
-                    Tree sub_tree = move(object[i].second);
-                    if (sub_tree.form != Form::Object) {
-                        raise(e_General, "Included item did not serialize to an object");
+                    if (value.form != Form::Object) {
+                        raise(e_General,
+                            "Included item did not serialize to an object"
+                        );
                     }
                      // DON'T consume sub object because it could be shared.
-                    for (auto& pair : AnyArray<TreePair>(move(sub_tree))) {
+                    for (auto& pair : AnyArray<TreePair>(move(value))) {
                         new_object.emplace_back_expect_capacity(pair);
                     }
                 }
+                else if (flags & AttrFlags::CollapseEmpty) {
+                    bool compound = value.form == Form::Array ||
+                                    value.form == Form::Object;
+                    if (!compound || value.meta >> 1) {
+                        new_object.emplace_back_expect_capacity(
+                            move(key), move(value)
+                        );
+                    }
+                    else { } // Drop the attr
+                }
                 else if (flags & AttrFlags::CollapseOptional) {
-                    auto key = move(object[i].first);
-                    Tree sub_tree = move(object[i].second);
-                    if (sub_tree.form != Form::Array || (sub_tree.meta >> 1) > 1) {
+                    if (value.form != Form::Array || (value.meta >> 1) > 1) {
                         raise(e_General,
                             "Attribute with collapse_optional did not "
                             "serialize to an array of 0 or 1 elements"
                         );
                     }
-                    if (auto a = AnyArray<Tree>(move(sub_tree))) {
-                        new_object.emplace_back(move(key), a[0]);
+                    if (auto a = AnyArray<Tree>(move(value))) {
+                        new_object.emplace_back_expect_capacity(
+                            move(key), a[0]
+                        );
                     }
                     else { } // Drop the attr
                 }
                 else {
-                    new_object.emplace_back_expect_capacity(move(object[i]));
+                    new_object.emplace_back_expect_capacity(
+                        move(key), move(value)
+                    );
                 }
             }
              // Old object's contents should be fully consumed so skip the

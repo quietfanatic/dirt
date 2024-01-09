@@ -52,10 +52,13 @@ enum AttrFlags : uint8 {
     Invisible = 0x4,
      // If this is set, the attr will not be deserialized in from_tree.
     Ignore = 0x8,
+     // If this is set, map an empty object or empty array to the attribute
+     // being missing from the object.
+    CollapseEmpty = 0x10,
      // If this is set, map an empty array to the attribute being missing from
      // the object, and an array of one element to the attribute being present
      // with that element as its value.
-    CollapseOptional = 0x10,
+    CollapseOptional = 0x20,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 } using _::AttrFlags;

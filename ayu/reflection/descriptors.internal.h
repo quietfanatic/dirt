@@ -31,6 +31,7 @@ static void attrs_cannot_be_combined_with_keys_and_attr_func_in_AYU_DESCRIBE () 
 static void keys_and_attr_func_must_be_together_in_AYU_DESCRIBE () { }
 static void elems_cannot_be_combined_with_length_and_elem_func_in_AYU_DESCRIBE () { }
 static void length_and_elem_func_must_be_together_in_AYU_DESCRIBE () { }
+static void elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
 
 ///// MEMORY LAYOUT
@@ -293,7 +294,8 @@ struct AttrsDcrWith : AttrsDcr<T> {
         bool r = false;
         attrs.for_each([&](const auto& attr){
             r |= !!(attr.acr.attr_flags &
-                (AttrFlags::Include|AttrFlags::CollapseOptional)
+                (AttrFlags::Include|AttrFlags::CollapseEmpty|
+                 AttrFlags::CollapseOptional)
             );
         });
         return r;
@@ -308,6 +310,9 @@ struct ElemDcrWith : ElemDcr<T> {
     constexpr ElemDcrWith (const Acr& a) :
         acr(constexpr_acr(a))
     {
+        if (acr.attr_flags & AttrFlags::CollapseEmpty) {
+            elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE();
+        }
         if (acr.attr_flags & AttrFlags::CollapseOptional) {
             elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE();
         }

@@ -226,6 +226,9 @@ struct _AYU_DescribeBase {
      //     it will still be read when serializing (unless it's also invisible,
      //     which it probably should be).  Implies optional.  Use this if you
      //     have an obsolete attribute that no longer has meaning.
+     //   - collapse_empty: If this attribute's value serializes to an empty
+     //     object or array, just leave the attribute out of this object
+     //     entirely.
      //   - collapse_optional: Only for item types that serialize to an array of
      //     0 or 1 elements (such as std::optional).  An empty array corresponds
      //     to the attribute being entirely missing from the object, and an
@@ -679,6 +682,7 @@ struct _AYU_DescribeBase {
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
     static constexpr in::AttrFlags ignore = in::AttrFlags::Ignore;
+    static constexpr in::AttrFlags collapse_empty = in::AttrFlags::CollapseEmpty;
     static constexpr in::AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
     static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;
     static constexpr in::AcrFlags prefer_hex = in::AcrFlags::PreferHex;
