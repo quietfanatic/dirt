@@ -17,7 +17,8 @@ using ErrorCode = const char*;
  // Class for ayu-related errors.
 struct Error : std::exception {
      // An API-stable constant string.  Assigned values will be in the
-     // associated header files.
+     // associated header files.  TODO: add subcode, for errno and other error
+     // codes.
     ErrorCode code = null;
      // More information about the error, subject to change.
     AnyString details;
@@ -28,7 +29,9 @@ struct Error : std::exception {
      // A lot of exception handling stuff assumes that the string returned by
      // what() will never run out of lifetime, so store it here.
     mutable UniqueString what_cache;
-     // Keep track of whether a traversal location has been added to details.
+     // Keep track of whether an AYU traversal location has been added to
+     // details.  TODO: This doesn't really belong here now that this has been
+     // moved here from AYU.
     bool has_travloc = false;
     [[gnu::cold]] ~Error ();
     const char* what () const noexcept override;
@@ -36,11 +39,11 @@ struct Error : std::exception {
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
-void raise (ErrorCode code, MoveRef<UniqueString> details);
+void raise (ErrorCode code, MoveRef<AnyString> details);
 
  // Unspecified error
 constexpr ErrorCode e_General = "uni::e_General";
- // Non-AYU error, std::rethrow(e.external) to unwrap
+ // Someone else's error type, std::rethrow(e.external) to unwrap
 constexpr ErrorCode e_External = "uni::e_External";
 
  // Call this when an exception is thrown in a place where cleaning up is

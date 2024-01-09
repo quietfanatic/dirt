@@ -13,7 +13,7 @@ const char* Error::what () const noexcept {
 }
 Error::~Error () { }
 
-void raise (ErrorCode code, MoveRef<UniqueString> details) {
+void raise (ErrorCode code, MoveRef<AnyString> details) {
     Error e;
     e.code = code;
     e.details = *move(details);
