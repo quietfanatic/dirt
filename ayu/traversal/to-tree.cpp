@@ -147,7 +147,7 @@ struct TraverseToTree {
                         );
                     }
                     if (auto a = AnyArray<Tree>(move(sub_tree))) {
-                        new_object.emplace_back(move(object[i].first), a[0]);
+                        new_object.emplace_back(move(key), a[0]);
                     }
                     else { } // Drop the attr
                 }

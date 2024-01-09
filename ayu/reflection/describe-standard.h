@@ -75,7 +75,7 @@ AYU_DESCRIBE_TEMPLATE(
                     ayu::Type::CppType<std::unique_ptr<T>>(), 0, 1, len
                 );
             }
-            if (len) v.emplace();
+            if (len) v = std::make_unique<T>();
             else v.reset();
         }
     )),
