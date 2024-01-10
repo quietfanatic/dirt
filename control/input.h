@@ -22,6 +22,8 @@ enum class InputFlags : uint8 {
     Alt = 2,
     Shift = 4,
     Repeatable = 8,
+     // Not serializable, only set on inputs created with input_from_event.
+    Repeated = 16,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(InputFlags)
 
@@ -29,21 +31,26 @@ struct Input {
     InputType type = InputType::None;
     InputFlags flags = InputFlags{0};
     int32 code = 0;
+    constexpr operator bool () const { return type != InputType::None; }
+     // Don't use this to check inputs against bindings, the Repeatable flag
+     // will mess things up.  Use input_matches_binding instead.
+    friend bool operator== (Input, Input) = default;
 };
 
-bool input_matches_event (const Input& i, SDL_Event* event) noexcept;
+Input input_from_event (SDL_Event*) noexcept;
+bool input_matches_binding (Input got, Input binding) noexcept;
 
  // Mainly for testing
-void send_input_as_event (const Input& i, int windowID) noexcept;
+void send_input_as_event (Input i, int windowID) noexcept;
 
  // 0..9 map to the number keys, and other numbers are raw scancodes.
  // Does not work for mouse buttons.
 Input input_from_integer (int d) noexcept;
-int input_to_integer (const Input& i) noexcept;
+int input_to_integer (Input i) noexcept;
 
  // Symbolic name in all lowercase (Ignores modifier keys).
  // May not work on obscure keys.
 Input input_from_string (Str c);
-Str input_to_string (const Input& i);
+Str input_to_string (Input i);
 
 } // namespace control

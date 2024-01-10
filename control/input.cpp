@@ -7,32 +7,37 @@
 
 namespace control {
 
-bool input_matches_event (const Input& input, SDL_Event* event) noexcept {
+Input input_from_event (SDL_Event* event) noexcept {
+    Input r;
+    uint16 mods;
     switch (event->type) {
         case SDL_KEYDOWN: {
-            if (event->key.repeat && !(input.flags & InputFlags::Repeatable)) {
-                return false;
-            }
-            if (input.code != event->key.keysym.sym) return false;
-            return (!!(input.flags & InputFlags::Ctrl) ==
-                    !!(event->key.keysym.mod & KMOD_CTRL))
-                && (!!(input.flags & InputFlags::Alt) ==
-                    !!(event->key.keysym.mod & KMOD_ALT))
-                && (!!(input.flags & InputFlags::Shift) ==
-                    !!(event->key.keysym.mod & KMOD_SHIFT));
+            r.type = InputType::Key;
+            if (event->key.repeat) r.flags |= InputFlags::Repeated;
+            mods = event->key.keysym.mod;
+            r.code = event->key.keysym.sym;
+            break;
         }
         case SDL_MOUSEBUTTONDOWN: {
-            if (input.code != event->button.button) return false;
-            auto modstate = SDL_GetModState();
-            return (!!(input.flags & InputFlags::Ctrl) ==
-                    !!(modstate & KMOD_CTRL))
-                && (!!(input.flags & InputFlags::Alt) ==
-                    !!(modstate & KMOD_ALT))
-                && (!!(input.flags & InputFlags::Shift) ==
-                    !!(modstate & KMOD_SHIFT));
+            r.type = InputType::Button;
+            mods = SDL_GetModState();
+            r.code = event->button.button;
+            break;
         }
-        default: return false;
+        default: return r;
     }
+    if (mods & KMOD_CTRL) r.flags |= InputFlags::Ctrl;
+    if (mods & KMOD_ALT) r.flags |= InputFlags::Alt;
+    if (mods & KMOD_SHIFT) r.flags |= InputFlags::Shift;
+    return r;
+}
+
+bool input_matches_binding (Input got, Input binding) noexcept {
+    if (!!(binding.flags & InputFlags::Repeatable)) {
+        got.flags &= ~InputFlags::Repeated;
+    }
+    binding.flags &= ~InputFlags::Repeatable;
+    return got == binding;
 }
 
 static SDL_Event new_event () {
@@ -49,7 +54,7 @@ static void send_key_event (int type, int code, int window) {
     SDL_PushEvent(&event);
 }
 
-void send_input_as_event (const Input& input, int window) noexcept {
+void send_input_as_event (Input input, int window) noexcept {
     if (!!(input.flags & InputFlags::Ctrl)) {
         send_key_event(SDL_KEYDOWN, SDLK_LCTRL, window);
     }
@@ -116,7 +121,7 @@ Input input_from_integer (int i) noexcept {
     }
 }
 
-int input_to_integer (const Input& input) noexcept {
+int input_to_integer (Input input) noexcept {
     if (input.type != InputType::Key) return -1;
     switch (input.code) {
         case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
@@ -155,7 +160,7 @@ Input input_from_string (Str name) {
     }
 }
 
-Str input_to_string (const Input& input) {
+Str input_to_string (Input input) {
     switch (input.type) {
         case InputType::None: return "none";
         case InputType::Key: {
