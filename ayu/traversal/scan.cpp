@@ -125,14 +125,14 @@ struct TraverseScan {
                 reinterpret_cast<const AnyArray<AnyString>&>(v)
             );
         });
-        auto f = trav.desc->attr_func()->f;
+        auto f = trav.desc->computed_attrs()->f;
          // Now scan for each key
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
             Location child_loc = Location(loc, key);
             bool r = false;
-            trav_attr_func(trav, ref, f, key, AccessMode::Read,
+            trav_computed_attr(trav, ref, f, key, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
             { r = traverse(child, child_loc, cb); });
             if (r) return true;
@@ -175,14 +175,14 @@ struct TraverseScan {
         length_acr->read(*trav.address, [&len](Mu& v){
             len = reinterpret_cast<usize&>(v);
         });
-        auto f = trav.desc->elem_func()->f;
+        auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             Location child_loc =
                 trav.collapse_optional ? *loc : Location(loc, i);
             bool r = false;
-            trav_elem_func(trav, ref, f, i, AccessMode::Read,
+            trav_computed_elem(trav, ref, f, i, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
             { r = traverse(child, child_loc, cb); });
             if (r) return true;

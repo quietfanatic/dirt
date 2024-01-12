@@ -255,7 +255,7 @@ struct _AYU_DescribeBase {
      //
      // During serialization, the list of keys will be determined with
      // `accessor`'s read operation, and for each key, the attribute's value
-     // will be set using the attr_func() descriptor.
+     // will be set using the computed_elems() descriptor.
      //
      // During deserialization, `accessor`'s write operation will be called with
      // the list of keys provided in the Tree, and it should throw
@@ -265,10 +265,10 @@ struct _AYU_DescribeBase {
      // will be called, and the list of provided keys must match exactly or an
      // exception will be thrown.  It is acceptable to ignore the provided list
      // of keys and instead clear the item and later autovivify attributes given
-     // to attr_func().
+     // to computed_attrs().
      //
-     // If keys() is present, attr_func() must also be present, and attrs() must
-     // not be present.
+     // If keys() is present, computed_attrs() must also be present, and attrs()
+     // must not be present.
     template <class Acr>
     static constexpr auto keys (const Acr& accessor);
      // Provide a way to read or write arbitrary attributes.  The function is
@@ -294,9 +294,9 @@ struct _AYU_DescribeBase {
      // and it's your responsibility not to keep the Reference around longer
      // than the referred item's lifetime.
      //
-     // If attr_func() is present, keys() must also be present, and attrs() must
-     // not be present.
-    static constexpr auto attr_func (Reference(* f )(T&, const AnyString&));
+     // If computed_attrs() is present, keys() must also be present, and attrs()
+     // must not be present.
+    static constexpr auto computed_attrs (Reference(* f )(T&, const AnyString&));
 
     ///// DESCRIPTORS FOR ARRAY-LIKE TYPES
 
@@ -357,8 +357,8 @@ struct _AYU_DescribeBase {
      // provided array Tree's length must match its output exactly or
      // WrongLength will be thrown.
      //
-     // If length() is present, elem_func() must also be present, and elems()
-     // must not be present.
+     // If length() is present, computed_elems() must also be present, and
+     // elems() must not be present.
     static constexpr auto length (const Acr& accessor);
      // Use this to provide a way to read and write elements at arbitrary
      // indexes.  The return value must be an ayu::Reference, which can be
@@ -369,11 +369,11 @@ struct _AYU_DescribeBase {
      // Reference.
      //
      // Make sure not to return a Reference to a temporary and then keep that
-     // Reference beyond the temporary's lifetime.  See also attr_func.
+     // Reference beyond the temporary's lifetime.  See also computed_attrs.
      //
-     // If elem_func() is present, length() must also be present, and elems()
-     // must not be present.
-    static constexpr auto elem_func (Reference(* f )(T&, usize));
+     // If computed_elems() is present, length() must also be present, and
+     // elems() must not be present.
+    static constexpr auto computed_elems (Reference(* f )(T&, usize));
 
     ///// ACCESSORS
      // Accessors are internal types that are the output of the functions below.
@@ -381,8 +381,7 @@ struct _AYU_DescribeBase {
      //   - Parent type: The type of the item that the accessor is applied to
      //     (that's the type of the AYU_DESCRIBE block you're currently in).
      //   - Child type: The type of the item that this accessor points to.
-     // Accessors have up to four operations that they support (internally there
-     // are more, but these are the ones you might care about):
+     // Accessors have up to four operations that they support:
      //   - read: Read the value of the child item from the parent item.  All
      //     accessors support this operation.
      //   - write: Write a value to the child item through the parent item.  If
@@ -399,10 +398,10 @@ struct _AYU_DescribeBase {
      //     operation.  If an accessor doesn't support the write operation, it
      //     is readonly by default and this flag is ignored.  If you have an
      //     attr or elem with a readonly accessor, the attr or elem should be
-     //     marked with invisible|optional, otherwise the parent item will not
-     //     survive a round-trip serialize-deserialize.  This doesn't matter if
-     //     the parent item is only ever going to be serialized and never
-     //     deserialized.
+     //     flagged with invisible|optional or ignore, otherwise the parent item
+     //     will not survive a round-trip serialize-deserialize.  This doesn't
+     //     matter if the parent item is only ever going to be serialized and
+     //     never deserialized.
      //   - prefer_hex: The item this accessor points to prefers to be
      //     serialized in hexadecimal format if it's a number.
      //   - prefer_compact: The item this accessor points to prefers to be
@@ -426,8 +425,8 @@ struct _AYU_DescribeBase {
      //     unaddressable, even if they look like they should be addressable.
      //     You shouldn't need to use this unless the parent has
      //     pass_through_addressable, or for some reason you're returning
-     //     References to items with unstable addresses in attr_func or
-     //     elem_func.
+     //     References to items with unstable addresses in computed_attrs or
+     //     computed_elems.
 
      // This accessor gives access to a non-static data member of a class by
      // means of a pointer-to-member.  This accessor will be addressable and
@@ -560,10 +559,11 @@ struct _AYU_DescribeBase {
      // Like constant(), but provides read-write access to a variable which is
      // embedded in the accessor with move().  This accessor is not
      // constexpr, so it cannot be used directly in an AYU_DESCRIBE block, and
-     // can only be used inside an attr_func or elem_func.  It is not
+     // can only be used inside an computed_attrs or computed_elems.  It is not
      // addressable.  There is no corresponding variable_pointer accessor
-     // because if you're in an attr_func or elem_func, you can just convert the
-     // pointer directly to an ayu::Reference instead of using an accessor.
+     // because if you're in an computed_attrs or computed_elems, you can just
+     // convert the pointer directly to an ayu::Reference instead of using an
+     // accessor.
      //
      // This is intended to be used for proxy types along with
      // pass_through_addressable.
@@ -578,10 +578,11 @@ struct _AYU_DescribeBase {
      // Whether this accessor is addressable depends on whether the returned
      // Reference is addressable, so make sure not to return an addressable
      // Reference to a temporary and then use that Reference past the
-     // temporary's lifespan, just like with attr_func and elem_func.
+     // temporary's lifespan, just like with computed_attrs and computed_elems.
      //
-     // Unlike attr_func and elem_func, you should not return an empty Reference
-     // from this function, or you may get null pointer derefs down the line.
+     // Unlike computed_attrs and computed_elems, you should not return an empty
+     // Reference from this function, or you may get null pointer derefs down
+     // the line.
      //
      // If the returned Reference was made with an accessor that has different
      // flags than this one, which flags are used is Unspecified Behavior.

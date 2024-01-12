@@ -155,7 +155,7 @@ AYU_DESCRIBE(ayu::test::ElemsTest,
             v.xs.resize(l);
         }
     )),
-    elem_func([](ElemsTest& v, usize i){
+    computed_elems([](ElemsTest& v, usize i){
         return Reference(&v.xs.at(i));
     })
 )
@@ -175,7 +175,7 @@ AYU_DESCRIBE(ayu::test::AttrsTest2,
             }
         }
     )),
-    attr_func([](AttrsTest2& v, const AnyString& k){
+    computed_attrs([](AttrsTest2& v, const AnyString& k){
         return Reference(&v.xs.at(k));
     })
 )
@@ -372,11 +372,11 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         item_elem(&est, 8).write_as<int>([](int& v){ v = 99; });
     }, "item_elem and Reference::write_as");
     is(est.xs.at(8), 99, "writing to elem works");
-    try_to_tree(&est, "[1 3 6 10 15 0 0 0 99]", "item_to_tree with length and elem_func");
+    try_to_tree(&est, "[1 3 6 10 15 0 0 0 99]", "item_to_tree with length and computed_elems");
     doesnt_throw([&]{
         item_from_string(&est, "[5 2 0 4]");
-    }, "item_from_tree with length and elem_func doesn't throw");
-    is(est.xs.at(3), 4, "item_from_tree works with elem_func");
+    }, "item_from_tree with length and computed_elems doesn't throw");
+    is(est.xs.at(3), 4, "item_from_tree works with computed_elems");
 
     auto ast2 = AttrsTest2{{{"a", 11}, {"b", 22}}};
     auto keys = item_get_keys(&ast2);
@@ -400,11 +400,11 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         item_attr(&ast2, "d").write_as<int>([](int& v){ v = 999; });
     }, "item_attr and Reference::write_as");
     is(ast2.xs.at("d"), 999, "writing to attr works");
-    try_to_tree(&ast2, "{c:0,d:999}", "item_to_tree with keys and attr_func");
+    try_to_tree(&ast2, "{c:0,d:999}", "item_to_tree with keys and computed_attrs");
     doesnt_throw([&]{
         item_from_string(&ast2, "{e:88,f:34}");
-    }, "item_from_tree with keys and attr_func doesn't throw");
-    is(ast2.xs.at("f"), 34, "item_from_tree works with attr_func");
+    }, "item_from_tree with keys and computed_attrs doesn't throw");
+    is(ast2.xs.at("f"), 34, "item_from_tree works with computed_attrs");
 
     auto dt = DelegateTest{{4, 5, 6}};
     try_to_tree(&dt, "[4 5 6]", "item_to_tree with delegate");

@@ -46,7 +46,7 @@ AYU_DESCRIBE_TEMPLATE(
             else v.reset();
         }
     )),
-    desc::elem_func([](std::optional<T>& v, uni::usize i){
+    desc::computed_elems([](std::optional<T>& v, uni::usize i){
         if (i < !!v) {
             return ayu::Reference(std::to_address(v));
         }
@@ -79,7 +79,7 @@ AYU_DESCRIBE_TEMPLATE(
             else v.reset();
         }
     )),
-    desc::elem_func([](std::unique_ptr<T>& v, uni::usize i){
+    desc::computed_elems([](std::unique_ptr<T>& v, uni::usize i){
         if (i < !!v) {
             return ayu::Reference(std::to_address(v));
         }
@@ -100,7 +100,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::length(desc::template value_methods<
         uni::usize, &uni::UniqueArray<T>::size, &uni::UniqueArray<T>::resize
     >()),
-    desc::elem_func([](uni::UniqueArray<T>& v, uni::usize i){
+    desc::computed_elems([](uni::UniqueArray<T>& v, uni::usize i){
         return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
     })
 )
@@ -116,7 +116,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::length(desc::template value_methods<
         uni::usize, &uni::AnyArray<T>::size, &uni::AnyArray<T>::resize
     >()),
-    desc::elem_func([](uni::AnyArray<T>& v, uni::usize i){
+    desc::computed_elems([](uni::AnyArray<T>& v, uni::usize i){
         return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
     })
 )
@@ -134,7 +134,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::length(desc::template value_methods<
         uni::usize, &std::vector<T>::size, &std::vector<T>::resize
     >()),
-    desc::elem_func([](std::vector<T>& v, uni::usize i){
+    desc::computed_elems([](std::vector<T>& v, uni::usize i){
         return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
     })
 )
@@ -168,7 +168,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
     )),
-    desc::attr_func([](std::unordered_map<std::string, T>& v, const uni::AnyString& k){
+    desc::computed_attrs([](std::unordered_map<std::string, T>& v, const uni::AnyString& k){
         auto iter = v.find(k);
         return iter != v.end()
             ? ayu::Reference(&iter->second)
@@ -204,7 +204,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
     )),
-    desc::attr_func([](std::map<std::string, T>& v, const uni::AnyString& k){
+    desc::computed_attrs([](std::map<std::string, T>& v, const uni::AnyString& k){
         auto iter = v.find(k);
         return iter != v.end()
             ? ayu::Reference(&iter->second)
@@ -305,7 +305,7 @@ AYU_DESCRIBE_TEMPLATE(
         return uni::StaticString(r);
     }),
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::elem_func([](T(& v )[n], uni::usize i){
+    desc::computed_elems([](T(& v )[n], uni::usize i){
         if (i < n) return ayu::Reference(&v[i]);
         else return ayu::Reference();
     })
@@ -357,7 +357,7 @@ AYU_DESCRIBE_TEMPLATE(
     }),
      // Allow accessing individual elements like an array
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::elem_func([](char(& v )[n], uni::usize i){
+    desc::computed_elems([](char(& v )[n], uni::usize i){
         if (i < n) return ayu::Reference(&v[i]);
         else return ayu::Reference();
     })
@@ -375,7 +375,7 @@ AYU_DESCRIBE_TEMPLATE(
         return uni::StaticString(r);
     }),
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::elem_func([](std::array<T, n>& v, uni::usize i){
+    desc::computed_elems([](std::array<T, n>& v, uni::usize i){
         if (i < n) return ayu::Reference(&v[i]);
         else return ayu::Reference();
     })

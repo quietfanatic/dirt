@@ -143,8 +143,8 @@ constexpr auto _AYU_DescribeBase<T>::keys (const Acr& acr) {
     return in::KeysDcrWith<T, Acr>(acr);
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::attr_func (in::AttrFunc<T>* f) {
-    return in::AttrFuncDcr<T>{{}, f};
+constexpr auto _AYU_DescribeBase<T>::computed_attrs (in::AttrFunc<T>* f) {
+    return in::ComputedAttrsDcr<T>{{}, f};
 }
 template <class T>
 template <class Acr>
@@ -152,8 +152,8 @@ constexpr auto _AYU_DescribeBase<T>::length (const Acr& acr) {
     return in::LengthDcrWith<T, Acr>(acr);
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::elem_func (in::ElemFunc<T>* f) {
-    return in::ElemFuncDcr<T>{{}, f};
+constexpr auto _AYU_DescribeBase<T>::computed_elems (in::ElemFunc<T>* f) {
+    return in::ComputedElemsDcr<T>{{}, f};
 }
 template <class T>
 template <class Acr>
@@ -265,8 +265,8 @@ constexpr auto _AYU_DescribeBase<T>::constant_pointer (
     return in::ConstantPointerAcr2<T, M>(p, flags);
 }
 
- // This one is not constexpr, so it is only valid in attr_func, elem_func,
- // or reference_func.
+ // This one is not constexpr, so it is only valid in computed_attrs,
+ // computed_elems, or reference_func.
 template <class T>
 template <class M>
     requires (requires (M m) { M(move(m)); m.~M(); })

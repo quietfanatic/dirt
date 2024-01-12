@@ -151,8 +151,8 @@ struct TraverseFromTree {
                 use_attrs(trav, tree, attrs);
             }
             else if (auto keys = trav.desc->keys_acr()) {
-                expect(trav.desc->attr_func_offset);
-                auto f = trav.desc->attr_func()->f;
+                expect(trav.desc->computed_attrs_offset);
+                auto f = trav.desc->computed_attrs()->f;
                 use_computed_attrs(trav, tree, keys, f);
             }
             else no_match(trav, tree);
@@ -162,8 +162,8 @@ struct TraverseFromTree {
                 use_elems(trav, tree, elems);
             }
             else if (auto length = trav.desc->length_acr()) {
-                expect(trav.desc->elem_func_offset);
-                auto f = trav.desc->elem_func()->f;
+                expect(trav.desc->computed_elems_offset);
+                auto f = trav.desc->computed_elems()->f;
                 use_computed_elems(trav, tree, length, f);
             }
             else no_match(trav, tree);
@@ -329,7 +329,7 @@ struct TraverseFromTree {
             claim_attrs_use_attrs(trav, tree, next_list, attrs);
         }
         else if (auto keys = trav.desc->keys_acr()) {
-            auto f = trav.desc->attr_func()->f;
+            auto f = trav.desc->computed_attrs()->f;
             claim_attrs_use_computed_attrs(trav, tree, next_list, keys, f);
         }
         else raise_AttrsNotSupported(trav.desc);
@@ -492,7 +492,7 @@ struct TraverseFromTree {
         auto& [key, value] = pair;
         Reference ref = f(*trav.address, key);
         if (!ref) raise_AttrNotFound(trav.desc, key);
-        trav_attr_func(trav, ref, f, key, AccessMode::Write,
+        trav_computed_attr(trav, ref, f, key, AccessMode::Write,
             [&value](const Traversal& child)
         { traverse(child, value); });
     }
@@ -550,7 +550,7 @@ struct TraverseFromTree {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             const Tree& child_tree = array[i];
-            trav_elem_func(trav, ref, f, i, AccessMode::Write,
+            trav_computed_elem(trav, ref, f, i, AccessMode::Write,
                 [&child_tree](const Traversal& child)
             { traverse(child, child_tree); });
         }

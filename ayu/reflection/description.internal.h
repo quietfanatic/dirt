@@ -44,9 +44,9 @@ struct Description : ComparableAddress {
     uint16 attrs_offset = 0;
     uint16 elems_offset = 0;
     uint16 keys_offset = 0;
-    uint16 attr_func_offset = 0;
+    uint16 computed_attrs_offset = 0;
     uint16 length_offset = 0;
-    uint16 elem_func_offset = 0;
+    uint16 computed_elems_offset = 0;
     uint16 delegate_offset = 0;
 };
 

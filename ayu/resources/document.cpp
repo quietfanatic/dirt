@@ -191,7 +191,7 @@ AYU_DESCRIBE(ayu::Document,
             new (v.data) DocumentData;
         }
     )),
-    attr_func([](ayu::Document& v, const AnyString& k){
+    computed_attrs([](ayu::Document& v, const AnyString& k){
         if (k == "_next_id") {
             return Reference(&v.data->next_id);
         }

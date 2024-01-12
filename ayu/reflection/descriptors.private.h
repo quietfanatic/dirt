@@ -92,14 +92,14 @@ struct DescriptionPrivate : DescriptionFor<Mu> {
     const Accessor* keys_acr () const {
         return offset_get<Accessor>(this, keys_offset);
     }
-    const AttrFuncDcr<Mu>* attr_func () const {
-        return offset_get<AttrFuncDcr<Mu>>(this, attr_func_offset);
+    const ComputedAttrsDcr<Mu>* computed_attrs () const {
+        return offset_get<ComputedAttrsDcr<Mu>>(this, computed_attrs_offset);
     }
     const Accessor* length_acr () const {
         return offset_get<Accessor>(this, length_offset);
     }
-    const ElemFuncDcr<Mu>* elem_func () const {
-        return offset_get<ElemFuncDcr<Mu>>(this, elem_func_offset);
+    const ComputedElemsDcr<Mu>* computed_elems () const {
+        return offset_get<ComputedElemsDcr<Mu>>(this, computed_elems_offset);
     }
     const Accessor* delegate_acr () const {
         return offset_get<Accessor>(this, delegate_offset);

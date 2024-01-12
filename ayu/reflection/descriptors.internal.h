@@ -27,10 +27,10 @@ namespace ayu::in {
 template <class T>
 static void duplicate_descriptors_in_AYU_DESCRIBE () { }
 static void element_in_AYU_DESCRIBE_is_not_a_descriptor_for_this_type () { }
-static void attrs_cannot_be_combined_with_keys_and_attr_func_in_AYU_DESCRIBE () { }
-static void keys_and_attr_func_must_be_together_in_AYU_DESCRIBE () { }
-static void elems_cannot_be_combined_with_length_and_elem_func_in_AYU_DESCRIBE () { }
-static void length_and_elem_func_must_be_together_in_AYU_DESCRIBE () { }
+static void attrs_cannot_be_combined_with_keys_and_computed_attrs_in_AYU_DESCRIBE () { }
+static void keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE () { }
+static void elems_cannot_be_combined_with_length_and_computed_elems_in_AYU_DESCRIBE () { }
+static void length_and_computed_elems_must_be_together_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
 
@@ -355,7 +355,7 @@ struct KeysDcrWith : KeysDcr<T> {
 template <class T>
 using AttrFunc = Reference(T&, const AnyString&);
 template <class T>
-struct AttrFuncDcr : AttachedDescriptor<T> {
+struct ComputedAttrsDcr : AttachedDescriptor<T> {
     AttrFunc<T>* f;
 };
 
@@ -374,7 +374,7 @@ struct LengthDcrWith : LengthDcr<T> {
 template <class T>
 using ElemFunc = Reference(T&, usize);
 template <class T>
-struct ElemFuncDcr : AttachedDescriptor<T> {
+struct ComputedElemsDcr : AttachedDescriptor<T> {
     ElemFunc<T>* f;
 };
 
@@ -494,8 +494,8 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
                 header.flags |= Description::PREFER_OBJECT;
             }
         }
-        else if constexpr (std::is_base_of_v<AttrFuncDcr<T>, Dcr>) {
-            AYU_APPLY_OFFSET(AttrFuncDcr, attr_func)
+        else if constexpr (std::is_base_of_v<ComputedAttrsDcr<T>, Dcr>) {
+            AYU_APPLY_OFFSET(ComputedAttrsDcr, computed_attrs)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_OBJECT;
             }
@@ -512,8 +512,8 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
                 header.flags |= Description::PREFER_ARRAY;
             }
         }
-        else if constexpr (std::is_base_of_v<ElemFuncDcr<T>, Dcr>) {
-            AYU_APPLY_OFFSET(ElemFuncDcr, elem_func)
+        else if constexpr (std::is_base_of_v<ComputedElemsDcr<T>, Dcr>) {
+            AYU_APPLY_OFFSET(ComputedElemsDcr, computed_elems)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_ARRAY;
             }
@@ -527,24 +527,24 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
         }
     }, dcrs...);
     if (header.attrs_offset &&
-        (header.keys_offset || header.attr_func_offset)
+        (header.keys_offset || header.computed_attrs_offset)
     ) {
-        attrs_cannot_be_combined_with_keys_and_attr_func_in_AYU_DESCRIBE();
+        attrs_cannot_be_combined_with_keys_and_computed_attrs_in_AYU_DESCRIBE();
     }
-    if ((header.keys_offset && !header.attr_func_offset) ||
-        (header.attr_func_offset && !header.keys_offset)
+    if ((header.keys_offset && !header.computed_attrs_offset) ||
+        (header.computed_attrs_offset && !header.keys_offset)
     ) {
-        keys_and_attr_func_must_be_together_in_AYU_DESCRIBE();
+        keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE();
     }
     if (header.elems_offset &&
-        (header.length_offset || header.elem_func_offset)
+        (header.length_offset || header.computed_elems_offset)
     ) {
-        elems_cannot_be_combined_with_length_and_elem_func_in_AYU_DESCRIBE();
+        elems_cannot_be_combined_with_length_and_computed_elems_in_AYU_DESCRIBE();
     }
-    if ((header.length_offset && !header.elem_func_offset) ||
-        (header.elem_func_offset && !header.length_offset)
+    if ((header.length_offset && !header.computed_elems_offset) ||
+        (header.computed_elems_offset && !header.length_offset)
     ) {
-        length_and_elem_func_must_be_together_in_AYU_DESCRIBE();
+        length_and_computed_elems_must_be_together_in_AYU_DESCRIBE();
     }
 
     return desc;

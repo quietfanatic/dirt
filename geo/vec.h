@@ -477,7 +477,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
     }),
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::elem_func([](geo::GVec<T, n>& v, uni::usize i){
+    desc::computed_elems([](geo::GVec<T, n>& v, uni::usize i){
         if (i < n) return ayu::Reference(&v[i]);
         else return ayu::Reference();
     })

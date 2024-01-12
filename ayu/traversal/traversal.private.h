@@ -246,7 +246,7 @@ void trav_attr (
 }
 
 template <class CB>
-void trav_attr_func (
+void trav_computed_attr (
     const Traversal& parent, const Reference& ref, AttrFunc<Mu>* func,
     const AnyString& key, AccessMode mode, const CB& cb
 ) {
@@ -269,7 +269,7 @@ void trav_elem (
 }
 
 template <class CB>
-void trav_elem_func (
+void trav_computed_elem (
     const Traversal& parent, const Reference& ref, ElemFunc<Mu>* func,
     usize index, AccessMode mode, const CB& cb
 ) {

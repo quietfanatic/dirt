@@ -250,8 +250,8 @@ struct TraverseAttr {
         if (auto attrs = trav.desc->attrs()) {
             return use_attrs(r, trav, key, attrs);
         }
-        else if (auto attr_func = trav.desc->attr_func()) {
-            return use_computed_attrs(r, trav, key, attr_func->f);
+        else if (auto computed_attrs = trav.desc->computed_attrs()) {
+            return use_computed_attrs(r, trav, key, computed_attrs->f);
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             return use_delegate(r, trav, key, acr);
@@ -294,7 +294,7 @@ struct TraverseAttr {
         AttrFunc<Mu>* f
     ) {
         if (Reference ref = f(*trav.address, key)) {
-            trav_attr_func(trav, move(ref), f, key, AccessMode::Read,
+            trav_computed_attr(trav, move(ref), f, key, AccessMode::Read,
                 [&r](const Traversal& child)
             { r = child.to_reference(); });
         }
@@ -455,8 +455,8 @@ struct TraverseElem {
         if (auto elems = trav.desc->elems()) {
             use_elems(r, trav, index, elems);
         }
-        else if (auto elem_func = trav.desc->elem_func()) {
-            use_computed_elems(r, trav, index, elem_func->f);
+        else if (auto computed_elems = trav.desc->computed_elems()) {
+            use_computed_elems(r, trav, index, computed_elems->f);
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, index, acr);
@@ -482,7 +482,7 @@ struct TraverseElem {
     ) {
         Reference ref = f(*trav.address, index);
         if (!ref) return;
-        trav_elem_func(trav, ref, f, index, AccessMode::Read,
+        trav_computed_elem(trav, ref, f, index, AccessMode::Read,
             [&r](const Traversal& child)
         { r = child.to_reference(); });
     }

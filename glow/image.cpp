@@ -74,7 +74,7 @@ AYU_DESCRIBE(glow::ImagePixelsProxy,
             const_cast<RGBA8*&>(image.pixels) = new RGBA8 [area(image.size)];
         }
     )),
-    elem_func([](ImagePixelsProxy& image, usize i){
+    computed_elems([](ImagePixelsProxy& image, usize i){
         return ayu::Reference(&image.pixels[i]);
     })
 )
