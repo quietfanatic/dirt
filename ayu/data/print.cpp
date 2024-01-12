@@ -174,7 +174,7 @@ struct Printer {
                 default: *p++ = s[i]; continue;
             }
             escape:
-             // +1 for \, +1 for final quote (initial quote already counted)
+             // +1 for \, +1 for final "
             p = reserve(p, 2 + s.size() - i);
             *p++ = '\\'; *p++ = esc;
         }
@@ -199,7 +199,7 @@ struct Printer {
                 default: *p++ = s[i]; continue;
             }
             escape:
-             // +1 for \, +1 for final quote (initial quote already counted)
+             // +1 for \, +1 for final "
             p = reserve(p, 2 + s.size() - i);
             *p++ = '\\'; *p++ = esc;
         }
@@ -217,7 +217,7 @@ struct Printer {
     NOINLINE
     char* print_string_nojson (char* p, Str s, const Tree* t) {
         if (s == "") return pstr(p, "\"\"");
-        if (s == "//") return pstr(p, "\"//\"");
+        if (s == "--") return pstr(p, "\"--\"");
         if (s == "null") return pstr(p, "\"null\"");
         if (s == "true") return pstr(p, "\"true\"");
         if (s == "false") return pstr(p, "\"false\"");

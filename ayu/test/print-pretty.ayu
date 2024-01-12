@@ -20,6 +20,8 @@
     "+inf": +inf
     "-inf": -inf
     "\"\"": ""
+    "\"--\"": "--"
+    //: //
     asdf: asdf
     "foo:bar": "foo:bar"
     "[]": []
