@@ -21,8 +21,11 @@ struct Printer {
         if (begin) SharableBuffer<char>::deallocate(begin);
     }
 
+     // We are going with a continual-reallocation strategy.  I tried doing an
+     // estimate-first-and-allocate-once strategy, but once the length
+     // estimation gets complicated enough, it ends up slower than reallocating.
     NOINLINE
-    char* extend (char* p, usize more = 1) {
+    char* extend (char* p, usize more) {
         char* old_begin = begin;
         char* new_begin = SharableBuffer<char>::allocate_plenty(
             p - old_begin + more
@@ -35,51 +38,118 @@ struct Printer {
         return p - old_begin + begin;
     }
 
+    char* reserve (char* p, usize more) {
+        if (p + more >= end) [[unlikely]] return extend(p, more);
+        else return p;
+    }
+
     char* pchar (char* p, char c) {
-        if (p == end) [[unlikely]] p = extend(p);
+        p = reserve(p, 1);
         *p = c;
         return p+1;
     }
+
     char* pstr (char* p, Str s) {
-        if (p + s.size() > end) [[unlikely]] p = extend(p, s.size());
+        p = reserve(p, s.size());
         std::memcpy(p, s.data(), s.size());
         return p + s.size();
     }
 
-    char* print_uint64 (char* p, uint64 v, bool hex) {
+    NOINLINE
+    char* print_null (char* p) {
+        return pstr(p, "null");
+    }
+
+    NOINLINE
+    char* print_bool (char* p, const Tree& t) {
+        return t.data.as_bool ? pstr(p, "true") : pstr(p, "false");
+    }
+
+    char* print_index (char* p, uint32 v) {
         if (v == 0) {
-            return pchar(p, '0');
+            return pstr(p, "  -- 0");
         }
-        if (end - p < 20) [[unlikely]] p = extend(p, 20);
-        auto [ptr, ec] = std::to_chars(
-            p, p+20, v, hex ? 16 : 10
-        );
+        p = reserve(p, 15);
+        p = 5+(char*)std::memcpy(p, "  -- ", 5);
+        auto [ptr, ec] = std::to_chars(p, p+10, v);
         expect(ec == std::errc());
         return ptr;
     }
 
-    char* print_int64 (char* p, int64 v, bool hex) {
+    NOINLINE
+    char* print_int64 (char* p, const Tree& t) {
+        int64 v = t.data.as_int64;
         if (v == 0) {
             return pchar(p, '0');
         }
+        p = reserve(p, 20);
         if (v < 0) {
-            p = pchar(p, '-');
+            *p++ = '-';
+            v = -v;
         }
+        bool hex = !(opts & JSON) && t.flags & TreeFlags::PreferHex;
         if (hex) {
-            p = pstr(p, "0x");
+            *p++ = '0'; *p++ = 'x';
+            auto [ptr, ec] = std::to_chars(
+                p, p+16, uint64(v), 16
+            );
+            expect(ec == std::errc());
+            return ptr;
         }
-        return print_uint64(p, v < 0 ? -v : v, hex);
+        else {
+            auto [ptr, ec] = std::to_chars(
+                p, p+19, uint64(v)
+            );
+            expect(ec == std::errc());
+            return ptr;
+        }
     }
 
-    char* print_double (char* p, double v, bool hex) {
+    NOINLINE
+    char* print_double (char* p, const Tree& t) {
+        p = reserve(p, 24);
+        double v = t.data.as_double;
+        if (v != v) {
+            if (opts & JSON) {
+                return 4+(char*)std::memcpy(p, "null", 4);
+            }
+            else {
+                return 4+(char*)std::memcpy(p, "+nan", 4);
+            }
+        }
+        else if (v == +inf) {
+            if (opts & JSON) {
+                return 5+(char*)std::memcpy(p, "1e999", 5);
+            }
+            else {
+                return 4+(char*)std::memcpy(p, "+inf", 4);
+            }
+        }
+        else if (v == -inf) {
+            if (opts & JSON) {
+                return 6+(char*)std::memcpy(p, "-1e999", 6);
+            }
+            else {
+                return 4+(char*)std::memcpy(p, "-inf", 4);
+            }
+        }
+        else if (v == 0) {
+            if (1.0/v == -inf) {
+                *p++ = '-';
+            }
+            *p++ = '0';
+            return p;
+        }
+
+        bool hex = !(opts & JSON) && t.flags & TreeFlags::PreferHex;
         if (hex) {
             if (v < 0) {
-                p = pchar(p, '-');
+                *p++ = '-';
                 v = -v;
             }
-            p = pstr(p, "0x");
+            *p++ = '0';
+            *p++ = 'x';
         }
-        if (end - p < 24) [[unlikely]] p = extend(p, 24);
         auto [ptr, ec] = std::to_chars(
             p, p+24, v, hex
                 ? std::chars_format::hex
@@ -89,32 +159,63 @@ struct Printer {
         return ptr;
     }
 
-    char* print_quoted (char* p, Str s, bool expand) {
-        p = pchar(p, '"');
-        for (auto c : s)
-        switch (c) {
-            case '"': p = pstr(p, "\\\""); break;
-            case '\\': p = pstr(p, "\\\\"); break;
-            case '\b': p = pstr(p, "\\b"); break;
-            case '\f': p = pstr(p, "\\f"); break;
-            case '\n':
-                if (expand) p = pchar(p, c);
-                else p = pstr(p, "\\n");
-                break;
-            case '\r': p = pstr(p, "\\r"); break;
-            case '\t':
-                if (expand) p = pchar(p, c);
-                else p = pstr(p, "\\t");
-                break;
-            default: p = pchar(p, c); break;
+    NOINLINE
+    char* print_quoted_expanded (char* p, Str s) {
+        p = reserve(p, 2 + s.size());
+        *p++ = '"';
+        for (usize i = 0; i < s.size(); i++) {
+            char esc;
+            switch (s[i]) {
+                case '"': esc = '"'; goto escape;
+                case '\\': esc = '\\'; goto escape;
+                case '\b': esc = 'b'; goto escape;
+                case '\f': esc = 'f'; goto escape;
+                case '\r': esc = 'r'; goto escape;
+                default: *p++ = s[i]; continue;
+            }
+            escape:
+             // +1 for \, +1 for final quote (initial quote already counted)
+            p = reserve(p, 2 + s.size() - i);
+            *p++ = '\\'; *p++ = esc;
         }
-        return pchar(p, '"');
+        *p++ = '"';
+        return p;
     }
 
-    char* print_string (char* p, Str s, bool expand) {
-        if (opts & JSON) {
-            return print_quoted(p, s, false);
+    NOINLINE
+    char* print_quoted_contracted (char* p, Str s) {
+        p = reserve(p, 2 + s.size());
+        *p++ = '"';
+        for (usize i = 0; i < s.size(); i++) {
+            char esc;
+            switch (s[i]) {
+                case '"': esc = '"'; goto escape;
+                case '\\': esc = '\\'; goto escape;
+                case '\b': esc = 'b'; goto escape;
+                case '\f': esc = 'f'; goto escape;
+                case '\n': esc = 'n'; goto escape;
+                case '\r': esc = 'r'; goto escape;
+                case '\t': esc = 't'; goto escape;
+                default: *p++ = s[i]; continue;
+            }
+            escape:
+             // +1 for \, +1 for final quote (initial quote already counted)
+            p = reserve(p, 2 + s.size() - i);
+            *p++ = '\\'; *p++ = esc;
         }
+        *p++ = '"';
+        return p;
+    }
+
+    char* print_string (char* p, Str s, const Tree* t) {
+        if (opts & JSON) {
+            return print_quoted_contracted(p, s);
+        }
+        else return print_string_nojson(p, s, t);
+    }
+
+    NOINLINE
+    char* print_string_nojson (char* p, Str s, const Tree* t) {
         if (s == "") return pstr(p, "\"\"");
         if (s == "//") return pstr(p, "\"//\"");
         if (s == "null") return pstr(p, "\"null\"");
@@ -123,7 +224,7 @@ struct Printer {
 
         switch (s[0]) {
             case ANY_WORD_STARTER: break;
-            default: return print_quoted(p, s, expand);
+            default: goto quoted;
         }
 
         for (auto sp = s.begin(); sp != s.end(); sp++)
@@ -133,182 +234,154 @@ struct Printer {
                     sp++;
                     continue;
                 }
-                else return print_quoted(p, s, expand);
+                else goto quoted;
             }
             case ANY_LETTER: case ANY_DECIMAL_DIGIT:
             case ANY_WORD_SYMBOL: continue;
-            default: return print_quoted(p, s, expand);
+            default: goto quoted;
         }
          // No need to quote
         return pstr(p, s);
-    }
-
-    char* print_newline (char* p, uint n) {
-        p = pchar(p, '\n');
-        for (; n; n--) p = pstr(p, "    ");
-        return p;
-    }
-
-    static usize approx_width (TreeRef t) {
-        switch (t->form) {
-            case Form::String: return t->meta >> 1;
-            case Form::Array: {
-                usize r = 2;
-                for (auto& e : Slice<Tree>(*t)) {
-                    r += 1 + approx_width(e);
-                }
-                return r;
-            }
-            case Form::Object: {
-                usize r = 2;
-                for (auto& [key, value] : Slice<TreePair>(*t)) {
-                    r += 2 + key.size() + approx_width(value);
-                }
-                return r;
-            }
-            default: return 4;
+         // Yes need to quote
+        quoted:
+         // The expanded form of a string uses raw newlines and tabs instead of
+         // escaping them.  Ironically, this takes fewer characters than the
+         // compact form, so expand it when not pretty-printing.
+        bool expand = !(opts & PRETTY) ? true
+                    : !t ? false
+                    : t->flags & TreeFlags::PreferExpanded ? true
+                    : t->flags & TreeFlags::PreferCompact ? false
+                    : t->meta >> 1 > 50;
+        if (expand) {
+            return print_quoted_expanded(p, s);
+        } else {
+            return print_quoted_contracted(p, s);
         }
     }
 
-    char* print_tree (char* p, TreeRef t, uint ind) {
-        switch (t->form) {
-            case Form::Null: return pstr(p, "null");
-            case Form::Bool: {
-                auto s = t->data.as_bool ? Str("true") : Str("false");
-                return pstr(p, s);
+    char* print_newline (char* p, uint ind) {
+        p = reserve(p, 1 + ind * 4);
+        *p++ = '\n';
+        for (; ind; ind--) p = 4+(char*)std::memcpy(p, "    ", 4);
+        return p;
+    }
+
+    NOINLINE
+    char* print_array (char* p, const Tree& t, uint ind) {
+        expect(t.form == Form::Array);
+        auto a = Slice<Tree>(t);
+        if (a.empty()) {
+            return pstr(p, "[]");
+        }
+
+         // Print "small" arrays compactly.
+        bool expand = !(opts & PRETTY) ? false
+                    : t.flags & TreeFlags::PreferExpanded ? true
+                    : t.flags & TreeFlags::PreferCompact ? false
+                    : a.size() > 8;
+
+        bool show_indices = expand
+                         && a.size() > 2
+                         && !(opts & JSON);
+        p = pchar(p, '[');
+        if (expand) {
+            for (auto& elem : a) {
+                if (opts & JSON && &elem != &a.front()) {
+                    p = pchar(p, ',');
+                }
+                p = print_newline(p, ind + 1);
+                p = print_tree(p, elem, ind + 1);
+                if (show_indices) {
+                    p = print_index(p, &elem - &a.front());
+                }
             }
+            p = print_newline(p, ind);
+        }
+        else {
+            for (auto& elem : a) {
+                if (&elem != &a.front()) {
+                    p = pchar(p, opts & JSON ? ',' : ' ');
+                }
+                p = print_tree(p, elem, ind);
+            }
+        }
+        return pchar(p, ']');
+    }
+
+    NOINLINE
+    char* print_object (char* p, const Tree& t, uint ind) {
+        expect(t.form == Form::Object);
+        auto o = Slice<TreePair>(t);
+        if (o.empty()) {
+            return pstr(p, "{}");
+        }
+
+         // TODO: Decide what to do if both PREFER flags are set
+        bool expand = !(opts & PRETTY) ? false
+                    : t.flags & TreeFlags::PreferExpanded ? true
+                    : t.flags & TreeFlags::PreferCompact ? false
+                    : o.size() > 1;
+
+        p = pchar(p, '{');
+        if (expand) {
+            for (auto& attr : o) {
+                if (opts & JSON && &attr != &o.front()) {
+                    p = pchar(p, ',');
+                }
+                p = print_newline(p, ind + 1);
+                p = print_string(p, attr.first, null);
+                p = pstr(p, ": ");
+                p = print_tree(p, attr.second, ind + 1);
+            }
+            p = print_newline(p, ind);
+        }
+        else {
+            for (auto& attr : o) {
+                if (&attr != &o.front()) {
+                    p = pchar(p, opts & JSON ? ',' : ' ');
+                }
+                p = print_string(p, attr.first, null);
+                p = pchar(p, ':');
+                p = print_tree(p, attr.second, ind + expand);
+            }
+        }
+        return pchar(p, '}');
+    }
+
+    NOINLINE
+    char* print_error (char* p, const Tree& t) {
+        try {
+            std::rethrow_exception(std::exception_ptr(t));
+        }
+        catch (const std::exception& e) {
+            const char* what = e.what();
+            usize len = std::strlen(what);
+            p = reserve(p, 3 + len);
+            *p++ = '!'; *p++ = '(';
+            p = len+(char*)std::memcpy(p, what, len);
+            *p++ = ')';
+            return p;
+        }
+    }
+
+    NOINLINE
+    char* print_tree (char* p, const Tree& t, uint ind) {
+        switch (t.form) {
+            case Form::Null: return print_null(p);
+            case Form::Bool: return print_bool(p, t);
             case Form::Number: {
-                if (t->meta) {
-                    double v = t->data.as_double;
-                    if (v != v) {
-                        return pstr(p, opts & JSON ? "null" : "+nan");
-                    }
-                    else if (v == +inf) {
-                        return pstr(p, opts & JSON ? Str("1e999") : Str("+inf"));
-                    }
-                    else if (v == -inf) {
-                        return pstr(p, opts & JSON ? Str("-1e999") : Str("-inf"));
-                    }
-                    else if (v == 0) {
-                        if (1.0/v == -inf) {
-                            p = pchar(p, '-');
-                        }
-                        return pchar(p, '0');
-                    }
-                    else {
-                        bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
-                        return print_double(p, v, hex);
-                    }
-                }
-                else {
-                    bool hex = !(opts & JSON) && t->flags & TreeFlags::PreferHex;
-                    return print_int64(p, t->data.as_int64, hex);
-                }
+                if (t.meta) return print_double(p, t);
+                else return print_int64(p, t);
             }
-            case Form::String: {
-                 // The expanded form of a string uses raw newlines and tabs
-                 // instead of escaping them.  Ironically, this takes fewer
-                 // characters than the compact form, so expand it when not
-                 // pretty-printing.
-                bool expand = !(opts & PRETTY) ? true
-                            : t->flags & TreeFlags::PreferExpanded ? true
-                            : t->flags & TreeFlags::PreferCompact ? false
-                            : t->meta >> 1 > 50;
-                return print_string(p, Str(*t), expand);
-            }
-            case Form::Array: {
-                auto a = Slice<Tree>(*t);
-                if (a.empty()) {
-                    return pstr(p, "[]");
-                }
-
-                 // Print "small" arrays compactly.
-                bool expand = !(opts & PRETTY) ? false
-                            : t->flags & TreeFlags::PreferExpanded ? true
-                            : t->flags & TreeFlags::PreferCompact ? false
-                            : a.size() <= 2 ? false
-                            : approx_width(t) > 50;
-
-                bool show_indices = expand
-                                 && a.size() > 2
-                                 && !(opts & JSON);
-                p = pchar(p, '[');
-                for (auto& elem : a) {
-                    if (&elem == &a.front()) {
-                        if (expand) p = print_newline(p, ind + 1);
-                    }
-                    else {
-                        if (expand) {
-                            if (opts & JSON) p = pchar(p, ',');
-                            p = print_newline(p, ind + 1);
-                        }
-                        else {
-                            p = pchar(p, opts & JSON ? ',' : ' ');
-                        }
-                    }
-                    p = print_tree(p, elem, ind + expand);
-                    if (show_indices) {
-                        p = pstr(p, "  -- ");
-                        p = print_uint64(p, &elem - &a.front(), false);
-                    }
-                }
-                if (expand) p = print_newline(p, ind);
-                return pchar(p, ']');
-            }
-            case Form::Object: {
-                auto o = Slice<TreePair>(*t);
-                if (o.empty()) {
-                    return pstr(p, "{}");
-                }
-
-                 // TODO: Decide what to do if both PREFER flags are set
-                bool expand = !(opts & PRETTY) ? false
-                            : t->flags & TreeFlags::PreferExpanded ? true
-                            : t->flags & TreeFlags::PreferCompact ? false
-                            : o.size() <= 1 ? false
-                            : approx_width(t) > 50;
-
-                p = pchar(p, '{');
-                for (auto& attr : o) {
-                    if (&attr == &o.front()) {
-                        if (expand) {
-                            p = print_newline(p, ind + 1);
-                        }
-                    }
-                    else {
-                        if (expand) {
-                            if (opts & JSON) p = pchar(p, ',');
-                            p = print_newline(p, ind + 1);
-                        }
-                        else {
-                            p = pchar(p, opts & JSON ? ',' : ' ');
-                        }
-                    }
-                    p = print_string(p, attr.first, false);
-                    p = pchar(p, ':');
-                    if (expand) p = pchar(p, ' ');
-                    p = print_tree(p, attr.second, ind + expand);
-                }
-                if (expand) p = print_newline(p, ind);
-                return pchar(p, '}');
-            }
-            case Form::Error: {
-                try {
-                    std::rethrow_exception(std::exception_ptr(*t));
-                }
-                catch (const std::exception& e) {
-                     // TODO: change to !
-                    p = pstr(p, "?(");
-                    p = pstr(p, e.what());
-                    p = pchar(p, ')');
-                    return p;
-                }
-            }
+            case Form::String: return print_string(p, Str(t), &t);
+            case Form::Array: return print_array(p, t, ind);
+            case Form::Object: return print_object(p, t, ind);
+            case Form::Error: return print_error(p, t);
             default: never();
         }
     }
 
-    UniqueString print (TreeRef t) {
+    UniqueString print (const Tree& t) {
         usize capacity = 256;
         begin = SharableBuffer<char>::allocate_exact(capacity);
         end = begin + capacity;
@@ -340,13 +413,13 @@ UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & PRETTY)) opts |= COMPACT;
     Printer printer (opts);
-    return printer.print(t);
+    return printer.print(*t);
 }
 
 void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & COMPACT)) opts |= PRETTY;
-    auto output = Printer(opts).print(t);
+    auto output = Printer(opts).print(*t);
     string_to_file(output, move(filename));
 }
 
