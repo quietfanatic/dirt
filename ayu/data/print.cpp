@@ -364,6 +364,10 @@ struct Printer {
         }
     }
 
+     // Anything that prints a string should be NOINLINEd here, because printing
+     // a string requires a possible non-tail-call to extend(), which requires
+     // saving things on the stack.  If everything is NOINLINE, this function
+     // will require no prologue or epilogue.
     NOINLINE
     char* print_tree (char* p, const Tree& t, uint ind) {
         switch (t.form) {
@@ -382,9 +386,10 @@ struct Printer {
     }
 
     UniqueString print (const Tree& t) {
-        usize capacity = 256;
-        begin = SharableBuffer<char>::allocate_exact(capacity);
-        end = begin + capacity;
+        usize cap = t.form == Form::Array || t.form == Form::Object
+            ? 256 : 32;
+        begin = SharableBuffer<char>::allocate_plenty(cap);
+        end = begin + cap;
          // Do it
         char* p = print_tree(begin, t, 0);
         if (opts & PRETTY) p = pchar(p, '\n');
