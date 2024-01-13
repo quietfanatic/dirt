@@ -156,6 +156,10 @@ constexpr auto _AYU_DescribeBase<T>::computed_elems (in::ElemFunc<T>* f) {
     return in::ComputedElemsDcr<T>{{}, f};
 }
 template <class T>
+constexpr auto _AYU_DescribeBase<T>::contiguous_elems (in::DataFunc<T>* f) {
+    return in::ContiguousElemsDcr<T>{{}, f};
+}
+template <class T>
 template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::delegate (const Acr& acr) {
     return in::DelegateDcrWith<T, Acr>(acr);

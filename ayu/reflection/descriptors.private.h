@@ -101,6 +101,9 @@ struct DescriptionPrivate : DescriptionFor<Mu> {
     const ComputedElemsDcr<Mu>* computed_elems () const {
         return offset_get<ComputedElemsDcr<Mu>>(this, computed_elems_offset);
     }
+    const ContiguousElemsDcr<Mu>* contiguous_elems () const {
+        return offset_get<ContiguousElemsDcr<Mu>>(this, contiguous_elems_offset);
+    }
     const Accessor* delegate_acr () const {
         return offset_get<Accessor>(this, delegate_offset);
     }

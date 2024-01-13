@@ -134,8 +134,8 @@ AYU_DESCRIBE_TEMPLATE(
     desc::length(desc::template value_methods<
         uni::usize, &std::vector<T>::size, &std::vector<T>::resize
     >()),
-    desc::computed_elems([](std::vector<T>& v, uni::usize i){
-        return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
+    desc::contiguous_elems([](std::vector<T>& v){
+        return ayu::Pointer(v.data());
     })
 )
 

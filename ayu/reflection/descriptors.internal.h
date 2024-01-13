@@ -27,12 +27,14 @@ namespace ayu::in {
 template <class T>
 static void duplicate_descriptors_in_AYU_DESCRIBE () { }
 static void element_in_AYU_DESCRIBE_is_not_a_descriptor_for_this_type () { }
-static void attrs_cannot_be_combined_with_keys_and_computed_attrs_in_AYU_DESCRIBE () { }
+static void attrs_cannot_be_combined_with_keys_in_AYU_DESCRIBE () { }
 static void keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE () { }
-static void elems_cannot_be_combined_with_length_and_computed_elems_in_AYU_DESCRIBE () { }
-static void length_and_computed_elems_must_be_together_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
+static void elems_cannot_be_combined_with_length_in_AYU_DESCRIBE () { }
+static void cannot_have_length_without_computed_or_contiguous_elems_in_AYU_DESCRIBE () { }
+static void cannot_have_both_computed_and_contiguous_elems_in_AYU_DESCRIBE () { }
+static void cannot_have_computed_or_contiguous_elems_without_length_in_AYU_DESCRIBE () { }
 
 ///// MEMORY LAYOUT
 
@@ -379,6 +381,13 @@ struct ComputedElemsDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
+using DataFunc = Pointer(T&);
+template <class T>
+struct ContiguousElemsDcr : AttachedDescriptor<T> {
+    DataFunc<T>* f;
+};
+
+template <class T>
 struct DelegateDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
 struct DelegateDcrWith : DelegateDcr<T> {
@@ -518,6 +527,12 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
                 header.flags |= Description::PREFER_ARRAY;
             }
         }
+        else if constexpr (std::is_base_of_v<ContiguousElemsDcr<T>, Dcr>) {
+            AYU_APPLY_OFFSET(ContiguousElemsDcr, contiguous_elems)
+            if (!(header.flags & Description::PREFERENCE)) {
+                header.flags |= Description::PREFER_ARRAY;
+            }
+        }
         else if constexpr (std::is_base_of_v<DelegateDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(DelegateDcr, delegate)
         }
@@ -529,22 +544,26 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
     if (header.attrs_offset &&
         (header.keys_offset || header.computed_attrs_offset)
     ) {
-        attrs_cannot_be_combined_with_keys_and_computed_attrs_in_AYU_DESCRIBE();
+        attrs_cannot_be_combined_with_keys_in_AYU_DESCRIBE();
     }
     if ((header.keys_offset && !header.computed_attrs_offset) ||
         (header.computed_attrs_offset && !header.keys_offset)
     ) {
         keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE();
     }
-    if (header.elems_offset &&
-        (header.length_offset || header.computed_elems_offset)
-    ) {
-        elems_cannot_be_combined_with_length_and_computed_elems_in_AYU_DESCRIBE();
+    if (header.length_offset) {
+        if (header.elems_offset) {
+            elems_cannot_be_combined_with_length_in_AYU_DESCRIBE();
+        }
+        if (!header.computed_elems_offset && !header.contiguous_elems_offset) {
+            cannot_have_length_without_computed_or_contiguous_elems_in_AYU_DESCRIBE();
+        }
+        if (header.computed_elems_offset && header.contiguous_elems_offset) {
+            cannot_have_both_computed_and_contiguous_elems_in_AYU_DESCRIBE();
+        }
     }
-    if ((header.length_offset && !header.computed_elems_offset) ||
-        (header.computed_elems_offset && !header.length_offset)
-    ) {
-        length_and_computed_elems_must_be_together_in_AYU_DESCRIBE();
+    else if (header.computed_elems_offset || header.contiguous_elems_offset) {
+        cannot_have_computed_or_contiguous_elems_without_length_in_AYU_DESCRIBE();
     }
 
     return desc;

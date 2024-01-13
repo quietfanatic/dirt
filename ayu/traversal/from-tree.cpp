@@ -162,9 +162,13 @@ struct TraverseFromTree {
                 use_elems(trav, tree, elems);
             }
             else if (auto length = trav.desc->length_acr()) {
-                expect(trav.desc->computed_elems_offset);
-                auto f = trav.desc->computed_elems()->f;
-                use_computed_elems(trav, tree, length, f);
+                if (auto contig = trav.desc->contiguous_elems()) {
+                    use_contiguous_elems(trav, tree, length, contig->f);
+                }
+                else {
+                    auto comp = trav.desc->computed_elems();
+                    use_computed_elems(trav, tree, length, comp->f);
+                }
             }
             else no_match(trav, tree);
         }
@@ -520,6 +524,42 @@ struct TraverseFromTree {
             trav_elem(trav, elems->elem(i)->acr(), i, AccessMode::Write,
                 [&child_tree](const Traversal& child)
             { traverse(child, child_tree); });
+        }
+        finish_item(trav, tree);
+    }
+
+    NOINLINE static
+    void use_contiguous_elems (
+        const Traversal& trav, const Tree& tree,
+        const Accessor* length_acr, DataFunc<Mu>* f
+    ) {
+        expect(tree.form == Form::Array);
+        auto array = Slice<Tree>(tree);
+        if (!(length_acr->flags & AcrFlags::Readonly)) {
+            length_acr->write(*trav.address, [len{array.size()}](Mu& v){
+                reinterpret_cast<usize&>(v) = len;
+            });
+        }
+        else {
+             // For readonly length, read it and check that it's the same.
+            usize len;
+            length_acr->read(*trav.address, [&len](Mu& v){
+                len = reinterpret_cast<usize&>(v);
+            });
+            if (array.size() != len) {
+                raise_LengthRejected(trav.desc, len, len, tree.meta >> 1);
+            }
+        }
+        if (array) {
+            auto ptr = f(*trav.address);
+            auto child_desc = DescriptionPrivate::get(ptr.type);
+            for (usize i = 0; i < array.size(); i++) {
+                const Tree& child_tree = array[i];
+                trav_contiguous_elem(trav, ptr, f, i, AccessMode::Write,
+                    [&child_tree](const Traversal& child)
+                { traverse(child, child_tree); });
+                ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
+            }
         }
         finish_item(trav, tree);
     }

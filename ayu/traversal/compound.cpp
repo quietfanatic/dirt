@@ -455,8 +455,14 @@ struct TraverseElem {
         if (auto elems = trav.desc->elems()) {
             use_elems(r, trav, index, elems);
         }
-        else if (auto computed_elems = trav.desc->computed_elems()) {
-            use_computed_elems(r, trav, index, computed_elems->f);
+        else if (auto length = trav.desc->length_acr()) {
+            if (auto contig = trav.desc->contiguous_elems()) {
+                use_contiguous_elems(r, trav, index, length, contig->f);
+            }
+            else {
+                auto comp = trav.desc->computed_elems();
+                use_computed_elems(r, trav, index, comp->f);
+            }
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, index, acr);
@@ -471,6 +477,27 @@ struct TraverseElem {
     ) {
         if (index > elems->n_elems) return;
         trav_elem(trav, elems->elem(index)->acr(), index, AccessMode::Read,
+            [&r](const Traversal& child)
+        { r = child.to_reference(); });
+    }
+
+    NOINLINE static
+    void use_contiguous_elems (
+        Reference& r, const Traversal& trav, usize index,
+        const Accessor* length_acr, DataFunc<Mu>* f
+    ) {
+         // We have to read the length to do bounds checking.
+        usize len;
+        length_acr->read(*trav.address,
+            CallbackRef<void(Mu& v)>(len, [](usize& len, Mu& v){
+                len = reinterpret_cast<const usize&>(v);
+            })
+        );
+        if (index >= len) return;
+        Pointer ptr = f(*trav.address);
+        auto child_desc = DescriptionPrivate::get(ptr.type);
+        ptr.address = (Mu*)((char*)ptr.address + index * child_desc->cpp_size);
+        trav_contiguous_elem(trav, ptr, f, index, AccessMode::Read,
             [&r](const Traversal& child)
         { r = child.to_reference(); });
     }

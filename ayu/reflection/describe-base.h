@@ -357,8 +357,8 @@ struct _AYU_DescribeBase {
      // provided array Tree's length must match its output exactly or
      // WrongLength will be thrown.
      //
-     // If length() is present, computed_elems() must also be present, and
-     // elems() must not be present.
+     // If length() is present, computed_elems() or contiguous_elems() must also
+     // be present, and elems() must not be present.
     static constexpr auto length (const Acr& accessor);
      // Use this to provide a way to read and write elements at arbitrary
      // indexes.  The return value must be an ayu::Reference, which can be
@@ -372,8 +372,20 @@ struct _AYU_DescribeBase {
      // Reference beyond the temporary's lifetime.  See also computed_attrs.
      //
      // If computed_elems() is present, length() must also be present, and
-     // elems() must not be present.
+     // elems() and contiguous_elems() must not be present.
     static constexpr auto computed_elems (Reference(* f )(T&, usize));
+     // Use this for objects that have elements of identical laid out
+     // sequentially in memory.  The provided function must return a pointer to
+     // the 0th element, and each subsequent element must be sizeof(Element)
+     // bytes after the next one, for a total number of elements equal to
+     // whatever is read from the accessor passed to length().
+     //
+     // If the length is 0, this may or may not be called.  You're allowed to
+     // return null if the length is 0, but must not return null otherwise.
+     //
+     // If contiguous_elems() is present, length() must also be present, and
+     // elems() and computed_elems() must not be present.
+    static constexpr auto contiguous_elems (Pointer(* f )(T&));
 
     ///// ACCESSORS
      // Accessors are internal types that are the output of the functions below.

@@ -42,4 +42,16 @@ struct ElemFuncAcr : Accessor {
     static constexpr AcrVT _vt = {&_type, &_access, &_address};
 };
 
+struct DataFuncAcr : Accessor {
+    DataFunc<Mu>* f;
+    usize index;
+    DataFuncAcr (DataFunc<Mu>* f, usize i) :
+        Accessor(&_vt), f(f), index(i)
+    { }
+    static Type _type (const Accessor*, Mu*);
+    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
+    static Mu* _address (const Accessor* acr, Mu& v);
+    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+};
+
 } // namespace ayu::in

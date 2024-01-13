@@ -73,7 +73,15 @@ struct TraverseScan {
                 return use_elems(trav, loc, cb, elems);
             }
             else if (auto length = trav.desc->length_acr()) {
-                return use_computed_elems(trav, loc, cb, length);
+                if (auto contig = trav.desc->contiguous_elems()) {
+                    return use_contiguous_elems(
+                        trav, loc, cb, length, contig->f
+                    );
+                }
+                else {
+                    auto comp = trav.desc->computed_elems();
+                    return use_computed_elems(trav, loc, cb, length, comp->f);
+                }
             }
             else never();
         }
@@ -165,17 +173,44 @@ struct TraverseScan {
     }
 
     NOINLINE static
-    bool use_computed_elems (
+    bool use_contiguous_elems (
         const Traversal& trav, LocationRef loc,
         CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const Accessor* length_acr
+        const Accessor* length_acr, DataFunc<Mu>* f
     ) {
         if (cb(trav, loc)) return true;
         usize len;
         length_acr->read(*trav.address, [&len](Mu& v){
             len = reinterpret_cast<usize&>(v);
         });
-        auto f = trav.desc->computed_elems()->f;
+        if (len) {
+            auto ptr = f(*trav.address);
+            auto child_desc = DescriptionPrivate::get(ptr.type);
+            for (usize i = 0; i < len; i++) {
+                Location child_loc =
+                    trav.collapse_optional ? *loc : Location(loc, i);
+                bool r = false;
+                trav_contiguous_elem(trav, ptr, f, i, AccessMode::Read,
+                    [&r, child_loc, cb](const Traversal& child)
+                { r = traverse(child, child_loc, cb); });
+                if (r) return true;
+                ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
+            }
+        }
+        return false;
+    }
+
+    NOINLINE static
+    bool use_computed_elems (
+        const Traversal& trav, LocationRef loc,
+        CallbackRef<bool(const Traversal&, LocationRef)> cb,
+        const Accessor* length_acr, ElemFunc<Mu>* f
+    ) {
+        if (cb(trav, loc)) return true;
+        usize len;
+        length_acr->read(*trav.address, [&len](Mu& v){
+            len = reinterpret_cast<usize&>(v);
+        });
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);

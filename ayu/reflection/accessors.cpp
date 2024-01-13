@@ -1,6 +1,7 @@
 #include "accessors.private.h"
 
 #include "describe.h"
+#include "descriptors.private.h"
 #include "reference.h"
 
 namespace ayu::in {
@@ -166,13 +167,36 @@ Type ElemFuncAcr::_type (const Accessor* acr, Mu* v) {
     auto self = static_cast<const ElemFuncAcr*>(acr);
     return self->f(*v, self->index).type();
 }
-void ElemFuncAcr::_access (const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb) {
+void ElemFuncAcr::_access (
+    const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
+) {
     auto self = static_cast<const ElemFuncAcr*>(acr);
     self->f(v, self->index).access(mode, cb);
 }
 Mu* ElemFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ElemFuncAcr*>(acr);
     return self->f(v, self->index).address();
+}
+
+Type DataFuncAcr::_type (const Accessor* acr, Mu* v) {
+    if (!v) return Type();
+    auto self = static_cast<const DataFuncAcr*>(acr);
+    return self->f(*v).type;
+}
+void DataFuncAcr::_access (
+    const Accessor* acr, AccessMode, Mu& v, CallbackRef<void(Mu&)> cb
+) {
+    auto self = static_cast<const DataFuncAcr*>(acr);
+    auto data = self->f(v);
+    auto desc = DescriptionPrivate::get(data.type);
+    auto address = (Mu*)((char*)data.address + self->index * desc->cpp_size);
+    cb(*address);
+}
+Mu* DataFuncAcr::_address (const Accessor* acr, Mu& v) {
+    auto self = static_cast<const DataFuncAcr*>(acr);
+    auto data = self->f(v);
+    auto desc = DescriptionPrivate::get(data.type);
+    return (Mu*)((char*)data.address + self->index * desc->cpp_size);
 }
 
  // How do we compare dynamically-typed Accessors without adding an extra
@@ -196,6 +220,11 @@ bool operator== (const Accessor& a, const Accessor& b) {
     else if (a.vt == &ElemFuncAcr::_vt) {
         auto& aa = reinterpret_cast<const ElemFuncAcr&>(a);
         auto& bb = reinterpret_cast<const ElemFuncAcr&>(b);
+        return aa.f == bb.f && aa.index == bb.index;
+    }
+    else if (a.vt == &DataFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const DataFuncAcr&>(a);
+        auto& bb = reinterpret_cast<const DataFuncAcr&>(b);
         return aa.f == bb.f && aa.index == bb.index;
     }
      // Other ACRs can have a diverse range of parameterized types, so comparing

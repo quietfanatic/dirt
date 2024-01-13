@@ -55,8 +55,13 @@ struct TraverseToTree {
                 return use_elems(r, trav, elems);
             }
             else if (auto length = trav.desc->length_acr()) {
-                auto f = trav.desc->computed_elems()->f;
-                return use_computed_elems(r, trav, length, f);
+                if (auto contig = trav.desc->contiguous_elems()) {
+                    return use_contiguous_elems(r, trav, length, contig->f);
+                }
+                else {
+                    auto comp = trav.desc->computed_elems();
+                    return use_computed_elems(r, trav, length, comp->f);
+                }
             }
             else never();
         }
@@ -234,9 +239,35 @@ struct TraverseToTree {
     }
 
     NOINLINE static
+    void use_contiguous_elems (
+        Tree& r, const Traversal& trav,
+        const Accessor* length_acr, DataFunc<Mu>* f
+    ) {
+        usize len;
+        length_acr->read(*trav.address,
+            CallbackRef<void(Mu& v)>(len, [](usize& len, Mu& v){
+                len = reinterpret_cast<const usize&>(v);
+            })
+        );
+        auto array = UniqueArray<Tree>(Capacity(len));
+        if (len) {
+            auto ptr = f(*trav.address);
+            auto child_desc = DescriptionPrivate::get(ptr.type);
+            for (usize i = 0; i < len; i++) {
+                auto& elem = array.emplace_back_expect_capacity();
+                trav_contiguous_elem(trav, ptr, f, i, AccessMode::Read,
+                    [&elem](const Traversal& child){ traverse(elem, child); }
+                );
+                ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
+            }
+        }
+        new (&r) Tree(move(array));
+    }
+
+    NOINLINE static
     void use_computed_elems (
         Tree& r, const Traversal& trav,
-        const Accessor* length_acr, ElemFunc<Mu>* computed_elems
+        const Accessor* length_acr, ElemFunc<Mu>* f
     ) {
         usize len;
         length_acr->read(*trav.address,
@@ -246,10 +277,10 @@ struct TraverseToTree {
         );
         auto array = UniqueArray<Tree>(Capacity(len));
         for (usize i = 0; i < len; i++) {
-            auto ref = computed_elems(*trav.address, i);
+            auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             auto& elem = array.emplace_back_expect_capacity();
-            trav_computed_elem(trav, ref, computed_elems, i, AccessMode::Read,
+            trav_computed_elem(trav, ref, f, i, AccessMode::Read,
                 [&elem](const Traversal& child){ traverse(elem, child); }
             );
         }
