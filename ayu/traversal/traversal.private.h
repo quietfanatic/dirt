@@ -367,36 +367,33 @@ Reference Traversal::to_reference_parent_addressable () const noexcept {
 NOINLINE inline
 Reference Traversal::to_reference_chain () const noexcept {
     Reference parent_ref = parent->to_reference();
-    const Accessor* child_acr;
     switch (op) {
         case DELEGATE: case ATTR: case ELEM: {
             auto& self = static_cast<const AcrTraversal&>(*this);
-            child_acr = self.acr;
-            child_acr->inc();
-            break;
+            return Reference(parent_ref.host, new ChainAcr(
+                parent_ref.acr, self.acr
+            ));
         }
         case COMPUTED_ATTR: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
-            child_acr = new AttrFuncAcr(self.func, *self.key);
-            break;
+            return Reference(parent_ref.host, new ChainAttrFuncAcr(
+                parent_ref.acr, self.func, *self.key
+            ));
         }
         case COMPUTED_ELEM: {
             auto& self = static_cast<const ElemFuncTraversal&>(*this);
-            child_acr = new ElemFuncAcr(self.func, self.index);
-            break;
+            return Reference(parent_ref.host, new ChainElemFuncAcr(
+                parent_ref.acr, self.func, self.index
+            ));
         }
         case CONTIGUOUS_ELEM: {
             auto& self = static_cast<const DataFuncTraversal&>(*this);
-            child_acr = new DataFuncAcr(self.func, self.index);
-            break;
+            return Reference(parent_ref.host, new ChainDataFuncAcr(
+                parent_ref.acr, self.func, self.index
+            ));
         }
         default: never();
     }
-     // If parent doesn't have an acr, we should be in
-     // to_reference_parent_addressable, not here.
-    expect(parent_ref.acr);
-    parent_ref.acr->inc();
-    return Reference(parent_ref.host, new ChainAcr(parent_ref.acr, child_acr));
 }
 
 inline

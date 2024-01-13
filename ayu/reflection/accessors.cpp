@@ -96,7 +96,7 @@ ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
         ((outer->flags & AcrFlags::PassThroughAddressable) &
          (inner->flags & AcrFlags::PassThroughAddressable))
     ), outer(outer), inner(inner)
-{ }
+{ outer->inc(); inner->inc(); }
 Type ChainAcr::_type (const Accessor* acr, Mu* v) {
     auto self = static_cast<const ChainAcr*>(acr);
      // Most accessors ignore the parameter, so we can usually skip the
@@ -142,61 +142,123 @@ void ChainAcr::_destroy (Accessor* acr) noexcept {
     self->inner->dec(); self->outer->dec();
 }
 
-Type AttrFuncAcr::_type (const Accessor* acr, Mu* v) {
+Type ChainAttrFuncAcr::_type (const Accessor* acr, Mu* v) {
+    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
     if (!v) return Type();
-    auto self = static_cast<const AttrFuncAcr*>(acr);
-    return self->f(*v, self->key).type();
+    Type r;
+    self->outer->read(*v, [&r, self](Mu& w){
+        r = self->f(w, self->key).type();
+    });
+    return r;
 }
-void AttrFuncAcr::_access (
+void ChainAttrFuncAcr::_access (
     const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
 ) {
-    auto self = static_cast<const AttrFuncAcr*>(acr);
-    self->f(v, self->key).access(mode, cb);
+    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
+    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
+        self->f(w, self->key).access(mode, cb);
+    });
 }
-Mu* AttrFuncAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const AttrFuncAcr*>(acr);
-    return self->f(v, self->key).address();
+Mu* ChainAttrFuncAcr::_address (const Accessor* acr, Mu& v) {
+    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
+    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+        Mu* r = null;
+        self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
+            r = self->f(w, self->key).address();
+        });
+        return r;
+    }
+    else if (auto addr = self->outer->address(v)) {
+        return self->f(*addr, self->key).address();
+    }
+    else return null;
 }
-void AttrFuncAcr::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const AttrFuncAcr*>(acr);
-    self->~AttrFuncAcr();
+void ChainAttrFuncAcr::_destroy (Accessor* acr) noexcept {
+    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
+    self->outer->dec();
+    self->~ChainAttrFuncAcr();
 }
 
-Type ElemFuncAcr::_type (const Accessor* acr, Mu* v) {
+Type ChainElemFuncAcr::_type (const Accessor* acr, Mu* v) {
+    auto self = static_cast<const ChainElemFuncAcr*>(acr);
     if (!v) return Type();
-    auto self = static_cast<const ElemFuncAcr*>(acr);
-    return self->f(*v, self->index).type();
+    Type r;
+    self->outer->read(*v, [&r, self](Mu& w){
+        r = self->f(w, self->index).type();
+    });
+    return r;
 }
-void ElemFuncAcr::_access (
+void ChainElemFuncAcr::_access (
     const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
 ) {
-    auto self = static_cast<const ElemFuncAcr*>(acr);
-    self->f(v, self->index).access(mode, cb);
+    auto self = static_cast<const ChainElemFuncAcr*>(acr);
+    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
+        self->f(w, self->index).access(mode, cb);
+    });
 }
-Mu* ElemFuncAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const ElemFuncAcr*>(acr);
-    return self->f(v, self->index).address();
+Mu* ChainElemFuncAcr::_address (const Accessor* acr, Mu& v) {
+    auto self = static_cast<const ChainElemFuncAcr*>(acr);
+    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+        Mu* r = null;
+        self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
+            r = self->f(w, self->index).address();
+        });
+        return r;
+    }
+    else if (auto addr = self->outer->address(v)) {
+        return self->f(*addr, self->index).address();
+    }
+    else return null;
+}
+void ChainElemFuncAcr::_destroy (Accessor* acr) noexcept {
+    auto self = static_cast<const ChainElemFuncAcr*>(acr);
+    self->outer->dec();
+    self->~ChainElemFuncAcr();
 }
 
-Type DataFuncAcr::_type (const Accessor* acr, Mu* v) {
+Type ChainDataFuncAcr::_type (const Accessor* acr, Mu* v) {
+    auto self = static_cast<const ChainDataFuncAcr*>(acr);
     if (!v) return Type();
-    auto self = static_cast<const DataFuncAcr*>(acr);
-    return self->f(*v).type;
+    Type r;
+    self->outer->read(*v, [&r, self](Mu& w){
+        r = self->f(w).type;
+    });
+    return r;
 }
-void DataFuncAcr::_access (
-    const Accessor* acr, AccessMode, Mu& v, CallbackRef<void(Mu&)> cb
+void ChainDataFuncAcr::_access (
+    const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
 ) {
-    auto self = static_cast<const DataFuncAcr*>(acr);
-    auto data = self->f(v);
-    auto desc = DescriptionPrivate::get(data.type);
-    auto address = (Mu*)((char*)data.address + self->index * desc->cpp_size);
-    cb(*address);
+    auto self = static_cast<const ChainDataFuncAcr*>(acr);
+    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
+        Pointer data = self->f(w);
+        auto desc = DescriptionPrivate::get(data.type);
+        cb(*(Mu*)(
+            (char*)data.address + self->index * desc->cpp_size
+        ));
+    });
 }
-Mu* DataFuncAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const DataFuncAcr*>(acr);
-    auto data = self->f(v);
+Mu* ChainDataFuncAcr::_address (const Accessor* acr, Mu& v) {
+    auto self = static_cast<const ChainDataFuncAcr*>(acr);
+    Pointer data;
+    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+        self->outer->access(AccessMode::Read, v, [&data, self](Mu& w){
+            data = self->f(w);
+        });
+    }
+    else if (auto addr = self->outer->address(v)) {
+        data = self->f(*addr);
+    }
+    else return null;
     auto desc = DescriptionPrivate::get(data.type);
     return (Mu*)((char*)data.address + self->index * desc->cpp_size);
+}
+void ChainDataFuncAcr::_destroy (Accessor* acr) noexcept {
+    auto self = static_cast<const ChainDataFuncAcr*>(acr);
+    self->outer->dec();
+    self->~ChainDataFuncAcr();
 }
 
  // How do we compare dynamically-typed Accessors without adding an extra
@@ -212,20 +274,20 @@ bool operator== (const Accessor& a, const Accessor& b) {
         auto& bb = reinterpret_cast<const ChainAcr&>(b);
         return *aa.outer == *bb.outer && *aa.inner == *bb.inner;
     }
-    else if (a.vt == &AttrFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const AttrFuncAcr&>(a);
-        auto& bb = reinterpret_cast<const AttrFuncAcr&>(b);
-        return aa.f == bb.f && aa.key == bb.key;
+    else if (a.vt == &ChainAttrFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
+        auto& bb = reinterpret_cast<const ChainAttrFuncAcr&>(b);
+        return *aa.outer == *bb.outer && aa.f == bb.f && aa.key == bb.key;
     }
-    else if (a.vt == &ElemFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ElemFuncAcr&>(a);
-        auto& bb = reinterpret_cast<const ElemFuncAcr&>(b);
-        return aa.f == bb.f && aa.index == bb.index;
+    else if (a.vt == &ChainElemFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
+        auto& bb = reinterpret_cast<const ChainElemFuncAcr&>(b);
+        return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
     }
-    else if (a.vt == &DataFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const DataFuncAcr&>(a);
-        auto& bb = reinterpret_cast<const DataFuncAcr&>(b);
-        return aa.f == bb.f && aa.index == bb.index;
+    else if (a.vt == &ChainDataFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
+        auto& bb = reinterpret_cast<const ChainDataFuncAcr&>(b);
+        return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
     }
      // Other ACRs can have a diverse range of parameterized types, so comparing
      // their contents is not feasible.  Fortunately, they should all be
@@ -239,17 +301,33 @@ usize hash_acr (const Accessor& a) {
         auto& aa = reinterpret_cast<const ChainAcr&>(a);
         return hash_combine(hash_acr(*aa.outer), hash_acr(*aa.inner));
     }
-    else if (a.vt == &AttrFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const AttrFuncAcr&>(a);
+    else if (a.vt == &ChainAttrFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
         return hash_combine(
-            std::hash<AttrFunc<Mu>*>{}(aa.f),
+            hash_combine(
+                hash_acr(*aa.outer),
+                std::hash<AttrFunc<Mu>*>{}(aa.f)
+            ),
             std::hash<AnyString>{}(aa.key)
         );
     }
-    else if (a.vt == &ElemFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ElemFuncAcr&>(a);
+    else if (a.vt == &ChainElemFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
         return hash_combine(
-            std::hash<ElemFunc<Mu>*>{}(aa.f),
+            hash_combine(
+                hash_acr(*aa.outer),
+                std::hash<ElemFunc<Mu>*>{}(aa.f)
+            ),
+            std::hash<usize>{}(aa.index)
+        );
+    }
+    else if (a.vt == &ChainDataFuncAcr::_vt) {
+        auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
+        return hash_combine(
+            hash_combine(
+                hash_acr(*aa.outer),
+                std::hash<DataFunc<Mu>*>{}(aa.f)
+            ),
             std::hash<usize>{}(aa.index)
         );
     }

@@ -17,14 +17,13 @@ struct ChainAcr : Accessor {
     static constexpr AcrVT _vt = {&_type, &_access, &_address, null, &_destroy};
 };
 
- // TODO: these are always used as the inner acr in ChainAcr, so combine them so
- // only one allocation needs to be made instead of two.
-struct AttrFuncAcr : Accessor {
+struct ChainAttrFuncAcr : Accessor {
+    const Accessor* outer;
     AttrFunc<Mu>* f;
     AnyString key;
-    AttrFuncAcr (AttrFunc<Mu>* f, AnyString k) :
-        Accessor(&_vt), f(f), key(move(k))
-    { }
+    ChainAttrFuncAcr (const Accessor* o, AttrFunc<Mu>* f, AnyString k) :
+        Accessor(&_vt, o->flags), outer(o), f(f), key(move(k))
+    { outer->inc(); }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
@@ -32,27 +31,31 @@ struct AttrFuncAcr : Accessor {
     static constexpr AcrVT _vt = {&_type, &_access, &_address, null, &_destroy};
 };
 
-struct ElemFuncAcr : Accessor {
+struct ChainElemFuncAcr : Accessor {
+    const Accessor* outer;
     ElemFunc<Mu>* f;
     usize index;
-    ElemFuncAcr (ElemFunc<Mu>* f, usize i) :
-        Accessor(&_vt), f(f), index(i)
-    { }
+    ChainElemFuncAcr (const Accessor* o, ElemFunc<Mu>* f, usize i) :
+        Accessor(&_vt, o->flags), outer(o), f(f), index(i)
+    { outer->inc(); }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
+    static void _destroy (Accessor* acr) noexcept;
     static constexpr AcrVT _vt = {&_type, &_access, &_address};
 };
 
-struct DataFuncAcr : Accessor {
+struct ChainDataFuncAcr : Accessor {
+    const Accessor* outer;
     DataFunc<Mu>* f;
     usize index;
-    DataFuncAcr (DataFunc<Mu>* f, usize i) :
-        Accessor(&_vt), f(f), index(i)
-    { }
+    ChainDataFuncAcr (const Accessor* o, DataFunc<Mu>* f, usize i) :
+        Accessor(&_vt, o->flags), outer(o), f(f), index(i)
+    { outer->inc(); }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static Mu* _address (const Accessor* acr, Mu& v);
+    static void _destroy (Accessor* acr) noexcept;
     static constexpr AcrVT _vt = {&_type, &_access, &_address};
 };
 
