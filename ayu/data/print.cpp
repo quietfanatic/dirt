@@ -316,7 +316,8 @@ struct Printer {
             return pstr(p, "{}");
         }
 
-         // TODO: Decide what to do if both PREFER flags are set
+         // If both prefer_expanded and prefer_compact are set, I think the one
+         // who set prefer_expanded is more likely to have a good reason.
         bool expand = !(opts & PRETTY) ? false
                     : t.flags & TreeFlags::PreferExpanded ? true
                     : t.flags & TreeFlags::PreferCompact ? false

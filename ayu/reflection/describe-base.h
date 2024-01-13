@@ -331,13 +331,12 @@ struct _AYU_DescribeBase {
      //     implementation were unbelievably complicated, all just to save a few
      //     square brackets.
      //   - invisible: This elem will not be serialized during the to_tree
-     //     operation.  This will likely break your serialization round-trip
-     //     unless the invisible elem is on the end, because it will reorder
-     //     later attrs.  You probably want this elem to be optional or ignored
-     //     too.
+     //     operation.  This flag is ignored if there are any elements after
+     //     this one which are not invisible.  You probably want the optional or
+     //     ignore flags on this elem too.
      //   - ignore: This elem will not be written during the from_tree
-     //     operation.  This will likely break things unless the ignored elem is
-     //     on the end, becaue it will reorder later attrs.
+     //     operation.  This flag is ignored if there are any elements after
+     //     this one which don't have the ignore flag.
     template <class Acr>
     static constexpr auto elem (
         const Acr& accessor, in::AttrFlags = {}

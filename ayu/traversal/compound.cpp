@@ -52,8 +52,8 @@ struct TraverseGetKeys {
     ) {
         for (uint16 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
-             // TODO: discard invisible attrs?
             auto acr = attr->acr();
+            if (acr->attr_flags & AttrFlags::Invisible) continue;
             if (acr->attr_flags & AttrFlags::Include) {
                 trav_attr(trav, acr, attr->key, AccessMode::Read,
                     [this](const Traversal& child)
@@ -319,8 +319,10 @@ Reference item_maybe_attr (
 
 Reference item_attr (const Reference& item, const AnyString& key, LocationRef loc) {
     Reference r = TraverseAttr::start(item, key, loc);
-     // TODO: wrap with travloc
-    if (!r) raise_AttrNotFound(item.type(), key);
+    if (!r) {
+        try { raise_AttrNotFound(item.type(), key); }
+        catch (...) { rethrow_with_travloc(loc); }
+    }
     return r;
 }
 
@@ -345,7 +347,7 @@ struct TraverseGetLength {
     NOINLINE static usize traverse (Mu& item, Type type) {
         auto desc = DescriptionPrivate::get(type);
         if (auto elems = desc->elems()) {
-            return elems->n_elems;
+            return elems->chop_flag(AttrFlags::Invisible);
         }
         else if (auto acr = desc->length_acr()) {
             usize len;
@@ -391,12 +393,7 @@ struct TraverseSetLength {
     NOINLINE static void traverse (Mu& item, Type type, usize len) {
         auto desc = DescriptionPrivate::get(type);
         if (auto elems = desc->elems()) {
-            usize min = elems->n_elems;
-             // Scan backwards for optional elements.  TODO: this could be done
-             // at compile-time.
-            while (min > 0 &&
-                elems->elem(min-1)->acr()->attr_flags & AttrFlags::Optional
-            ) min -= 1;
+            usize min = elems->chop_flag(AttrFlags::Optional);
             if (len < min || len > elems->n_elems) {
                 raise_LengthRejected(type, min, elems->n_elems, len);
             }
@@ -535,8 +532,10 @@ Reference item_maybe_elem (
 
 Reference item_elem (const Reference& item, usize index, LocationRef loc) {
     Reference r = TraverseElem::start(item, index, loc);
-     // TODO: wrap with travloc
-    if (!r) raise_ElemNotFound(item.type(), index);
+    if (!r) {
+        try { raise_ElemNotFound(item.type(), index); }
+        catch (...) { rethrow_with_travloc(loc); }
+    }
     return r;
 }
 

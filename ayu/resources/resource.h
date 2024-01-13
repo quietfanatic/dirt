@@ -89,7 +89,7 @@ struct Resource {
     Resource (const IRI& name);
      // Takes an IRI reference relative to the current resource if there is one.
     Resource (Str name);
-     // Too long of a conversion chain for C++ lol
+     // Too long of a conversion chain for C++ I guess
     template <usize n>
     Resource (const char (& name)[n]) : Resource(Str(name)) { }
      // Creates the resource already loaded with the given data, without reading

@@ -82,8 +82,7 @@ Mu* ReferenceFuncAcr1::_address (const Accessor* acr, Mu& from) {
     auto self = static_cast<const ReferenceFuncAcr2<Mu>*>(acr);
     auto ref = self->f(from);
     expect(ref.type());
-     // TODO: expect this
-    return ref.address();
+    return expect(ref.address());
 }
 
 ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :

@@ -20,7 +20,7 @@ struct Description : ComparableAddress {
     const std::type_info* cpp_type = null;
     uint32 cpp_size = 0;
     uint32 cpp_align = 0;
-     // TODO: Try again to store generated names here
+     // Empty if the name needs to be dynamically generated.
     StaticString name;
 
      // Do some property calculations ahead of time

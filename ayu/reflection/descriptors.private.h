@@ -62,6 +62,13 @@ struct ElemsDcrPrivate : ElemsDcr<Mu> {
         uint16 offset = (&n_elems)[i+1];
         return (const ElemDcrPrivate*)((char*)this + offset);
     }
+     // Take elements off the end that have the given flag (e.g. optional or
+     // invisible).  TODO: this could be done at compile time
+    uint16 chop_flag (AttrFlags flag) const {
+        uint16 r = n_elems;
+        while (r && elem(r-1)->acr()->attr_flags & flag) r--;
+        return r;
+    }
 };
 
 struct DescriptionPrivate : DescriptionFor<Mu> {

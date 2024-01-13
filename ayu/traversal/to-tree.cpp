@@ -222,13 +222,10 @@ struct TraverseToTree {
     void use_elems (
         Tree& r, const Traversal& trav, const ElemsDcrPrivate* elems
     ) {
-        auto array = UniqueArray<Tree>(Capacity(elems->n_elems));
-        for (uint i = 0; i < elems->n_elems; i++) {
+        auto len = elems->chop_flag(AttrFlags::Invisible);
+        auto array = UniqueArray<Tree>(Capacity(len));
+        for (uint i = 0; i < len; i++) {
             auto acr = elems->elem(i)->acr();
-             // This probably should never happen unless the elems are on
-             // the end and also optional.  TODO: Pop invisible elems off
-             // the end before allocating array.
-            if (acr->attr_flags & AttrFlags::Invisible) continue;
             Tree& elem = array.emplace_back_expect_capacity(Tree());
             trav_elem(trav, acr, i, AccessMode::Read,
                 [&elem](const Traversal& child){ traverse(elem, child); }

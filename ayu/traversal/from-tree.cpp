@@ -114,10 +114,14 @@ struct TraverseFromTree {
         expect(ctx.swizzle_ops);
         ctx.swizzle_ops.consume([](SwizzleOp&& op){
             PushBaseLocation pbl (op.loc);
-             // TODO: wrap error messages
-            op.item.access(AccessMode::Modify, [&op](Mu& v){
-                op.f(v, op.tree);
-            });
+            try {
+                op.item.access(AccessMode::Modify, [&op](Mu& v){
+                    op.f(v, op.tree);
+                });
+            }
+            catch (...) {
+                rethrow_with_travloc(op.loc);
+            }
         });
          // Swizzling might add more swizzle ops; this will happen if we're
          // swizzling a pointer which points to a separate resource; that
@@ -130,7 +134,12 @@ struct TraverseFromTree {
         expect(ctx.init_ops);
         ctx.init_ops.consume([](InitOp&& op){
             PushBaseLocation pbl (op.loc);
-            op.item.access(AccessMode::Modify, *op.f);
+            try {
+                op.item.access(AccessMode::Modify, *op.f);
+            }
+            catch (...) {
+                rethrow_with_travloc(op.loc);
+            }
         });
          // Initting might add more swizzle or init ops.  It'd be weird, but
          // it's allowed for an init() to load another resource.
@@ -508,18 +517,14 @@ struct TraverseFromTree {
         const Traversal& trav, const Tree& tree, const ElemsDcrPrivate* elems
     ) {
          // Check whether length is acceptable
-        usize min = elems->n_elems;
-        while (min &&
-            elems->elem(min-1)->acr()->attr_flags & AttrFlags::Optional
-        ) {
-            min -= 1;
-        }
+        usize min = elems->chop_flag(AttrFlags::Optional);
         expect(tree.form == Form::Array);
         auto array = Slice<Tree>(tree);
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }
-        for (usize i = 0; i < array.size(); i++) {
+        usize nonignored = elems->chop_flag(AttrFlags::Ignore);
+        for (usize i = 0; i < nonignored; i++) {
             const Tree& child_tree = array[i];
             trav_elem(trav, elems->elem(i)->acr(), i, AccessMode::Write,
                 [&child_tree](const Traversal& child)

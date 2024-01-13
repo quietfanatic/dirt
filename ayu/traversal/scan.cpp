@@ -102,7 +102,7 @@ struct TraverseScan {
         if (cb(trav, loc)) return true;
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
-             // TODO: discard invisible attrs?
+             // Not discarding invisible attrs for scan purposes.
             auto acr = attr->acr();
              // Behave as though all included attrs are included (collapse the
              // location segment for the included attr).
