@@ -17,6 +17,8 @@ struct ChainAcr : Accessor {
     static constexpr AcrVT _vt = {&_type, &_access, &_address, null, &_destroy};
 };
 
+ // TODO: these are always used as the inner acr in ChainAcr, so combine them so
+ // only one allocation needs to be made instead of two.
 struct AttrFuncAcr : Accessor {
     AttrFunc<Mu>* f;
     AnyString key;

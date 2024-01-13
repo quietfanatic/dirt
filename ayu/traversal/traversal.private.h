@@ -28,6 +28,8 @@ enum TraversalOp : uint8 {
 struct Traversal {
     const Traversal* parent;
     const DescriptionPrivate* desc;
+     // This address is not guaranteed to be permanently valid unless
+     // addressable is set.
     Mu* address;
      // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
      // track of it here.
@@ -36,7 +38,7 @@ struct Traversal {
      // non-pass-through item is encountered, the traversal's callback will not
      // be called.
     bool only_addressable;
-     // Parent has collapse_optional flag set
+     // Attr has collapse_optional flag set
     bool collapse_optional;
      // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.

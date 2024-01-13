@@ -242,8 +242,8 @@ struct TraverseFromTree {
         else if (len + 1 <= stack_capacity_2 / 4) {
             use_attrs_stack<stack_capacity_2>(trav, tree, attrs);
         }
-         // Linux has a larger stack limit than other OSes so it's safe to use
-         // more stack space.  Linux: 8M, Windows: 1M, MacOS: 512K
+         // Linux has a larger default stack limit than other OSes so it's safe
+         // to use more stack space.  Linux: 8M, Windows: 1M, MacOS: 512K
 #ifdef __linux__
         else if (len + 1 <= stack_capacity_3 / 4) {
             use_attrs_stack<stack_capacity_3>(trav, tree, attrs);

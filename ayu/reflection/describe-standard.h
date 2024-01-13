@@ -46,11 +46,8 @@ AYU_DESCRIBE_TEMPLATE(
             else v.reset();
         }
     )),
-    desc::computed_elems([](std::optional<T>& v, uni::usize i){
-        if (i < !!v) {
-            return ayu::Reference(std::to_address(v));
-        }
-        else return ayu::Reference();
+    desc::contiguous_elems([](std::optional<T>& v){
+        return ayu::Pointer(std::to_address(v));
     })
 )
 
@@ -79,11 +76,8 @@ AYU_DESCRIBE_TEMPLATE(
             else v.reset();
         }
     )),
-    desc::computed_elems([](std::unique_ptr<T>& v, uni::usize i){
-        if (i < !!v) {
-            return ayu::Reference(std::to_address(v));
-        }
-        else return ayu::Reference();
+    desc::contiguous_elems([](std::unique_ptr<T>& v){
+        return ayu::Pointer(std::to_address(v));
     })
 )
 
@@ -100,8 +94,8 @@ AYU_DESCRIBE_TEMPLATE(
     desc::length(desc::template value_methods<
         uni::usize, &uni::UniqueArray<T>::size, &uni::UniqueArray<T>::resize
     >()),
-    desc::computed_elems([](uni::UniqueArray<T>& v, uni::usize i){
-        return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
+    desc::contiguous_elems([](uni::UniqueArray<T>& v){
+        return ayu::Pointer(v.data());
     })
 )
 AYU_DESCRIBE_TEMPLATE(
@@ -116,8 +110,8 @@ AYU_DESCRIBE_TEMPLATE(
     desc::length(desc::template value_methods<
         uni::usize, &uni::AnyArray<T>::size, &uni::AnyArray<T>::resize
     >()),
-    desc::computed_elems([](uni::AnyArray<T>& v, uni::usize i){
-        return i < v.size() ? ayu::Reference(&v[i]) : ayu::Reference();
+    desc::contiguous_elems([](uni::AnyArray<T>& v){
+        return ayu::Pointer(v.data());
     })
 )
 
@@ -305,9 +299,8 @@ AYU_DESCRIBE_TEMPLATE(
         return uni::StaticString(r);
     }),
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::computed_elems([](T(& v )[n], uni::usize i){
-        if (i < n) return ayu::Reference(&v[i]);
-        else return ayu::Reference();
+    desc::contiguous_elems([](T(& v )[n]){
+        return ayu::Pointer(&v[0]);
     })
 )
 
@@ -357,9 +350,8 @@ AYU_DESCRIBE_TEMPLATE(
     }),
      // Allow accessing individual elements like an array
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::computed_elems([](char(& v )[n], uni::usize i){
-        if (i < n) return ayu::Reference(&v[i]);
-        else return ayu::Reference();
+    desc::contiguous_elems([](char(& v )[n]){
+        return ayu::Pointer(&v[0]);
     })
 )
 
@@ -375,9 +367,8 @@ AYU_DESCRIBE_TEMPLATE(
         return uni::StaticString(r);
     }),
     desc::length(desc::template constant<uni::usize>(n)),
-    desc::computed_elems([](std::array<T, n>& v, uni::usize i){
-        if (i < n) return ayu::Reference(&v[i]);
-        else return ayu::Reference();
+    desc::contiguous_elems([](std::array<T, n>& v){
+        return ayu::Pointer(v.data());
     })
 )
 

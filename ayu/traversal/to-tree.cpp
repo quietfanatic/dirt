@@ -112,8 +112,8 @@ struct TraverseToTree {
             );
             value.flags |= attr->acr()->tree_flags();
         }
-         // Then if there are included attrs, rebuild the object while
-         // flattening them.
+         // Then if there are included or collapsed attrs, rebuild the object
+         // while flattening them.
         if (trav.desc->flags & Description::SHOULD_REBUILD_OBJECT) {
              // Determine length for preallocation
             usize len = object.size();
