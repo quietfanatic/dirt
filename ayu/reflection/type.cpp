@@ -45,11 +45,15 @@ void Type::destroy (Mu* p) const {
 
 void* Type::allocate () const noexcept {
     auto desc = DescriptionPrivate::get(*this);
-    return expect(std::aligned_alloc(desc->cpp_align, desc->cpp_size));
+    void* r = operator new(
+        desc->cpp_size, std::align_val_t(desc->cpp_align), std::nothrow
+    );
+    return expect(r);
 }
 
 void Type::deallocate (void* p) const noexcept {
-    std::free(p);
+    auto desc = DescriptionPrivate::get(*this);
+    operator delete(p, desc->cpp_size, std::align_val_t(desc->cpp_align));
 }
 
 Mu* Type::default_new () const {

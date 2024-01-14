@@ -87,9 +87,8 @@ struct Type {
      // allocated.
     void destroy (Mu*) const;
      // Allocate a buffer appropriate for containing an instance of this type.
-     // It is not specified whether this uses new or malloc, so if you use this
-     // to allocate space for an object, you must use deallocate() to deallocate
-     // it.
+     // This uses operator new(size, align, nothrow), so either use
+     // type.deallocate(p) or operator delete(p, align) to delete the pointer.
     void* allocate () const noexcept;
      // Deallocate a buffer previously allocated with allocate()
     void deallocate (void*) const noexcept;
