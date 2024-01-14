@@ -321,22 +321,21 @@ struct _AYU_DescribeBase {
      // combination of:
      //   - optional: This element does not need to be provided when
      //     deserializing.  If it is not provided, `accessor`'s write operation
-     //     will not be called (normally LengthRejected would be thrown).  This
-     //     flag is ignored if there are any elements after this one which are
-     //     not optional (this might be a compile-time error later).
+     //     will not be called (normally LengthRejected would be thrown).  All
+     //     optional elements must be on the end of the elems list.
      //   - include: Unlike with attrs, this doesn't do much; all it does is
-     //     allow casting between this item and the element.  Earlier prototypes
+     //     allow casting between this item and the element.  Earlier versions
      //     of this library allowed included elements to be flattened into the
      //     array representation of the parent item, but the behavior and
      //     implementation were unbelievably complicated, all just to save a few
      //     square brackets.
      //   - invisible: This elem will not be serialized during the to_tree
-     //     operation.  This flag is ignored if there are any elements after
-     //     this one which are not invisible.  You probably want the optional or
-     //     ignore flags on this elem too.
+     //     operation.  You probably want the optional or ignore flags on this
+     //     elem too.  There can't be any non-invisible elems following the
+     //     invisible elems.
      //   - ignore: This elem will not be written during the from_tree
-     //     operation.  This flag is ignored if there are any elements after
-     //     this one which don't have the ignore flag.
+     //     operation.  If any elem has the ignore flag, all elems after it must
+     //     also have the ignore flag.
     template <class Acr>
     static constexpr auto elem (
         const Acr& accessor, in::AttrFlags = {}

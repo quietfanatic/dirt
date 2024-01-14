@@ -31,6 +31,9 @@ static void attrs_cannot_be_combined_with_keys_in_AYU_DESCRIBE () { }
 static void keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
+static void cannot_have_non_optional_elem_after_optional_elem_in_AYU_DESCRIBE () { }
+static void cannot_have_non_invisible_elem_after_invisible_elem_in_AYU_DESCRIBE () { }
+static void cannot_have_non_ignore_elem_after_ignore_elem_in_AYU_DESCRIBE () { }
 static void elems_cannot_be_combined_with_length_in_AYU_DESCRIBE () { }
 static void cannot_have_length_without_computed_or_contiguous_elems_in_AYU_DESCRIBE () { }
 static void cannot_have_both_computed_and_contiguous_elems_in_AYU_DESCRIBE () { }
@@ -334,11 +337,32 @@ struct ElemsDcrWith : ElemsDcr<T> {
         ElemsDcr<T>{{}, uint16(sizeof...(Elems))},
         elems(es...)
     {
-        for (uint i = 0; i < sizeof...(Elems); i++) {
-            offsets[i] = static_cast<const ComparableAddress*>(
-                elems.template get<ElemDcr<T>>(i)
-            ) - static_cast<const ComparableAddress*>(this);
-        }
+        bool have_optional = false;
+        bool have_invisible = false;
+        bool have_ignore = false;
+        uint16 i = 0;
+        elems.for_each([&]<class Elem>(const Elem& elem){
+            if (elem.acr.attr_flags & AttrFlags::Optional) {
+                have_optional = true;
+            }
+            else if (have_optional) {
+                cannot_have_non_optional_elem_after_optional_elem_in_AYU_DESCRIBE();
+            }
+            if (elem.acr.attr_flags & AttrFlags::Invisible) {
+                have_invisible = true;
+            }
+            else if (have_invisible) {
+                cannot_have_non_invisible_elem_after_invisible_elem_in_AYU_DESCRIBE();
+            }
+            if (elem.acr.attr_flags & AttrFlags::Ignore) {
+                have_ignore = true;
+            }
+            else if (have_ignore) {
+                cannot_have_non_ignore_elem_after_ignore_elem_in_AYU_DESCRIBE();
+            }
+            offsets[i++] = static_cast<const ComparableAddress*>(&elem)
+                         - static_cast<const ComparableAddress*>(this);
+        });
     }
 };
 
