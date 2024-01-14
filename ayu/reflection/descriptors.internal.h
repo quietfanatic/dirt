@@ -33,7 +33,7 @@ static void elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE () { }
 static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
 static void cannot_have_non_optional_elem_after_optional_elem_in_AYU_DESCRIBE () { }
 static void cannot_have_non_invisible_elem_after_invisible_elem_in_AYU_DESCRIBE () { }
-static void cannot_have_non_ignore_elem_after_ignore_elem_in_AYU_DESCRIBE () { }
+static void cannot_have_non_ignored_elem_after_ignored_elem_in_AYU_DESCRIBE () { }
 static void elems_cannot_be_combined_with_length_in_AYU_DESCRIBE () { }
 static void cannot_have_length_without_computed_or_contiguous_elems_in_AYU_DESCRIBE () { }
 static void cannot_have_both_computed_and_contiguous_elems_in_AYU_DESCRIBE () { }
@@ -339,7 +339,7 @@ struct ElemsDcrWith : ElemsDcr<T> {
     {
         bool have_optional = false;
         bool have_invisible = false;
-        bool have_ignore = false;
+        bool have_ignored = false;
         uint16 i = 0;
         elems.for_each([&]<class Elem>(const Elem& elem){
             if (elem.acr.attr_flags & AttrFlags::Optional) {
@@ -354,11 +354,11 @@ struct ElemsDcrWith : ElemsDcr<T> {
             else if (have_invisible) {
                 cannot_have_non_invisible_elem_after_invisible_elem_in_AYU_DESCRIBE();
             }
-            if (elem.acr.attr_flags & AttrFlags::Ignore) {
-                have_ignore = true;
+            if (elem.acr.attr_flags & AttrFlags::Ignored) {
+                have_ignored = true;
             }
-            else if (have_ignore) {
-                cannot_have_non_ignore_elem_after_ignore_elem_in_AYU_DESCRIBE();
+            else if (have_ignored) {
+                cannot_have_non_ignored_elem_after_ignored_elem_in_AYU_DESCRIBE();
             }
             offsets[i++] = static_cast<const ComparableAddress*>(&elem)
                          - static_cast<const ComparableAddress*>(this);

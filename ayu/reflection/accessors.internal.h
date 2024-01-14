@@ -51,7 +51,7 @@ enum AttrFlags : uint8 {
      // If this is set, the attr will not be serialized in to_tree.
     Invisible = 0x4,
      // If this is set, the attr will not be deserialized in from_tree.
-    Ignore = 0x8,
+    Ignored = 0x8,
      // If this is set, map an empty object or empty array to the attribute
      // being missing from the object.
     CollapseEmpty = 0x10,

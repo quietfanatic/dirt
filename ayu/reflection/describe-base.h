@@ -219,10 +219,10 @@ struct _AYU_DescribeBase {
      //     without `key`.  If include is specified, then optional is ignored.
      //   - invisible: This attribute will not be read when serializing, but it
      //     will still be written when deserializing (unless it's also optional
-     //     or ignore, which it probably should be).  If your attribute has a
+     //     or ignored, which it probably should be).  If your attribute has a
      //     readonly accessor, you probably want to make it invisible; otherwise
      //     it will make the whole item readonly.
-     //   - ignore: This attribute will not be written when deserializing, but
+     //   - ignored: This attribute will not be written when deserializing, but
      //     it will still be read when serializing (unless it's also invisible,
      //     which it probably should be).  Implies optional.  Use this if you
      //     have an obsolete attribute that no longer has meaning.
@@ -330,12 +330,12 @@ struct _AYU_DescribeBase {
      //     implementation were unbelievably complicated, all just to save a few
      //     square brackets.
      //   - invisible: This elem will not be serialized during the to_tree
-     //     operation.  You probably want the optional or ignore flags on this
-     //     elem too.  There can't be any non-invisible elems following the
-     //     invisible elems.
-     //   - ignore: This elem will not be written during the from_tree
-     //     operation.  If any elem has the ignore flag, all elems after it must
-     //     also have the ignore flag.
+     //     operation.  You probably want optional or ignored on this elem too.
+     //     There can't be any non-invisible elems following the invisible
+     //     elems.
+     //   - ignored: This elem will not be written during the from_tree
+     //     operation.  If any elem has the ignored flag, all elems after it
+     //     must also have the ignored flag.
     template <class Acr>
     static constexpr auto elem (
         const Acr& accessor, in::AttrFlags = {}
@@ -408,10 +408,10 @@ struct _AYU_DescribeBase {
      //     operation.  If an accessor doesn't support the write operation, it
      //     is readonly by default and this flag is ignored.  If you have an
      //     attr or elem with a readonly accessor, the attr or elem should be
-     //     flagged with invisible|optional or ignore, otherwise the parent item
-     //     will not survive a round-trip serialize-deserialize.  This doesn't
-     //     matter if the parent item is only ever going to be serialized and
-     //     never deserialized.
+     //     flagged with invisible|optional or invisible|ignored, otherwise the
+     //     parent item will not survive a round-trip serialize-deserialize.
+     //     This doesn't matter if the parent item is only ever going to be
+     //     serialized and never deserialized.
      //   - prefer_hex: The item this accessor points to prefers to be
      //     serialized in hexadecimal format if it's a number.
      //   - prefer_compact: The item this accessor points to prefers to be
@@ -692,7 +692,7 @@ struct _AYU_DescribeBase {
     static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
-    static constexpr in::AttrFlags ignore = in::AttrFlags::Ignore;
+    static constexpr in::AttrFlags ignored = in::AttrFlags::Ignored;
     static constexpr in::AttrFlags collapse_empty = in::AttrFlags::CollapseEmpty;
     static constexpr in::AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
     static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;

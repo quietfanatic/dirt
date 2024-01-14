@@ -366,7 +366,7 @@ struct TraverseFromTree {
             ) {
                 auto& [key, value] = tree.data.as_object_ptr[j];
                 if (key == attr->key) {
-                    if (!(flags & AttrFlags::Ignore)) {
+                    if (!(flags & AttrFlags::Ignored)) {
                          // TODO: avoid refcount for non-collapsed case?
                         auto real_value = flags & AttrFlags::CollapseOptional
                             ? Tree::array(value)
@@ -390,7 +390,7 @@ struct TraverseFromTree {
                     claim_attrs(child, tree, next_list);
                 });
             }
-            else if (flags & (AttrFlags::Optional|AttrFlags::Ignore)) {
+            else if (flags & (AttrFlags::Optional|AttrFlags::Ignored)) {
                  // Leave the attribute in its default-constructed state.
             }
             else if (flags & (AttrFlags::CollapseEmpty|AttrFlags::CollapseOptional)) {
@@ -523,7 +523,7 @@ struct TraverseFromTree {
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }
-        usize nonignored = elems->chop_flag(AttrFlags::Ignore);
+        usize nonignored = elems->chop_flag(AttrFlags::Ignored);
         for (usize i = 0; i < nonignored; i++) {
             const Tree& child_tree = array[i];
             trav_elem(trav, elems->elem(i)->acr(), i, AccessMode::Write,
