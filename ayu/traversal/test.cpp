@@ -47,9 +47,6 @@ namespace ayu::test {
     struct IncludeTest : BaseTest {
         int d;
     };
-    struct IncludeOptionalTest : BaseTest {
-        int d;
-    };
 
     struct ElemTest {
         float x;
@@ -131,12 +128,6 @@ AYU_DESCRIBE(ayu::test::IncludeTest,
     attrs(
         attr("BaseTest", base<BaseTest>(), include),
         attr("d", &IncludeTest::d)
-    )
-)
-AYU_DESCRIBE(ayu::test::IncludeOptionalTest,
-    attrs(
-        attr("BaseTest", base<BaseTest>(), include|optional),
-        attr("d", &IncludeOptionalTest::d)
     )
 )
 AYU_DESCRIBE(ayu::test::ElemTest,
@@ -321,17 +312,6 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     Tree from_tree_it2 = tree_from_string("{d:51 BaseTest:{c:41 MemberTest:{b:31 a:21}}}");
     item_from_tree(&it, from_tree_it2);
     is(it.b, 31, "Include works when not collapsed");
-
-    auto iot = IncludeOptionalTest{{{23, 24}, 25}, 26};
-    throws_code<e_AttrMissing>([&]{
-        item_from_tree(&iot, tree_from_string("{d:44}"));
-    }, "Optional doesn't work with include");
-    throws_code<e_AttrMissing>([&]{
-        item_from_tree(&iot, tree_from_string("{d:34 MemberTest:{a:56 b:67}}"));
-    }, "Optional doesn't work with include");
-    throws_code<e_AttrMissing>([&]{
-        item_from_tree(&iot, tree_from_string("{d:34 c:78}"));
-    }, "Optional doesn't work with include");
 
     auto et = ElemTest{0.5, 1.5, 2.5};
     Tree ett = item_to_tree(&et);

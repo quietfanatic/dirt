@@ -204,7 +204,8 @@ struct _AYU_DescribeBase {
      // Tree, its value will be passed to `accessor`'s write operation.
      // `accessor` must be the output of one of the accessor functions (see the
      // ACCESSORS section below), or a pointer-to-data-member as a shortcut for
-     // the member() accessor.  `flags` can be any |ed combination of:
+     // the member() accessor.  Each attr can also take the following flags,
+     // combined with operator|.
      //   - optional: This attribute does not need to be provided when
      //     deserializing.  If it is not provided, `accessor`'s write operation
      //     will not be called (normally AttrMissing would be thrown), and
@@ -216,7 +217,7 @@ struct _AYU_DescribeBase {
      //     attributes will also be merged in).  When deserializing, the Tree
      //     may either ignore inheritance and provide this attribute with `key`,
      //     or it may provide all of this attribute's attributes directly
-     //     without `key`.  If include is specified, then optional is ignored.
+     //     without `key`.  Cannot be combined with optional.
      //   - invisible: This attribute will not be read when serializing, but it
      //     will still be written when deserializing (unless it's also optional
      //     or ignored, which it probably should be).  If your attribute has a
@@ -228,12 +229,15 @@ struct _AYU_DescribeBase {
      //     have an obsolete attribute that no longer has meaning.
      //   - collapse_empty: If this attribute's value serializes to an empty
      //     object or array, just leave the attribute out of this object
-     //     entirely.
+     //     entirely.  Conversely, if the attribute is missing when
+     //     deserializing, deserialize it from an empty object or array
+     //     (whichever it would serialize to by default).  This flag cannot be
+     //     combined with optional, include, or collapse_optional.
      //   - collapse_optional: Only for item types that serialize to an array of
-     //     0 or 1 elements (such as std::optional).  An empty array corresponds
-     //     to the attribute being entirely missing from the object, and an
-     //     array of one element corresponds to the attribute's value being that
-     //     one element.  In other words,
+     //     0 or 1 elements (such as std::optional and std::unique_ptr).  An
+     //     empty array corresponds to the attribute being entirely missing from
+     //     the object, and an array of one element corresponds to the
+     //     attribute's value being that one element.  In other words,
      //     { // without collapse_optional
      //         opt_present: [foobar]
      //         opt_absent: []
@@ -242,7 +246,8 @@ struct _AYU_DescribeBase {
      //         opt_present: foobar
      //     }
      //     If the item serializes to an non-array or an array of more than one
-     //     element, an exception will be thrown.
+     //     element, an exception will be thrown.  This flag cannot be combined
+     //     with optional, include, or collapse_empty.
     template <class Acr>
     static constexpr auto attr (
         StaticString key,

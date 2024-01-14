@@ -1,6 +1,10 @@
 
 namespace ayu {
 
+static void ERROR_conflicting_flags_on_attr () { }
+static void ERROR_elem_cannot_have_collapse_empty_flag () { }
+static void ERROR_elem_cannot_have_collapse_optional_flag () { }
+
 template <class T>
 constexpr auto _AYU_DescribeBase<T>::name (StaticString(* f )()) {
     return in::NameDcr<T>{{}, f};
@@ -100,6 +104,13 @@ template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::attr (
     StaticString key, const Acr& acr, in::AttrFlags flags
 ) {
+    uint count = !!(flags & in::AttrFlags::Optional)
+               + !!(flags & in::AttrFlags::Include)
+               + !!(flags & in::AttrFlags::CollapseEmpty)
+               + !!(flags & in::AttrFlags::CollapseOptional);
+    if (count > 1) {
+        ERROR_conflicting_flags_on_attr();
+    }
      // Implicit member().
     if constexpr (std::is_member_object_pointer_v<Acr>) {
         return attr(key, _AYU_DescribeBase<T>::member(acr), flags);
@@ -124,6 +135,12 @@ template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::elem (
     const Acr& acr, in::AttrFlags flags
 ) {
+    if (flags & in::AttrFlags::CollapseEmpty) {
+        ERROR_elem_cannot_have_collapse_empty_flag();
+    }
+    if (flags & in::AttrFlags::CollapseOptional) {
+        ERROR_elem_cannot_have_collapse_optional_flag();
+    }
     if constexpr (std::is_member_object_pointer_v<Acr>) {
         return elem(_AYU_DescribeBase<T>::member(acr), flags);
     }

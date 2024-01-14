@@ -23,22 +23,20 @@ namespace ayu::in {
 // offsets from the beginning of the description object.
 
 ///// SILLY COMPILE-TIME ERROR MESSAGES
-
+} namespace ayu {
 template <class T>
-static void duplicate_descriptors_in_AYU_DESCRIBE () { }
-static void element_in_AYU_DESCRIBE_is_not_a_descriptor_for_this_type () { }
-static void attrs_cannot_be_combined_with_keys_in_AYU_DESCRIBE () { }
-static void keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE () { }
-static void elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE () { }
-static void elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE () { }
-static void cannot_have_non_optional_elem_after_optional_elem_in_AYU_DESCRIBE () { }
-static void cannot_have_non_invisible_elem_after_invisible_elem_in_AYU_DESCRIBE () { }
-static void cannot_have_non_ignored_elem_after_ignored_elem_in_AYU_DESCRIBE () { }
-static void elems_cannot_be_combined_with_length_in_AYU_DESCRIBE () { }
-static void cannot_have_length_without_computed_or_contiguous_elems_in_AYU_DESCRIBE () { }
-static void cannot_have_both_computed_and_contiguous_elems_in_AYU_DESCRIBE () { }
-static void cannot_have_computed_or_contiguous_elems_without_length_in_AYU_DESCRIBE () { }
-
+static void ERROR_duplicate_descriptors () { }
+static void ERROR_element_is_not_a_descriptor_for_this_type () { }
+static void ERROR_attrs_cannot_be_combined_with_keys () { }
+static void ERROR_keys_and_computed_attrs_must_be_together () { }
+static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
+static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
+static void ERROR_cannot_have_non_ignored_elem_after_ignored_elem () { }
+static void ERROR_elems_cannot_be_combined_with_length () { }
+static void ERROR_cannot_have_length_without_computed_or_contiguous_elems () { }
+static void ERROR_cannot_have_both_computed_and_contiguous_elems () { }
+static void ERROR_cannot_have_computed_or_contiguous_elems_without_length () { }
+} namespace ayu::in {
 ///// MEMORY LAYOUT
 
  // We could use [[no_unique_address]] but this is more aggressive at optimizing
@@ -273,7 +271,10 @@ struct AttrDcrWith : AttrDcr<T> {
     constexpr AttrDcrWith (StaticString k, const Acr& a) :
         AttrDcr<T>{{}, k},
         acr(constexpr_acr(a))
-    { }
+    {
+         // Note that we can't validate flags here because they haven't been set
+         // yet.  Do it in attr() in describe-base.inline.h instead.
+    }
 };
 
 template <class T>
@@ -315,12 +316,8 @@ struct ElemDcrWith : ElemDcr<T> {
     constexpr ElemDcrWith (const Acr& a) :
         acr(constexpr_acr(a))
     {
-        if (acr.attr_flags & AttrFlags::CollapseEmpty) {
-            elem_cannot_have_collapse_empty_flag_in_AYU_DESCRIBE();
-        }
-        if (acr.attr_flags & AttrFlags::CollapseOptional) {
-            elem_cannot_have_collapse_optional_flag_in_AYU_DESCRIBE();
-        }
+         // Note that we can't validate flags here because they haven't been set
+         // yet.  Instead do it in elem() in describe-base.inline.h
     }
 };
 
@@ -346,19 +343,19 @@ struct ElemsDcrWith : ElemsDcr<T> {
                 have_optional = true;
             }
             else if (have_optional) {
-                cannot_have_non_optional_elem_after_optional_elem_in_AYU_DESCRIBE();
+                ERROR_cannot_have_non_optional_elem_after_optional_elem();
             }
             if (elem.acr.attr_flags & AttrFlags::Invisible) {
                 have_invisible = true;
             }
             else if (have_invisible) {
-                cannot_have_non_invisible_elem_after_invisible_elem_in_AYU_DESCRIBE();
+                ERROR_cannot_have_non_invisible_elem_after_invisible_elem();
             }
             if (elem.acr.attr_flags & AttrFlags::Ignored) {
                 have_ignored = true;
             }
             else if (have_ignored) {
-                cannot_have_non_ignored_elem_after_ignored_elem_in_AYU_DESCRIBE();
+                ERROR_cannot_have_non_ignored_elem_after_ignored_elem();
             }
             offsets[i++] = static_cast<const ComparableAddress*>(&elem)
                          - static_cast<const ComparableAddress*>(this);
@@ -473,20 +470,20 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
     for_variadic([&]<class Dcr>(const Dcr& dcr){
         if constexpr (std::is_base_of_v<DefaultConstructDcr<T>, Dcr>) {
             if (header.default_construct != default_construct_p<T>) {
-                duplicate_descriptors_in_AYU_DESCRIBE<Dcr>();
+                ERROR_duplicate_descriptors<Dcr>();
             }
             header.default_construct = dcr.f;
         }
         else if constexpr (std::is_base_of_v<DestroyDcr<T>, Dcr>) {
             if (header.destroy != destroy_p<T>) {
-                duplicate_descriptors_in_AYU_DESCRIBE<Dcr>();
+                ERROR_duplicate_descriptors<Dcr>();
             }
             header.destroy = dcr.f;
         }
         else if constexpr (std::is_base_of_v<NameDcr<T>, Dcr>) {
 #define AYU_APPLY_OFFSET(dcr_type, dcr_name) \
             if (header.dcr_name##_offset) { \
-                duplicate_descriptors_in_AYU_DESCRIBE<Dcr>(); \
+                ERROR_duplicate_descriptors<Dcr>(); \
             } \
             header.dcr_name##_offset = \
                 desc.template get<dcr_type<T>>(0)->get_offset(header);
@@ -562,32 +559,32 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
         }
 #undef AYU_APPLY_OFFSET
         else {
-            element_in_AYU_DESCRIBE_is_not_a_descriptor_for_this_type();
+            ERROR_element_is_not_a_descriptor_for_this_type();
         }
     }, dcrs...);
     if (header.attrs_offset &&
         (header.keys_offset || header.computed_attrs_offset)
     ) {
-        attrs_cannot_be_combined_with_keys_in_AYU_DESCRIBE();
+        ERROR_attrs_cannot_be_combined_with_keys();
     }
     if ((header.keys_offset && !header.computed_attrs_offset) ||
         (header.computed_attrs_offset && !header.keys_offset)
     ) {
-        keys_and_computed_attrs_must_be_together_in_AYU_DESCRIBE();
+        ERROR_keys_and_computed_attrs_must_be_together();
     }
     if (header.length_offset) {
         if (header.elems_offset) {
-            elems_cannot_be_combined_with_length_in_AYU_DESCRIBE();
+            ERROR_elems_cannot_be_combined_with_length();
         }
         if (!header.computed_elems_offset && !header.contiguous_elems_offset) {
-            cannot_have_length_without_computed_or_contiguous_elems_in_AYU_DESCRIBE();
+            ERROR_cannot_have_length_without_computed_or_contiguous_elems();
         }
         if (header.computed_elems_offset && header.contiguous_elems_offset) {
-            cannot_have_both_computed_and_contiguous_elems_in_AYU_DESCRIBE();
+            ERROR_cannot_have_both_computed_and_contiguous_elems();
         }
     }
     else if (header.computed_elems_offset || header.contiguous_elems_offset) {
-        cannot_have_computed_or_contiguous_elems_without_length_in_AYU_DESCRIBE();
+        ERROR_cannot_have_computed_or_contiguous_elems_without_length();
     }
 
     return desc;

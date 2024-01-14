@@ -106,7 +106,7 @@ struct TraverseSetKeys {
         trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
         {
-            traverse(trav, false);
+            traverse(trav);
             if (keys) raise_AttrRejected(trav.desc, keys[0]);
         });
     }
@@ -115,8 +115,7 @@ struct TraverseSetKeys {
          // This algorithm overall is O(N^3), we may be able to speed it up by
          // setting a flag if there are no included attrs, or maybe by using an
          // unordered_set?
-         // TODO: Just use a bool array for claiming instead of erasing from
-         // the array?
+         // TODO: Use a next_list like in from-tree.
         for (usize i = 0; i < keys.size(); ++i) {
             if (keys[i] == key) {
                 keys.erase(i);
@@ -126,26 +125,26 @@ struct TraverseSetKeys {
         return false;
     }
 
-    NOINLINE void traverse (const Traversal& trav, bool optional) {
+    NOINLINE void traverse (const Traversal& trav) {
         if (auto attrs = trav.desc->attrs()) {
-            use_attrs(trav, optional, attrs);
+            use_attrs(trav, attrs);
         }
         else if (auto acr = trav.desc->keys_acr()) {
             if (!(acr->flags & AcrFlags::Readonly)) {
-                use_computed_attrs(trav, optional, acr);
+                use_computed_attrs(trav, acr);
             }
             else {
-                use_computed_attrs_readonly(trav, optional, acr);
+                use_computed_attrs_readonly(trav, acr);
             }
         }
         else if (auto acr = trav.desc->delegate_acr()) {
-            use_delegate(trav, optional, acr);
+            use_delegate(trav, acr);
         }
         else raise_AttrsNotSupported(trav.desc);
     }
 
     NOINLINE void use_attrs (
-        const Traversal& trav, bool optional, const AttrsDcrPrivate* attrs
+        const Traversal& trav, const AttrsDcrPrivate* attrs
     ) {
          // Prioritize direct attrs
          // I don't think it's possible for n_attrs to be large enough to
@@ -153,20 +152,14 @@ struct TraverseSetKeys {
          // attr always consumes at least 14 bytes, so the max n_attrs is
          // something like 4500.  TODO: enforce a reasonable max n_attrs in
          // descriptors-internal.h.
-        bool claimed_included [attrs->n_attrs] = {};
+        bool claimed [attrs->n_attrs] = {};
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (claim(attr->key)) {
-                 // If any attrs are given, all required attrs must be given
-                 // (only matters if this item is an included attr)
-                 // TODO: this should fail a test depending on the order of attrs
-                optional = false;
-                if (acr->attr_flags & AttrFlags::Include) {
-                    claimed_included[i] = true;
-                }
+                claimed[i] = true;
             }
-            else if (optional || acr->attr_flags & (
+            else if (acr->attr_flags & (
                 AttrFlags::Optional|AttrFlags::Include
             )) {
                  // Allow omitting optional or included attrs
@@ -179,17 +172,16 @@ struct TraverseSetKeys {
             auto acr = attr->acr();
             if (acr->attr_flags & AttrFlags::Include) {
                  // Skip if attribute was given directly, uncollapsed
-                if (claimed_included[i]) continue;
-                bool opt = optional | !!(acr->attr_flags & AttrFlags::Optional);
+                if (claimed[i]) continue;
                 trav_attr(trav, acr, attr->key, AccessMode::Write,
-                    [this, opt](const Traversal& child)
-                { traverse(child, opt); });
+                    [this](const Traversal& child)
+                { traverse(child); });
             }
         }
     }
 
     void use_computed_attrs (
-        const Traversal& trav, bool, const Accessor* keys_acr
+        const Traversal& trav, const Accessor* keys_acr
     ) {
         keys_acr->write(*trav.address,
             CallbackRef<void(Mu&)>(move(keys), [](auto&& keys, Mu& v){
@@ -198,28 +190,25 @@ struct TraverseSetKeys {
         );
     }
     NOINLINE void use_computed_attrs_readonly (
-        const Traversal& trav, bool optional, const Accessor*
+        const Traversal& trav, const Accessor*
     ) {
          // For readonly keys, get the keys and compare them.
          // TODO: This can probably be optimized more
         TraverseGetKeys tgk;
         tgk.traverse(trav);
         for (auto& key : tgk.keys) {
-            if (claim(key)) {
-                 // If any of the keys are present, it makes this item no
-                 // longer optional.
-                optional = false;
+            if (!claim(key)) {
+                raise_AttrMissing(trav.desc, key);
             }
-            else if (!optional) raise_AttrMissing(trav.desc, key);
         }
     }
 
     NOINLINE void use_delegate (
-        const Traversal& trav, bool optional, const Accessor* acr
+        const Traversal& trav, const Accessor* acr
     ) {
         trav_delegate(trav, acr, AccessMode::Write,
-            [this, optional](const Traversal& child)
-        { traverse(child, optional); });
+            [this](const Traversal& child)
+        { traverse(child); });
     }
 
 };
