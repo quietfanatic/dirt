@@ -131,56 +131,80 @@ int input_to_integer (Input input) noexcept {
     }
 }
 
-Input input_from_string (Str name) {
-    switch (hash32(name)) {
-#define KEY(name, sdlk) case hash32(name): return {.type = InputType::Key, .code = sdlk};
-#define ALT(name, sdlk) KEY(name, sdlk)
+// Make a sorted table of (hashed) input names for a binary search.  We could
+// make an open-addressing hash table instead, but that would take more space,
+// and efficiency isn't that important here; this is just for deserialization,
+// not for ordinary runtime lookups.
+struct TableEntry {
+    uint32 hash;
+    uint32 size;
+    const char* name;
+    Input input;
+};
+
+static constexpr TableEntry unsorted [] = {
+#define KEY(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Key, .code = c}},
+#define ALT(n, c) KEY(n, c)
+#define BTN(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Button, .code = c}},
+#define BTN_ALT(n, c) BTN(n, c)
 #include "keys-table.private.h"
-#undef ALT
-#undef KEY
-         // TODO: Put these in the keys table
-        case hash32("button1"):
-        case hash32("btn1"):
-        case hash32("leftbutton"):
-        case hash32("leftbtn"): return {.type = InputType::Button, .code = SDL_BUTTON_LEFT};
-        case hash32("button2"):
-        case hash32("btn2"):
-        case hash32("middlebutton"):
-        case hash32("middlebtn"): return {.type = InputType::Button, .code = SDL_BUTTON_MIDDLE};
-        case hash32("button3"):
-        case hash32("btn3"):
-        case hash32("rightbutton"):
-        case hash32("rightbtn"): return {.type = InputType::Button, .code = SDL_BUTTON_RIGHT};
-        case hash32("button4"):
-        case hash32("btn4"): return {.type = InputType::Button, .code = SDL_BUTTON_X1};
-        case hash32("button5"):
-        case hash32("btn5"): return {.type = InputType::Button, .code = SDL_BUTTON_X2};
-         // TODO: throw exception
-        default: raise(e_General, cat("Unknown input descriptor: ", name));
+};
+
+static constexpr auto inputs_by_hash = []{
+    constexpr usize len = sizeof(unsorted) / sizeof(unsorted[0]);
+    std::array<TableEntry, len> r;
+    for (usize i = 0; i < len; i++) {
+        r[i] = unsorted[i];
     }
+    std::sort(r.begin(), r.end(), [](const auto& a, const auto& b){
+        return a.hash < b.hash;
+    });
+    return r;
+}();
+
+Input input_from_string (Str name) {
+    if (name.size() > 32) {
+        raise(e_General, "Input descriptor is too long to be an input name");
+    }
+    uint32 hash = hash32(name);
+     // Binary search.  <algorithm> only has a binary search that returns a bool
+     // and one that returns a range of elements, and both require an input
+     // that's the same type as a table entry.
+     //
+     // Using integers here instead of pointers seems to optimize better.
+    uint32 b = 0;
+    uint32 e = inputs_by_hash.size();
+    for (;;) {
+        uint32 mid = b + (e - b) / 2;
+        auto& entry = inputs_by_hash[mid];
+        if (hash == entry.hash) {
+            if (name == Str(entry.name, entry.size)) {
+                return entry.input;
+            }
+            else break;
+        }
+        else if (b == e) break;
+        else if (hash < entry.hash) e = mid;
+        else b = mid;
+    }
+    raise(e_General, cat("Unknown input descriptor: ", name));
 }
 
-Str input_to_string (Input input) {
+StaticString input_to_string (Input input) {
     switch (input.type) {
         case InputType::None: return "none";
         case InputType::Key: {
             switch (input.code) {
-#define KEY(name, sdlk) case sdlk: return name;
-#define ALT(name, sdlk) // ignore alternatives
+#define KEY(n, c) case c: return n;
 #include "keys-table.private.h"
-#undef ALT
-#undef KEY
                  // Not entirely sure what to do here.
                 default: return "";
             }
         }
         case InputType::Button: {
             switch (input.code) {
-                case SDL_BUTTON_LEFT: return "button1";
-                case SDL_BUTTON_MIDDLE: return "button2";
-                case SDL_BUTTON_RIGHT: return "button3";
-                case SDL_BUTTON_X1: return "button4";
-                case SDL_BUTTON_X2: return "button5";
+#define BTN(n, c) case c: return n;
+#include "keys-table.private.h"
                 default: return "";
             }
         }
@@ -190,35 +214,45 @@ Str input_to_string (Input input) {
 
  // These are for the AYU_DESCRIBE.  We're separating them for easier debugging.
 static ayu::Tree input_to_tree (const Input& input) {
-    UniqueArray<ayu::Tree> a;
-    if (!!(input.type == InputType::None)) return ayu::Tree(move(a));
-    if (!!(input.flags & InputFlags::Repeatable)) a.emplace_back("repeatable");
-    if (!!(input.flags & InputFlags::Ctrl)) a.emplace_back("ctrl");
-    if (!!(input.flags & InputFlags::Alt)) a.emplace_back("alt");
-    if (!!(input.flags & InputFlags::Shift)) a.emplace_back("shift");
+    if (!!(input.type == InputType::None)) return ayu::Tree::array();
+    auto a = UniqueArray<ayu::Tree>(
+        Capacity(1 + std::popcount(uint8(input.flags)))
+    );
+    if (!!(input.flags & InputFlags::Repeatable)) {
+        a.emplace_back_expect_capacity("repeatable");
+    }
+    if (!!(input.flags & InputFlags::Ctrl)) {
+        a.emplace_back_expect_capacity("ctrl");
+    }
+    if (!!(input.flags & InputFlags::Alt)) {
+        a.emplace_back_expect_capacity("alt");
+    }
+    if (!!(input.flags & InputFlags::Shift)) {
+        a.emplace_back_expect_capacity("shift");
+    }
     switch (input.type) {
         case InputType::Key: {
             switch (input.code) {
                 case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
                 case SDLK_5: case SDLK_6: case SDLK_7: case SDLK_8: case SDLK_9:
-                    a.emplace_back(input.code - SDLK_0);
+                    a.emplace_back_expect_capacity(input.code - SDLK_0);
                     break;
                 default: {
-                    Str name = input_to_string(input);
-                    if (!name.empty()) a.emplace_back(name);
-                    else a.emplace_back(input_to_integer(input));
+                    StaticString name = input_to_string(input);
+                    if (!name.empty()) a.emplace_back_expect_capacity(name);
+                    else a.emplace_back_expect_capacity(input_to_integer(input));
                     break;
                 }
             }
             break;
         }
         case InputType::Button: {
-            Str name = input_to_string(input);
-            require(!name.empty());
-            a.emplace_back(name);
+            StaticString name = input_to_string(input);
+            expect(name);
+            a.emplace_back_expect_capacity(name);
             break;
         }
-        default: require(false);
+        default: never();
     }
     return ayu::Tree(move(a));
 }

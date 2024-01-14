@@ -51,6 +51,6 @@ int input_to_integer (Input i) noexcept;
  // Symbolic name in all lowercase (Ignores modifier keys).
  // May not work on obscure keys.
 Input input_from_string (Str c);
-Str input_to_string (Input i);
+StaticString input_to_string (Input i);
 
 } // namespace control

@@ -1,3 +1,16 @@
+#ifndef KEY
+#define KEY(n, k)
+#endif
+#ifndef ALT
+#define ALT(n, k)
+#endif
+#ifndef BTN
+#define BTN(n, k)
+#endif
+#ifndef BTN_ALT
+#define BTN_ALT(n, k)
+#endif
+
 KEY("enter", SDLK_RETURN)
 ALT("return", SDLK_RETURN)
 ALT("\r", SDLK_RETURN)
@@ -175,3 +188,24 @@ KEY("eject", SDLK_EJECT)
 KEY("sleep", SDLK_SLEEP)
 KEY("audiorewind", SDLK_AUDIOREWIND)
 KEY("audiofastforward", SDLK_AUDIOFASTFORWARD)
+BTN("button1", SDL_BUTTON_LEFT)
+BTN_ALT("btn1", SDL_BUTTON_LEFT)
+BTN_ALT("leftbutton", SDL_BUTTON_LEFT)
+BTN_ALT("leftbtn", SDL_BUTTON_LEFT)
+BTN("button2", SDL_BUTTON_MIDDLE)
+BTN_ALT("btn2", SDL_BUTTON_MIDDLE)
+BTN_ALT("middlebutton", SDL_BUTTON_MIDDLE)
+BTN_ALT("middlebtn", SDL_BUTTON_MIDDLE)
+BTN("button3", SDL_BUTTON_RIGHT)
+BTN_ALT("btn3", SDL_BUTTON_RIGHT)
+BTN_ALT("rightbutton", SDL_BUTTON_RIGHT)
+BTN_ALT("rightbtn", SDL_BUTTON_RIGHT)
+BTN("button4", SDL_BUTTON_X1)
+BTN_ALT("btn4", SDL_BUTTON_X1)
+BTN("button5", SDL_BUTTON_X2)
+BTN_ALT("btn5", SDL_BUTTON_X2)
+
+#undef KEY
+#undef ALT
+#undef BTN
+#undef BTN_ALT
