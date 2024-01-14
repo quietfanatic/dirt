@@ -62,12 +62,15 @@ struct Description : ComparableAddress {
 namespace ayu_desc {
     template <class T>
     struct _AYU_Describe {
-        static constexpr bool _ayu_is_local = false;
          // Declare this but don't define it.  It will be defined in a
          // specialization of this template, which may be in a different
          // translation unit.  Apparently nobody knows whether that's legal or
          // not, but it works as long as the compiler uses the same mangled
          // names for the specialization as the prototype.
+         //
+         // It'd be nice to have this be the description itself instead of a
+         // pointer to it, but unfortunately you can't have a global cross a
+         // compilation boundary unless its type is fully known.
         static const ayu::in::Description* const _ayu_description;
     };
 }

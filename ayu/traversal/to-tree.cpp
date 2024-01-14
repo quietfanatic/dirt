@@ -11,7 +11,8 @@ static uint64 diagnostic_serialization = 0;
 
  // Putting these in a class just to avoid having to predeclare functions
 struct TraverseToTree {
-    static
+     // NOINLINE this because it generates a lot of code with the trav_start
+    NOINLINE static
     Tree start (const Reference& item, LocationRef loc) {
         PushBaseLocation pbl(*loc ? *loc : Location(item));
         Tree r;

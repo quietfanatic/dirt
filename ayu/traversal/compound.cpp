@@ -20,6 +20,7 @@ struct ReceiveReference {
 struct TraverseGetKeys {
     UniqueArray<AnyString> keys;
 
+    NOINLINE
     void start (const Reference& item, LocationRef loc) {
         trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
@@ -102,6 +103,7 @@ namespace in {
 struct TraverseSetKeys {
     UniqueArray<AnyString> keys;
 
+    NOINLINE
     void start (const Reference& item, LocationRef loc) {
         trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
@@ -224,7 +226,8 @@ void item_set_keys (
 ///// ATTR
 
 struct TraverseAttr {
-    NOINLINE static Reference start (
+    NOINLINE static
+    Reference start (
         const Reference& item, const AnyString& key, LocationRef loc
     ) {
         Reference r;
@@ -320,7 +323,8 @@ Reference item_attr (const Reference& item, const AnyString& key, LocationRef lo
 namespace in {
 
 struct TraverseGetLength {
-    static usize start (const Reference& item, LocationRef loc) try {
+    static
+    usize start (const Reference& item, LocationRef loc) try {
         if (auto addr = item.address()) {
             return traverse(*addr, item.type());
         }
@@ -333,7 +337,8 @@ struct TraverseGetLength {
         }
     } catch (...) { rethrow_with_travloc(loc); }
 
-    NOINLINE static usize traverse (Mu& item, Type type) {
+    NOINLINE static
+    usize traverse (Mu& item, Type type) {
         auto desc = DescriptionPrivate::get(type);
         if (auto elems = desc->elems()) {
             return elems->chop_flag(AttrFlags::Invisible);
@@ -368,7 +373,8 @@ usize item_get_length (const Reference& item, LocationRef loc) {
 namespace in {
 
 struct TraverseSetLength {
-    static void start (const Reference& item, usize len, LocationRef loc) try {
+    static
+    void start (const Reference& item, usize len, LocationRef loc) try {
         if (auto addr = item.address()) {
             traverse(*addr, item.type(), len);
         }
@@ -379,7 +385,8 @@ struct TraverseSetLength {
         }
     } catch (...) { rethrow_with_travloc(loc); }
 
-    NOINLINE static void traverse (Mu& item, Type type, usize len) {
+    NOINLINE static
+    void traverse (Mu& item, Type type, usize len) {
         auto desc = DescriptionPrivate::get(type);
         if (auto elems = desc->elems()) {
             usize min = elems->chop_flag(AttrFlags::Optional);

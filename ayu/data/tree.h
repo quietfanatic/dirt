@@ -100,6 +100,11 @@ struct Tree {
     explicit Tree (char v, TreeFlags f = {}) : Tree(UniqueString(1,v), f) { }
     explicit constexpr Tree (AnyString, TreeFlags = {});
     explicit Tree (Str16 v, TreeFlags f = {}) : Tree(from_utf16(v), f) { }
+     // Optimize raw char literals
+    template <usize n>
+    explicit constexpr Tree (const char(& v )[n], TreeFlags f = {}) :
+        Tree(StaticString(v), f)
+    { }
 
     explicit constexpr Tree (AnyArray<Tree>, TreeFlags = {});
     explicit constexpr Tree (AnyArray<TreePair>, TreeFlags = {});
