@@ -135,13 +135,14 @@ IRI from_fs_path (Str path, const IRI& base) noexcept {
             return IRI(encoded, !base.empty() ? base : working_directory());
         }
     }
-    else if (path[0] == '/') {
+    else if (encoded[0] == '/') {
+        Str enc = encoded;
          // Trim multiple /s so they don't get interpreted as an authority
-        while (path.size() >= 2 && path[1] == '/') {
-            path = path.slice(1);
+        while (enc.size() >= 2 && enc[1] == '/') {
+            enc = enc.slice(1);
         }
          // Don't call working_directory() here because it calls us.
-        return IRI(encoded, file_scheme);
+        return IRI(enc, file_scheme);
     }
     else return IRI(
         encoded, !base.empty() ? base : working_directory()

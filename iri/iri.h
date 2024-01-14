@@ -69,7 +69,7 @@ using namespace uni;
 
 constexpr uint32 maximum_length = uint16(-1);
 
- // Replace reserved characters with % sequences
+ // Replace reserved characters with % sequences.
 UniqueString encode (Str) noexcept;
  // Replace % sequences with their characters.  If there's an invalid escape
  // sequence anywhere in the input, returns the empty string.

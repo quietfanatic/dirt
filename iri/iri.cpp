@@ -33,7 +33,7 @@ static char* parse_percent (char* out, const char* in, const char* end) {
     if (byte < 0) [[unlikely]] return null;
     switch (char(byte)) {
         case IRI_GENDELIM: case IRI_SUBDELIM:
-        case IRI_FORBIDDEN: case IRI_IFFY:
+        case IRI_FORBIDDEN: case IRI_IFFY: case '%':
             return write_percent(out, byte);
         default: *out++ = byte; return out;
     }
@@ -76,7 +76,10 @@ UniqueString decode (Str input) noexcept {
     while (in != end) {
         if (*in == '%') {
             int result = read_percent(in, end);
-            if (result < 0) return "";
+            if (result < 0) [[unlikely]] {
+                SharableBuffer<char>::deallocate(buf);
+                return "";
+            }
             *out++ = result;
             in += 3;
         }
@@ -584,6 +587,7 @@ constexpr TestCase cases [] = {
     {.i = "foo:/ユニコード", .s = "foo", .p = "/ユニコード"},
     {.i = "foo://ユ/ニ?コー#ド", .s = "foo", .a = "ユ", .p = "/ニ", .q = "コー", .f = "ド"},
     {.i = "ayu-test:/#bar+1//bu%2Fp+33+0/3///", .s = "ayu-test", .p = "/", .f = "bar+1//bu%2Fp+33+0/3///"},
+    {.i = "foo:/bar%25baz", .s = "foo", .p = "/bar%25baz"},
 };
 constexpr auto n_cases = sizeof(cases) / sizeof(cases[0]);
 
