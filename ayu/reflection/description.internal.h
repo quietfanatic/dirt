@@ -17,7 +17,9 @@ struct ComparableAddress { };
 static_assert(sizeof(ComparableAddress) == 1);
 
 struct Description : ComparableAddress {
+#ifdef AYU_STORE_TYPE_INFO
     const std::type_info* cpp_type = null;
+#endif
     uint32 cpp_size = 0;
     uint32 cpp_align = 0;
      // Empty if the name needs to be dynamically generated.
@@ -72,8 +74,10 @@ namespace ayu_desc {
 
 namespace ayu::in {
     const Description* register_description (const Description*) noexcept;
+#ifdef AYU_STORE_TYPE_INFO
     const Description* get_description_for_type_info (const std::type_info&) noexcept;
     const Description* need_description_for_type_info (const std::type_info&);
+#endif
     const Description* get_description_for_name (Str) noexcept;
     const Description* need_description_for_name (Str);
 

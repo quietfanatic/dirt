@@ -28,11 +28,13 @@ struct Type {
      // Construct from internal data
     Type (const in::Description* desc, bool readonly = false) :
         data(reinterpret_cast<usize>(desc) | readonly) { }
+#ifdef AYU_STORE_TYPE_INFO
      // Can throw UnknownType.  There is no way to extract information about
      // constness from a std::type_info, so it must be provided as a bool.
     Type (const std::type_info& t, bool readonly = false) :
         Type(in::need_description_for_type_info(t), readonly)
     { }
+#endif
      // Should never throw, and in fact compile to a single pointer return.
     template <class T>
         requires (!std::is_volatile_v<std::remove_reference_t<T>>)
@@ -62,11 +64,13 @@ struct Type {
     StaticString name () const {
         return in::get_description_name(get_description());
     }
+#ifdef AYU_STORE_TYPE_INFO
      // Get the std::type_info& for this type.  NOTE: CONSTNESS INFO IS
      // CURRENTLY NYI
     const std::type_info& cpp_type () const {
         return *get_description()->cpp_type;
     }
+#endif
      // Get the sizeof() of this type
     usize cpp_size () const {
         return get_description()->cpp_size;
