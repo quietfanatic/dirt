@@ -26,19 +26,19 @@ struct Type {
 
     constexpr Type () : data(0) { }
      // Construct from internal data
-    Type (const in::Description* desc, bool readonly = false) :
+    constexpr Type (const in::Description* desc, bool readonly = false) :
         data(reinterpret_cast<usize>(desc) | readonly) { }
 #ifdef AYU_STORE_TYPE_INFO
      // Can throw UnknownType.  There is no way to extract information about
      // constness from a std::type_info, so it must be provided as a bool.
-    Type (const std::type_info& t, bool readonly = false) :
+    constexpr Type (const std::type_info& t, bool readonly = false) :
         Type(in::need_description_for_type_info(t), readonly)
     { }
 #endif
      // Should never throw, and in fact compile to a single pointer return.
     template <class T>
         requires (!std::is_volatile_v<std::remove_reference_t<T>>)
-    static Type CppType () {
+    static constexpr Type CppType () {
         return Type(
             in::get_description_for_cpp_type<
                 std::remove_const_t<std::remove_reference_t<T>>
@@ -54,10 +54,10 @@ struct Type {
      // Checks if this is the empty type.
     explicit constexpr operator bool () const { return data & ~1; }
      // Checks if this type is readonly (const).
-    bool readonly () const { return data & 1; }
+    constexpr bool readonly () const { return data & 1; }
      // Add or remove readonly bit
-    Type add_readonly () const { return Type(get_description(), true); }
-    Type remove_readonly () const { return Type(get_description(), false); }
+    constexpr Type add_readonly () const { return Type(get_description(), true); }
+    constexpr Type remove_readonly () const { return Type(get_description(), false); }
 
      // Get human-readable type name (whatever name was registered with
      // AYU_DESCRIBE).  This ignores the readonly bit.
@@ -67,16 +67,16 @@ struct Type {
 #ifdef AYU_STORE_TYPE_INFO
      // Get the std::type_info& for this type.  NOTE: CONSTNESS INFO IS
      // CURRENTLY NYI
-    const std::type_info& cpp_type () const {
+    constexpr const std::type_info& cpp_type () const {
         return *get_description()->cpp_type;
     }
 #endif
      // Get the sizeof() of this type
-    usize cpp_size () const {
+    constexpr usize cpp_size () const {
         return get_description()->cpp_size;
     }
      // Get the alignof() of this type
-    usize cpp_align () const {
+    constexpr usize cpp_align () const {
         return get_description()->cpp_align;
     }
      // Construct an instance of this type in-place.  The target must have at
@@ -164,16 +164,16 @@ struct Type {
     }
 
      // Internal
-    in::Description* get_description () const {
+    constexpr in::Description* get_description () const {
         return reinterpret_cast<in::Description*>(data & ~1);
     }
 };
 
  // The same type will always have the same description pointer.
-inline bool operator == (Type a, Type b) {
+constexpr bool operator == (Type a, Type b) {
     return a.data == b.data;
 }
-inline bool operator != (Type a, Type b) {
+constexpr bool operator != (Type a, Type b) {
     return a.data != b.data;
 }
 
@@ -195,7 +195,7 @@ constexpr ErrorCode e_TypeCantCast = "ayu::e_TypeCantCast";
  // Allow hashing Type for std::unordered_map
 template <>
 struct std::hash<ayu::Type> {
-    size_t operator () (ayu::Type t) const {
+    std::size_t operator () (ayu::Type t) const {
         return hash<void*>()((void*)t.data);
     }
 };

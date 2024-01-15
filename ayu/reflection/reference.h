@@ -51,56 +51,61 @@
 namespace ayu {
 
 struct Reference {
-    const Pointer host;
-    const in::Accessor* const acr;
+    Pointer host;
+    const in::Accessor* acr;
 
      // The empty value will cause null derefs if you do anything with it.
     constexpr Reference (Null n = null) : host(n), acr(n) { }
      // Construct from internal data.
-    Reference (Pointer h, const in::Accessor* a) : host(h), acr(a) { }
+    constexpr Reference (Pointer h, const in::Accessor* a) : host(h), acr(a) { }
      // Construct from a Pointer.
     constexpr Reference (Pointer p) : host(p), acr(null) { }
      // Construct from native pointer.  Watch out!  If you accidentally pass the
      // address of a Reference instead of a Reference itself, you will take a
      // Reference to the Reference instead of doing a copy construct!
     template <class T> requires (!std::is_same_v<T, Mu>)
-    Reference (T* p) : host(p), acr(null) { }
+    constexpr Reference (T* p) : host(p), acr(null) { }
      // Construct from unknown pointer and type
-    Reference (Type t, Mu* p) : host(t, p), acr(null) { }
+    constexpr Reference (Type t, Mu* p) : host(t, p), acr(null) { }
      // For use in attr_func and elem_func.
     template <class From, class Acr> requires (
         std::is_same_v<typename Acr::AcrFromType, From>
     )
     Reference (From& h, Acr&& a) : Reference(&h, new Acr(move(a))) { }
      // Copy and move construction and assignment
-    Reference (const Reference& o) : Reference(o.host, o.acr) {
+    constexpr Reference (const Reference& o) : Reference(o.host, o.acr) {
         if (acr) acr->inc();
     }
-    Reference (Reference&& o) :
+    constexpr Reference (Reference&& o) :
         host(o.host), acr(o.acr)
     {
-        const_cast<Pointer&>(o.host) = null;
-        const_cast<const in::Accessor*&>(o.acr) = null;
+        o.host = null;
+        o.acr = null;
     }
-    Reference& operator = (const Reference& o) {
+    constexpr Reference& operator = (const Reference& o) {
         this->~Reference();
-        new (this) Reference(o);
+        host = o.host;
+        acr = o.acr;
+        if (acr) acr->inc();
         return *this;
     }
-    Reference& operator = (Reference&& o) {
+    constexpr Reference& operator = (Reference&& o) {
         this->~Reference();
-        new (this) Reference(move(o));
+        host = o.host;
+        acr = o.acr;
+        o.host = null;
+        o.acr = null;
         return *this;
     }
 
-    ~Reference () { if (acr) acr->dec(); }
+    constexpr ~Reference () { if (acr) acr->dec(); }
 
-    explicit operator bool () const { return !!host; }
+    explicit constexpr operator bool () const { return !!host; }
      // Get type of referred-to item
-    Type type () const { return acr ? acr->type(host.address) : host.type; }
+    constexpr Type type () const { return acr ? acr->type(host.address) : host.type; }
 
      // Writing through this reference throws if this is true
-    bool readonly () const {
+    constexpr bool readonly () const {
         bool r = host.type.readonly();
         if (acr) r |= !!(acr->flags & in::AcrFlags::Readonly);
         return r;
@@ -112,12 +117,17 @@ struct Reference {
     }
 
      // Returns null if this reference is not addressable.
-    Mu* address () const {
+    constexpr Mu* address () const {
         return acr ? acr->address(*host.address) : host.address;
     }
      // Can throw CannotCoerce, even if the result is null.
-    Mu* address_as (Type t) const {
-        return type().cast_to(t, address());
+    constexpr Mu* address_as (Type t) const {
+        if (std::is_constant_evaluated()) {
+            expect(!acr);
+            require(t == host.type || t.remove_readonly() == host.type);
+            return host.address;
+        }
+        else return type().cast_to(t, address());
     }
     template <class T>
     T* address_as () const {
@@ -128,17 +138,22 @@ struct Reference {
     }
 
     [[noreturn]] void raise_Unaddressable () const;
-    Mu* require_address () const {
+    constexpr Mu* require_address () const {
         if (!*this) return null;
         if (auto a = address()) return a;
         else raise_Unaddressable();
     }
      // Can throw either CannotCoerce or UnaddressableReference
-    Mu* require_address_as (Type t) const {
-        return type().cast_to(t, require_address());
+    constexpr Mu* require_address_as (Type t) const {
+        if (std::is_constant_evaluated()) {
+            expect(!acr);
+            require(t == host.type || t.remove_readonly() == host.type);
+            return host.address;
+        }
+        else return type().cast_to(t, require_address());
     }
     template <class T>
-    T* require_address_as () const {
+    constexpr T* require_address_as () const {
         return (T*)require_address_as(Type::CppType<T>());
     }
 
@@ -271,12 +286,12 @@ struct Reference {
  // Reference comparison is best-effort.  If two References were constructed
  // differently but happen to point to the same item, they might be considered
  // unequal.  This should be rare though.
-inline bool operator == (const Reference& a, const Reference& b) {
+constexpr bool operator == (const Reference& a, const Reference& b) {
     if (a.host != b.host) return false;
     if (!a.acr | !b.acr) return a.acr == b.acr;
     return *a.acr == *b.acr;
 }
-inline bool operator != (const Reference& a, const Reference& b) {
+constexpr bool operator != (const Reference& a, const Reference& b) {
     return !(a == b);
 }
 
@@ -292,8 +307,8 @@ constexpr ErrorCode e_ReferenceUnaddressable = "ayu::e_RefereneUnaddressable";
  // Allow Reference to be a key in unordered_map
 template <>
 struct std::hash<ayu::Reference> {
-    size_t operator () (const ayu::Reference& r) const {
-        return ayu::in::hash_combine(
+    std::size_t operator () (const ayu::Reference& r) const {
+        return uni::hash_combine(
             hash<ayu::Pointer>()(r.host),
             r.acr ? hash<ayu::in::Accessor>()(*r.acr) : 0
         );

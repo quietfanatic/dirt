@@ -39,21 +39,23 @@ constexpr auto _AYU_DescribeBase<T>::destroy (void(* f )(T*)) {
 template <class T>
 template <class... Values>
     requires (requires (T v) { v == v; v = v; })
-constexpr auto _AYU_DescribeBase<T>::values (const Values&... vs) {
-    return in::ValuesDcrWith<T, Values...>(vs...);
+constexpr auto _AYU_DescribeBase<T>::values (Values&&... vs) {
+    return in::ValuesDcrWith<T, Values...>(move(vs)...);
 }
 template <class T>
 template <class... Values>
 constexpr auto _AYU_DescribeBase<T>::values_custom (
     in::CompareFunc<T>* compare,
     in::AssignFunc<T>* assign,
-    const Values&... vs
+    Values&&... vs
 ) {
-    return in::ValuesDcrWith<T, Values...>(compare, assign, vs...);
+    return in::ValuesDcrWith<T, Values...>(
+        compare, assign, move(vs)...
+    );
 }
 template <class T>
 template <class N>
-    requires (requires (T v) { T(move(v)); })
+    requires (requires (T&& v) { T(move(v)); })
 constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
      // Be aggressive about converting to StaticString to make sure nothing goes
      // through the non-constexpr path.
@@ -67,7 +69,8 @@ constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
     }
     else return in::ValueDcrWithValue<T>{{{}, Tree(n), null}, move(v)};
 }
- // Forwarding references don't seem to work in the above T&& overload.
+ // Forwarding references only work if the template parameter is immediately on
+ // the function, not in some outer scope.
 template <class T>
 template <class N>
     requires (requires (const T& v) { T(v); })
@@ -82,6 +85,7 @@ constexpr auto _AYU_DescribeBase<T>::value (const N& n, const T& v) {
     }
     else return {in::ValueDcrWithValue<T>{{}, Tree(n), null}, move(v)};
 }
+
 template <class T>
 template <class N>
 constexpr auto _AYU_DescribeBase<T>::value_pointer (const N& n, const T* p) {
@@ -96,8 +100,8 @@ constexpr auto _AYU_DescribeBase<T>::value_pointer (const N& n, const T* p) {
 
 template <class T>
 template <class... Attrs>
-constexpr auto _AYU_DescribeBase<T>::attrs (const Attrs&... as) {
-    return in::AttrsDcrWith<T, Attrs...>(as...);
+constexpr auto _AYU_DescribeBase<T>::attrs (Attrs&&... as) {
+    return in::AttrsDcrWith<T, Attrs...>(move(as)...);
 }
 template <class T>
 template <class Acr>
@@ -127,8 +131,8 @@ constexpr auto _AYU_DescribeBase<T>::attr (
 }
 template <class T>
 template <class... Elems>
-constexpr auto _AYU_DescribeBase<T>::elems (const Elems&... es) {
-    return in::ElemsDcrWith<T, Elems...>(es...);
+constexpr auto _AYU_DescribeBase<T>::elems (Elems&&... es) {
+    return in::ElemsDcrWith<T, Elems...>(move(es)...);
 }
 template <class T>
 template <class Acr>
@@ -307,9 +311,11 @@ constexpr auto _AYU_DescribeBase<T>::reference_func (
 template <class T>
 template <class... Dcrs>
 constexpr auto _AYU_DescribeBase<T>::_ayu_describe (
-    StaticString name, const Dcrs&... dcrs
+    StaticString name, Dcrs&&... dcrs
 ) {
-    return in::make_description<T, Dcrs...>(name, dcrs...);
+    return in::make_description<T, Dcrs...>(
+        name, move(dcrs)...
+    );
 }
 
 } // namespace ayu

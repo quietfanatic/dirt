@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <bit>
 #include "common.h"
 
 namespace uni {
@@ -81,12 +82,19 @@ constexpr usize hash (const T& v) {
 }
 
  // Returns a hash with only the given number of bits.  Any higher bits are 0.
-constexpr usize hash_fold (usize h, usize bits) {
+template <class T>
+constexpr T hash_fold (T h, uint8 bits) {
      // If the desired number of bits is smaller than half of usize, just throw
      // away the middle bits.  This still throws away fewer bits than % does.
-    usize low = h & ((1 << bits) - 1);
-    usize high = h >> (sizeof(usize) * 8 - bits);
+    T low = h & ((1 << bits) - 1);
+    T high = h >> (sizeof(T) * 8 - bits);
     return low ^ high;
+}
+
+ // Combine two hashes into one
+template <class T>
+constexpr T hash_combine (T a, T b) {
+    return a * 3 + b;
 }
 
 } // namespace uni

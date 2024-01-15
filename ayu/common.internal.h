@@ -57,8 +57,4 @@ bool operator != (const RCP<T, deleter>& a, const RCP<T, deleter>& b) {
     return a.p != b.p;
 }
 
-inline usize hash_combine (usize a, usize b) {
-    return a*3 + b;
-}
-
 }  // namespace ayu::in

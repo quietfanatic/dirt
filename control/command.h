@@ -69,7 +69,9 @@ struct Statement {
     Statement (Command* c, ayu::Dynamic&& a);
     template <class... Args>
     Statement (Command* c, Args... args) :
-        Statement(c, ayu::Dynamic(StatementStorage<Args...>(std::forward<Args>(args)...)))
+        Statement(c, ayu::Dynamic::make<StatementStorage<Args...>>(
+            std::forward<Args>(args)...
+        ))
     { }
     template <class... Args>
     Statement (Str name, Args... args) :

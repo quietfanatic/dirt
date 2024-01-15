@@ -577,7 +577,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     ok(input.value().has_value(), "Resource has value after loading");
 
     throws_code<e_ResourceStateInvalid>([&]{
-        Resource(input.name(), Dynamic(3));
+        Resource(input.name(), Dynamic::make<int>(3));
     }, "Creating resource throws on duplicate");
 
     doesnt_throw([&]{ unload(input); }, "unload");

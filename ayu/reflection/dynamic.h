@@ -20,37 +20,22 @@
 namespace ayu {
 
 struct Dynamic {
-    const Type type;
-    Mu* const data;
+    Type type;
+    Mu* data;
 
      // The empty value will cause null derefs if you do anything with it.
     constexpr Dynamic () : type(), data(null) { }
      // Create from internal data.  Takes ownership.
-    Dynamic (Type t, Mu*&& d) : type(t), data(d) { d = null; }
+    constexpr Dynamic (Type t, Mu*&& d) : type(t), data(d) { d = null; }
      // Default construction
-    explicit Dynamic (Type t) :
+    constexpr explicit Dynamic (Type t) :
         type(t),
         data(t ? t.default_new() : null)
     { }
      // Move construct
-    Dynamic (Dynamic&& o) : type(o.type), data(o.data) {
-        const_cast<Type&>(o.type) = Type();
-        const_cast<Mu*&>(o.data) = null;
-    }
-     // Construct by moving an arbitrary type in
-    template <class T> requires (
-        !std::is_base_of_v<Dynamic, T>
-        && !std::is_base_of_v<Type, T>
-        && !std::is_reference_v<T>
-    )
-    Dynamic (T&& v) : type(Type::CppType<T>()), data(reinterpret_cast<Mu*>(type.allocate())) {
-        try {
-            new (data) T (move(v));
-        }
-        catch (...) {
-            type.deallocate(data);
-            throw;
-        }
+    constexpr Dynamic (Dynamic&& o) : type(o.type), data(o.data) {
+        o.type = Type();
+        o.data = null;
     }
      // Construct with arguments.
     template <class T, class... Args>
@@ -67,27 +52,30 @@ struct Dynamic {
         }
     }
      // Move assignment
-    Dynamic& operator = (Dynamic&& o) {
+    constexpr Dynamic& operator = (Dynamic&& o) {
         this->~Dynamic();
-        new (this) Dynamic (move(o));
+        type = o.type;
+        data = o.data;
+        o.type = Type();
+        o.data = null;
         return *this;
     }
      // Destroy
-    ~Dynamic () {
+    constexpr ~Dynamic () {
         if (data) type.delete_(data);
     }
      // Check contents.  No coercion to bool because that would be confusing.
-    bool has_value () const {
+    constexpr bool has_value () const {
         expect(!!type == !!data);
         return !!type;
     }
-    bool empty () const {
+    constexpr bool empty () const {
         expect(!!type == !!data);
         return !type;
     }
      // Get Pointer to the value
-    Pointer ptr () { return Pointer(type, data); }
-    Pointer readonly_ptr () const { return Pointer(type.add_readonly(), data); }
+    constexpr Pointer ptr () { return Pointer(type, data); }
+    constexpr Pointer readonly_ptr () const { return Pointer(type.add_readonly(), data); }
      // Runtime casting
     Mu& as (Type t) {
         return *type.cast_to(t, data);
@@ -103,28 +91,6 @@ struct Dynamic {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
             as(Type::CppType<std::remove_cvref_t<T>>())
         );
-    }
-     // Copying accessor
-    template <class T>
-    std::remove_cvref_t<T> get () const {
-        return as<std::remove_cvref_t<T>>();
-    }
-     // Explicit coercion
-    template <class T> requires (
-        !std::is_base_of_v<Dynamic, T>
-        && !std::is_base_of_v<Type, T>
-        && !std::is_reference_v<T>
-    )
-    explicit operator T& () {
-        return as<T>();
-    }
-    template <class T> requires (
-        !std::is_base_of_v<Dynamic, T>
-        && !std::is_base_of_v<Type, T>
-        && !std::is_reference_v<T>
-    )
-    explicit operator const T& () const {
-        return as<T>();
     }
 };
 

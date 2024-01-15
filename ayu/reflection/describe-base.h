@@ -163,7 +163,7 @@ struct _AYU_DescribeBase {
      // an arbitrary matrix to be specified with a list of numbers.
     template <class... Values>
         requires (requires (T v) { v == v; v = v; })
-    static constexpr auto values (const Values&... vs);
+    static constexpr auto values (Values&&... vs);
      // This is just like values(), but will use the provided compare and assign
      // functions instead of operator== and operator=, so this type doesn't have
      // to have those operators defined.
@@ -171,12 +171,12 @@ struct _AYU_DescribeBase {
     static constexpr auto values_custom (
         bool(* compare )(const T&, const T&),
         void(* assign )(T&, const T&),
-        const Values&... vs
+        Values&&... vs
     );
      // Specify a named value for use in values(...).  The value must be
      // constexpr copy or move constructible.
     template <class N>
-        requires (requires (T v) { T(move(v)); })
+        requires (requires (T&& v) { T(move(v)); })
     static constexpr auto value (const N& name, T&& value);
     template <class N>
         requires (requires (const T& v) { T(v); })
@@ -196,7 +196,7 @@ struct _AYU_DescribeBase {
      // specified in the description, not in the order they're provided in the
      // Tree.
     template <class... Attrs>
-    static constexpr auto attrs (const Attrs&... as);
+    static constexpr auto attrs (Attrs&&... as);
      // Specify a single attribute for an object-like type.  When serializing,
      // `key` will be used as the attribute's key, and `accessor`'s read
      // operation will be used to get the attribute's value.  When
@@ -319,7 +319,7 @@ struct _AYU_DescribeBase {
      // deserialized from either an object or an array, and will be serialized
      // using whichever of attrs() and elems() was specified first.
     template <class... Elems>
-    static constexpr auto elems (const Elems&... es);
+    static constexpr auto elems (Elems&&... es);
      // Provide an individual element accessor.  `accessor` must be one of the
      // accessors in the ACCESSORS section or a pointer-to-data-member as a
      // shortcut for the member() accessor.  `flags` can be 0 or any |ed
@@ -709,7 +709,7 @@ struct _AYU_DescribeBase {
     static constexpr in::AcrFlags unaddressable = in::AcrFlags::Unaddressable;
     template <class... Dcrs>
     static constexpr auto _ayu_describe (
-        StaticString name, const Dcrs&... dcrs
+        StaticString name, Dcrs&&... dcrs
     );
 };
 

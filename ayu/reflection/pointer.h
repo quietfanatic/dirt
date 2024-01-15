@@ -5,6 +5,7 @@
 // empty Pointer).
 
 #pragma once
+#include "../../uni/hash.h"
 #include "type.h"
 
 namespace ayu {
@@ -14,12 +15,12 @@ struct Pointer {
     Type type;
 
     constexpr Pointer (Null n = null) : address(n) { }
-    Pointer (Type t, Mu* a) : address(a), type(t) { }
+    constexpr Pointer (Type t, Mu* a) : address(a), type(t) { }
 
     template <class T>
         requires (!std::is_same_v<std::remove_cv_t<T>, void>
                && !std::is_same_v<std::remove_cv_t<T>, Mu>)
-    Pointer (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
+    constexpr Pointer (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
 
      // Returns false if this Pointer is either (typed) null or (typeless)
      // empty.
@@ -27,11 +28,11 @@ struct Pointer {
      // Returns true only for the typeless empty Pointer.
     constexpr bool empty () const { return !!type; }
 
-    bool readonly () const { return type.readonly(); }
-    Pointer add_readonly () const {
+    constexpr bool readonly () const { return type.readonly(); }
+    constexpr Pointer add_readonly () const {
         return Pointer(type.add_readonly(), address);
     }
-    Pointer remove_readonly () const {
+    constexpr Pointer remove_readonly () const {
         return Pointer(type.remove_readonly(), address);
     }
 
@@ -106,7 +107,7 @@ constexpr bool operator != (const Pointer& a, const Pointer& b) {
 template <>
 struct std::hash<ayu::Pointer> {
     std::size_t operator () (const ayu::Pointer& p) const {
-        return ayu::in::hash_combine(
+        return uni::hash_combine(
             std::hash<ayu::Mu*>{}(p.address),
             std::hash<ayu::Type>{}(p.type.remove_readonly())
         );

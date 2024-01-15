@@ -154,35 +154,9 @@ struct TraverseFromTree {
         if (auto from_tree = trav.desc->from_tree()) [[likely]] {
             use_from_tree(trav, tree, from_tree->f);
         }
-         // Now the behavior depends on what kind of tree we've been given
-        else if (tree.form == Form::Object) {
-            if (auto attrs = trav.desc->attrs()) {
-                use_attrs(trav, tree, attrs);
-            }
-            else if (auto keys = trav.desc->keys_acr()) {
-                expect(trav.desc->computed_attrs_offset);
-                auto f = trav.desc->computed_attrs()->f;
-                use_computed_attrs(trav, tree, keys, f);
-            }
-            else no_match(trav, tree);
-        }
-        else if (tree.form == Form::Array) {
-            if (auto elems = trav.desc->elems()) {
-                use_elems(trav, tree, elems);
-            }
-            else if (auto length = trav.desc->length_acr()) {
-                if (auto contig = trav.desc->contiguous_elems()) {
-                    use_contiguous_elems(trav, tree, length, contig->f);
-                }
-                else {
-                    auto comp = trav.desc->computed_elems();
-                    use_computed_elems(trav, tree, length, comp->f);
-                }
-            }
-            else no_match(trav, tree);
-        }
+         // Now check for values.  Values can be of any tree form now, not just
+         // atomic forms.
         else if (auto values = trav.desc->values()) {
-             // All other tree types support the values descriptor
             if (trav.desc->flags & Description::ALL_VALUES_STRINGS) {
                 if (tree.form == Form::String) {
                     use_values_all_strings(trav, tree, values);
@@ -198,6 +172,33 @@ struct TraverseFromTree {
     void no_match (
         const Traversal& trav, const Tree& tree
     ) {
+         // Now the behavior depends on what form of tree we got
+        if (tree.form == Form::Object) {
+            if (auto attrs = trav.desc->attrs()) {
+                return use_attrs(trav, tree, attrs);
+            }
+            else if (auto keys = trav.desc->keys_acr()) {
+                expect(trav.desc->computed_attrs_offset);
+                auto f = trav.desc->computed_attrs()->f;
+                return use_computed_attrs(trav, tree, keys, f);
+            }
+             // fallthrough
+        }
+        else if (tree.form == Form::Array) {
+            if (auto elems = trav.desc->elems()) {
+                return use_elems(trav, tree, elems);
+            }
+            else if (auto length = trav.desc->length_acr()) {
+                if (auto contig = trav.desc->contiguous_elems()) {
+                    return use_contiguous_elems(trav, tree, length, contig->f);
+                }
+                else {
+                    auto comp = trav.desc->computed_elems();
+                    return use_computed_elems(trav, tree, length, comp->f);
+                }
+            }
+             // fallthrough
+        }
          // Nothing matched, so try delegate
         if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(trav, tree, acr);

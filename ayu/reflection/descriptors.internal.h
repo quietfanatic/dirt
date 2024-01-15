@@ -42,55 +42,60 @@ static void ERROR_cannot_have_computed_or_contiguous_elems_without_length () { }
  // We could use [[no_unique_address]] but this is more aggressive at optimizing
  // out empty structs.  The size_t parameter is to prevent multiple CatHeads
  // with the same type from conflicting with one another.
-template <size_t, class Head>
+template <size_t, class HeadT>
 struct CatHead;
-template <size_t i, class Head>
-    requires (!std::is_empty_v<Head>)
-struct CatHead<i, Head> {
-    Head head;
-    constexpr CatHead (const Head& h) : head(h) { }
+template <size_t i, class HeadT>
+    requires (!std::is_empty_v<HeadT>)
+struct CatHead<i, HeadT> {
+    HeadT head;
+    constexpr CatHead (HeadT&& h) : head(move(h)) { }
 };
-template <size_t i, class Head>
-    requires (std::is_empty_v<Head>)
-struct CatHead<i, Head> {
+template <size_t i, class HeadT>
+    requires (std::is_empty_v<HeadT>)
+struct CatHead<i, HeadT> {
      // Ideally this gets discarded by the linker?
-    static Head head;
-    constexpr CatHead (const Head&) { }
+    static HeadT head;
+    constexpr CatHead (HeadT&&) { }
 };
-template <size_t i, class Head>
-    requires (std::is_empty_v<Head>)
-Head CatHead<i, Head>::head {};
+template <size_t i, class HeadT>
+    requires (std::is_empty_v<HeadT>)
+HeadT CatHead<i, HeadT>::head {};
 
 template <class...>
 struct Cat;
 
-template <class Head, class... Tail>
-struct Cat<Head, Tail...> : CatHead<sizeof...(Tail), Head>, Cat<Tail...> {
-    constexpr Cat (const Head& h, const Tail&... t) :
-        CatHead<sizeof...(Tail), Head>(h), Cat<Tail...>(t...)
+template <class HeadT, class... TailTs>
+struct Cat<HeadT, TailTs...> :
+    CatHead<sizeof...(TailTs), HeadT>, Cat<TailTs...>
+{
+    using Head = CatHead<sizeof...(TailTs), HeadT>;
+    using Tail = Cat<TailTs...>;
+    constexpr Cat (HeadT&& h, TailTs&&... t) :
+        Head(move(h)),
+        Tail(move(t)...)
     { }
 
     template <class T>
     constexpr T* get (uint16 n) {
-        if constexpr (std::is_base_of<T, Head>::value) {
-            if (n == 0) return &this->CatHead<sizeof...(Tail), Head>::head;
-            else return Cat<Tail...>::template get<T>(n-1);
+        if constexpr (std::is_base_of_v<T, HeadT>) {
+            if (n == 0) return &this->Head::head;
+            else return Tail::template get<T>(n-1);
         }
-        else return Cat<Tail...>::template get<T>(n);
+        else return Tail::template get<T>(n);
     }
     template <class T>
     constexpr const T* get (uint16 n) const {
-        if constexpr (std::is_base_of<T, Head>::value) {
-            if (n == 0) return &this->CatHead<sizeof...(Tail), Head>::head;
-            else return Cat<Tail...>::template get<T>(n-1);
+        if constexpr (std::is_base_of_v<T, HeadT>) {
+            if (n == 0) return &this->Head::head;
+            else return Tail::template get<T>(n-1);
         }
-        else return Cat<Tail...>::template get<T>(n);
+        else return Tail::template get<T>(n);
     }
 
     template <class F>
     constexpr void for_each (F f) const {
-        f(CatHead<sizeof...(Tail), Head>::head);
-        Cat<Tail...>::template for_each<F>(f);
+        f(Head::head);
+        Tail::template for_each<F>(f);
     }
 };
 
@@ -158,7 +163,7 @@ struct AttachedDescriptor : Descriptor<T> {
     }
      // Emit this into the static data
     template <class Self>
-    static constexpr Self make_static (const Self& self) { return self; }
+    static constexpr Self make_static (Self&& self) { return std::forward<Self>(self); }
 };
 template <class T>
 struct DetachedDescriptor : Descriptor<T> {
@@ -228,9 +233,9 @@ template <class T, class... Values>
 struct ValuesDcrWith : ValuesDcr<T> {
     uint16 offsets [sizeof...(Values)] {};
     Cat<Values...> values;
-    constexpr ValuesDcrWith (const Values&... vs) :
+    constexpr ValuesDcrWith (Values&&... vs) :
         ValuesDcr<T>{{}, compare_p<T>, assign_p<T>, sizeof...(Values)},
-        values(vs...)
+        values(move(vs)...)
     {
         for (uint i = 0; i < sizeof...(Values); i++) {
             offsets[i] = static_cast<const ComparableAddress*>(
@@ -241,10 +246,10 @@ struct ValuesDcrWith : ValuesDcr<T> {
     constexpr ValuesDcrWith (
         bool(* compare )(const T&, const T&),
         void(* assign )(T&, const T&),
-        const Values&... vs
+        Values&&... vs
     ) :
         ValuesDcr<T>{{}, compare, assign, sizeof...(Values)},
-        values(vs...)
+        values(move(vs)...)
     {
         for (uint i = 0; i < sizeof...(Values); i++) {
             offsets[i] = static_cast<const ComparableAddress*>(
@@ -286,9 +291,9 @@ template <class T, class... Attrs>
 struct AttrsDcrWith : AttrsDcr<T> {
     uint16 offsets [sizeof...(Attrs)] {};
     Cat<Attrs...> attrs;
-    constexpr AttrsDcrWith (const Attrs&... as) :
+    constexpr AttrsDcrWith (Attrs&&... as) :
         AttrsDcr<T>{{}, uint16(sizeof...(Attrs))},
-        attrs(as...)
+        attrs(move(as)...)
     {
         for (uint i = 0; i < sizeof...(Attrs); i++) {
             offsets[i] = static_cast<ComparableAddress*>(
@@ -330,9 +335,9 @@ template <class T, class... Elems>
 struct ElemsDcrWith : ElemsDcr<T> {
     uint16 offsets [sizeof...(Elems)] {};
     Cat<Elems...> elems;
-    constexpr ElemsDcrWith (const Elems&... es) :
+    constexpr ElemsDcrWith (Elems&&... es) :
         ElemsDcr<T>{{}, uint16(sizeof...(Elems))},
-        elems(es...)
+        elems(move(es)...)
     {
         bool have_optional = false;
         bool have_invisible = false;
@@ -433,9 +438,9 @@ struct DestroyDcr : DetachedDescriptor<T> {
 template <class F>
 constexpr void for_variadic (F) { }
 template <class F, class Arg, class... Args>
-constexpr void for_variadic (F f, Arg arg, Args... args) {
-    f(arg);
-    for_variadic(f, args...);
+constexpr void for_variadic (F f, Arg&& arg, Args&&... args) {
+    f(std::forward<Arg>(arg));
+    for_variadic(f, std::forward<Args>(args)...);
 }
 
 template <class T, class... Dcrs>
@@ -445,8 +450,10 @@ using FullDescription = Cat<
 >;
 
 template <class T, class... Dcrs>
-constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const Dcrs&... dcrs) {
-    using Desc = FullDescription<T, Dcrs...>;
+constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
+    StaticString name, Dcrs&&... dcrs
+) {
+    using Desc = FullDescription<T, std::remove_cvref_t<Dcrs>...>;
 
     static_assert(
         sizeof(T) <= uint32(-1),
@@ -459,7 +466,7 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
 
     Desc desc (
         DescriptionFor<T>{},
-        Dcrs::make_static(dcrs)...
+        std::remove_cvref_t<Dcrs>::make_static(move(dcrs))...
     );
     auto& header = *desc.template get<DescriptionFor<T>>(0);
 #ifdef AYU_STORE_TYPE_INFO
@@ -470,6 +477,9 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
     header.name = name;
 
     for_variadic([&]<class Dcr>(const Dcr& dcr){
+         // Warning: We're operating on objects that may have been moved from.
+         // To access an AttachedDescriptor, use desc.template get
+         // To access a DetachedDescriptor, use dcr
         if constexpr (std::is_base_of_v<DefaultConstructDcr<T>, Dcr>) {
             if (header.default_construct != default_construct_p<T>) {
                 ERROR_duplicate_descriptors<Dcr>();
@@ -564,6 +574,7 @@ constexpr FullDescription<T, Dcrs...> make_description (StaticString name, const
             ERROR_element_is_not_a_descriptor_for_this_type();
         }
     }, dcrs...);
+
     if (header.attrs_offset &&
         (header.keys_offset || header.computed_attrs_offset)
     ) {
