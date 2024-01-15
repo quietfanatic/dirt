@@ -20,7 +20,7 @@ struct Pointer {
     template <class T>
         requires (!std::is_same_v<std::remove_cv_t<T>, void>
                && !std::is_same_v<std::remove_cv_t<T>, Mu>)
-    constexpr Pointer (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
+    Pointer (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
 
      // Returns false if this Pointer is either (typed) null or (typeless)
      // empty.

@@ -35,10 +35,13 @@ struct Type {
         Type(in::need_description_for_type_info(t), readonly)
     { }
 #endif
-     // Should never throw, and in fact compile to a single pointer return.
+     // Should never throw, and in fact should compile to a single pointer
+     // return.  This cannot be constexpr because get_description_for_cpp_type
+     // may have to cross to a compilation unit where the actual description is
+     // a template specialization that's not visible here.
     template <class T>
         requires (!std::is_volatile_v<std::remove_reference_t<T>>)
-    static constexpr Type CppType () {
+    static Type CppType () {
         return Type(
             in::get_description_for_cpp_type<
                 std::remove_const_t<std::remove_reference_t<T>>

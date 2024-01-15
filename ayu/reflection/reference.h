@@ -64,7 +64,7 @@ struct Reference {
      // address of a Reference instead of a Reference itself, you will take a
      // Reference to the Reference instead of doing a copy construct!
     template <class T> requires (!std::is_same_v<T, Mu>)
-    constexpr Reference (T* p) : host(p), acr(null) { }
+    Reference (T* p) : host(p), acr(null) { }
      // Construct from unknown pointer and type
     constexpr Reference (Type t, Mu* p) : host(t, p), acr(null) { }
      // For use in attr_func and elem_func.
@@ -153,7 +153,7 @@ struct Reference {
         else return type().cast_to(t, require_address());
     }
     template <class T>
-    constexpr T* require_address_as () const {
+    T* require_address_as () const {
         return (T*)require_address_as(Type::CppType<T>());
     }
 

@@ -94,7 +94,7 @@ namespace ayu::in {
     }
 
     template <class T> requires (!std::is_reference_v<T>)
-    constexpr const Description* get_description_for_cpp_type () {
+    const Description* get_description_for_cpp_type () {
         return ayu_desc::_AYU_Describe<std::remove_cv_t<T>>::_ayu_description;
     }
 }

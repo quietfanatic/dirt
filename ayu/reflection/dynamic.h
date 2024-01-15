@@ -51,6 +51,11 @@ struct Dynamic {
             throw;
         }
     }
+     // Move construct from std::unique_ptr
+    template <class T>
+    Dynamic (std::unique_ptr<T> p) :
+        type(Type::CppType<T>()), data((Mu*)p.release())
+    { }
      // Move assignment
     constexpr Dynamic& operator = (Dynamic&& o) {
         this->~Dynamic();
@@ -91,6 +96,17 @@ struct Dynamic {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
             as(Type::CppType<std::remove_cvref_t<T>>())
         );
+    }
+
+    template <class T>
+    std::unique_ptr<T> to_unique_ptr () && {
+        if (empty()) return null;
+        auto r = std::unique_ptr<T>(
+            (T*)type.cast_to(Type::CppType<T>(), data)
+        );
+        type = Type();
+        data = null;
+        return r;
     }
 };
 
