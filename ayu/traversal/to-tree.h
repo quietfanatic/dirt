@@ -25,9 +25,15 @@ namespace ayu {
  //   4. delegate()
  // If none of the above are applicable, a CannotToTree exception will be
  // thrown.
-Tree item_to_tree (
-    const Reference&, LocationRef loc = Location()
-);
+Tree item_to_tree (const Reference&, LocationRef loc = Location());
+ // Slight optimization for pointers (the usual case)
+template <class T>
+Tree item_to_tree (T* item, LocationRef loc = Location()) {
+    Reference ref = item;
+    Tree r = item_to_tree(ref, loc);
+    expect(!ref.acr);
+    return r;
+}
 
  // While this object is alive, if an exception is thrown while serializing an
  // item (and that exception is described to AYU), then the exception will be
@@ -41,17 +47,21 @@ struct DiagnosticSerialization {
 };
 
  // Shortcuts
-inline UniqueString item_to_string (
-    const Reference& item, PrintOptions opts = 0,
+template <class T>
+UniqueString item_to_string (
+    T&& item, PrintOptions opts = 0,
     LocationRef loc = Location()
 ) {
-    return tree_to_string(item_to_tree(item, loc), opts);
+    Tree t = item_to_tree(std::forward<T>(item), loc);
+    return tree_to_string(t, opts);
 }
-inline void item_to_file (
-    const Reference& item, AnyString filename,
+template <class T>
+void item_to_file (
+    T&& item, AnyString filename,
     PrintOptions opts = 0, LocationRef loc = Location()
 ) {
-    return tree_to_file(item_to_tree(item, loc), move(filename), opts);
+    Tree t = item_to_tree(std::forward<T>(item), loc);
+    return tree_to_file(t, move(filename), opts);
 }
 
  // Called item_to_tree on an item that has no way of doing the to_tree

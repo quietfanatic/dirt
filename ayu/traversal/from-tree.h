@@ -54,34 +54,49 @@ void item_from_tree (
     const Reference&, const Tree&, LocationRef loc = Location(),
     ItemFromTreeFlags flags = 0
 );
+ // Slight optimization for pointers (the usual case)
+template <class T>
+void item_from_tree (
+    T* item, const Tree& t, LocationRef loc = Location(),
+    ItemFromTreeFlags flags = 0
+) {
+    Reference ref = item;
+    item_from_tree(ref, t, loc, flags);
+    expect(!ref.acr);
+}
 
  // Shortcuts
  // item_from_string and item_from_file do not currently allow passing flags
-inline void item_from_string (
-    const Reference& item, Str src, LocationRef loc = Location()
+template <class T>
+void item_from_string (
+    T&& item, Str src, LocationRef loc = Location()
 ) {
     auto tree = tree_from_string(src);
-    return item_from_tree(item, tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, loc);
 }
-inline void item_from_file (
-    const Reference& item, AnyString filename, LocationRef loc = Location()
+
+template <class T>
+void item_from_file (
+    T&& item, AnyString filename, LocationRef loc = Location()
 ) {
     auto tree = tree_from_file(move(filename));
-    return item_from_tree(item, tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, loc);
 }
 
-inline void item_from_list_string (
-    const Reference& item, Str src, LocationRef loc = Location()
+template <class T>
+void item_from_list_string (
+    T&& item, Str src, LocationRef loc = Location()
 ) {
     auto tree = Tree(tree_list_from_string(src));
-    return item_from_tree(item, tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, loc);
 }
 
-inline void item_from_list_file (
-    const Reference& item, AnyString filename, LocationRef loc = Location()
+template <class T>
+void item_from_list_file (
+    T&& item, AnyString filename, LocationRef loc = Location()
 ) {
     auto tree = Tree(tree_list_from_file(move(filename)));
-    return item_from_tree(item, tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, loc);
 }
 
  // Called item_from_tree on an item that doesn't have any way of doing the
