@@ -7,6 +7,9 @@
 namespace wind {
 
  // An active loop using SDL.  The default on_step calls poll_events.
+ // WARNING: This hasn't been used in a while so it may be a bit stale.
+ // TODO: Replace std::function with uni::UniqueFunction when we start using
+ // this.
 struct ActiveLoop {
      // Desired framerate.
     double fps = 60;
