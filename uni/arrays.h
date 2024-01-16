@@ -2074,6 +2074,13 @@ auto operator<=> (
     return as <=> bs;
 }
 
+template <class ac, class T> constexpr
+void swap (ArrayInterface<ac, T>& a, ArrayInterface<ac, T>& b) {
+    auto impl = a.impl;
+    a.impl = b.impl;
+    b.impl = impl;
+}
+
 } // arrays
 } // uni
 

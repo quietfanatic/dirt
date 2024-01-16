@@ -281,6 +281,18 @@ struct IRI {
 #endif
 #undef IRI_FRIEND_OP
 
+     // Not sure this is actually constexpr friendly.
+    friend constexpr void swap (IRI& a, IRI& b) {
+        union Tmp {
+            IRI iri;
+            constexpr Tmp () { }
+            constexpr ~Tmp () { }
+        } tmp;
+        std::memcpy((void*)&tmp.iri, &a, sizeof(IRI));
+        std::memcpy((void*)&a, &b, sizeof(IRI));
+        std::memcpy((void*)&b, &tmp.iri, sizeof(IRI));
+    }
+
     const AnyString spec_;
     const uint16 scheme_end = 0;
     const uint16 authority_end = 0; // reused to store error
