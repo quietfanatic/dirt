@@ -61,14 +61,6 @@ struct Caterator {
         separator(s), n(n), f(f)
     { }
 
-     // Shortcut for joining an array.
-    template <class A>
-    constexpr Caterator (Str s, const A& a) :
-        separator(s), n(a.size()), f([&a](usize i){
-            return a[i];
-        })
-    { }
-
     constexpr usize size () const;
     constexpr char* write (char* out) const;
 };
