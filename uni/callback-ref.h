@@ -11,7 +11,7 @@ namespace uni {
 template <class> struct CallbackRef;
 template <class Ret, class... Args>
 struct CallbackRef<Ret(Args...)> {
-    void* capture;
+    void* context;
     Ret(* wrapper )(void*, Args...);
 #if __GNUC__
 #pragma GCC diagnostic push
@@ -29,7 +29,7 @@ struct CallbackRef<Ret(Args...)> {
     )
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRef (F&& f) :
-        capture((void*)&f),
+        context((void*)&f),
         wrapper((decltype(wrapper))(&std::remove_cvref_t<F>::operator()))
     { }
     template <class F> requires(
@@ -42,7 +42,7 @@ struct CallbackRef<Ret(Args...)> {
     )
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRef (F&& f) :
-        capture((void*)&f),
+        context((void*)&f),
         wrapper([](void* f, Args... args)->Ret{
             return (std::forward<F>(
                 *reinterpret_cast<std::remove_reference_t<F>*>(f)
@@ -58,7 +58,7 @@ struct CallbackRef<Ret(Args...)> {
     )
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRef (F&& f) :
-        capture((void*)&f),
+        context((void*)&f),
         wrapper([](void* f, Args... args)->Ret{
             return (std::forward<F>(
                 *reinterpret_cast<std::remove_reference_t<F>*>(f)
@@ -76,7 +76,7 @@ struct CallbackRef<Ret(Args...)> {
     template <class C>
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRef (C&& c, std::type_identity_t<Ret(*)(C&&, Args...)> f) :
-        capture((void*)&c),
+        context((void*)&c),
         wrapper(reinterpret_cast<decltype(wrapper)>(f))
     { }
 #pragma GCC diagnostic pop
@@ -85,9 +85,10 @@ struct CallbackRef<Ret(Args...)> {
      // (std::function does it too)
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr Ret operator () (Args... args) const {
-        return wrapper(capture, std::forward<Args>(args)...);
+        return wrapper(context, std::forward<Args>(args)...);
     }
 
+     // Reinterpret as another kind of function
     template <class Sig> [[gnu::artificial]] ALWAYS_INLINE constexpr
     const CallbackRef<Sig>& reinterpret () const {
         return *(const CallbackRef<Sig>*)this;
