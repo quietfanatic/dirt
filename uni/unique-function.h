@@ -35,16 +35,14 @@ struct UniqueFunction<Ret(Args...)> {
     ///// INTERFACE
      // Construct by moving any callable object
     template <class F> requires (
-         // Don't accidentally nest UniqueFunctions
-        !std::is_base_of_v<std::remove_cvref_t<F>, UniqueFunction> &&
+         // Don't accidentally nest identically-typed UniqueFunctions
+        !std::is_base_of_v<UniqueFunction, std::remove_cvref_t<F>> &&
         std::is_convertible_v<std::invoke_result_t<F, Args...>, Ret>
     ) ALWAYS_INLINE
     UniqueFunction (F&& f) :
         imp(new Imp<std::remove_cvref_t<F>>{
-            Base{
-                &Base::template do_call<std::remove_cvref_t<F>>,
-                &Base::template do_delete<std::remove_cvref_t<F>>,
-            },
+            &Base::template do_call<std::remove_cvref_t<F>>,
+            &Base::template do_delete<std::remove_cvref_t<F>>,
             std::forward<F>(f)
         })
     { }
@@ -68,10 +66,8 @@ struct UniqueFunction<Ret(Args...)> {
     UniqueFunction& operator= (F&& f) {
         if (imp) imp->delete_p(imp);
         imp = new Imp<std::remove_cvref_t<F>>{
-            Base{
-                &Base::template do_call<std::remove_cvref_t<F>>,
-                &Base::template do_delete<std::remove_cvref_t<F>>,
-            },
+            &Base::template do_call<std::remove_cvref_t<F>>,
+            &Base::template do_delete<std::remove_cvref_t<F>>,
             std::forward<F>(f)
         };
         return *this;
