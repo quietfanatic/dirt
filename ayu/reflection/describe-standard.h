@@ -22,6 +22,13 @@
 #include "describe-base.h"
 #include "reference.h"
 
+namespace ayu::in {
+    NOINLINE inline
+    UniqueString make_optional_name (Type t) {
+        return cat(t.name(), '?');
+    }
+} // ayu::in
+
  // std::optional serializes to [] for nullopt and [value] for value.  To make
  // it serialize to (missing from object) for nullopt and value for value, use
  // the collapse_optional flag on the parent object's attr.
@@ -29,9 +36,8 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::optional<T>),
     desc::name([]{
-        static uni::UniqueString r = uni::cat(
-            ayu::Type::CppType<T>().name(), '?'
-        );
+        static uni::UniqueString r =
+            ayu::in::make_optional_name(ayu::Type::CppType<T>());
         return uni::StaticString(r);
     }),
     desc::length(desc::template value_funcs<uni::usize>(
@@ -391,33 +397,13 @@ AYU_DESCRIBE_TEMPLATE(
 
  // A bit convoluted but hopefully worth it
 namespace ayu::in {
-
-     // Recursive template function to construct the type name of the tuple
-     // All this just to put commas between the type names.
-    template <class... Ts>
-    struct TupleNames;
-    template <>
-    struct TupleNames<> {
-        static uni::UniqueString make () {
-            return "";
-        }
-    };
-    template <class T>
-    struct TupleNames<T> {
-        static uni::UniqueString make () {
-            return uni::UniqueString(Type::CppType<T>().name());
-        }
-    };
-    template <class A, class B, class... Ts>
-    struct TupleNames<A, B, Ts...> {
-        static uni::UniqueString make () {
-            return uni::cat(
-                ayu::Type::CppType<A>().name(),
-                ", ", TupleNames<B, Ts...>::make()
-            );
-        }
-    };
-
+    NOINLINE inline
+    UniqueString make_tuple_name (StaticString* names, usize len) {
+        expect(len >= 1);
+        return cat("std::tuple<", Caterator(", ", len, [names](usize i){
+            return names[i];
+        }), '>');
+    }
      // No recursive templates or extra static tables, just expand the parameter
      // pack right inside of elems(...).  We do need to move this out to an
      // external struct though, to receive an index sequence.
@@ -427,8 +413,8 @@ namespace ayu::in {
         using desc = ayu::_AYU_DescribeBase<Tuple>;
         template <class T>
         using Getter = T&(*)(Tuple&);
-        template <usize... is>
-        static constexpr auto make (std::index_sequence<is...>) {
+        template <usize... is> static constexpr
+        auto make (std::index_sequence<is...>) {
             return desc::elems(
                 desc::elem(desc::ref_func(
                     Getter<typename std::tuple_element<is, Tuple>::type>(
@@ -451,10 +437,16 @@ AYU_DESCRIBE_TEMPLATE(
             (!std::is_reference_v<Ts> && ...),
             "Cannot instantiate AYU description of a tuple with references as type parameters"
         );
-        static uni::UniqueString r = uni::cat(
-            "std::tuple<", ayu::in::TupleNames<Ts...>::make(), '>'
-        );
-        return uni::StaticString(r);
+        if constexpr (sizeof...(Ts) == 0) {
+            return uni::StaticString("std::tuple<>");
+        }
+        else {
+            uni::StaticString names [] = {ayu::Type::CppType<Ts>().name()...};
+            static uni::UniqueString r = ayu::in::make_tuple_name(
+                names, sizeof...(Ts)
+            );
+            return uni::StaticString(r);
+        }
     }),
     ayu::in::TupleElems<Ts...>::make(
         std::index_sequence_for<Ts...>{}
