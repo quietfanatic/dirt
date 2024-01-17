@@ -3,22 +3,21 @@
 
 namespace uni {
 
-template <class Ret, class... Args>
-struct UniqueFunctionItf {
-    Ret (* call )(void*, Args...);
-    void (* destroy )(void*);
-    ~UniqueFunctionItf () { (*destroy)(this); }
-};
-
-template <class F, class Ret, class... Args>
-struct UniqueFunctionImp : UniqueFunctionItf<Ret, Args...> {
-    F f;
-};
-
+ // A type-erased generic function that's heap-allocated.  Similar to
+ // std::move_only_function
 template <class> struct UniqueFunction;
 template <class Ret, class... Args>
 struct UniqueFunction<Ret(Args...)> {
-    std::unique_ptr<UniqueFunctionItf<Ret, Args...>> itf;
+    struct Base {
+         // Don't use builtin virtual functions, they cause binary bloat
+         // especially in template classes.
+        Ret (* call )(void*, Args...);
+        void (* destroy )(void*);
+        ~Base () { (*destroy)(this); }
+    };
+    template <class F> struct Imp : Base { F f; };
+
+    std::unique_ptr<Base> imp;
 
     template <class F> requires (
         requires (F f, Args... args) {
@@ -26,16 +25,12 @@ struct UniqueFunction<Ret(Args...)> {
         }
     )
     UniqueFunction (F&& f) :
-        itf(new UniqueFunctionImp<F, Ret, Args...>{
+        imp(new Imp{
             [](void* self, Args... args)->Ret{
-                return (
-                    (UniqueFunctionImp<F, Ret, Args...>*)self
-                )->f(std::forward<Args>(args)...);
+                return ((Imp<F>*)self)->f(std::forward<Args>(args)...);
             },
             [](void* self){
-                (
-                    (UniqueFunctionImp<F, Ret, Args...>*)self
-                )->f.~F();
+                ((Imp<F>*)self)->f.~F();
             },
             std::forward<F>(f)
         })
@@ -49,12 +44,12 @@ struct UniqueFunction<Ret(Args...)> {
         return operator=(UniqueFunction(std::forward<F>(f)));
     }
 
-    constexpr UniqueFunction (std::nullptr_t n = null) : itf(n) { }
+    constexpr UniqueFunction (std::nullptr_t n = null) : imp(n) { }
 
     Ret operator() (Args... args) {
-        return itf->call(&*itf, std::forward<Args>(args)...);
+        return imp->call(&*imp, std::forward<Args>(args)...);
     }
-    constexpr explicit operator bool () const { return !!itf; }
+    constexpr explicit operator bool () const { return !!imp; }
 };
 
 } // uni
