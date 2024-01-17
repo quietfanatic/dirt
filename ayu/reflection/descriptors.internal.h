@@ -121,34 +121,28 @@ using Constructor = void(void*);
 template <class T>
 using Destructor = void(T*);
 
- // Determine presence of constructors and stuff using a sfinae trick
 template <class T>
-constexpr Constructor<T>* default_construct_p = null;
-template <class T> requires (requires { new (null) T; })
-constexpr Constructor<T>* default_construct_p<T>
-    = [](void* target){ new (target) T; };
-
-template <class T, class = void>
-constexpr Destructor<T>* destroy_p = null;
-template <class T> requires (requires (T& v) { v.~T(); })
-constexpr Destructor<T>* destroy_p<T> = [](T* v){ v->~T(); };
-
- // No SFINAE because these are only used if values() is specified, and
- // values() absolutely requires them.
+void default_construct (void* p) { new (p) T; }
 template <class T>
-constexpr bool(* compare_p )(const T&, const T&) =
-    [](const T& a, const T& b) { return a == b; };
+void destroy (T* p) { p->~T(); }
+
+inline void trivial_default_construct (void*) { }
+inline void trivial_destroy (Mu*) { }
 
 template <class T>
-constexpr void(* assign_p )(T&, const T&) =
-    [](T& a, const T& b) { a = b; };
+bool compare (const T& a, const T& b) { return a == b; };
+template <class T>
+void assign (T& a, const T& b) { a = b; }
 
 ///// DESCRIPTION HEADER
 
 template <class T>
 struct DescriptionFor : Description {
-    Constructor<T>* default_construct = default_construct_p<T>;
-    Destructor<T>* destroy = destroy_p<T>;
+    Constructor<T>* default_construct;
+    union {
+        Destructor<T>* destroy;
+        Destructor<Mu>* trivial_destroy;
+    };
 };
 
 ///// DESCRIPTORS
@@ -234,7 +228,7 @@ struct ValuesDcrWith : ValuesDcr<T> {
     uint16 offsets [sizeof...(Values)] {};
     Cat<Values...> values;
     constexpr ValuesDcrWith (Values&&... vs) :
-        ValuesDcr<T>{{}, compare_p<T>, assign_p<T>, sizeof...(Values)},
+        ValuesDcr<T>{{}, &compare<T>, &assign<T>, sizeof...(Values)},
         values(move(vs)...)
     {
         for (uint i = 0; i < sizeof...(Values); i++) {
@@ -475,21 +469,49 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     header.cpp_size = sizeof(T);
     header.cpp_align = alignof(T);
     header.name = name;
+    if constexpr (std::is_trivially_default_constructible_v<T>) {
+        header.default_construct = &trivial_default_construct;
+    }
+    else if constexpr (requires { new (null) T; }) {
+        header.default_construct = &default_construct<T>;
+    }
+    else {
+        header.default_construct = null;
+    }
+    if constexpr (std::is_trivially_destructible_v<T>) {
+        header.trivial_destroy = &trivial_destroy;
+    }
+    else if constexpr (requires (T v) { v.~T(); }) {
+        header.destroy = &destroy<T>;
+    }
+    else {
+        header.destroy = null;
+    }
 
     for_variadic([&]<class Dcr>(const Dcr& dcr){
          // Warning: We're operating on objects that may have been moved from.
          // To access an AttachedDescriptor, use desc.template get
          // To access a DetachedDescriptor, use dcr
         if constexpr (std::is_base_of_v<DefaultConstructDcr<T>, Dcr>) {
-            if (header.default_construct != default_construct_p<T>) {
+            if (header.flags & Description::CUSTOM_DEFAULT_CONSTRUCT) {
                 ERROR_duplicate_descriptors<Dcr>();
             }
+            header.flags |= Description::CUSTOM_DEFAULT_CONSTRUCT;
             header.default_construct = dcr.f;
         }
         else if constexpr (std::is_base_of_v<DestroyDcr<T>, Dcr>) {
-            if (header.destroy != destroy_p<T>) {
+             // We can't check the existing value of header.destroy because it's
+             // in a union, and we don't know which union member is active (and
+             // active union members are tracked and enforced at compile-time).
+             // So set a flag instead.
+             //
+             // We don't have exactly the same problem with
+             // header.default_construct, but it's still easier to use a flag
+             // than to check the default.
+            if (header.flags & Description::CUSTOM_DESTROY) {
                 ERROR_duplicate_descriptors<Dcr>();
             }
+            header.flags |= Description::CUSTOM_DESTROY;
             header.destroy = dcr.f;
         }
         else if constexpr (std::is_base_of_v<NameDcr<T>, Dcr>) {

@@ -34,6 +34,10 @@ struct Description : ComparableAddress {
         SHOULD_REBUILD_OBJECT = 1 << 2,
          // Faster values() processing
         ALL_VALUES_STRINGS = 1 << 3,
+         // These are actually only used at compile time, but we have plenty of
+         // bits available so it doesn't hurt to leave them around.
+        CUSTOM_DEFAULT_CONSTRUCT = 1 << 4,
+        CUSTOM_DESTROY = 1 << 5,
     };
     uint16 flags = 0;
 
