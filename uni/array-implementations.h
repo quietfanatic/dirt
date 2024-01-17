@@ -16,10 +16,12 @@ namespace ArrayClass {
         static constexpr bool is_Unique = false;
         static constexpr bool is_Static = false;
         static constexpr bool is_Slice = false;
+        static constexpr bool is_MutSlice = false;
         static constexpr bool supports_share = false;
         static constexpr bool supports_owned = false;
         static constexpr bool supports_static = false;
         static constexpr bool trivially_copyable = false;
+        static constexpr bool mut_default = false;
     };
     struct AnyArray : Defaults {
         static constexpr bool is_Any = true;
@@ -33,6 +35,7 @@ namespace ArrayClass {
     struct UniqueArray : Defaults {
         static constexpr bool is_Unique = true;
         static constexpr bool supports_owned = true;
+        static constexpr bool mut_default = true;
     };
     struct UniqueString : UniqueArray {
         static constexpr bool is_String = true;
@@ -50,6 +53,14 @@ namespace ArrayClass {
         static constexpr bool trivially_copyable = true;
     };
     struct Str : Slice {
+        static constexpr bool is_String = true;
+    };
+    struct MutSlice : Defaults {
+        static constexpr bool is_MutSlice = true;
+        static constexpr bool trivially_copyable = true;
+        static constexpr bool mut_default = true;
+    };
+    struct MutStr : MutSlice {
         static constexpr bool is_String = true;
     };
 }
@@ -106,6 +117,16 @@ template <class T>
 struct ArrayImplementation<ArrayClass::Str, T> {
     usize size;
     const T* data;
+};
+template <class T>
+struct ArrayImplementation<ArrayClass::MutSlice, T> {
+    usize size;
+    T* data;
+};
+template <class T>
+struct ArrayImplementation<ArrayClass::MutStr, T> {
+    usize size;
+    T* data;
 };
 
 } // arrays

@@ -93,6 +93,10 @@ using StaticArray = ArrayInterface<ArrayClass::StaticArray, T>;
 template <class T>
 using Slice = ArrayInterface<ArrayClass::Slice, T>;
 
+ // A slice but mutable.
+template <class T>
+using MutSlice = ArrayInterface<ArrayClass::MutSlice, T>;
+
  // The string types are almost exactly the same as the equivalent array types,
  // but they have slightly different rules for array construction; they can be
  // constructed from a const T*, which is taken to be a C-style NUL-terminated
@@ -108,21 +112,26 @@ template <class T>
 using GenericStaticString = ArrayInterface<ArrayClass::StaticString, T>;
 template <class T>
 using GenericStr = ArrayInterface<ArrayClass::Str, T>;
+template <class T>
+using GenericMutStr = ArrayInterface<ArrayClass::MutStr, T>;
 
 using AnyString = GenericAnyString<char>;
 using UniqueString = GenericUniqueString<char>;
 using StaticString = GenericStaticString<char>;
 using Str = GenericStr<char>;
+using MutStr = GenericMutStr<char>;
 
 using AnyString16 = GenericAnyString<char16>;
 using UniqueString16 = GenericUniqueString<char16>;
 using StaticString16 = GenericStaticString<char16>;
 using Str16 = GenericStr<char16>;
+using MutStr16 = GenericMutStr<char16>;
 
 using AnyString32 = GenericAnyString<char32>;
 using UniqueString32 = GenericUniqueString<char32>;
 using StaticString32 = GenericStaticString<char32>;
 using Str32 = GenericStr<char32>;
+using MutStr32 = GenericMutStr<char32>;
 
 ///// ARRAYLIKE CONCEPTS
  // A general concept for array-like types.
@@ -220,17 +229,21 @@ struct ArrayInterface {
     using const_reference = const T&;
     using pointer = T*;
     using const_pointer = const T*;
-    using iterator = std::conditional_t<ac::is_Unique, T*, const T*>;
+    using iterator = std::conditional_t<ac::mut_default, T*, const T*>;
     using const_iterator = const T*;
     using mut_iterator = std::conditional_t<ac::supports_owned, T*, void>;
     using reverse_iterator = std::reverse_iterator<iterator>;
     using const_reverse_iterator = std::reverse_iterator<const T*>;
     using mut_reverse_iterator =
         std::conditional_t<ac::supports_owned, std::reverse_iterator<T*>, void>;
-     // This one is useful though.
+     // These ones are useful though.
     using SelfSlice = std::conditional_t<ac::is_String,
         ArrayInterface<ArrayClass::Str, T>,
         ArrayInterface<ArrayClass::Slice, T>
+    >;
+    using SelfMutSlice = std::conditional_t<ac::is_String,
+        ArrayInterface<ArrayClass::MutStr, T>,
+        ArrayInterface<ArrayClass::MutStr, T>
     >;
 
     ///// CONSTRUCTION
@@ -326,7 +339,7 @@ struct ArrayInterface {
     }
 
      // Copy construction from other array-like types.  Explicit except for
-     // Slice/Str.
+     // Slice/Str with exact types.
     template <OtherArrayLike O> ALWAYS_INLINE constexpr
     explicit(ac::is_Static || !(ac::is_Slice && ArrayLikeFor<O, T>))
     ArrayInterface (const O& o) requires (!ac::is_Static) {
@@ -346,8 +359,14 @@ struct ArrayInterface {
                 std::is_integral_v<T2> && !std::is_same_v<T2, bool> &&
                 sizeof(T) == sizeof(T2)
             ) {
-                auto dat = &reinterpret_cast<const T&>(*o.data());
-                set_unowned(dat, o.size());
+                if constexpr (ac::mut_default) {
+                    auto dat = &reinterpret_cast<T&>(*o.data());
+                    set_unowned(dat, o.size());
+                }
+                else {
+                    auto dat = &reinterpret_cast<const T&>(*o.data());
+                    set_unowned(dat, o.size());
+                }
             }
             else {
                 static_assert(ArrayLikeFor<O, T>,
@@ -364,7 +383,8 @@ struct ArrayInterface {
     template <class O> constexpr
     ArrayInterface (O o) requires (
          // Some awkward requiresing to avoid decaying raw arrays.
-        ac::is_String && std::is_pointer_v<std::remove_cvref_t<O>> &&
+        ac::is_String && !ac::is_MutSlice &&
+        std::is_pointer_v<std::remove_cvref_t<O>> &&
         std::is_same_v<std::remove_cvref_t<std::remove_pointer_t<O>>, T>
     ) {
         const T* p = o;
@@ -384,7 +404,9 @@ struct ArrayInterface {
      // possible and borrows otherwise.
     template <class T2, usize len> ALWAYS_INLINE constexpr
     explicit(!std::is_same_v<T2, T>)
-    ArrayInterface (const T2(& o )[len]) requires (!ac::is_String) {
+    ArrayInterface (T2(& o )[len]) requires (
+        !ac::is_String || !std::is_const_v<T2>
+    ) {
         if constexpr (len == 0) {
             impl = {};
         }
@@ -393,7 +415,10 @@ struct ArrayInterface {
             set_copy(o, len);
         }
         else {
-            static_assert(std::is_same_v<T2, T>,
+            static_assert(
+                ac::mut_default
+                    ? std::is_same_v<T2, T>
+                    : std::is_same_v<T2, const T>,
                 "Cannot construct borrowed array from raw C array if its "
                 "element type does not match exactly."
             );
@@ -405,13 +430,15 @@ struct ArrayInterface {
      // be safe to borrow from.
     template <class T2, usize len> ALWAYS_INLINE constexpr
     explicit(!std::is_same_v<T2, T>)
-    ArrayInterface (const T2(& o )[len]) requires (ac::is_String) {
+    ArrayInterface (const T2(& o )[len]) requires (
+        ac::is_String && !ac::is_MutSlice
+    ) {
          // String literals should always be NUL-terminated (and the NUL is
          // included in len).
         static_assert(len > 0,
             "Cannot construct borrowed string from raw C array of length 0 "
             "(it's assumed to be a NUL-terminated string literal, but there "
-            "isn't room for a NUL terminator"
+            "isn't room for a NUL terminator)."
         );
         expect(!o[len-1]);
         if constexpr (len == 1) {
@@ -430,28 +457,6 @@ struct ArrayInterface {
                 "element type does not match exactly."
             );
             set_unowned(o, len-1);
-        }
-    }
-     // A non-const C array behaves like the array version, and does NOT check
-     // for NULs.
-    template <class T2, usize len> ALWAYS_INLINE constexpr
-    explicit(!std::is_same_v<T2, T>)
-    ArrayInterface (T2(& o )[len]) requires (
-        ac::is_String && !std::is_const_v<T2>
-    ) {
-        if constexpr (len == 0) {
-            impl = {};
-        }
-        else if constexpr (ac::supports_owned) {
-            static_assert(std::is_copy_constructible_v<T>);
-            set_copy(o, len);
-        }
-        else {
-            static_assert(std::is_same_v<T2, T>,
-                "Cannot construct borrowed string from raw C array if its "
-                "element type does not match exactly."
-            );
-            set_unowned(o, len);
         }
     }
 
@@ -608,15 +613,13 @@ struct ArrayInterface {
      // std::initializer_list isn't very good for owned types because it
      // requires copying all the items.
     ALWAYS_INLINE
-    ArrayInterface (std::initializer_list<T> l) requires (
-        ac::supports_owned || ac::is_Slice
-    ) {
-        if constexpr (ac::is_Slice) {
-            set_unowned(std::data(l), std::size(l));
-        }
-        else {
+    ArrayInterface (std::initializer_list<T> l) {
+        if constexpr (ac::supports_owned) {
             static_assert(std::is_copy_constructible_v<T>);
             set_copy(std::data(l), std::size(l));
+        }
+        else {
+            set_unowned(std::data(l), std::size(l));
         }
     }
      // So use this named constructor instead.
@@ -732,18 +735,17 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     usize max_size () const { return max_size_; }
 
-     // Get data pointer.  Always const by default except for UniqueArray, to
-     // avoid accidental copy-on-write.
     ALWAYS_INLINE constexpr
-    const T* data () const { return impl.data; }
-    ALWAYS_INLINE
-    T* data () requires (ac::is_Unique) { return impl.data; }
-     // Get mutable data pointer, triggering copy-on-write if needed.
-    ALWAYS_INLINE
-    T* mut_data () requires (ac::supports_owned) {
-        make_unique();
-        return impl.data;
+    const T* const_data () const { return impl.data; }
+    ALWAYS_INLINE constexpr
+    T* mut_data () requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
+        return const_cast<T*>(impl.data);
     }
+    ALWAYS_INLINE constexpr
+    const T* data () const { return const_data(); }
+    ALWAYS_INLINE constexpr
+    T* data () requires (ac::mut_default) { return mut_data(); }
 
      // Guarantees the return of a NUL-terminated buffer, possibly by attaching
      // a NUL element after the end.  Does not change the size of the array, but
@@ -762,73 +764,73 @@ struct ArrayInterface {
      // passed index is out of bounds.  operator[], get(), and mut_get() do not
      // do bounds checks (except on debug builds).  Only the mut_* versions can
      // trigger copy-on-write; the non-mut_* version are always const except for
-     // UniqueArray.
+     // UniqueArray and MutSlice.
      //
      // Note: Using &array[array.size()] to get a pointer off the end of the
      // array is NOT allowed.  Use array.end() instead, or array.data() +
      // array.size().
     ALWAYS_INLINE constexpr
-    const T& at (usize i) const {
+    const T& const_at (usize i) const {
         require(i < size());
         return impl.data[i];
     }
-    ALWAYS_INLINE
-    T& at (usize i) requires (ac::is_Unique) {
-        return const_cast<T&>(
-            const_cast<const ArrayInterface<ac, T>&>(*this).at(i)
-        );
-    }
-    ALWAYS_INLINE
-    T& mut_at (usize i) requires (ac::supports_owned) {
-        make_unique();
+    ALWAYS_INLINE constexpr
+    T& mut_at (usize i) requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
+        require(i < size());
         return const_cast<T&>(at(i));
     }
     ALWAYS_INLINE constexpr
-    const T& operator [] (usize i) const {
+    const T& at (usize i) const { return const_at(i); }
+    ALWAYS_INLINE constexpr
+    T& at (usize i) requires (ac::mut_default) { return mut_at(i); }
+
+    ALWAYS_INLINE constexpr
+    const T& const_get (usize i) const {
         expect(i < size());
         return impl.data[i];
     }
-    ALWAYS_INLINE
-    T& operator [] (usize i) requires (ac::is_Unique) {
-        return const_cast<T&>(
-            const_cast<const ArrayInterface<ac, T>&>(*this)[i]
-        );
+    ALWAYS_INLINE constexpr
+    T& mut_get (usize i) requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
+        expect(i < size());
+        return const_cast<T&>(impl.data[i]);
     }
     ALWAYS_INLINE constexpr
-    const T& get (usize i) const {
-        return (*this)[i];
-    }
-    ALWAYS_INLINE
-    T& get (usize i) requires (ac::is_Unique) {
-        return const_cast<T&>(
-            const_cast<const ArrayInterface<ac, T>&>(*this)[i]
-        );
-    }
-    ALWAYS_INLINE
-    T& mut_get (usize i) requires (ac::supports_owned) {
-        make_unique();
-        return const_cast<T&>((*this)[i]);
-    }
+    const T& get (usize i) const { return const_get(i); }
+    ALWAYS_INLINE constexpr
+    T& get (usize i) requires (ac::mut_default) { return const_get(i); }
 
     ALWAYS_INLINE constexpr
-    const T& front () const { return (*this)[0]; }
+    const T& operator [] (usize i) const {
+        return const_get(i);
+    }
     ALWAYS_INLINE constexpr
-    T& front () requires (ac::is_Unique) { return (*this)[0]; }
-    ALWAYS_INLINE
-    T& mut_front () requires (ac::supports_owned) {
-        make_unique();
+    T& operator [] (usize i) requires (ac::mut_default) { return mut_get(i); }
+
+    ALWAYS_INLINE constexpr
+    const T& const_front () const { return (*this)[0]; }
+    ALWAYS_INLINE constexpr
+    T& mut_front () requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
         return (*this)[0];
     }
+    ALWAYS_INLINE constexpr
+    const T& front () const { return const_front(); }
+    ALWAYS_INLINE constexpr
+    T& front () requires (ac::mut_default) { return mut_front(); }
 
     ALWAYS_INLINE constexpr
-    const T& back () const { return (*this)[size() - 1]; }
+    const T& const_back () const { return (*this)[size() - 1]; }
     ALWAYS_INLINE constexpr
-    T& back () requires (ac::is_Unique) { return (*this)[size() - 1]; }
-    ALWAYS_INLINE
-    T& mut_back () requires (ac::supports_owned) {
-        make_unique();
+    T& mut_back () requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
         return (*this)[size() - 1];
     }
+    ALWAYS_INLINE constexpr
+    const T& back () const { return const_back(); }
+    ALWAYS_INLINE constexpr
+    T& back () requires (ac::mut_default) { return mut_back(); }
 
      // Slice takes two offsets and does not do bounds checking (except in debug
      // builds).  Unlike operator[], the offsets are allowed to be one off the
@@ -836,30 +838,88 @@ struct ArrayInterface {
      // TODO: Return StaticString for StaticString.  Maybe even change SelfSlice
      // to Static* for Static*
     ALWAYS_INLINE constexpr
-    SelfSlice slice (usize start, usize end) const {
+    SelfSlice const_slice (usize start, usize end) const {
         expect(start <= end && end <= size()); // for safety
         auto r = SelfSlice(data() + start, end - start);
         expect(r.size() <= size()); // for optimization
         return r;
     }
+    ALWAYS_INLINE constexpr
+    SelfMutSlice mut_slice (usize start, usize end) requires (
+        ac::mut_default || ac::supports_owned
+    ) {
+        make_mut();
+        expect(start <= end && end <= size());
+        auto r = SelfMutSlice(data() + start, end - start);
+        expect(r.size() <= size());
+        return r;
+    }
+    ALWAYS_INLINE constexpr
+    SelfSlice slice (usize start, usize end) const {
+        return const_slice(start, end);
+    }
+    ALWAYS_INLINE constexpr
+    SelfMutSlice slice (usize start, usize end) requires (ac::mut_default) {
+        return mut_slice(start, end);
+    }
+
      // Omitting the second argument defaults to size(), but parameter defaults
      // can't depend on this, so just make a different overload.
     ALWAYS_INLINE constexpr
-    SelfSlice slice (usize start) const {
+    SelfSlice const_slice (usize start = 0) const {
         expect(start <= size());
         auto r = SelfSlice(data() + start, size() - start);
         expect(r.size() <= size());
         return r;
+    }
+    ALWAYS_INLINE constexpr
+    SelfMutSlice mut_slice (usize start = 0) requires (
+        ac::mut_default || ac::supports_owned
+    ) {
+        make_mut();
+        expect(start <= size());
+        auto r = SelfSlice(data() + start, size() - start);
+        expect(r.size() <= size());
+        return r;
+    }
+    ALWAYS_INLINE constexpr
+    SelfSlice slice (usize start = 0) const {
+        return const_slice(start);
+    }
+    ALWAYS_INLINE constexpr
+    SelfMutSlice slice (usize start = 0) requires (ac::mut_default) {
+        return mut_slice(start);
     }
 
      // Substr takes an offset and a length, and caps both to the length of the
      // string.  Note that unlike the STL's substr, this returns a Slice/Str,
      // not a new copy.
     ALWAYS_INLINE constexpr
-    SelfSlice substr (usize offset, usize length = usize(-1)) const {
-        if (offset >= size()) offset = size();
-        if (length > size() - offset) length = size() - offset;
-        return SelfSlice(data() + offset, length);
+    SelfSlice const_substr (usize start, usize length = usize(-1)) const {
+        if (start >= size()) start = size();
+        if (length > size() - start) length = size() - start;
+        return SelfSlice(data() + start, length);
+    }
+    ALWAYS_INLINE constexpr
+    SelfMutSlice mut_substr (
+        usize start, usize length = usize(-1)
+    ) requires (
+        ac::mut_default || ac::supports_owned
+    ) {
+        make_mut();
+        if (start >= size()) start = size();
+        if (length > size() - start) length = size() - start;
+        return SelfSlice(data() + start, length);
+    }
+    ALWAYS_INLINE constexpr
+    SelfSlice substr (usize start, usize length = usize(-1)) const {
+        return const_substr(start, length);
+    }
+    ALWAYS_INLINE constexpr
+    SelfMutSlice substr (usize start, usize length = usize(-1)) requires (
+        ac::mut_default
+    ) {
+        return mut_substr(start, length);
     }
 
      // Get the current capacity of the owned buffer.  If this array is not
@@ -923,65 +983,66 @@ struct ArrayInterface {
     // begin(), end(), and related functions never trigger a copy-on-write, and
     // return const for all but UniqueArray.  The mut_* versions will trigger a
     // copy-on-write.
+    //
+    // To match the STL, the const versions of begin and end are named cbegin
+    // and cend instead of const_begin and const_end.
 
-    ALWAYS_INLINE constexpr
-    const T* begin () const { return impl.data; }
     ALWAYS_INLINE constexpr
     const T* cbegin () const { return impl.data; }
     ALWAYS_INLINE constexpr
-    T* begin () requires (ac::is_Unique) { return impl.data; }
-    ALWAYS_INLINE
-    T* mut_begin () requires (ac::supports_owned) {
-        make_unique();
-        return impl.data;
+    T* mut_begin () requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
+        return const_cast<T*>(impl.data);
     }
-
     ALWAYS_INLINE constexpr
-    const T* end () const { return impl.data + size(); }
+    const T* begin () const { return cbegin(); }
+    ALWAYS_INLINE constexpr
+    T* begin () requires (ac::mut_default) { return mut_begin(); }
+
     ALWAYS_INLINE constexpr
     const T* cend () const { return impl.data + size(); }
-    ALWAYS_INLINE constexpr
-    T* end () requires (ac::is_Unique) { return impl.data + size(); }
     ALWAYS_INLINE
-    T* mut_end () requires (ac::supports_owned) {
-        make_unique();
-        return impl.data + size();
+    T* mut_end () requires (ac::mut_default || ac::supports_owned) {
+        make_mut();
+        return const_cast<T*>(impl.data + size());
     }
-
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<const T*> rbegin () const {
-        return std::make_reverse_iterator(impl.data + size());
-    }
+    const T* end () const { return cend(); }
+    ALWAYS_INLINE constexpr
+    T* end () requires (ac::mut_default) { return mut_end(); }
+
     ALWAYS_INLINE constexpr
     std::reverse_iterator<const T*> crbegin () const {
-        return std::make_reverse_iterator(impl.data + size());
+        return std::make_reverse_iterator(cend());
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> rbegin () requires (ac::is_Unique) {
-        return std::make_reverse_iterator(impl.data + size());
+    std::reverse_iterator<T*> mut_rbegin () requires (
+        ac::mut_default || ac::supports_owned
+    ) {
+        return std::make_reverse_iterator(mut_end());
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> mut_rbegin () requires (ac::supports_owned) {
-        make_unique();
-        return std::make_reverse_iterator(impl.data + size());
+    std::reverse_iterator<const T*> rbegin () const { return crbegin(); }
+    ALWAYS_INLINE constexpr
+    std::reverse_iterator<T*> rbegin () requires (ac::mut_default) {
+        return mut_rbegin();
     }
 
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<const T*> rend () const {
-        return std::make_reverse_iterator(impl.data);
-    }
-    ALWAYS_INLINE constexpr
     std::reverse_iterator<const T*> crend () const {
-        return std::make_reverse_iterator(impl.data);
+        return std::make_reverse_iterator(cbegin());
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> rend () requires (ac::is_Unique) {
-        return std::make_reverse_iterator(impl.data);
+    std::reverse_iterator<T*> mut_rend () requires (
+        ac::mut_default || ac::supports_owned
+    ) {
+        return std::make_reverse_iterator(mut_begin());
     }
     ALWAYS_INLINE constexpr
-    std::reverse_iterator<T*> mut_rend () requires (ac::supports_owned) {
-        make_unique();
-        return std::make_reverse_iterator(impl.data);
+    std::reverse_iterator<const T*> rend () const { return crend(); }
+    ALWAYS_INLINE constexpr
+    std::reverse_iterator<T*> rend () requires (ac::mut_default) {
+        return mut_rend();
     }
 
     ///// MUTATORS
@@ -1032,6 +1093,11 @@ struct ArrayInterface {
         if (!unique()) {
             set_owned_unique(reallocate_noinline(impl, size()), size());
         }
+    }
+
+    ALWAYS_INLINE
+    void make_mut () requires (ac::mut_default || ac::supports_owned) {
+        if constexpr (ac::supports_owned) make_unique();
     }
 
      // Change the size of the array by either growing or shrinking.
@@ -1525,15 +1591,14 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
-        static_assert(ac::supports_static || ac::is_Slice);
+        static_assert(ac::supports_static || ac::is_Slice || ac::is_MutSlice);
         if constexpr (ac::is_Any) {
             impl.sizex2_with_owned = s << 1;
-            impl.data = const_cast<T*>(d);
         }
         else {
             impl.size = s;
-            impl.data = d;
         }
+        impl.data = const_cast<T*>(d);
     }
     template <ArrayIterator Ptr>
     void set_copy (Ptr ptr, usize s) {
