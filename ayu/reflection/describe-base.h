@@ -58,14 +58,14 @@ struct _AYU_DescribeBase {
      // Specifies the name of the type, as it will appear in serialized strings.
      // You do not need to provide this for non-template types, since the
      // AYU_DESCRIBE macro will stringify the type name given to it and use that
-     // as the name.  This is not possible for template types, however, so you
-     // must provide a name.  The name is a function returning a string instead
-     // of just a plain string, because you might need to read the names of
-     // other types to generate the name, and those other names might not be
-     // available at compile time.  This function will be called before main()
-     // starts, and it will only be called once, with the result cached for
-     // later accesses.  For usage examples, see describe-standard.h.
-    static constexpr auto name (AnyString(* f )());
+     // as the name.  You must provide a name for template types, but you
+     // probably want to use computed_name instead.
+    static constexpr auto name (StaticString);
+     // Generate a name dynamically, which can depend on the names of other
+     // types.  This function will be called before main() starts, and it will
+     // only be called once, with the result cached for later accesses.  For
+     // usage examples, see describe-standard.h.
+    static constexpr auto computed_name (AnyString(* f )());
      // Provides a function to transform an item of this type to an ayu::Tree
      // for serialization.  For most types this should not be needed; for
      // aggregate types you usually want attrs() or elems(), and for scalar
@@ -710,9 +710,7 @@ struct _AYU_DescribeBase {
         in::AcrFlags::PassThroughAddressable;
     static constexpr in::AcrFlags unaddressable = in::AcrFlags::Unaddressable;
     template <class... Dcrs>
-    static constexpr auto _ayu_describe (
-        StaticString name, Dcrs&&... dcrs
-    );
+    static constexpr auto _ayu_describe (Dcrs&&... dcrs);
 };
 
 } // namespace ayu

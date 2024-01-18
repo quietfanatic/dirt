@@ -52,7 +52,7 @@ namespace ayu::in {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::optional<T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_optional_name(ayu::Type::CppType<T>());
     }),
     desc::length(desc::template value_funcs<uni::usize>(
@@ -79,7 +79,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unique_ptr<T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::unique_ptr<", ayu::Type::CppType<T>()
         );
@@ -105,7 +105,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(uni::UniqueArray<T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "uni::UniqueArray<", ayu::Type::CppType<T>()
         );
@@ -120,7 +120,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(uni::AnyArray<T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "uni::AnyArray<", ayu::Type::CppType<T>()
         );
@@ -137,7 +137,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::vector<T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::vector<", ayu::Type::CppType<T>()
         );
@@ -155,7 +155,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unordered_map<std::string, T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::unordered_map<std::string, ", ayu::Type::CppType<T>()
         );
@@ -190,7 +190,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::map<std::string, T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::map<std::string, ", ayu::Type::CppType<T>()
         );
@@ -224,7 +224,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unordered_set<T>),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::unordered_set<", ayu::Type::CppType<T>()
         );
@@ -257,7 +257,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::set<T>),
-    desc::name([]{
+    desc::computed_name([]{
         static uni::StaticString r; if (!r) r = ayu::in::make_template_name_1(
             "std::set<", ayu::Type::CppType<T>()
         );
@@ -289,7 +289,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(T*),
-    desc::name([]{
+    desc::computed_name([]{
         return ayu::in::make_pointer_name(ayu::Type::CppType<T>());
     }),
      // This will probably be faster if we skip the delegate chain, but let's
@@ -302,7 +302,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(T[n]),
-    desc::name([]{
+    desc::computed_name([]{
         return uni::cat(
             ayu::Type::CppType<T>().name(),
             '[', n, ']'
@@ -320,7 +320,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(char[n]),
-    desc::name([]{
+    desc::computed_name([]{
         return uni::cat("char[", n, ']');
     }),
      // Serialize as a string
@@ -368,7 +368,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::array<T, n>),
-    desc::name([]{
+    desc::computed_name([]{
         return uni::cat(
             "std::array<" + ayu::Type::CppType<T>().name(),
             ", ", n, '>'
@@ -384,7 +384,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class A, class B),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::pair<A, B>),
-    desc::name([]{
+    desc::computed_name([]{
         return uni::cat(
             "std::pair<", ayu::Type::CppType<A>().name(),
             ", ", ayu::Type::CppType<B>().name(), '>'
@@ -426,7 +426,7 @@ namespace ayu::in {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class... Ts),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::tuple<Ts...>),
-    desc::name([]()->uni::AnyString{
+    desc::computed_name([]()->uni::AnyString{
         static_assert(
             (!std::is_reference_v<Ts> && ...),
             "Cannot instantiate AYU description of a tuple with references as type parameters"

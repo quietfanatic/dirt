@@ -27,6 +27,8 @@ namespace ayu::in {
 template <class T>
 static void ERROR_duplicate_descriptors () { }
 static void ERROR_element_is_not_a_descriptor_for_this_type () { }
+static void ERROR_cannot_have_non_computed_name_after_computed_name () { }
+static void ERROR_description_doesnt_have_name_or_computed_name () { }
 static void ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs () { }
 static void ERROR_keys_and_computed_attrs_must_be_together () { }
 static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
@@ -166,16 +168,17 @@ struct DetachedDescriptor : Descriptor<T> {
     static constexpr ComparableAddress make_static (const Self&) { return {}; }
 };
 
+template <class T>
+struct NameDcr : DetachedDescriptor<T> {
+    StaticString name;
+};
 
  // We can't store the generated name in the description because it has to be
  // constexpr (we might be able to make it constinit, but it would be require a
  // lot of work and/or compromises).  So store it here.
 template <class T> StaticString cached_name;
-
-using NameFunc = AnyString();
-
 template <class T>
-struct NameDcr : AttachedDescriptor<T> {
+struct ComputedNameDcr : DetachedDescriptor<T> {
     StaticString* cache;
     NameFunc* f;
 };
@@ -454,7 +457,7 @@ using FullDescription = Cat<
 
 template <class T, class... Dcrs>
 constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
-    StaticString name, Dcrs&&... dcrs
+    Dcrs&&... dcrs
 ) {
     using Desc = FullDescription<T, std::remove_cvref_t<Dcrs>...>;
 
@@ -477,7 +480,6 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
 #endif
     header.cpp_size = sizeof(T);
     header.cpp_align = alignof(T);
-    header.name = name;
     if constexpr (std::is_trivially_default_constructible_v<T>) {
         header.default_construct = &trivial_default_construct;
     }
@@ -500,6 +502,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     bool have_default_construct = false;
     bool have_destroy = false;
     bool have_name = false;
+    bool have_computed_name = false;
     bool have_to_tree = false;
     bool have_from_tree = false;
     bool have_swizzle = false;
@@ -533,16 +536,32 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             header.destroy = dcr.f;
         }
         else if constexpr (std::is_base_of_v<NameDcr<T>, Dcr>) {
+            if (have_computed_name) {
+                ERROR_cannot_have_non_computed_name_after_computed_name();
+            }
+             // Allow duplicate name descriptors.  A later one overrides an
+             // earlier one.
+            have_name = true;
+            header.name = dcr.name;
+        }
+        else if constexpr (std::is_base_of_v<ComputedNameDcr<T>, Dcr>) {
+            if (have_computed_name) {
+                ERROR_duplicate_descriptors<ComputedNameDcr<T>>();
+            }
+             // Allow computed_name to override non-computed name.
+            have_computed_name = true;
+            header.flags |= Description::COMPUTED_NAME;
+            header.cached_name = dcr.cache;
+            header.computed_name = dcr.f;
+        }
+        else if constexpr (std::is_base_of_v<ToTreeDcr<T>, Dcr>) {
 #define AYU_APPLY_OFFSET(dcr_type, dcr_name) \
             if (have_##dcr_name) { \
-                ERROR_duplicate_descriptors<Dcr>(); \
+                ERROR_duplicate_descriptors<dcr_type<T>>(); \
             } \
             have_##dcr_name = true; \
             header.dcr_name##_offset = \
                 desc.template get<dcr_type<T>>(0)->get_offset(header);
-            AYU_APPLY_OFFSET(NameDcr, name)
-        }
-        else if constexpr (std::is_base_of_v<ToTreeDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(ToTreeDcr, to_tree)
         }
         else if constexpr (std::is_base_of_v<FromTreeDcr<T>, Dcr>) {
@@ -656,6 +675,11 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     }
     else if (have_computed_elems || have_contiguous_elems) {
         ERROR_cannot_have_computed_or_contiguous_elems_without_length();
+    }
+    if (!have_name && !have_computed_name) {
+         // If this error happens, you probably used AYU_DESCRIBE_TEMPLATE but
+         // forgot to specify a computed_name().
+        ERROR_description_doesnt_have_name_or_computed_name();
     }
 
     return desc;

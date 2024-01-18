@@ -85,10 +85,10 @@ const Description* need_description_for_name (Str name) {
 }
 
 StaticString get_description_name (const Description* desc) {
-    if (auto dcr = DescriptionPrivate::get(desc)->name()) {
-        auto cache = dcr->cache;
+    if (desc->flags & Description::COMPUTED_NAME) {
+        auto cache = desc->cached_name;
         if (!*cache) {
-            AnyString s = dcr->f();
+            AnyString s = desc->computed_name();
             *cache = StaticString(s);
             s.impl = {};
         }

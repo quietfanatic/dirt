@@ -346,7 +346,7 @@ constexpr GMat<A, cols, rows+1> add_row (
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize cols, uni::usize rows),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GMat<T, cols, rows>),
-    desc::name([]()->uni::AnyString{
+    desc::computed_name([]()->uni::AnyString{
         using namespace uni;
         if constexpr (std::is_same_v<T, float>) {
             if constexpr (cols == 2) {

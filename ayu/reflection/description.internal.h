@@ -16,14 +16,21 @@ namespace ayu::in {
 struct ComparableAddress { };
 static_assert(sizeof(ComparableAddress) == 1);
 
+using NameFunc = AnyString();
+
 struct Description : ComparableAddress {
 #ifdef AYU_STORE_TYPE_INFO
     const std::type_info* cpp_type = null;
 #endif
     uint32 cpp_size = 0;
     uint32 cpp_align = 0;
-     // Empty if the name needs to be dynamically generated.
-    StaticString name;
+    union {
+        StaticString name;
+        struct {
+            StaticString* cached_name;
+            NameFunc* computed_name;
+        };
+    };
 
      // Do some property calculations ahead of time
     enum Flags {
@@ -31,15 +38,15 @@ struct Description : ComparableAddress {
         PREFER_OBJECT = 1 << 1,
         PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
          // Select between union members below
-        CONTIGUOUS_ELEMS = 1 << 2,
+        COMPUTED_NAME = 1 << 2,
+        CONTIGUOUS_ELEMS = 1 << 3,
          // Can select some faster algorithms when this is false.
-        SHOULD_REBUILD_OBJECT = 1 << 3,
+        SHOULD_REBUILD_OBJECT = 1 << 4,
          // Faster values() processing
-        ALL_VALUES_STRINGS = 1 << 4,
+        ALL_VALUES_STRINGS = 1 << 5,
     };
     uint16 flags = 0;
 
-    uint16 name_offset = 0;
     uint16 to_tree_offset = 0;
     uint16 from_tree_offset = 0;
     uint16 swizzle_offset = 0;

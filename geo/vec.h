@@ -443,7 +443,7 @@ constexpr auto cross (const GVec<A, 3>& a, const GVec<B, 3>& b) {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GVec<T, n>),
-    desc::name([]()->uni::AnyString{
+    desc::computed_name([]()->uni::AnyString{
         if constexpr (std::is_same_v<T, float>) {
             if constexpr (n == 2) { return "geo::Vec"; }
             else if constexpr (n == 3) { return "geo::Vec3"; }

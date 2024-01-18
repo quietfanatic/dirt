@@ -6,8 +6,13 @@ static void ERROR_elem_cannot_have_collapse_empty_flag () { }
 static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::name (in::NameFunc* f) {
-    return in::NameDcr<T>{{}, &in::cached_name<T>, f};
+constexpr auto _AYU_DescribeBase<T>::name (StaticString n) {
+    return in::NameDcr<T>{{}, n};
+}
+
+template <class T>
+constexpr auto _AYU_DescribeBase<T>::computed_name (in::NameFunc* f) {
+    return in::ComputedNameDcr<T>{{}, &in::cached_name<T>, f};
 }
 
 template <class T>
@@ -311,11 +316,9 @@ constexpr auto _AYU_DescribeBase<T>::reference_func (
 template <class T>
 template <class... Dcrs>
 constexpr auto _AYU_DescribeBase<T>::_ayu_describe (
-    StaticString name, Dcrs&&... dcrs
+    Dcrs&&... dcrs
 ) {
-    return in::make_description<T, Dcrs...>(
-        name, move(dcrs)...
-    );
+    return in::make_description<T, Dcrs...>(move(dcrs)...);
 }
 
 } // namespace ayu
@@ -329,11 +332,12 @@ constexpr auto _AYU_DescribeBase<T>::_ayu_describe (
  // Stringify name as early as possible to avoid macro expansion
  // TODO make description constinit so names can be generated at runtime
 #define AYU_DESCRIBE_BEGIN(T) AYU_DESCRIBE_BEGIN_NAME(T, #T)
-#define AYU_DESCRIBE_BEGIN_NAME(T, name) \
+#define AYU_DESCRIBE_BEGIN_NAME(T, name_) \
 template <> \
 struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
-    static constexpr auto _ayu_full_description = ayu::_AYU_DescribeBase<T>::_ayu_describe(name
+    static constexpr auto _ayu_full_description = ayu::_AYU_DescribeBase<T>::_ayu_describe( \
+        name(name_)
 
 #define AYU_DESCRIBE_END(T) \
     ); \
@@ -357,7 +361,7 @@ AYU_DESCRIBE_END(T)
 template params \
 struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
-    static constexpr auto _ayu_full_description = desc::_ayu_describe("",
+    static constexpr auto _ayu_full_description = desc::_ayu_describe(
 
 #define AYU_DESCRIBE_TEMPLATE_END(params, T) \
     ); \

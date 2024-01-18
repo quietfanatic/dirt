@@ -260,7 +260,7 @@ constexpr A lerp (const GRange<A>& a, T t) {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GRange<T>),
-    desc::name([]()->uni::StaticString{
+    desc::computed_name([]()->uni::StaticString{
         if constexpr (std::is_same_v<T, float>) return "geo::Range";
         else if constexpr (std::is_same_v<T, double>) return "geo::DRange";
         else if constexpr (std::is_same_v<T, uni::int32>) return "geo::IRange";
