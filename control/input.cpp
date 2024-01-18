@@ -116,7 +116,7 @@ Input input_from_integer (int i) noexcept {
          // SDLK_* constants have bit 30 set
         default: return {
             .type = InputType::Key,
-            .code = (1<<30) | i
+            .code = 1<<30 | i
         };
     }
 }
@@ -142,15 +142,14 @@ struct TableEntry {
     Input input;
 };
 
-static constexpr TableEntry unsorted [] = {
+static constexpr auto inputs_by_hash = []{
+    constexpr TableEntry unsorted [] = {
 #define KEY(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Key, .code = c}},
 #define ALT(n, c) KEY(n, c)
 #define BTN(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Button, .code = c}},
 #define BTN_ALT(n, c) BTN(n, c)
 #include "keys-table.private.h"
-};
-
-static constexpr auto inputs_by_hash = []{
+    };
     constexpr usize len = sizeof(unsorted) / sizeof(unsorted[0]);
     std::array<TableEntry, len> r;
     for (usize i = 0; i < len; i++) {
@@ -161,6 +160,97 @@ static constexpr auto inputs_by_hash = []{
     });
     return r;
 }();
+
+ // Now we want to make a table mapping codes to names, but first we have to
+ // determine what the ranges of codes actually are.
+struct CodeRanges {
+    int32 min_low = 0x7fffffff;
+    int32 max_low = 0;
+    int32 min_high = 0x7fffffff;
+    int32 max_high = 0;
+    int32 min_btn = 0x7fffffff;
+    int32 max_btn = 0;
+};
+
+static constexpr CodeRanges code_ranges = []{
+    CodeRanges r;
+    for (auto& entry : inputs_by_hash) {
+        auto code = entry.input.code;
+        if (entry.input.type == InputType::Key) {
+            if (code & 1<<30) {
+                if (code < r.min_high) r.min_high = code;
+                if (code > r.max_high) r.max_high = code;
+            }
+            else {
+                if (code < r.min_low) r.min_low = code;
+                if (code > r.max_low) r.max_low = code;
+            }
+        }
+        else if (entry.input.type == InputType::Button) {
+            if (code < r.min_btn) r.min_btn = code;
+            if (code > r.max_btn) r.max_btn = code;
+        }
+    }
+    return r;
+}();
+ // Assert some sane size limits
+static_assert(code_ranges.max_low - code_ranges.min_low < 1000);
+static_assert(code_ranges.max_high - code_ranges.min_high < 1000);
+static_assert(code_ranges.max_btn - code_ranges.min_btn < 10);
+
+ // Now make the tables.  Since we already have all the info in the
+ // inputs_by_hash table, let's just index that with 8-bit indexes.
+static_assert(inputs_by_hash.size() < 255);
+struct InputsByCode {
+    uint8 low [code_ranges.max_low - code_ranges.min_low + 1];
+    uint8 high [code_ranges.max_high - code_ranges.min_high + 1];
+    uint8 btn [code_ranges.max_btn - code_ranges.min_btn + 1];
+};
+static constexpr auto inputs_by_code = []{
+    InputsByCode r;
+    for (auto& i : r.low) i = -1;
+    for (auto& i : r.high) i = -1;
+    for (auto& i : r.btn) i = -1;
+    constexpr uint32 keys [] = {
+#define KEY(n, c) hash32(n),
+#include "keys-table.private.h"
+    };
+    for (uint32 hash : keys) {
+        for (usize i = 0; i < inputs_by_hash.size(); i++) {
+            if (inputs_by_hash[i].input.type == InputType::Key) {
+                if (hash == inputs_by_hash[i].hash) {
+                    auto code = inputs_by_hash[i].input.code;
+                    if (code & 1<<30) r.high[code - code_ranges.min_high] = i;
+                    else r.low[code - code_ranges.min_low] = i;
+                    break;
+                }
+            }
+        }
+    }
+    constexpr uint32 btns [] = {
+#define BTN(n, c) hash32(n),
+#include "keys-table.private.h"
+    };
+    for (uint32 hash : btns) {
+        for (usize i = 0; i < inputs_by_hash.size(); i++) {
+            if (inputs_by_hash[i].input.type == InputType::Button) {
+                if (hash == inputs_by_hash[i].hash) {
+                    auto code = inputs_by_hash[i].input.code;
+                    r.btn[code - code_ranges.min_btn] = i;
+                    break;
+                }
+            }
+        }
+    }
+    return r;
+}();
+ // For some reason, when accessing members of a global struct constant, the
+ // compiler generates code that loads the address of the struct and then adds
+ // the offset to the member, instead of loading the address of the member
+ // directly.  This works around that.
+static constexpr StaticArray<uint8> inputs_by_code_low (inputs_by_code.low);
+static constexpr StaticArray<uint8> inputs_by_code_high (inputs_by_code.high);
+static constexpr StaticArray<uint8> inputs_by_code_btn (inputs_by_code.btn);
 
 Input input_from_string (Str name) {
     if (name.size() > 32) {
@@ -194,19 +284,39 @@ StaticString input_to_string (Input input) {
     switch (input.type) {
         case InputType::None: return "none";
         case InputType::Key: {
-            switch (input.code) {
-#define KEY(n, c) case c: return n;
-#include "keys-table.private.h"
-                 // Not entirely sure what to do here.
-                default: return "";
+            if (input.code & 1<<30) {
+                if (input.code < code_ranges.min_high ||
+                    input.code > code_ranges.max_high
+                ) return "";
+                auto ii = input.code - code_ranges.min_high;
+                auto i = inputs_by_code_high[ii];
+                if (i == uint8(-1)) return "";
+                return StaticString(
+                    inputs_by_hash[i].name, inputs_by_hash[i].size
+                );
+            }
+            else {
+                if (input.code < code_ranges.min_low ||
+                    input.code > code_ranges.max_low
+                ) return "";
+                auto ii = input.code - code_ranges.min_low;
+                auto i = inputs_by_code_low[ii];
+                if (i == uint8(-1)) return "";
+                return StaticString(
+                    inputs_by_hash[i].name, inputs_by_hash[i].size
+                );
             }
         }
         case InputType::Button: {
-            switch (input.code) {
-#define BTN(n, c) case c: return n;
-#include "keys-table.private.h"
-                default: return "";
-            }
+            if (input.code < code_ranges.min_btn ||
+                input.code > code_ranges.max_btn
+            ) return "";
+            auto ii = input.code - code_ranges.min_btn;
+            auto i = inputs_by_code_btn[ii];
+            if (i == uint8(-1)) return "";
+            return StaticString(
+                inputs_by_hash[i].name, inputs_by_hash[i].size
+            );
         }
         default: require(false); return "";
     }
