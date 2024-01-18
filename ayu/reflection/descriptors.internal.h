@@ -166,11 +166,18 @@ struct DetachedDescriptor : Descriptor<T> {
     static constexpr ComparableAddress make_static (const Self&) { return {}; }
 };
 
- // TODO: Make a template variable to store generated names so that the name
- // generator doesn't have to use a static variable.
+
+ // We can't store the generated name in the description because it has to be
+ // constexpr (we might be able to make it constinit, but it would be require a
+ // lot of work and/or compromises).  So store it here.
+template <class T> StaticString cached_name;
+
+using NameFunc = AnyString();
+
 template <class T>
 struct NameDcr : AttachedDescriptor<T> {
-    StaticString(* f )();
+    StaticString* cache;
+    NameFunc* f;
 };
 
 template <class T>

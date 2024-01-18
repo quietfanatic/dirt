@@ -266,12 +266,9 @@ AYU_DESCRIBE_TEMPLATE(
         else if constexpr (std::is_same_v<T, uni::int32>) return "geo::IRange";
         else if constexpr (std::is_same_v<T, uni::int64>) return "geo::LRange";
         else if constexpr (std::is_same_v<T, bool>) return "geo::BRange";
-        else {
-            static uni::UniqueString r = uni::cat(
-                "geo::GRange<", ayu::Type::CppType<T>().name(), '>'
-            );
-            return uni::StaticString(r);
-        }
+        else return uni::cat(
+            "geo::GRange<", ayu::Type::CppType<T>().name(), '>'
+        );
     }),
     desc::elems(
         desc::elem(&geo::GRange<T>::l),

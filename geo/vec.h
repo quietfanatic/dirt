@@ -443,7 +443,7 @@ constexpr auto cross (const GVec<A, 3>& a, const GVec<B, 3>& b) {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GVec<T, n>),
-    desc::name([]()->uni::StaticString {
+    desc::name([]()->uni::AnyString{
         if constexpr (std::is_same_v<T, float>) {
             if constexpr (n == 2) { return "geo::Vec"; }
             else if constexpr (n == 3) { return "geo::Vec3"; }
@@ -469,12 +469,10 @@ AYU_DESCRIBE_TEMPLATE(
             else if constexpr (n == 3) { return "geo::BVec3"; }
             else if constexpr (n == 4) { return "geo::BVec4"; }
         }
-        else {
-            static uni::UniqueString r = uni::cat(
-                "geo::GVec<", ayu::Type::CppType<T>().name(), ", ", n, '>'
-            );
-            return uni::StaticString(r);
-        }
+         // Other branches can fall through to here
+        return uni::cat(
+            "geo::GVec<", ayu::Type::CppType<T>().name(), ", ", n, '>'
+        );
     }),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::computed_elems([](geo::GVec<T, n>& v, uni::usize i){

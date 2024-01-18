@@ -6,8 +6,8 @@ static void ERROR_elem_cannot_have_collapse_empty_flag () { }
 static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::name (StaticString(* f )()) {
-    return in::NameDcr<T>{{}, f};
+constexpr auto _AYU_DescribeBase<T>::name (in::NameFunc* f) {
+    return in::NameDcr<T>{{}, &in::cached_name<T>, f};
 }
 
 template <class T>

@@ -5,7 +5,7 @@
 #include <cxxabi.h>
 #endif
 
-#include "descriptors.internal.h"
+#include "descriptors.private.h"
 #include "type.h"
 
 namespace ayu {
@@ -85,21 +85,30 @@ const Description* need_description_for_name (Str name) {
 }
 
 StaticString get_description_name (const Description* desc) {
-    return desc->name_offset
-        ? ((NameDcr<Mu>*)((char*)desc + desc->name_offset))->f()
-        : !desc->name.empty() ? desc->name
+    if (auto dcr = DescriptionPrivate::get(desc)->name()) {
+        auto cache = dcr->cache;
+        if (!*cache) {
+            AnyString s = dcr->f();
+            *cache = StaticString(s);
+            s.impl = {};
+        }
+        return *cache;
+    }
+    else if (desc->name) { return desc->name; }
+    else {
 #ifdef AYU_STORE_TYPE_INFO
-        : StaticString(desc->cpp_type->name());
+        return StaticString(desc->cpp_type->name());
 #else
-        : "(Unknown Type Name)";
+        return "!(Unknown Type Name)";
 #endif
+    }
 }
 
 UniqueString get_demangled_name (const std::type_info& t) noexcept {
 #if __has_include(<cxxabi.h>)
     int status;
     char* demangled = abi::__cxa_demangle(t.name(), nullptr, nullptr, &status);
-    if (status != 0) return cat("?(Failed to demangle ", t.name(), ')');
+    if (status != 0) return cat("!(Failed to demangle ", t.name(), ')');
     auto r = UniqueString(demangled);
     free(demangled);
     return r;

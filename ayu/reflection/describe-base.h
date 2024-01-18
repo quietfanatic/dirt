@@ -62,8 +62,10 @@ struct _AYU_DescribeBase {
      // must provide a name.  The name is a function returning a string instead
      // of just a plain string, because you might need to read the names of
      // other types to generate the name, and those other names might not be
-     // available at compile time.  For usage examples, see describe-standard.h.
-    static constexpr auto name (StaticString(* f )());
+     // available at compile time.  This function will be called before main()
+     // starts, and it will only be called once, with the result cached for
+     // later accesses.  For usage examples, see describe-standard.h.
+    static constexpr auto name (AnyString(* f )());
      // Provides a function to transform an item of this type to an ayu::Tree
      // for serialization.  For most types this should not be needed; for
      // aggregate types you usually want attrs() or elems(), and for scalar

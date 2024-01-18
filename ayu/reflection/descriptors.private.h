@@ -75,6 +75,9 @@ struct DescriptionPrivate : DescriptionFor<Mu> {
     static const DescriptionPrivate* get (Type t) {
         return reinterpret_cast<const DescriptionPrivate*>(t.data & ~1);
     }
+    const NameDcr<Mu>* name () const {
+        return offset_get<NameDcr<Mu>>(this, name_offset);
+    }
     const ToTreeDcr<Mu>* to_tree () const {
         return offset_get<ToTreeDcr<Mu>>(this, to_tree_offset);
     }
