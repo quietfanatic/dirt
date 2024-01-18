@@ -25,8 +25,6 @@ struct Command {
     StaticString description;
     usize required_arg_count;
     Function<ayu::Type()>* args_type;
-     // TODO: Use this for help messages
-    Function<StaticArray<ayu::Type>()>* arg_types;
 
     template <class... Args>
     constexpr Command (
@@ -40,10 +38,6 @@ struct Command {
         name(name), description(desc), required_arg_count(req),
         args_type([]{
             return ayu::Type::CppType<StatementStorage<Args...>>();
-        }),
-        arg_types([]{
-            static auto r = StaticArray<ayu::Type>({ayu::Type::CppType<Args>()...});
-            return r;
         })
     {
          // Make sure we aren't on a really weird architecture.
