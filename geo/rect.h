@@ -326,16 +326,18 @@ constexpr GVec<T, 2> clamp (const GVec<T, 2>& p, const GRect<T>& a) {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GRect<T>),
-    desc::computed_name([]()->uni::AnyString{
-        if constexpr (std::is_same_v<T, float>) return "geo::Rect";
-        else if constexpr (std::is_same_v<T, double>) return "geo::DRect";
-        else if constexpr (std::is_same_v<T, uni::int32>) return "geo::IRect";
-        else if constexpr (std::is_same_v<T, uni::int64>) return "geo::LRect";
-        else if constexpr (std::is_same_v<T, bool>) return "geo::BRect";
-        else return uni::cat(
-            "geo::GRect<", ayu::Type::CppType<T>().name(), '>'
-        );
-    }),
+    []{
+        if constexpr (std::is_same_v<T, float>) return desc::name("geo::Rect");
+        else if constexpr (std::is_same_v<T, double>) return desc::name("geo::DRect");
+        else if constexpr (std::is_same_v<T, uni::int32>) return desc::name("geo::IRect");
+        else if constexpr (std::is_same_v<T, uni::int64>) return desc::name("geo::LRect");
+        else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRect");
+        else return desc::computed_name([]()->uni::AnyString{
+            return uni::cat(
+                "geo::GRect<", ayu::Type::CppType<T>().name(), '>'
+            );
+        });
+    }(),
     desc::elems(
         desc::elem(&geo::GRect<T>::l),
         desc::elem(&geo::GRect<T>::b),

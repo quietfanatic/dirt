@@ -346,49 +346,61 @@ constexpr GMat<A, cols, rows+1> add_row (
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize cols, uni::usize rows),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GMat<T, cols, rows>),
-    desc::computed_name([]()->uni::AnyString{
+    []{
         using namespace uni;
+        auto computed = []{
+            return desc::computed_name([]()->AnyString{
+                return cat("geo::GMat<",
+                    ayu::Type::CppType<T>().name(), ", ",
+                    std::to_string(cols), ", ",
+                    std::to_string(rows), '>'
+                );
+            });
+        };
         if constexpr (std::is_same_v<T, float>) {
             if constexpr (cols == 2) {
-                if constexpr (rows == 2) return "geo::Mat";
-                else if constexpr (rows == 3) return "geo::Mat2x3";
-                else if constexpr (rows == 4) return "geo::Mat2x4";
+                if constexpr (rows == 2) return desc::name("geo::Mat");
+                else if constexpr (rows == 3) return desc::name("geo::Mat2x3");
+                else if constexpr (rows == 4) return desc::name("geo::Mat2x4");
+                else return computed();
             }
             else if constexpr (cols == 3) {
-                if constexpr (rows == 2) return "geo::Mat3x2";
-                else if constexpr (rows == 3) return "geo::Mat3";
-                else if constexpr (rows == 4) return "geo::Mat3x4";
+                if constexpr (rows == 2) return desc::name("geo::Mat3x2");
+                else if constexpr (rows == 3) return desc::name("geo::Mat3");
+                else if constexpr (rows == 4) return desc::name("geo::Mat3x4");
+                else return computed();
             }
             else if constexpr (cols == 4) {
-                if constexpr (rows == 2) return "geo::Mat4x2";
-                else if constexpr (rows == 3) return "geo::Mat4x3";
-                else if constexpr (rows == 4) return "geo::Mat4";
+                if constexpr (rows == 2) return desc::name("geo::Mat4x2");
+                else if constexpr (rows == 3) return desc::name("geo::Mat4x3");
+                else if constexpr (rows == 4) return desc::name("geo::Mat4");
+                else return computed();
             }
+            else return computed();
         }
         else if constexpr (std::is_same_v<T, double>) {
             if constexpr (cols == 2) {
-                if constexpr (rows == 2) return "geo::DMat";
-                else if constexpr (rows == 3) return "geo::DMat2x3";
-                else if constexpr (rows == 4) return "geo::DMat2x4";
+                if constexpr (rows == 2) return desc::name("geo::DMat");
+                else if constexpr (rows == 3) return desc::name("geo::DMat2x3");
+                else if constexpr (rows == 4) return desc::name("geo::DMat2x4");
+                else return computed();
             }
             else if constexpr (cols == 3) {
-                if constexpr (rows == 2) return "geo::DMat3x2";
-                else if constexpr (rows == 3) return "geo::DMat3";
-                else if constexpr (rows == 4) return "geo::DMat3x4";
+                if constexpr (rows == 2) return desc::name("geo::DMat3x2");
+                else if constexpr (rows == 3) return desc::name("geo::DMat3");
+                else if constexpr (rows == 4) return desc::name("geo::DMat3x4");
+                else return computed();
             }
             else if constexpr (cols == 4) {
-                if constexpr (rows == 2) return "geo::DMat4x2";
-                else if constexpr (rows == 3) return "geo::DMat4x3";
-                else if constexpr (rows == 4) return "geo::DMat4";
+                if constexpr (rows == 2) return desc::name("geo::DMat4x2");
+                else if constexpr (rows == 3) return desc::name("geo::DMat4x3");
+                else if constexpr (rows == 4) return desc::name("geo::DMat4");
+                else return computed();
             }
+            else return computed();
         }
-         // Other branches can fall through to here
-        return uni::cat("geo::GMat<",
-            ayu::Type::CppType<T>().name(), ", ",
-            std::to_string(cols), ", ",
-            std::to_string(rows), '>'
-        );
-    }),
+        else return computed();
+    }(),
     []{
         using namespace geo;
         if constexpr (cols == 2 && rows == 2) {

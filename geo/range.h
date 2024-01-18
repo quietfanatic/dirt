@@ -260,16 +260,18 @@ constexpr A lerp (const GRange<A>& a, T t) {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GRange<T>),
-    desc::computed_name([]()->uni::StaticString{
-        if constexpr (std::is_same_v<T, float>) return "geo::Range";
-        else if constexpr (std::is_same_v<T, double>) return "geo::DRange";
-        else if constexpr (std::is_same_v<T, uni::int32>) return "geo::IRange";
-        else if constexpr (std::is_same_v<T, uni::int64>) return "geo::LRange";
-        else if constexpr (std::is_same_v<T, bool>) return "geo::BRange";
-        else return uni::cat(
-            "geo::GRange<", ayu::Type::CppType<T>().name(), '>'
-        );
-    }),
+    []{
+        if constexpr (std::is_same_v<T, float>) return desc::name("geo::Range");
+        else if constexpr (std::is_same_v<T, double>) return desc::name("geo::DRange");
+        else if constexpr (std::is_same_v<T, uni::int32>) return desc::name("geo::IRange");
+        else if constexpr (std::is_same_v<T, uni::int64>) return desc::name("geo::LRange");
+        else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRange");
+        else return desc::computed_name([]()->uni::AnyString{
+            return uni::cat(
+                "geo::GRange<", ayu::Type::CppType<T>().name(), '>'
+            );
+        });
+    }(),
     desc::elems(
         desc::elem(&geo::GRange<T>::l),
         desc::elem(&geo::GRange<T>::r)
