@@ -166,6 +166,8 @@ struct DetachedDescriptor : Descriptor<T> {
     static constexpr ComparableAddress make_static (const Self&) { return {}; }
 };
 
+ // TODO: Make a template variable to store generated names so that the name
+ // generator doesn't have to use a static variable.
 template <class T>
 struct NameDcr : AttachedDescriptor<T> {
     StaticString(* f )();
@@ -488,30 +490,25 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         header.destroy = null;
     }
 
+    bool custom_default_construct = false;
+    bool custom_destroy = false;
+
     for_variadic([&]<class Dcr>(const Dcr& dcr){
          // Warning: We're operating on objects that may have been moved from.
          // To access an AttachedDescriptor, use desc.template get
          // To access a DetachedDescriptor, use dcr
         if constexpr (std::is_base_of_v<DefaultConstructDcr<T>, Dcr>) {
-            if (header.flags & Description::CUSTOM_DEFAULT_CONSTRUCT) {
+            if (custom_default_construct) {
                 ERROR_duplicate_descriptors<Dcr>();
             }
-            header.flags |= Description::CUSTOM_DEFAULT_CONSTRUCT;
+            custom_default_construct = true;
             header.default_construct = dcr.f;
         }
         else if constexpr (std::is_base_of_v<DestroyDcr<T>, Dcr>) {
-             // We can't check the existing value of header.destroy because it's
-             // in a union, and we don't know which union member is active (and
-             // active union members are tracked and enforced at compile-time).
-             // So set a flag instead.
-             //
-             // We don't have exactly the same problem with
-             // header.default_construct, but it's still easier to use a flag
-             // than to check the default.
-            if (header.flags & Description::CUSTOM_DESTROY) {
+            if (custom_destroy) {
                 ERROR_duplicate_descriptors<Dcr>();
             }
-            header.flags |= Description::CUSTOM_DESTROY;
+            custom_destroy = true;
             header.destroy = dcr.f;
         }
         else if constexpr (std::is_base_of_v<NameDcr<T>, Dcr>) {
