@@ -1930,7 +1930,10 @@ struct ArrayInterface {
                 while (head_i-- > 0) {
                     dat[head_i].~T();
                 }
-                throw;
+                if constexpr (
+                    ac::is_Unique || std::is_nothrow_copy_constructible_v<T>
+                ) never();
+                else throw;
             }
             --self.header().ref_count;
         }
