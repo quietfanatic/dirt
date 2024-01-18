@@ -27,12 +27,12 @@ namespace ayu::in {
 template <class T>
 static void ERROR_duplicate_descriptors () { }
 static void ERROR_element_is_not_a_descriptor_for_this_type () { }
-static void ERROR_attrs_cannot_be_combined_with_keys () { }
+static void ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs () { }
 static void ERROR_keys_and_computed_attrs_must_be_together () { }
 static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
 static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
 static void ERROR_cannot_have_non_ignored_elem_after_ignored_elem () { }
-static void ERROR_elems_cannot_be_combined_with_length () { }
+static void ERROR_elems_cannot_be_combined_with_length_and_computed_elems () { }
 static void ERROR_cannot_have_length_without_computed_or_contiguous_elems () { }
 static void ERROR_cannot_have_both_computed_and_contiguous_elems () { }
 static void ERROR_cannot_have_computed_or_contiguous_elems_without_length () { }
@@ -497,32 +497,47 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         header.destroy = null;
     }
 
-    bool custom_default_construct = false;
-    bool custom_destroy = false;
+    bool have_default_construct = false;
+    bool have_destroy = false;
+    bool have_name = false;
+    bool have_to_tree = false;
+    bool have_from_tree = false;
+    bool have_swizzle = false;
+    bool have_init = false;
+    bool have_values = false;
+    bool have_keys = false;
+    bool have_attrs = false;
+    bool have_computed_attrs = false;
+    bool have_length = false;
+    bool have_elems = false;
+    bool have_computed_elems = false;
+    bool have_contiguous_elems = false;
+    bool have_delegate = false;
 
     for_variadic([&]<class Dcr>(const Dcr& dcr){
          // Warning: We're operating on objects that may have been moved from.
          // To access an AttachedDescriptor, use desc.template get
          // To access a DetachedDescriptor, use dcr
         if constexpr (std::is_base_of_v<DefaultConstructDcr<T>, Dcr>) {
-            if (custom_default_construct) {
+            if (have_default_construct) {
                 ERROR_duplicate_descriptors<Dcr>();
             }
-            custom_default_construct = true;
+            have_default_construct = true;
             header.default_construct = dcr.f;
         }
         else if constexpr (std::is_base_of_v<DestroyDcr<T>, Dcr>) {
-            if (custom_destroy) {
+            if (have_destroy) {
                 ERROR_duplicate_descriptors<Dcr>();
             }
-            custom_destroy = true;
+            have_destroy = true;
             header.destroy = dcr.f;
         }
         else if constexpr (std::is_base_of_v<NameDcr<T>, Dcr>) {
 #define AYU_APPLY_OFFSET(dcr_type, dcr_name) \
-            if (header.dcr_name##_offset) { \
+            if (have_##dcr_name) { \
                 ERROR_duplicate_descriptors<Dcr>(); \
             } \
+            have_##dcr_name = true; \
             header.dcr_name##_offset = \
                 desc.template get<dcr_type<T>>(0)->get_offset(header);
             AYU_APPLY_OFFSET(NameDcr, name)
@@ -547,6 +562,9 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             }
         }
         else if constexpr (std::is_base_of_v<AttrsDcr<T>, Dcr>) {
+            if (have_keys || have_computed_attrs) {
+                ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
+            }
             AYU_APPLY_OFFSET(AttrsDcr, attrs)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_OBJECT;
@@ -557,37 +575,62 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             }
         }
         else if constexpr (std::is_base_of_v<KeysDcr<T>, Dcr>) {
+            if (have_attrs) {
+                ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
+            }
             AYU_APPLY_OFFSET(KeysDcr, keys)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_OBJECT;
             }
         }
         else if constexpr (std::is_base_of_v<ComputedAttrsDcr<T>, Dcr>) {
+            if (have_attrs) {
+                ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
+            }
             AYU_APPLY_OFFSET(ComputedAttrsDcr, computed_attrs)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_OBJECT;
             }
         }
         else if constexpr (std::is_base_of_v<ElemsDcr<T>, Dcr>) {
+            if (have_length || have_computed_elems || have_contiguous_elems) {
+                ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
+            }
             AYU_APPLY_OFFSET(ElemsDcr, elems)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_ARRAY;
             }
         }
         else if constexpr (std::is_base_of_v<LengthDcr<T>, Dcr>) {
+            if (have_elems) {
+                ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
+            }
             AYU_APPLY_OFFSET(LengthDcr, length)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_ARRAY;
             }
         }
         else if constexpr (std::is_base_of_v<ComputedElemsDcr<T>, Dcr>) {
+            if (have_elems) {
+                ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
+            }
+            if (have_contiguous_elems) {
+                ERROR_cannot_have_both_computed_and_contiguous_elems();
+            }
             AYU_APPLY_OFFSET(ComputedElemsDcr, computed_elems)
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_ARRAY;
             }
         }
         else if constexpr (std::is_base_of_v<ContiguousElemsDcr<T>, Dcr>) {
+            if (have_elems) {
+                ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
+            }
+            if (have_computed_elems) {
+                ERROR_cannot_have_both_computed_and_contiguous_elems();
+            }
             AYU_APPLY_OFFSET(ContiguousElemsDcr, contiguous_elems)
+            header.flags |= Description::CONTIGUOUS_ELEMS;
             if (!(header.flags & Description::PREFERENCE)) {
                 header.flags |= Description::PREFER_ARRAY;
             }
@@ -601,28 +644,17 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         }
     }, dcrs...);
 
-    if (header.attrs_offset &&
-        (header.keys_offset || header.computed_attrs_offset)
-    ) {
-        ERROR_attrs_cannot_be_combined_with_keys();
-    }
-    if ((header.keys_offset && !header.computed_attrs_offset) ||
-        (header.computed_attrs_offset && !header.keys_offset)
+    if ((have_keys && !have_computed_attrs) ||
+        (have_computed_attrs && !have_keys)
     ) {
         ERROR_keys_and_computed_attrs_must_be_together();
     }
-    if (header.length_offset) {
-        if (header.elems_offset) {
-            ERROR_elems_cannot_be_combined_with_length();
-        }
-        if (!header.computed_elems_offset && !header.contiguous_elems_offset) {
+    if (have_length) {
+        if (!have_computed_elems && !have_contiguous_elems) {
             ERROR_cannot_have_length_without_computed_or_contiguous_elems();
         }
-        if (header.computed_elems_offset && header.contiguous_elems_offset) {
-            ERROR_cannot_have_both_computed_and_contiguous_elems();
-        }
     }
-    else if (header.computed_elems_offset || header.contiguous_elems_offset) {
+    else if (have_computed_elems || have_contiguous_elems) {
         ERROR_cannot_have_computed_or_contiguous_elems_without_length();
     }
 

@@ -30,10 +30,12 @@ struct Description : ComparableAddress {
         PREFER_ARRAY = 1 << 0,
         PREFER_OBJECT = 1 << 1,
         PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
+         // Select between union members below
+        CONTIGUOUS_ELEMS = 1 << 2,
          // Can select some faster algorithms when this is false.
-        SHOULD_REBUILD_OBJECT = 1 << 2,
+        SHOULD_REBUILD_OBJECT = 1 << 3,
          // Faster values() processing
-        ALL_VALUES_STRINGS = 1 << 3,
+        ALL_VALUES_STRINGS = 1 << 4,
     };
     uint16 flags = 0;
 
@@ -43,13 +45,19 @@ struct Description : ComparableAddress {
     uint16 swizzle_offset = 0;
     uint16 init_offset = 0;
     uint16 values_offset = 0;
-    uint16 attrs_offset = 0;
-    uint16 elems_offset = 0;
     uint16 keys_offset = 0;
-    uint16 computed_attrs_offset = 0;
+    union {
+        uint16 attrs_offset = 0; // keys_offset == 0
+        uint16 computed_attrs_offset; // keys_offset != 0
+    };
     uint16 length_offset = 0;
-    uint16 computed_elems_offset = 0;
-    uint16 contiguous_elems_offset = 0;
+    union {
+        uint16 elems_offset = 0; // length_offset == 0
+         // length_offset != 0 && !CONTIGUOUS_ELEMS
+        uint16 computed_elems_offset;
+         // length_offset != 0 && CONTIGUOUS_ELEMS
+        uint16 contiguous_elems_offset;
+    };
     uint16 delegate_offset = 0;
 };
 

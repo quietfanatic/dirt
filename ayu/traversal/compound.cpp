@@ -36,11 +36,11 @@ struct TraverseGetKeys {
     }
 
     NOINLINE void traverse (const Traversal& trav) {
-        if (auto attrs = trav.desc->attrs()) {
-            use_attrs(trav, attrs);
-        }
-        else if (auto acr = trav.desc->keys_acr()) {
+        if (auto acr = trav.desc->keys_acr()) {
             use_computed_attrs(trav, acr);
+        }
+        else if (auto attrs = trav.desc->attrs()) {
+            use_attrs(trav, attrs);
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(trav, acr);
@@ -128,16 +128,16 @@ struct TraverseSetKeys {
     }
 
     NOINLINE void traverse (const Traversal& trav) {
-        if (auto attrs = trav.desc->attrs()) {
-            use_attrs(trav, attrs);
-        }
-        else if (auto acr = trav.desc->keys_acr()) {
+        if (auto acr = trav.desc->keys_acr()) {
             if (!(acr->flags & AcrFlags::Readonly)) {
                 use_computed_attrs(trav, acr);
             }
             else {
                 use_computed_attrs_readonly(trav, acr);
             }
+        }
+        else if (auto attrs = trav.desc->attrs()) {
+            use_attrs(trav, attrs);
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(trav, acr);
@@ -239,11 +239,11 @@ struct TraverseAttr {
 
     NOINLINE static
     void traverse (Reference& r, const Traversal& trav, const AnyString& key) {
-        if (auto attrs = trav.desc->attrs()) {
-            return use_attrs(r, trav, key, attrs);
+        if (trav.desc->keys_offset) {
+            return use_computed_attrs(r, trav, key);
         }
-        else if (auto computed_attrs = trav.desc->computed_attrs()) {
-            return use_computed_attrs(r, trav, key, computed_attrs->f);
+        else if (auto attrs = trav.desc->attrs()) {
+            return use_attrs(r, trav, key, attrs);
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             return use_delegate(r, trav, key, acr);
@@ -282,9 +282,10 @@ struct TraverseAttr {
 
     NOINLINE static
     void use_computed_attrs (
-        Reference& r, const Traversal& trav, const AnyString& key,
-        AttrFunc<Mu>* f
+        Reference& r, const Traversal& trav, const AnyString& key
     ) {
+        expect(trav.desc->computed_attrs_offset);
+        auto f = trav.desc->computed_attrs()->f;
         if (Reference ref = f(*trav.address, key)) {
             trav_computed_attr(trav, move(ref), f, key, AccessMode::Read,
                 [&r](const Traversal& child)
@@ -340,15 +341,15 @@ struct TraverseGetLength {
     NOINLINE static
     usize traverse (Mu& item, Type type) {
         auto desc = DescriptionPrivate::get(type);
-        if (auto elems = desc->elems()) {
-            return elems->chop_flag(AttrFlags::Invisible);
-        }
-        else if (auto acr = desc->length_acr()) {
+        if (auto acr = desc->length_acr()) {
             usize len;
             acr->read(item, [&len](Mu& v){
                 len = reinterpret_cast<const usize&>(v);
             });
             return len;
+        }
+        else if (auto elems = desc->elems()) {
+            return elems->chop_flag(AttrFlags::Invisible);
         }
         else if (auto acr = desc->delegate_acr()) {
             usize len;
@@ -388,13 +389,7 @@ struct TraverseSetLength {
     NOINLINE static
     void traverse (Mu& item, Type type, usize len) {
         auto desc = DescriptionPrivate::get(type);
-        if (auto elems = desc->elems()) {
-            usize min = elems->chop_flag(AttrFlags::Optional);
-            if (len < min || len > elems->n_elems) {
-                raise_LengthRejected(type, min, elems->n_elems, len);
-            }
-        }
-        else if (auto acr = desc->length_acr()) {
+        if (auto acr = desc->length_acr()) {
             if (!(acr->flags & AcrFlags::Readonly)) {
                 acr->write(item, [len](Mu& v){
                     reinterpret_cast<usize&>(v) = len;
@@ -409,6 +404,12 @@ struct TraverseSetLength {
                 if (len != expected) {
                     raise_LengthRejected(type, expected, expected, len);
                 }
+            }
+        }
+        else if (auto elems = desc->elems()) {
+            usize min = elems->chop_flag(AttrFlags::Optional);
+            if (len < min || len > elems->n_elems) {
+                raise_LengthRejected(type, min, elems->n_elems, len);
             }
         }
         else if (auto acr = desc->delegate_acr()) {
@@ -445,17 +446,16 @@ struct TraverseElem {
 
     NOINLINE static
     void traverse (Reference& r, const Traversal& trav, usize index) {
-        if (auto elems = trav.desc->elems()) {
-            use_elems(r, trav, index, elems);
-        }
-        else if (auto length = trav.desc->length_acr()) {
-            if (auto contig = trav.desc->contiguous_elems()) {
-                use_contiguous_elems(r, trav, index, length, contig->f);
+        if (auto length = trav.desc->length_acr()) {
+            if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                use_contiguous_elems(r, trav, index, length);
             }
             else {
-                auto comp = trav.desc->computed_elems();
-                use_computed_elems(r, trav, index, comp->f);
+                use_computed_elems(r, trav, index);
             }
+        }
+        else if (auto elems = trav.desc->elems()) {
+            use_elems(r, trav, index, elems);
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, index, acr);
@@ -477,7 +477,7 @@ struct TraverseElem {
     NOINLINE static
     void use_contiguous_elems (
         Reference& r, const Traversal& trav, usize index,
-        const Accessor* length_acr, DataFunc<Mu>* f
+        const Accessor* length_acr
     ) {
          // We have to read the length to do bounds checking.
         usize len;
@@ -487,6 +487,8 @@ struct TraverseElem {
             })
         );
         if (index >= len) return;
+        expect(trav.desc->contiguous_elems_offset);
+        auto f = trav.desc->contiguous_elems()->f;
         Pointer ptr = f(*trav.address);
         auto child_desc = DescriptionPrivate::get(ptr.type);
         ptr.address = (Mu*)((char*)ptr.address + index * child_desc->cpp_size);
@@ -497,9 +499,10 @@ struct TraverseElem {
 
     NOINLINE static
     void use_computed_elems (
-        Reference& r, const Traversal& trav, usize index,
-        ElemFunc<Mu>* f
+        Reference& r, const Traversal& trav, usize index
     ) {
+        expect(trav.desc->computed_elems_offset);
+        auto f = trav.desc->computed_elems()->f;
         Reference ref = f(*trav.address, index);
         if (!ref) return;
         trav_computed_elem(trav, ref, f, index, AccessMode::Read,

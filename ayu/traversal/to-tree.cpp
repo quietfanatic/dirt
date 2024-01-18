@@ -42,29 +42,25 @@ struct TraverseToTree {
     NOINLINE static
     void no_value_match (Tree& r, const Traversal& trav) {
         if (trav.desc->preference() == Description::PREFER_OBJECT) {
-            if (auto attrs = trav.desc->attrs()) {
-                return use_attrs(r, trav, attrs);
+            if (auto keys = trav.desc->keys_acr()) {
+                return use_computed_attrs(r, trav, keys);
             }
-            else if (auto keys = trav.desc->keys_acr()) {
-                auto f = trav.desc->computed_attrs()->f;
-                return use_computed_attrs(r, trav, keys, f);
+            else {
+                return use_attrs(r, trav);
             }
-            else never();
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
-            if (auto elems = trav.desc->elems()) {
-                return use_elems(r, trav, elems);
-            }
-            else if (auto length = trav.desc->length_acr()) {
-                if (auto contig = trav.desc->contiguous_elems()) {
-                    return use_contiguous_elems(r, trav, length, contig->f);
+            if (auto length = trav.desc->length_acr()) {
+                if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                    return use_contiguous_elems(r, trav, length);
                 }
                 else {
-                    auto comp = trav.desc->computed_elems();
-                    return use_computed_elems(r, trav, length, comp->f);
+                    return use_computed_elems(r, trav, length);
                 }
             }
-            else never();
+            else {
+                return use_elems(r, trav);
+            }
         }
         else if (auto acr = trav.desc->delegate_acr()) {
             use_delegate(r, trav, acr);
@@ -97,8 +93,10 @@ struct TraverseToTree {
 
     NOINLINE static
     void use_attrs (
-        Tree& r, const Traversal& trav, const AttrsDcrPrivate* attrs
+        Tree& r, const Traversal& trav
     ) {
+        expect(trav.desc->attrs_offset);
+        auto attrs = trav.desc->attrs();
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
          // First just build the object as though none of the attrs are included
         for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -195,7 +193,7 @@ struct TraverseToTree {
     NOINLINE static
     void use_computed_attrs (
         Tree& r, const Traversal& trav,
-        const Accessor* keys_acr, AttrFunc<Mu>* f
+        const Accessor* keys_acr
     ) {
          // Get list of keys
         AnyArray<AnyString> keys;
@@ -208,6 +206,8 @@ struct TraverseToTree {
         }));
          // Now read value for each key
         auto object = UniqueArray<TreePair>(Capacity(keys.size()));
+        expect(trav.desc->computed_attrs_offset);
+        auto f = trav.desc->computed_attrs()->f;
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
@@ -221,8 +221,10 @@ struct TraverseToTree {
 
     NOINLINE static
     void use_elems (
-        Tree& r, const Traversal& trav, const ElemsDcrPrivate* elems
+        Tree& r, const Traversal& trav
     ) {
+        expect(trav.desc->elems_offset);
+        auto elems = trav.desc->elems();
         auto len = elems->chop_flag(AttrFlags::Invisible);
         auto array = UniqueArray<Tree>(Capacity(len));
         for (uint i = 0; i < len; i++) {
@@ -239,7 +241,7 @@ struct TraverseToTree {
     NOINLINE static
     void use_contiguous_elems (
         Tree& r, const Traversal& trav,
-        const Accessor* length_acr, DataFunc<Mu>* f
+        const Accessor* length_acr
     ) {
         usize len;
         length_acr->read(*trav.address,
@@ -249,6 +251,8 @@ struct TraverseToTree {
         );
         auto array = UniqueArray<Tree>(Capacity(len));
         if (len) {
+            expect(trav.desc->contiguous_elems_offset);
+            auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
             auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < len; i++) {
@@ -265,7 +269,7 @@ struct TraverseToTree {
     NOINLINE static
     void use_computed_elems (
         Tree& r, const Traversal& trav,
-        const Accessor* length_acr, ElemFunc<Mu>* f
+        const Accessor* length_acr
     ) {
         usize len;
         length_acr->read(*trav.address,
@@ -274,6 +278,8 @@ struct TraverseToTree {
             })
         );
         auto array = UniqueArray<Tree>(Capacity(len));
+        expect(trav.desc->computed_elems_offset);
+        auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);

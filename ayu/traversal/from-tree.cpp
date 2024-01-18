@@ -174,28 +174,25 @@ struct TraverseFromTree {
     ) {
          // Now the behavior depends on what form of tree we got
         if (tree.form == Form::Object) {
-            if (auto attrs = trav.desc->attrs()) {
-                return use_attrs(trav, tree, attrs);
+            if (auto keys = trav.desc->keys_acr()) {
+                return use_computed_attrs(trav, tree, keys);
             }
-            else if (auto keys = trav.desc->keys_acr()) {
-                expect(trav.desc->computed_attrs_offset);
-                auto f = trav.desc->computed_attrs()->f;
-                return use_computed_attrs(trav, tree, keys, f);
+            else if (auto attrs = trav.desc->attrs()) {
+                return use_attrs(trav, tree, attrs);
             }
              // fallthrough
         }
         else if (tree.form == Form::Array) {
-            if (auto elems = trav.desc->elems()) {
-                return use_elems(trav, tree, elems);
-            }
-            else if (auto length = trav.desc->length_acr()) {
-                if (auto contig = trav.desc->contiguous_elems()) {
-                    return use_contiguous_elems(trav, tree, length, contig->f);
+            if (auto length = trav.desc->length_acr()) {
+                if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                    return use_contiguous_elems(trav, tree, length);
                 }
                 else {
-                    auto comp = trav.desc->computed_elems();
-                    return use_computed_elems(trav, tree, length, comp->f);
+                    return use_computed_elems(trav, tree, length);
                 }
+            }
+            else if (auto elems = trav.desc->elems()) {
+                return use_elems(trav, tree, elems);
             }
              // fallthrough
         }
@@ -269,7 +266,7 @@ struct TraverseFromTree {
         const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs
     ) {
         uint32 next_list_buf [capacity / 4];
-        use_attrs(trav, tree, attrs, next_list_buf);
+        use_attrs_buf(trav, tree, attrs, next_list_buf);
     }
 
     NOINLINE static
@@ -278,11 +275,11 @@ struct TraverseFromTree {
     ) {
         auto len = tree.meta >> 1;
         auto next_list_buf = std::unique_ptr<uint32[]>(new uint32[len + 1]);
-        use_attrs(trav, tree, attrs, &next_list_buf[0]);
+        use_attrs_buf(trav, tree, attrs, &next_list_buf[0]);
     }
 
     NOINLINE static
-    void use_attrs (
+    void use_attrs_buf (
         const Traversal& trav, const Tree& tree, const AttrsDcrPrivate* attrs,
         uint32* next_list_buf
     ) {
@@ -322,12 +319,14 @@ struct TraverseFromTree {
     NOINLINE static
     void use_computed_attrs (
         const Traversal& trav, const Tree& tree,
-        const Accessor* keys_acr, AttrFunc<Mu>* f
+        const Accessor* keys_acr
     ) {
          // Computed attrs always take the entire object, so we don't need to
          // allocate a next_list.
         expect(tree.form == Form::Object);
         set_keys(trav, Slice<TreePair>(tree), keys_acr);
+        expect(trav.desc->computed_attrs_offset);
+        auto f = trav.desc->computed_attrs()->f;
         expect(tree.form == Form::Object);
         for (auto& pair : Slice<TreePair>(tree)) {
             write_computed_attr(trav, pair, f);
@@ -339,12 +338,11 @@ struct TraverseFromTree {
     void claim_attrs (
         const Traversal& trav, const Tree& tree, uint32* next_list
     ) {
-        if (auto attrs = trav.desc->attrs()) [[likely]] {
-            claim_attrs_use_attrs(trav, tree, next_list, attrs);
+        if (auto keys = trav.desc->keys_acr()) {
+            claim_attrs_use_computed_attrs(trav, tree, next_list, keys);
         }
-        else if (auto keys = trav.desc->keys_acr()) {
-            auto f = trav.desc->computed_attrs()->f;
-            claim_attrs_use_computed_attrs(trav, tree, next_list, keys, f);
+        else if (auto attrs = trav.desc->attrs()) {
+            claim_attrs_use_attrs(trav, tree, next_list, attrs);
         }
         else raise_AttrsNotSupported(trav.desc);
     }
@@ -427,12 +425,14 @@ struct TraverseFromTree {
     NOINLINE static
     void claim_attrs_use_computed_attrs (
         const Traversal& trav, const Tree& tree, uint32* next_list,
-        const Accessor* keys_acr, AttrFunc<Mu>* f
+        const Accessor* keys_acr
     ) {
          // We should only get here if a parent item included a child item that
          // has computed attrs.
         expect(tree.form == Form::Object);
         set_keys(trav, Slice<TreePair>(tree), keys_acr);
+        expect(trav.desc->computed_attrs_offset);
+        auto f = trav.desc->computed_attrs()->f;
         expect(tree.form == Form::Object);
         uint32* prev_next; uint32 i;
         for (
@@ -536,8 +536,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void use_contiguous_elems (
-        const Traversal& trav, const Tree& tree,
-        const Accessor* length_acr, DataFunc<Mu>* f
+        const Traversal& trav, const Tree& tree, const Accessor* length_acr
     ) {
         expect(tree.form == Form::Array);
         auto array = Slice<Tree>(tree);
@@ -557,6 +556,8 @@ struct TraverseFromTree {
             }
         }
         if (array) {
+            expect(trav.desc->contiguous_elems_offset);
+            auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
             auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < array.size(); i++) {
@@ -572,8 +573,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void use_computed_elems (
-        const Traversal& trav, const Tree& tree,
-        const Accessor* length_acr, ElemFunc<Mu>* f
+        const Traversal& trav, const Tree& tree, const Accessor* length_acr
     ) {
         expect(tree.form == Form::Array);
         auto array = Slice<Tree>(tree);
@@ -592,6 +592,8 @@ struct TraverseFromTree {
                 raise_LengthRejected(trav.desc, len, len, tree.meta >> 1);
             }
         }
+        expect(trav.desc->computed_elems_offset);
+        auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);

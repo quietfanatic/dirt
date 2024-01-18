@@ -59,34 +59,33 @@ struct TraverseScan {
          // instead of at the top of this decision function.  The callback is
          // expected to return true either rarely or never, so it's okay to
          // delay checking its return a bit.
+         //
+         // Also we're only checking offsets here, not converting them to
+         // variables, because doing so before calling the cb would require
+         // saving and restoring those variables.
         if (trav.desc->preference() == Description::PREFER_OBJECT) {
-            if (auto attrs = trav.desc->attrs()) {
-                return use_attrs(trav, loc, cb, attrs);
+            if (trav.desc->keys_offset) {
+                return use_computed_attrs(trav, loc, cb);
             }
-            else if (auto keys = trav.desc->keys_acr()) {
-                return use_computed_attrs(trav, loc, cb, keys);
+            else {
+                return use_attrs(trav, loc, cb);
             }
-            else never();
         }
         else if (trav.desc->preference() == Description::PREFER_ARRAY) {
-            if (auto elems = trav.desc->elems()) {
-                return use_elems(trav, loc, cb, elems);
-            }
-            else if (auto length = trav.desc->length_acr()) {
-                if (auto contig = trav.desc->contiguous_elems()) {
-                    return use_contiguous_elems(
-                        trav, loc, cb, length, contig->f
-                    );
+            if (trav.desc->length_offset) {
+                if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                    return use_contiguous_elems(trav, loc, cb);
                 }
                 else {
-                    auto comp = trav.desc->computed_elems();
-                    return use_computed_elems(trav, loc, cb, length, comp->f);
+                    return use_computed_elems(trav, loc, cb);
                 }
             }
-            else never();
+            else {
+                return use_elems(trav, loc, cb);
+            }
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
-            return use_delegate(trav, loc, cb, acr);
+        else if (trav.desc->delegate_offset) {
+            return use_delegate(trav, loc, cb);
         }
          // Down here, we aren't using the arguments any more, so the compiler
          // doesn't need to save them and we can tail call the cb
@@ -96,10 +95,11 @@ struct TraverseScan {
     NOINLINE static
     bool use_attrs (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const AttrsDcrPrivate* attrs
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
         if (cb(trav, loc)) return true;
+        expect(trav.desc->attrs_offset);
+        auto attrs = trav.desc->attrs();
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
              // Not discarding invisible attrs for scan purposes.
@@ -122,10 +122,11 @@ struct TraverseScan {
     NOINLINE static
     bool use_computed_attrs (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const Accessor* keys_acr
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
         if (cb(trav, loc)) return true;
+        expect(trav.desc->keys_offset);
+        auto keys_acr = trav.desc->keys_acr();
          // Get list of keys
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address, [&keys](Mu& v){
@@ -133,6 +134,7 @@ struct TraverseScan {
                 reinterpret_cast<const AnyArray<AnyString>&>(v)
             );
         });
+        expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
          // Now scan for each key
         for (auto& key : keys) {
@@ -151,10 +153,11 @@ struct TraverseScan {
     NOINLINE static
     bool use_elems (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const ElemsDcrPrivate* elems
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
         if (cb(trav, loc)) return true;
+        expect(trav.desc->elems_offset);
+        auto elems = trav.desc->elems();
         for (uint i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
@@ -175,15 +178,18 @@ struct TraverseScan {
     NOINLINE static
     bool use_contiguous_elems (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const Accessor* length_acr, DataFunc<Mu>* f
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
         if (cb(trav, loc)) return true;
+        expect(trav.desc->length_offset);
+        auto length_acr = trav.desc->length_acr();
         usize len;
         length_acr->read(*trav.address, [&len](Mu& v){
             len = reinterpret_cast<usize&>(v);
         });
         if (len) {
+            expect(trav.desc->contiguous_elems_offset);
+            auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
             auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < len; i++) {
@@ -203,14 +209,17 @@ struct TraverseScan {
     NOINLINE static
     bool use_computed_elems (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const Accessor* length_acr, ElemFunc<Mu>* f
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
         if (cb(trav, loc)) return true;
+        expect(trav.desc->length_offset);
+        auto length_acr = trav.desc->length_acr();
         usize len;
         length_acr->read(*trav.address, [&len](Mu& v){
             len = reinterpret_cast<usize&>(v);
         });
+        expect(trav.desc->computed_elems_offset);
+        auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
@@ -228,10 +237,11 @@ struct TraverseScan {
     NOINLINE static
     bool use_delegate (
         const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb,
-        const Accessor* acr
+        CallbackRef<bool(const Traversal&, LocationRef)> cb
     ) {
         if (cb(trav, loc)) return true;
+        expect(trav.desc->delegate_offset);
+        auto acr = trav.desc->delegate_acr();
         bool r = false;
         trav_delegate(trav, acr, AccessMode::Read,
             [&r, loc, cb](const Traversal& child)
