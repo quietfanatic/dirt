@@ -571,6 +571,15 @@ struct ArrayInterface {
      // elements.  This is only enabled if f has signature of T(usize) and
      // doesn't itself coerce to a T (in which case the (usize s, const T&)
      // constructor will be selected instead).
+     //
+     // WARNING: When constructing an array of reference-like items, when the
+     // function returns a non-reference-like item, a copy may be made which
+     // immediately goes out of scope, creating a stale reference.  For example:
+     //     UniqueArray<UniqueString> args = ...;
+     //     auto strs = UniqueArray<Str>(args.size(), [&args](usize i){
+     //         return args[i];  // BAD!  Use Str(args[i])
+     //     });
+     // I have not figured out how to prevent or detect this scenario yet.
     template <ArrayIotaFunctionFor<T> F> explicit
     ArrayInterface (usize s, F f) requires (
         ac::supports_owned
