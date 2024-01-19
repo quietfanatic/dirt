@@ -62,9 +62,8 @@ struct _AYU_DescribeBase {
      // probably want to use computed_name instead.
     static constexpr auto name (StaticString);
      // Generate a name dynamically, which can depend on the names of other
-     // types.  This function will be called before main() starts, and it will
-     // only be called once, with the result cached for later accesses.  For
-     // usage examples, see describe-standard.h.
+     // types.  This function will only be called once, with the result cached
+     // for later accesses.  For usage examples, see describe-standard.h.
     static constexpr auto computed_name (AnyString(* f )());
      // Provides a function to transform an item of this type to an ayu::Tree
      // for serialization.  For most types this should not be needed; for
