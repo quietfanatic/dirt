@@ -114,7 +114,6 @@ struct GVecStorage<T, 4> {
 
 ///// GVec CLASS
 
- // TODO: std::get and tuple_size
 template <class T, usize n>
 struct GVec : GVecStorage<T, n> {
      // Default constructor

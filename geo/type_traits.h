@@ -178,7 +178,7 @@ concept Pointing = requires (T p) {
 };
 
  // Exact equality for everything but floats
-template <class T> requires (!Floating<std::decay_t<T>>)
+template <class T> requires (!Floating<std::remove_cvref_t<T>>)
 bool exact_eq (T&& a, T&& b) {
     return std::forward<T>(a) == std::forward<T>(b);
 }
