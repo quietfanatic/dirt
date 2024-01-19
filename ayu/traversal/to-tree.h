@@ -49,7 +49,7 @@ struct DiagnosticSerialization {
  // Shortcuts
 template <class T>
 UniqueString item_to_string (
-    T&& item, PrintOptions opts = 0,
+    T&& item, PrintOptions opts = {},
     LocationRef loc = Location()
 ) {
     Tree t = item_to_tree(std::forward<T>(item), loc);
@@ -58,7 +58,7 @@ UniqueString item_to_string (
 template <class T>
 void item_to_file (
     T&& item, AnyString filename,
-    PrintOptions opts = 0, LocationRef loc = Location()
+    PrintOptions opts = {}, LocationRef loc = Location()
 ) {
     Tree t = item_to_tree(std::forward<T>(item), loc);
     return tree_to_file(t, move(filename), opts);

@@ -208,7 +208,8 @@ void load (Slice<Resource> reses) {
             Tree tree = tree_from_file(move(filename));
             verify_tree_for_scheme(res, scheme, tree);
             item_from_tree(
-                &res.data->value, tree, Location(res), DELAY_SWIZZLE
+                &res.data->value, tree, Location(res),
+                FromTreeOptions::DelaySwizzle
             );
         }
         for (auto res : rs) res.data->state = LOADED;
@@ -266,7 +267,8 @@ void save (Slice<Resource> reses) {
                 }
                 auto filename = scheme->get_file(res.data->name);
                 auto contents = tree_to_string(
-                    item_to_tree(&res.data->value, Location(res)), PRETTY
+                    item_to_tree(&res.data->value, Location(res)),
+                    PrintOptions::Pretty
                 );
                 committers[i] = [
                     contents{move(contents)},
@@ -408,7 +410,7 @@ void reload (Slice<Resource> reses) {
             auto filename = scheme->get_file(res.data->name);
             Tree tree = tree_from_file(move(filename));
             verify_tree_for_scheme(res, scheme, tree);
-             // Do not DELAY_SWIZZLE for reload.  TODO: Forbid reload while a
+             // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
             item_from_tree(&res.data->value, tree, Location(res));
         }

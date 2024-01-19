@@ -307,7 +307,7 @@ struct AttrsDcrWith : AttrsDcr<T> {
             ) - static_cast<ComparableAddress*>(this);
         }
     }
-    constexpr bool should_rebuild_object () {
+    constexpr bool need_rebuild () {
         bool r = false;
         attrs.for_each([&](const auto& attr){
             r |= !!(attr.acr.attr_flags &
@@ -350,19 +350,19 @@ struct ElemsDcrWith : ElemsDcr<T> {
         bool have_ignored = false;
         uint16 i = 0;
         elems.for_each([&]<class Elem>(const Elem& elem){
-            if (elem.acr.attr_flags & AttrFlags::Optional) {
+            if (!!(elem.acr.attr_flags & AttrFlags::Optional)) {
                 have_optional = true;
             }
             else if (have_optional) {
                 ERROR_cannot_have_non_optional_elem_after_optional_elem();
             }
-            if (elem.acr.attr_flags & AttrFlags::Invisible) {
+            if (!!(elem.acr.attr_flags & AttrFlags::Invisible)) {
                 have_invisible = true;
             }
             else if (have_invisible) {
                 ERROR_cannot_have_non_invisible_elem_after_invisible_elem();
             }
-            if (elem.acr.attr_flags & AttrFlags::Ignored) {
+            if (!!(elem.acr.attr_flags & AttrFlags::Ignored)) {
                 have_ignored = true;
             }
             else if (have_ignored) {
@@ -550,7 +550,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             }
              // Allow computed_name to override non-computed name.
             have_computed_name = true;
-            header.flags |= Description::COMPUTED_NAME;
+            header.flags |= DescFlags::NameComputed;
             header.cached_name = dcr.cache;
             header.computed_name = dcr.f;
         }
@@ -577,7 +577,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             AYU_APPLY_OFFSET(ValuesDcr, values)
             Dcr* values = desc.template get<Dcr>(0);
             if (values->all_strings()) {
-                header.flags |= Description::ALL_VALUES_STRINGS;
+                header.flags |= DescFlags::ValuesAllStrings;
             }
         }
         else if constexpr (std::is_base_of_v<AttrsDcr<T>, Dcr>) {
@@ -585,12 +585,12 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
             }
             AYU_APPLY_OFFSET(AttrsDcr, attrs)
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_OBJECT;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferObject;
             }
             Dcr* attrs = desc.template get<Dcr>(0);
-            if (attrs->should_rebuild_object()) {
-                header.flags |= Description::SHOULD_REBUILD_OBJECT;
+            if (attrs->need_rebuild()) {
+                header.flags |= DescFlags::AttrsNeedRebuild;
             }
         }
         else if constexpr (std::is_base_of_v<KeysDcr<T>, Dcr>) {
@@ -598,8 +598,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
             }
             AYU_APPLY_OFFSET(KeysDcr, keys)
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_OBJECT;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferObject;
             }
         }
         else if constexpr (std::is_base_of_v<ComputedAttrsDcr<T>, Dcr>) {
@@ -607,8 +607,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
             }
             AYU_APPLY_OFFSET(ComputedAttrsDcr, computed_attrs)
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_OBJECT;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferObject;
             }
         }
         else if constexpr (std::is_base_of_v<ElemsDcr<T>, Dcr>) {
@@ -616,8 +616,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
             }
             AYU_APPLY_OFFSET(ElemsDcr, elems)
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_ARRAY;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferArray;
             }
         }
         else if constexpr (std::is_base_of_v<LengthDcr<T>, Dcr>) {
@@ -625,8 +625,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
             }
             AYU_APPLY_OFFSET(LengthDcr, length)
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_ARRAY;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferArray;
             }
         }
         else if constexpr (std::is_base_of_v<ComputedElemsDcr<T>, Dcr>) {
@@ -637,8 +637,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_cannot_have_both_computed_and_contiguous_elems();
             }
             AYU_APPLY_OFFSET(ComputedElemsDcr, computed_elems)
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_ARRAY;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferArray;
             }
         }
         else if constexpr (std::is_base_of_v<ContiguousElemsDcr<T>, Dcr>) {
@@ -649,9 +649,9 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_cannot_have_both_computed_and_contiguous_elems();
             }
             AYU_APPLY_OFFSET(ContiguousElemsDcr, contiguous_elems)
-            header.flags |= Description::CONTIGUOUS_ELEMS;
-            if (!(header.flags & Description::PREFERENCE)) {
-                header.flags |= Description::PREFER_ARRAY;
+            header.flags |= DescFlags::ElemsContiguous;
+            if (!(header.flags & DescFlags::Preference)) {
+                header.flags |= DescFlags::PreferArray;
             }
         }
         else if constexpr (std::is_base_of_v<DelegateDcr<T>, Dcr>) {

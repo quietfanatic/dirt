@@ -13,8 +13,7 @@ namespace ayu::in {
 
 ///// UNIVERSAL ACCESSOR STUFF
 
-namespace _ {
-enum AcrFlags : uint8 {
+enum class AcrFlags : uint8 {
      // Make TreeFlags-equivalent values the same value for optimization.
     PreferHex = 0x1,
     PreferCompact = 0x2,
@@ -29,12 +28,10 @@ enum AcrFlags : uint8 {
     Unaddressable = 0x80,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AcrFlags)
-} using _::AcrFlags;
 
  // These belong on AttrDcr and ElemDcr, but we're putting them with the
  // accessor flags to save space.
-namespace _ {
-enum AttrFlags : uint8 {
+enum class AttrFlags : uint8 {
      // If this is set, the attr doesn't need to be present when doing
      // the from_tree operation.  There's no support for default values here;
      // if an attr wants a default value, set it in the class's default
@@ -61,7 +58,6 @@ enum AttrFlags : uint8 {
     CollapseOptional = 0x20,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
-} using _::AttrFlags;
 
  // Instead of having separate methods for each type of access, we're using the
  // same method for all of them, and using an enum to differentiate.  This saves
@@ -138,7 +134,7 @@ struct Accessor {
                mode == AccessMode::Write ||
                mode == AccessMode::Modify
         );
-        expect(mode == AccessMode::Read || ~(flags & AcrFlags::Readonly));
+        expect(mode == AccessMode::Read || !(flags & AcrFlags::Readonly));
         vt->access(this, mode, from, cb);
     }
     void read (Mu& from, CallbackRef<void(Mu&)> cb) const {
@@ -151,11 +147,11 @@ struct Accessor {
         access(AccessMode::Modify, from, cb);
     }
     Mu* address (Mu& from) const {
-        if (flags & AcrFlags::Unaddressable) return null;
+        if (!!(flags & AcrFlags::Unaddressable)) return null;
         return vt->address(this, from);
     }
     Mu* inverse_address (Mu& to) const {
-        if (flags & AcrFlags::Unaddressable) return null;
+        if (!!(flags & AcrFlags::Unaddressable)) return null;
         return vt->inverse_address(this, to);
     }
 

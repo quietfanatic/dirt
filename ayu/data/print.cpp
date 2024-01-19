@@ -10,6 +10,8 @@
 namespace ayu {
 namespace in {
 
+using O = PrintOptions;
+
 struct Printer {
     char* end;
     PrintOptions opts;
@@ -87,7 +89,7 @@ struct Printer {
             *p++ = '-';
             v = -v;
         }
-        bool hex = !(opts & JSON) && t.flags & TreeFlags::PreferHex;
+        bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
         if (hex) {
             *p++ = '0'; *p++ = 'x';
             auto [ptr, ec] = std::to_chars(
@@ -110,7 +112,7 @@ struct Printer {
         p = reserve(p, 24);
         double v = t.data.as_double;
         if (v != v) {
-            if (opts & JSON) {
+            if (!!(opts & O::Json)) {
                 return 4+(char*)std::memcpy(p, "null", 4);
             }
             else {
@@ -118,7 +120,7 @@ struct Printer {
             }
         }
         else if (v == +inf) {
-            if (opts & JSON) {
+            if (!!(opts & O::Json)) {
                 return 5+(char*)std::memcpy(p, "1e999", 5);
             }
             else {
@@ -126,7 +128,7 @@ struct Printer {
             }
         }
         else if (v == -inf) {
-            if (opts & JSON) {
+            if (!!(opts & O::Json)) {
                 return 6+(char*)std::memcpy(p, "-1e999", 6);
             }
             else {
@@ -141,7 +143,7 @@ struct Printer {
             return p;
         }
 
-        bool hex = !(opts & JSON) && t.flags & TreeFlags::PreferHex;
+        bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
         if (hex) {
             if (v < 0) {
                 *p++ = '-';
@@ -208,7 +210,7 @@ struct Printer {
     }
 
     char* print_string (char* p, Str s, const Tree* t) {
-        if (opts & JSON) {
+        if (!!(opts & O::Json)) {
             return print_quoted_contracted(p, s);
         }
         else return print_string_nojson(p, s, t);
@@ -247,10 +249,10 @@ struct Printer {
          // The expanded form of a string uses raw newlines and tabs instead of
          // escaping them.  Ironically, this takes fewer characters than the
          // compact form, so expand it when not pretty-printing.
-        bool expand = !(opts & PRETTY) ? true
+        bool expand = !(opts & O::Pretty) ? true
                     : !t ? false
-                    : t->flags & TreeFlags::PreferExpanded ? true
-                    : t->flags & TreeFlags::PreferCompact ? false
+                    : !!(t->flags & TreeFlags::PreferExpanded) ? true
+                    : !!(t->flags & TreeFlags::PreferCompact) ? false
                     : t->meta >> 1 > 50;
         if (expand) {
             return print_quoted_expanded(p, s);
@@ -275,18 +277,18 @@ struct Printer {
         }
 
          // Print "small" arrays compactly.
-        bool expand = !(opts & PRETTY) ? false
-                    : t.flags & TreeFlags::PreferExpanded ? true
-                    : t.flags & TreeFlags::PreferCompact ? false
+        bool expand = !(opts & O::Pretty) ? false
+                    : !!(t.flags & TreeFlags::PreferExpanded) ? true
+                    : !!(t.flags & TreeFlags::PreferCompact) ? false
                     : a.size() > 8;
 
         bool show_indices = expand
                          && a.size() > 2
-                         && !(opts & JSON);
+                         && !(opts & O::Json);
         p = pchar(p, '[');
         if (expand) {
             for (auto& elem : a) {
-                if (opts & JSON && &elem != &a.front()) {
+                if (!!(opts & O::Json) && &elem != &a.front()) {
                     p = pchar(p, ',');
                 }
                 p = print_newline(p, ind + 1);
@@ -300,7 +302,7 @@ struct Printer {
         else {
             for (auto& elem : a) {
                 if (&elem != &a.front()) {
-                    p = pchar(p, opts & JSON ? ',' : ' ');
+                    p = pchar(p, !!(opts & O::Json) ? ',' : ' ');
                 }
                 p = print_tree(p, elem, ind);
             }
@@ -318,15 +320,15 @@ struct Printer {
 
          // If both prefer_expanded and prefer_compact are set, I think the one
          // who set prefer_expanded is more likely to have a good reason.
-        bool expand = !(opts & PRETTY) ? false
-                    : t.flags & TreeFlags::PreferExpanded ? true
-                    : t.flags & TreeFlags::PreferCompact ? false
+        bool expand = !(opts & O::Pretty) ? false
+                    : !!(t.flags & TreeFlags::PreferExpanded) ? true
+                    : !!(t.flags & TreeFlags::PreferCompact) ? false
                     : o.size() > 1;
 
         p = pchar(p, '{');
         if (expand) {
             for (auto& attr : o) {
-                if (opts & JSON && &attr != &o.front()) {
+                if (!!(opts & O::Json) && &attr != &o.front()) {
                     p = pchar(p, ',');
                 }
                 p = print_newline(p, ind + 1);
@@ -339,7 +341,7 @@ struct Printer {
         else {
             for (auto& attr : o) {
                 if (&attr != &o.front()) {
-                    p = pchar(p, opts & JSON ? ',' : ' ');
+                    p = pchar(p, !!(opts & O::Json) ? ',' : ' ');
                 }
                 p = print_string(p, attr.first, null);
                 p = pchar(p, ':');
@@ -393,7 +395,7 @@ struct Printer {
         end = begin + cap;
          // Do it
         char* p = print_tree(begin, t, 0);
-        if (opts & PRETTY) p = pchar(p, '\n');
+        if (!!(opts & O::Pretty)) p = pchar(p, '\n');
          // Make return
         UniqueString r;
         r.impl.size = p - begin;
@@ -406,8 +408,8 @@ struct Printer {
 };
 
 static void validate_print_options (PrintOptions opts) {
-    if (opts & ~VALID_PRINT_OPTION_BITS ||
-        ((opts & PRETTY) && (opts & COMPACT))
+    if (!!(opts & ~O::ValidBits) ||
+        (!!(opts & O::Pretty) && !!(opts & O::Compact))
     ) {
         raise(e_PrintOptionsInvalid, "Further info NYI");
     }
@@ -417,14 +419,14 @@ static void validate_print_options (PrintOptions opts) {
 
 UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
     validate_print_options(opts);
-    if (!(opts & PRETTY)) opts |= COMPACT;
+    if (!(opts & O::Pretty)) opts |= O::Compact;
     Printer printer (opts);
     return printer.print(*t);
 }
 
 void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
     validate_print_options(opts);
-    if (!(opts & COMPACT)) opts |= PRETTY;
+    if (!(opts & O::Compact)) opts |= O::Pretty;
     auto output = Printer(opts).print(*t);
     string_to_file(output, move(filename));
 }
@@ -470,10 +472,10 @@ static tap::TestSet tests ("dirt/ayu/data/print", []{
             }
         }
     };
-    test(tree_to_string(t, PRETTY), pretty, "Pretty");
-    test(tree_to_string(t, COMPACT), compact, "Compact");
-    test(tree_to_string(t, PRETTY|JSON), pretty_json, "Pretty JSON");
-    test(tree_to_string(t, COMPACT|JSON), compact_json, "Compact JSON");
+    test(tree_to_string(t, O::Pretty), pretty, "Pretty");
+    test(tree_to_string(t, O::Compact), compact, "Compact");
+    test(tree_to_string(t, O::Pretty|O::Json), pretty_json, "Pretty O::Json");
+    test(tree_to_string(t, O::Compact|O::Json), compact_json, "Compact O::Json");
     test(tree_to_string(Tree(1.0)), "1", "Autointification small");
     test(tree_to_string(Tree(145.0)), "145", "Autointification small");
 

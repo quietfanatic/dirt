@@ -16,14 +16,14 @@ namespace ayu::in {
  //   2. Track the current location without any heap allocations, but allow
  //     getting an actual heap-allocated Location to the current item if needed
  //     for error reporting.
-enum TraversalOp : uint8 {
-    START,
-    DELEGATE,
-    ATTR,
-    COMPUTED_ATTR,
-    ELEM,
-    COMPUTED_ELEM,
-    CONTIGUOUS_ELEM,
+enum class TraversalOp : uint8 {
+    Start,
+    Delegate,
+    Attr,
+    ComputedAttr,
+    Elem,
+    ComputedElem,
+    ContiguousElem,
 };
 struct Traversal {
     const Traversal* parent;
@@ -108,7 +108,7 @@ static void trav_start (
     child.readonly = ref.host.type.readonly();
     child.only_addressable = only_addressable;
     child.collapse_optional = false;
-    child.op = START;
+    child.op = TraversalOp::Start;
     child.reference = &ref;
     child.location = loc;
      // A lot of Reference's methods branch on acr, and while those checks
@@ -135,7 +135,7 @@ static void trav_start (
         else {
             child.addressable = false;
             child.children_addressable =
-                ref.acr->flags & AcrFlags::PassThroughAddressable;
+                !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
             if (!child.only_addressable || child.children_addressable) {
                  // Optimize callback storage by using the stack object we
                  // already have as a closure, instead of making a new one.
@@ -161,7 +161,7 @@ void trav_acr (
     child.parent = &parent;
     child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
     child.only_addressable = parent.only_addressable;
-    child.collapse_optional = acr->attr_flags & AttrFlags::CollapseOptional;
+    child.collapse_optional = !!(acr->attr_flags & AttrFlags::CollapseOptional);
     child.acr = acr;
     child.desc = DescriptionPrivate::get(acr->type(parent.address));
     child.address = acr->address(*parent.address);
@@ -252,7 +252,7 @@ void trav_delegate (
     const Traversal& parent, const Accessor* acr, AccessMode mode, const CB& cb
 ) {
     CBTraversal<DelegateTraversal, CB> child;
-    child.op = DELEGATE;
+    child.op = TraversalOp::Delegate;
     trav_acr(parent, child, acr, mode, cb);
 }
 
@@ -265,7 +265,7 @@ void trav_attr (
     AccessMode mode, const CB& cb
 ) {
     CBTraversal<AttrTraversal, CB> child;
-    child.op = ATTR;
+    child.op = TraversalOp::Attr;
     child.key = &key;
     trav_acr(parent, child, acr, mode, cb);
 }
@@ -276,7 +276,7 @@ void trav_computed_attr (
     const AnyString& key, AccessMode mode, const CB& cb
 ) {
     CBTraversal<AttrFuncTraversal, CB> child;
-    child.op = COMPUTED_ATTR;
+    child.op = TraversalOp::ComputedAttr;
     child.func = func;
     child.key = &key;
     trav_reference(parent, child, ref, mode, cb);
@@ -288,7 +288,7 @@ void trav_elem (
     AccessMode mode, const CB& cb
 ) {
     CBTraversal<ElemTraversal, CB> child;
-    child.op = ELEM;
+    child.op = TraversalOp::Elem;
     child.index = index;
     trav_acr(parent, child, acr, mode, cb);
 }
@@ -299,7 +299,7 @@ void trav_computed_elem (
     usize index, AccessMode mode, const CB& cb
 ) {
     CBTraversal<ElemFuncTraversal, CB> child;
-    child.op = COMPUTED_ELEM;
+    child.op = TraversalOp::ComputedElem;
     child.func = func;
     child.index = index;
     trav_reference(parent, child, ref, mode, cb);
@@ -312,7 +312,7 @@ void trav_contiguous_elem (
 ) {
      // Don't need to store the CB
     DataFuncTraversal child;
-    child.op = CONTIGUOUS_ELEM;
+    child.op = TraversalOp::ContiguousElem;
     child.func = func;
     child.index = index;
     trav_pointer(parent, child, ptr, mode, cb);
@@ -325,7 +325,7 @@ Reference Traversal::to_reference () const noexcept {
     if (addressable) {
         return Pointer(Type(desc, readonly), address);
     }
-    else if (op == START) {
+    else if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
         return *self.reference;
     }
@@ -338,20 +338,20 @@ Reference Traversal::to_reference () const noexcept {
 NOINLINE inline
 Reference Traversal::to_reference_parent_addressable () const noexcept {
     switch (op) {
-        case DELEGATE: case ATTR: case ELEM: {
+        case TraversalOp::Delegate: case TraversalOp::Attr: case TraversalOp::Elem: {
             auto& self = static_cast<const AcrTraversal&>(*this);
             auto type = Type(parent->desc, parent->readonly);
             return Reference(Pointer(type, parent->address), self.acr);
         }
-        case COMPUTED_ATTR: {
+        case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
             return self.func(*parent->address, *self.key);
         }
-        case COMPUTED_ELEM: {
+        case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ElemFuncTraversal&>(*this);
             return self.func(*parent->address, self.index);
         }
-        case CONTIGUOUS_ELEM: {
+        case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const DataFuncTraversal&>(*this);
             auto data = self.func(*parent->address);
             auto desc = DescriptionPrivate::get(data.type);
@@ -368,25 +368,26 @@ NOINLINE inline
 Reference Traversal::to_reference_chain () const noexcept {
     Reference parent_ref = parent->to_reference();
     switch (op) {
-        case DELEGATE: case ATTR: case ELEM: {
+        case TraversalOp::Attr: case TraversalOp::Elem:
+        case TraversalOp::Delegate: {
             auto& self = static_cast<const AcrTraversal&>(*this);
             return Reference(parent_ref.host, new ChainAcr(
                 parent_ref.acr, self.acr
             ));
         }
-        case COMPUTED_ATTR: {
+        case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
             return Reference(parent_ref.host, new ChainAttrFuncAcr(
                 parent_ref.acr, self.func, *self.key
             ));
         }
-        case COMPUTED_ELEM: {
+        case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ElemFuncTraversal&>(*this);
             return Reference(parent_ref.host, new ChainElemFuncAcr(
                 parent_ref.acr, self.func, self.index
             ));
         }
-        case CONTIGUOUS_ELEM: {
+        case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const DataFuncTraversal&>(*this);
             return Reference(parent_ref.host, new ChainDataFuncAcr(
                 parent_ref.acr, self.func, self.index
@@ -398,7 +399,7 @@ Reference Traversal::to_reference_chain () const noexcept {
 
 inline
 Location Traversal::to_location () const noexcept {
-    if (op == START) {
+    if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
         if (*self.location) return self.location;
          // This * took a half a day of debugging to add. :(
@@ -411,24 +412,24 @@ NOINLINE inline
 Location Traversal::to_location_chain () const noexcept {
     Location parent_loc = parent->to_location();
     switch (op) {
-        case DELEGATE: return parent_loc;
-        case ATTR: {
+        case TraversalOp::Delegate: return parent_loc;
+        case TraversalOp::Attr: {
             auto& self = static_cast<const AttrTraversal&>(*this);
             return Location(move(parent_loc), *self.key);
         }
-        case COMPUTED_ATTR: {
+        case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
             return Location(move(parent_loc), *self.key);
         }
-        case ELEM: {
+        case TraversalOp::Elem: {
             auto& self = static_cast<const ElemTraversal&>(*this);
             return Location(move(parent_loc), self.index);
         }
-        case COMPUTED_ELEM: {
+        case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ElemFuncTraversal&>(*this);
             return Location(move(parent_loc), self.index);
         }
-        case CONTIGUOUS_ELEM: {
+        case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const DataFuncTraversal&>(*this);
             return Location(move(parent_loc), self.index);
         }

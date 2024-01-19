@@ -18,6 +18,20 @@ static_assert(sizeof(ComparableAddress) == 1);
 
 using NameFunc = AnyString();
 
+enum class DescFlags : uint16 {
+    PreferArray = 1 << 0,
+    PreferObject = 1 << 1,
+    Preference = PreferArray | PreferObject,
+     // Select between union members
+    NameComputed = 1 << 2,
+    ElemsContiguous = 1 << 3,
+     // Can select some faster algorithms when this is false.
+    AttrsNeedRebuild = 1 << 4,
+     // Faster values() processing
+    ValuesAllStrings = 1 << 5,
+};
+DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
+
 struct Description : ComparableAddress {
 #ifdef AYU_STORE_TYPE_INFO
     const std::type_info* cpp_type = null;
@@ -32,20 +46,7 @@ struct Description : ComparableAddress {
         };
     };
 
-     // Do some property calculations ahead of time
-    enum Flags {
-        PREFER_ARRAY = 1 << 0,
-        PREFER_OBJECT = 1 << 1,
-        PREFERENCE = PREFER_ARRAY | PREFER_OBJECT,
-         // Select between union members below
-        COMPUTED_NAME = 1 << 2,
-        CONTIGUOUS_ELEMS = 1 << 3,
-         // Can select some faster algorithms when this is false.
-        SHOULD_REBUILD_OBJECT = 1 << 4,
-         // Faster values() processing
-        ALL_VALUES_STRINGS = 1 << 5,
-    };
-    uint16 flags = 0;
+    DescFlags flags = {};
 
     uint16 to_tree_offset = 0;
     uint16 from_tree_offset = 0;

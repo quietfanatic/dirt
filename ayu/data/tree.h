@@ -27,8 +27,7 @@ enum class Form : uint8 {
 
  // Options that control how a Tree is printed.  These do not have any effect on
  // the semantics of the Tree, and they do not affect subtrees.
-namespace _ {
-enum TreeFlags : uint16 {
+enum class TreeFlags : uint16 {
      // For Number: Print the number as hexadecimal.
     PreferHex = 0x1,
      // For Array or Object: When pretty-printing, print this item compactly,
@@ -48,7 +47,6 @@ enum TreeFlags : uint16 {
     ValidBits = PreferHex | PreferCompact | PreferExpanded
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
-} using _::TreeFlags;
 
 struct Tree {
     const Form form;

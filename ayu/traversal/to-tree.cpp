@@ -41,7 +41,7 @@ struct TraverseToTree {
 
     NOINLINE static
     void no_value_match (Tree& r, const Traversal& trav) {
-        if (trav.desc->preference() == Description::PREFER_OBJECT) {
+        if (trav.desc->preference() == DescFlags::PreferObject) {
             if (auto keys = trav.desc->keys_acr()) {
                 return use_computed_attrs(r, trav, keys);
             }
@@ -49,9 +49,9 @@ struct TraverseToTree {
                 return use_attrs(r, trav);
             }
         }
-        else if (trav.desc->preference() == Description::PREFER_ARRAY) {
+        else if (trav.desc->preference() == DescFlags::PreferArray) {
             if (auto length = trav.desc->length_acr()) {
-                if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
                     return use_contiguous_elems(r, trav, length);
                 }
                 else {
@@ -101,7 +101,7 @@ struct TraverseToTree {
          // First just build the object as though none of the attrs are included
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
-            if (attr->acr()->attr_flags & AttrFlags::Invisible) continue;
+            if (!!(attr->acr()->attr_flags & AttrFlags::Invisible)) continue;
 
             Tree& value = object.emplace_back_expect_capacity(
                 attr->key, Tree()
@@ -113,7 +113,7 @@ struct TraverseToTree {
         }
          // Then if there are included or collapsed attrs, rebuild the object
          // while flattening them.
-        if (trav.desc->flags & Description::SHOULD_REBUILD_OBJECT) {
+        if (!!(trav.desc->flags & DescFlags::AttrsNeedRebuild)) {
              // Determine length for preallocation
             usize len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -121,7 +121,9 @@ struct TraverseToTree {
                  // Ignore CollapseEmpty; it can only decrease the length by 1,
                  // and the calculation for whether to do it is a bit
                  // complicated, so I'd rather just overallocate.
-                if (flags & (AttrFlags::Include|AttrFlags::CollapseOptional)) {
+                if (!!(flags &
+                    (AttrFlags::Include|AttrFlags::CollapseOptional)
+                )) {
                      // This works for both include and collapse_optional
                     len = len + (object[i].second.meta >> 1) - 1;
                 }
@@ -134,7 +136,7 @@ struct TraverseToTree {
                 auto flags = attr->acr()->attr_flags;
                 auto key = move(object[i].first);
                 Tree value = move(object[i].second);
-                if (flags & AttrFlags::Include) {
+                if (!!(flags & AttrFlags::Include)) {
                     if (value.form != Form::Object) {
                         raise(e_General,
                             "Included item did not serialize to an object"
@@ -145,7 +147,7 @@ struct TraverseToTree {
                         new_object.emplace_back_expect_capacity(pair);
                     }
                 }
-                else if (flags & AttrFlags::CollapseEmpty) {
+                else if (!!(flags & AttrFlags::CollapseEmpty)) {
                     bool compound = value.form == Form::Array ||
                                     value.form == Form::Object;
                     if (!compound || value.meta >> 1) {
@@ -155,7 +157,7 @@ struct TraverseToTree {
                     }
                     else { } // Drop the attr
                 }
-                else if (flags & AttrFlags::CollapseOptional) {
+                else if (!!(flags & AttrFlags::CollapseOptional)) {
                     if (value.form != Form::Array || (value.meta >> 1) > 1) {
                         raise(e_General,
                             "Attribute with collapse_optional did not "

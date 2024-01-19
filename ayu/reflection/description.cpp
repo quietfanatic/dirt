@@ -85,7 +85,7 @@ const Description* need_description_for_name (Str name) {
 }
 
 StaticString get_description_name (const Description* desc) {
-    if (desc->flags & Description::COMPUTED_NAME) {
+    if (!!(desc->flags & DescFlags::NameComputed)) {
         auto cache = desc->cached_name;
         if (!*cache) {
             AnyString s = desc->computed_name();

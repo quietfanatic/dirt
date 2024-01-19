@@ -123,7 +123,7 @@ void ChainAcr::_access (
 }
 Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainAcr*>(acr);
-    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
         Mu* r = null;
         self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
             r = self->inner->address(w);
@@ -161,7 +161,7 @@ void ChainAttrFuncAcr::_access (
 }
 Mu* ChainAttrFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainAttrFuncAcr*>(acr);
-    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
         Mu* r = null;
         self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
             r = self->f(w, self->key).address();
@@ -199,7 +199,7 @@ void ChainElemFuncAcr::_access (
 }
 Mu* ChainElemFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainElemFuncAcr*>(acr);
-    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
         Mu* r = null;
         self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
             r = self->f(w, self->index).address();
@@ -242,7 +242,7 @@ void ChainDataFuncAcr::_access (
 Mu* ChainDataFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainDataFuncAcr*>(acr);
     Pointer data;
-    if (self->outer->flags & AcrFlags::PassThroughAddressable) {
+    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
         self->outer->access(AccessMode::Read, v, [&data, self](Mu& w){
             data = self->f(w);
         });

@@ -218,8 +218,8 @@ static tap::TestSet tests ("dirt/glow/program", []{
     glReadPixels(0, 0, env.size.x, env.size.y, GL_RGBA, GL_UNSIGNED_BYTE, got_pixels.data());
 
     if (!is(got_pixels, expected_pixels, "Rendered correct image")) {
-        diag(ayu::item_to_string(&got_pixels, ayu::COMPACT));
-        diag(ayu::item_to_string(&expected_pixels, ayu::COMPACT));
+        diag(ayu::item_to_string(&got_pixels, ayu::PrintOptions::Compact));
+        diag(ayu::item_to_string(&expected_pixels, ayu::PrintOptions::Compact));
     }
 
     done_testing();

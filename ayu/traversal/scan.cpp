@@ -63,7 +63,7 @@ struct TraverseScan {
          // Also we're only checking offsets here, not converting them to
          // variables, because doing so before calling the cb would require
          // saving and restoring those variables.
-        if (trav.desc->preference() == Description::PREFER_OBJECT) {
+        if (trav.desc->preference() == DescFlags::PreferObject) {
             if (trav.desc->keys_offset) {
                 return use_computed_attrs(trav, loc, cb);
             }
@@ -71,9 +71,9 @@ struct TraverseScan {
                 return use_attrs(trav, loc, cb);
             }
         }
-        else if (trav.desc->preference() == Description::PREFER_ARRAY) {
+        else if (trav.desc->preference() == DescFlags::PreferArray) {
             if (trav.desc->length_offset) {
-                if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
                     return use_contiguous_elems(trav, loc, cb);
                 }
                 else {
@@ -107,7 +107,7 @@ struct TraverseScan {
              // Behave as though all included attrs are included (collapse the
              // location segment for the included attr).
             Location child_loc =
-                acr->attr_flags & AttrFlags::Include
+                !!(acr->attr_flags & AttrFlags::Include)
                 ? *loc : Location(loc, attr->key);
              // TODO: verify that the child item is object-like.
             bool r = false; // init in case only_addressable skips cb

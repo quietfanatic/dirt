@@ -12,7 +12,7 @@ struct SwizzleOp {
     SwizzleFunc<Mu>* f;
     Reference item;
      // This can't be TreeRef because the referenced Tree could go away after a
-     // nested from_tree is called with DELAY_SWIZZLE
+     // nested from_tree is called with DelaySwizzle
     Tree tree;
     Location loc;
 
@@ -67,14 +67,14 @@ struct TraverseFromTree {
     static
     void start (
         const Reference& item, const Tree& tree, LocationRef loc,
-        ItemFromTreeFlags flags
+        FromTreeOptions opts
     ) {
         if (tree.form == Form::Undefined) {
             raise(e_FromTreeFormRejected,
                 "Undefined tree given to item_from_tree"
             );
         }
-        if (flags & DELAY_SWIZZLE && IFTContext::current) {
+        if (!!(opts & FromTreeOptions::DelaySwizzle) && IFTContext::current) {
              // Delay swizzle and inits to the outer item_from_tree call.  Basically
              // this just means keep the current context instead of making a new one.
             start_without_context(item, tree, loc);
@@ -157,7 +157,7 @@ struct TraverseFromTree {
          // Now check for values.  Values can be of any tree form now, not just
          // atomic forms.
         else if (auto values = trav.desc->values()) {
-            if (trav.desc->flags & Description::ALL_VALUES_STRINGS) {
+            if (!!(trav.desc->flags & DescFlags::ValuesAllStrings)) {
                 if (tree.form == Form::String) {
                     use_values_all_strings(trav, tree, values);
                 }
@@ -184,7 +184,7 @@ struct TraverseFromTree {
         }
         else if (tree.form == Form::Array) {
             if (auto length = trav.desc->length_acr()) {
-                if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
                     return use_contiguous_elems(trav, tree, length);
                 }
                 else {
@@ -367,7 +367,7 @@ struct TraverseFromTree {
                 if (key == attr->key) {
                     if (!(flags & AttrFlags::Ignored)) {
                          // TODO: avoid refcount for non-collapsed case?
-                        auto real_value = flags & AttrFlags::CollapseOptional
+                        auto real_value = !!(flags & AttrFlags::CollapseOptional)
                             ? Tree::array(value)
                             : value;
                         trav_attr(trav, attr->acr(), attr->key,
@@ -381,7 +381,7 @@ struct TraverseFromTree {
                 }
             }
              // No match, try including, optional, collapsing
-            if (flags & AttrFlags::Include) {
+            if (!!(flags & AttrFlags::Include)) {
                  // Included.  Recurse with the same tree.
                 trav_attr(trav, attr->acr(), attr->key, AccessMode::Write,
                     [&tree, next_list](const Traversal& child)
@@ -389,16 +389,18 @@ struct TraverseFromTree {
                     claim_attrs(child, tree, next_list);
                 });
             }
-            else if (flags & (AttrFlags::Optional|AttrFlags::Ignored)) {
+            else if (!!(flags & (AttrFlags::Optional|AttrFlags::Ignored))) {
                  // Leave the attribute in its default-constructed state.
             }
-            else if (flags & (AttrFlags::CollapseEmpty|AttrFlags::CollapseOptional)) {
+            else if (!!(flags &
+                (AttrFlags::CollapseEmpty|AttrFlags::CollapseOptional)
+            )) {
                  // If the attribute was not provided and has a collapse flag
                  // set, deserialize the item with an empty array or object.
                 static constexpr auto empty_array = Tree::array();
                 static constexpr auto empty_object = Tree::object();
                 const Tree* value = &empty_array;
-                if (flags & AttrFlags::CollapseEmpty) {
+                if (!!(flags & AttrFlags::CollapseEmpty)) {
                      // TODO: This does an extraneous indirect call to get the
                      // child type, just so we can decide whether to give it an
                      // empty object or array.  Is there any way to eliminate
@@ -406,7 +408,7 @@ struct TraverseFromTree {
                     auto child_desc = DescriptionPrivate::get(
                         attr->acr()->type(trav.address)
                     );
-                    if (child_desc->preference() == Description::PREFER_OBJECT) {
+                    if (child_desc->preference() == DescFlags::PreferObject) {
                         value = &empty_object;
                     }
                 }
@@ -713,9 +715,9 @@ struct TraverseFromTree {
 
 void item_from_tree (
     const Reference& item, const Tree& tree, LocationRef loc,
-    ItemFromTreeFlags flags
+    FromTreeOptions opts
 ) {
-    TraverseFromTree::start(item, tree, loc, flags);
+    TraverseFromTree::start(item, tree, loc, opts);
 }
 
 void raise_FromTreeFormRejected (Type t, Form f) {

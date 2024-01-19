@@ -144,10 +144,10 @@ template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::elem (
     const Acr& acr, in::AttrFlags flags
 ) {
-    if (flags & in::AttrFlags::CollapseEmpty) {
+    if (!!(flags & in::AttrFlags::CollapseEmpty)) {
         ERROR_elem_cannot_have_collapse_empty_flag();
     }
-    if (flags & in::AttrFlags::CollapseOptional) {
+    if (!!(flags & in::AttrFlags::CollapseOptional)) {
         ERROR_elem_cannot_have_collapse_optional_flag();
     }
     if constexpr (std::is_member_object_pointer_v<Acr>) {

@@ -54,8 +54,8 @@ struct TraverseGetKeys {
         for (uint16 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (acr->attr_flags & AttrFlags::Invisible) continue;
-            if (acr->attr_flags & AttrFlags::Include) {
+            if (!!(acr->attr_flags & AttrFlags::Invisible)) continue;
+            if (!!(acr->attr_flags & AttrFlags::Include)) {
                 trav_attr(trav, acr, attr->key, AccessMode::Read,
                     [this](const Traversal& child)
                 { traverse(child); });
@@ -161,8 +161,8 @@ struct TraverseSetKeys {
             if (claim(attr->key)) {
                 claimed[i] = true;
             }
-            else if (acr->attr_flags & (
-                AttrFlags::Optional|AttrFlags::Include
+            else if (!!(acr->attr_flags &
+                (AttrFlags::Optional|AttrFlags::Include)
             )) {
                  // Allow omitting optional or included attrs
             }
@@ -172,7 +172,7 @@ struct TraverseSetKeys {
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (acr->attr_flags & AttrFlags::Include) {
+            if (!!(acr->attr_flags & AttrFlags::Include)) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed[i]) continue;
                 trav_attr(trav, acr, attr->key, AccessMode::Write,
@@ -270,7 +270,7 @@ struct TraverseAttr {
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (acr->attr_flags & AttrFlags::Include) {
+            if (!!(acr->attr_flags & AttrFlags::Include)) {
                 trav_attr(trav, acr, attr->key, AccessMode::Read,
                     [&r, &key](const Traversal& child)
                 { traverse(r, child, key); });
@@ -447,7 +447,7 @@ struct TraverseElem {
     NOINLINE static
     void traverse (Reference& r, const Traversal& trav, usize index) {
         if (auto length = trav.desc->length_acr()) {
-            if (trav.desc->flags & Description::CONTIGUOUS_ELEMS) {
+            if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
                 use_contiguous_elems(r, trav, index, length);
             }
             else {

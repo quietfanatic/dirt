@@ -66,7 +66,7 @@ struct ElemsDcrPrivate : ElemsDcr<Mu> {
      // invisible).  TODO: this could be done at compile time
     uint16 chop_flag (AttrFlags flag) const {
         uint16 r = n_elems;
-        while (r && elem(r-1)->acr()->attr_flags & flag) r--;
+        while (r && !!(elem(r-1)->acr()->attr_flags & flag)) r--;
         return r;
     }
 };
@@ -124,9 +124,9 @@ struct DescriptionPrivate : DescriptionFor<Mu> {
      // Figure out whether this description prefers being serialized as an array
      // or as an object.  Whichever has a related facet specified first will
      // be picked.
-    uint16 preference () const {
+    DescFlags preference () const {
          // We've bumped this calculation up to compile-time.
-        return flags & PREFERENCE;
+        return flags & DescFlags::Preference;
     }
 };
 

@@ -13,8 +13,7 @@
 namespace ayu {
 
  // Flags to change the behavior of item_from_tree.
-using ItemFromTreeFlags = uint32;
-enum : ItemFromTreeFlags {
+enum class FromTreeOptions {
      // If calling item_from_tree recursively, schedule swizzle and init
      // operations for after the outer call does its swizzle and init
      // operations respectively.  This will allow items to cyclically reference
@@ -31,8 +30,9 @@ enum : ItemFromTreeFlags {
      // use this flag when they are not true, you will likely corrupt memory.
      //
      // For non-recursive item_from_tree calls, this flag has no effect.
-    DELAY_SWIZZLE = 1,
+    DelaySwizzle = 1,
 };
+DECLARE_ENUM_BITWISE_OPERATORS(FromTreeOptions)
 
  // Write to an item from a tree.  If an exception is thrown, the item may be
  // left in an incomplete state, so if you're worried about that, construct a
@@ -52,21 +52,21 @@ enum : ItemFromTreeFlags {
  // be thrown.
 void item_from_tree (
     const Reference&, const Tree&, LocationRef loc = Location(),
-    ItemFromTreeFlags flags = 0
+    FromTreeOptions opts = {}
 );
  // Slight optimization for pointers (the usual case)
 template <class T>
 void item_from_tree (
     T* item, const Tree& t, LocationRef loc = Location(),
-    ItemFromTreeFlags flags = 0
+    FromTreeOptions opts = {}
 ) {
     Reference ref = item;
-    item_from_tree(ref, t, loc, flags);
+    item_from_tree(ref, t, loc, opts);
     expect(!ref.acr);
 }
 
  // Shortcuts
- // item_from_string and item_from_file do not currently allow passing flags
+ // item_from_string and item_from_file do not currently allow passing opts
 template <class T>
 void item_from_string (
     T&& item, Str src, LocationRef loc = Location()
