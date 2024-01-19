@@ -24,4 +24,6 @@ UniqueString16 to_utf16 (Str) noexcept;
  // Convert a native-endian UTF-16 string into a UTF-8 string.
 UniqueString from_utf16 (Str16) noexcept;
 
+constexpr bool is_continuation_byte (char c) { return (c & 0xc0) == 0x80; }
+
 } // namespace uni
