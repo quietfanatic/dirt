@@ -71,6 +71,7 @@ inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
     data.as_error_ptr = e.impl.data;
     e.impl = {};
 }
+
 constexpr Tree::Tree (Tree&& o) :
     form(o.form), flags(o.flags), meta(o.meta), data(o.data)
 {
@@ -79,19 +80,28 @@ constexpr Tree::Tree (Tree&& o) :
 constexpr Tree::Tree (const Tree& o) :
     form(o.form), flags(o.flags), meta(o.meta), data(o.data)
 {
-    if (std::is_constant_evaluated()) {
-        expect(!(o.meta & 1));
-    }
-    else if (o.meta & 1 && data.as_char_ptr) {
+    if (meta & 1 && data.as_char_ptr) {
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
 }
 
-constexpr Tree::~Tree () {
-    if (std::is_constant_evaluated()) {
-        expect(!(meta & 1));
+constexpr Tree& Tree::operator= (Tree&& o) {
+    this->~Tree();
+    form = o.form; flags = o.flags; meta = o.meta; data = o.data;
+    o.meta = 0; o.data.as_int64 = 0;
+    return *this;
+}
+constexpr Tree& Tree::operator= (const Tree& o) {
+    this->~Tree();
+    form = o.form; flags = o.flags; meta = o.meta; data = o.data;
+    if (meta & 1 && data.as_char_ptr) {
+        ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
-    else if (meta & 1 && data.as_char_ptr) {
+    return *this;
+}
+
+constexpr Tree::~Tree () {
+    if (meta & 1 && data.as_char_ptr) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }

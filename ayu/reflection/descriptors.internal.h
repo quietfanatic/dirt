@@ -214,15 +214,17 @@ struct InitDcr : AttachedDescriptor<T> {
 template <class T>
 struct alignas(std::max_align_t) ValueDcr : ComparableAddress {
     Tree name;
-     // If this is null, it means this is a ValueDcrWithValue.
-     // I'd love to just have this point to ValueDcrWithValue::value, but this
-     // object will be moved around at compile time, so the address won't stick.
-    const T* address;
 };
 
 template <class T>
 struct ValueDcrWithValue : ValueDcr<T> {
+    static_assert(alignof(T) <= alignof(std::max_align_t));
     alignas(std::max_align_t) T value;
+};
+
+template <class T>
+struct ValueDcrWithPointer : ValueDcr<T> {
+    const T* value;
 };
 
 template <class T>

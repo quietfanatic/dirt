@@ -12,8 +12,13 @@ const C* offset_get (const void* base, uint16 offset) {
 
 struct ValueDcrPrivate : ValueDcr<Mu> {
     Mu* get_value () const {
-        if (address) return (Mu*)address;
-        else return (Mu*)((char*)this + sizeof(ValueDcr<Mu>));
+         // Can't static cast to ValueDcrWithValue<Mu> because it has an inline
+         // member of incomplete type Mu.
+        auto r = (Mu*)((char*)this + sizeof(ValueDcr<Mu>));
+        if (!!(name.flags & TreeFlags::ValueIsPointer)) {
+            r = *(Mu**)r;
+        }
+        return r;
     }
 };
 

@@ -43,13 +43,15 @@ enum class TreeFlags : uint16 {
      // use some heuristics to decide which way to print it.  If both are set,
      // which one takes priority is unspecified.
     PreferExpanded = 0x4,
+     // For internal use only.  Ignore this.
+    ValueIsPointer = 0x8000,
 
-    ValidBits = PreferHex | PreferCompact | PreferExpanded
+    ValidBits = PreferHex | PreferCompact | PreferExpanded | ValueIsPointer
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 
 struct Tree {
-    const Form form;
+    Form form;
      // Only the flags can be modified after construction.
     TreeFlags flags;
 
@@ -64,17 +66,9 @@ struct Tree {
     constexpr Tree (const Tree&);
      // Destructor.
     constexpr ~Tree ();
-     // Assignment boilerplate
-    constexpr Tree& operator = (Tree&& o) {
-        if (this == &o) [[unlikely]] return *this;
-        this->~Tree();
-        return *new (this) Tree(move(o));
-    }
-    constexpr Tree& operator = (const Tree& o) {
-        if (this == &o) [[unlikely]] return *this;
-        this->~Tree();
-        return *new (this) Tree(o);
-    }
+     // Assignment.
+    constexpr Tree& operator= (Tree&& o);
+    constexpr Tree& operator= (const Tree& o);
 
     ///// CONVERSION TO TREE
     explicit constexpr Tree (Null, TreeFlags = {});

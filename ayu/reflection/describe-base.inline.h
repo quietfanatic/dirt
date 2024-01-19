@@ -64,15 +64,16 @@ template <class N>
 constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
      // Be aggressive about converting to StaticString to make sure nothing goes
      // through the non-constexpr path.
+    Tree name;
     if constexpr (
         !requires { Null(n); } &&
         requires { StaticString(n); }
     ) {
-        return in::ValueDcrWithValue<T>{
-            {{}, Tree(StaticString(n)), null}, move(v)
-        };
+        name = Tree(StaticString(n));
     }
-    else return in::ValueDcrWithValue<T>{{{}, Tree(n), null}, move(v)};
+    else name = Tree(n);
+    name.flags &= ~TreeFlags::ValueIsPointer;
+    return in::ValueDcrWithValue<T>{{{}, name}, move(v)};
 }
  // Forwarding references only work if the template parameter is immediately on
  // the function, not in some outer scope.
@@ -80,27 +81,31 @@ template <class T>
 template <class N>
     requires (requires (const T& v) { T(v); })
 constexpr auto _AYU_DescribeBase<T>::value (const N& n, const T& v) {
+    Tree name;
     if constexpr (
         !requires { Null(n); } &&
         requires { StaticString(n); }
     ) {
-        return in::ValueDcrWithValue<T>{
-            {{}, Tree(StaticString(n)), null}, move(v)
-        };
+        name = Tree(StaticString(n));
     }
-    else return {in::ValueDcrWithValue<T>{{}, Tree(n), null}, move(v)};
+    else name = Tree(n);
+    name.flags &= ~TreeFlags::ValueIsPointer;
+    return in::ValueDcrWithValue<T>{{{}, name}, v};
 }
 
 template <class T>
 template <class N>
 constexpr auto _AYU_DescribeBase<T>::value_pointer (const N& n, const T* p) {
+    Tree name;
     if constexpr (
         !requires { Null(n); } &&
         requires { StaticString(n); }
     ) {
-        return in::ValueDcr<T>{{}, Tree(StaticString(n)), p};
+        name = Tree(StaticString(n));
     }
-    else return in::ValueDcr<T>{{}, Tree(n), p};
+    else name = Tree(n);
+    name.flags |= TreeFlags::ValueIsPointer;
+    return in::ValueDcrWithPointer<T>{{{}, name}, p};
 }
 
 template <class T>
