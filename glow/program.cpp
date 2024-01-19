@@ -149,6 +149,7 @@ AYU_DESCRIBE(glow::Shader,
                 require(v.id);
                 int len = 0;
                 glGetShaderiv(v.id, GL_SHADER_SOURCE_LENGTH, &len);
+                if (!len) return std::string();
                 std::string r (len-1, 0);
                 glGetShaderSource(v.id, len, null, r.data());
                 return r;

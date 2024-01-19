@@ -96,7 +96,11 @@ struct FileResourceScheme : ResourceScheme {
     ) :
         ResourceScheme(move(scheme), auto_activate),
         folder(move(folder))
-    { }
+    {
+         // TODO
+//        require(folder);
+//        while (folder.size() > 1 && folder.back() == '/') folder.pop_back();
+    }
 };
 
 } // namespace ayu

@@ -15,6 +15,7 @@ struct ResourceData {
     Dynamic value {};
     Dynamic old_value {};  // Used when reloading
     ResourceState state = UNLOADED;
+    uint32 purpose_count = 0;
 };
 
 struct Universe {
