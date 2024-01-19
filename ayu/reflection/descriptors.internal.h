@@ -212,14 +212,16 @@ struct InitDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
-struct alignas(std::max_align_t) ValueDcr : ComparableAddress {
+struct ValueDcr : ComparableAddress {
     Tree name;
 };
 
+ // Do some weirdness to ensure that the value is right after the name.
+ // Using multiple alignas() specifiers picks the strictest (largest) one.
 template <class T>
-struct ValueDcrWithValue : ValueDcr<T> {
-    static_assert(alignof(T) <= alignof(std::max_align_t));
-    alignas(std::max_align_t) T value;
+struct alignas(T) alignas(Tree) ValueDcrWithValue : ValueDcr<T> {
+    static_assert(alignof(T) <= sizeof(Tree));
+    alignas(T) alignas(Tree) T value;
 };
 
 template <class T>

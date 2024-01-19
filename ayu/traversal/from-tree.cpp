@@ -238,7 +238,8 @@ struct TraverseFromTree {
         constexpr usize stack_capacity_0 = 64; // 15 keys
         constexpr usize stack_capacity_1 = 256; // 63 keys
         constexpr usize stack_capacity_2 = 1024; // 255 keys
-        constexpr usize stack_capacity_3 = 4096; // 1023 keys
+         // 4096 triggers some extra code on GCC
+        constexpr usize stack_capacity_3 = 4080; // 1019 keys
         auto len = tree.meta >> 1;
         if (len + 1 <= stack_capacity_0 / 4) {
             use_attrs_stack<stack_capacity_0>(trav, tree, attrs);
