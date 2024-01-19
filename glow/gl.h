@@ -17,15 +17,26 @@ namespace glow {
 
  // Build GL API
 
+#if __GNUC__
+#define DECLARE_GL_FUNCTION(name, Ret, params) \
+template <int = 0> \
+[[gnu::constructor]] void register_p_##name (); \
+template <int = 0> \
+Ret(APIENTRY* p_##name )params noexcept = (&register_p_##name<>, nullptr); \
+template <int> \
+[[gnu::constructor]] void register_p_##name () { \
+    glow::register_gl_function(&p_##name<>, #name); \
+}
+#else
 #define DECLARE_GL_FUNCTION(name, Ret, params) \
 template <int = 0> \
 Ret(APIENTRY* p_##name )params noexcept = \
     (glow::register_gl_function(&p_##name<>, #name), nullptr);
+#endif
 
 #ifdef NDEBUG
 
- // TODO: change to not require p_
-#define USE_GL_FUNCTION(p_name) p_name<>
+#define USE_GL_FUNCTION(name) p_##name<>
 
 #else
  // For debug, check glGetError after every call.
@@ -62,7 +73,7 @@ namespace glow {
     }
 }
 
-#define USE_GL_FUNCTION(p_name) glow::checked_gl_function(p_name<>, #p_name)
+#define USE_GL_FUNCTION(name) glow::checked_gl_function(p_##name<>, #name)
 
 #endif
 
