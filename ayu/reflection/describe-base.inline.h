@@ -335,7 +335,6 @@ constexpr auto _AYU_DescribeBase<T>::_ayu_describe (
 #else
 
  // Stringify name as early as possible to avoid macro expansion
- // TODO make description constinit so names can be generated at runtime
 #define AYU_DESCRIBE_BEGIN(T) AYU_DESCRIBE_BEGIN_NAME(T, #T)
 #define AYU_DESCRIBE_BEGIN_NAME(T, name_) \
 template <> \
@@ -344,6 +343,17 @@ struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     static constexpr auto _ayu_full_description = ayu::_AYU_DescribeBase<T>::_ayu_describe( \
         name(name_)
 
+#if __GNUC__
+#define AYU_DESCRIBE_END(T) \
+    ); \
+    static const ayu::in::Description* const _ayu_description; \
+    [[gnu::constructor]] static void init () { \
+        ayu::in::register_description(_ayu_description); \
+    } \
+}; \
+const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description = \
+    (&init, _ayu_full_description.template get<ayu::in::Description>(0));
+#else
 #define AYU_DESCRIBE_END(T) \
     ); \
     static const ayu::in::Description* const _ayu_description; \
@@ -352,6 +362,7 @@ const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description =
     ayu::in::register_description( \
         _ayu_full_description.template get<ayu::in::Description>(0) \
     );
+#endif
 
 #define AYU_DESCRIBE(T, ...) AYU_DESCRIBE_NAME(T, #T, __VA_ARGS__)
 #define AYU_DESCRIBE_NAME(T, name, ...) \
@@ -368,6 +379,18 @@ struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
     static constexpr auto _ayu_full_description = desc::_ayu_describe(
 
+#if __GNUC__
+#define AYU_DESCRIBE_TEMPLATE_END(params, T) \
+    ); \
+    static const ayu::in::Description* const _ayu_description; \
+    [[gnu::constructor]] static void init () { \
+        ayu::in::register_description(_ayu_description); \
+    } \
+}; \
+template params \
+const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description = \
+    (&init, _ayu_full_description.template get<ayu::in::Description>(0));
+#else
 #define AYU_DESCRIBE_TEMPLATE_END(params, T) \
     ); \
     static const ayu::in::Description* const _ayu_description; \
@@ -377,6 +400,7 @@ const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description =
     ayu::in::register_description( \
         _ayu_full_description.template get<ayu::in::Description>(0) \
     );
+#endif
 
 #define AYU_DESCRIBE_ESCAPE(...) __VA_ARGS__
 
