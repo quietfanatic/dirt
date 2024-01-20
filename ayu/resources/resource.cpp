@@ -1,4 +1,4 @@
-#include "resource.h"
+#include "resource.private.h"
 
 #include "../../uni/io.h"
 #include "../data/parse.h"
@@ -10,6 +10,7 @@
 #include "../traversal/from-tree.h"
 #include "../traversal/scan.h"
 #include "../traversal/to-tree.h"
+#include "purpose.h"
 #include "scheme.h"
 #include "universe.private.h"
 
@@ -192,6 +193,10 @@ void load (Resource res) {
     load(Slice<Resource>(&res, 1));
 }
 void load (Slice<Resource> reses) {
+    current_purpose->acquire(reses);
+}
+
+void load_purposeless (Slice<Resource> reses) {
     UniqueArray<Resource> rs;
     for (auto res : reses)
     switch (res.data->state) {

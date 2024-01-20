@@ -142,8 +142,8 @@ inline bool operator != (T a, T b) { return !(a == b); }
 
 ///// RESOURCE OPERATIONS
 
- // Loads a resource.  Does nothing if the resource is not UNLOADED.  Throws
- // if the file doesn't exist on disk or can't be opened.
+ // Loads a resource into the current purpose.  Does nothing if the resource is
+ // not UNLOADED.  Throws if the file doesn't exist on disk or can't be opened.
 void load (Resource);
  // Loads multiple resources at once.  If an exception is thrown, all the loads
  // will be cancelled and all of the given resources will end up in the UNLOADED

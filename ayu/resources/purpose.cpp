@@ -1,12 +1,24 @@
 #include "purpose.h"
 
+#include "resource.private.h"
 #include "universe.private.h"
 
 namespace ayu {
 
+struct PushCurrentPurpose {
+    Purpose* old;
+    PushCurrentPurpose (Purpose* p) : old(current_purpose) {
+        current_purpose = p;
+    }
+    ~PushCurrentPurpose () {
+        current_purpose = old;
+    }
+};
+
 void Purpose::acquire (Slice<Resource> rs) {
     if (!rs) return;
-    load(rs);
+    PushCurrentPurpose _(this);
+    load_purposeless(rs);
     for (auto& r : rs) {
         for (auto& res : resources) {
             if (res == r) goto next_r;
@@ -17,7 +29,8 @@ void Purpose::acquire (Slice<Resource> rs) {
     }
 }
 
-static void release_and_unload (Slice<Resource> rs) {
+static void release_and_unload (Purpose& self, Slice<Resource> rs) {
+    PushCurrentPurpose _(&self);
     auto to_unload = UniqueArray<Resource>(Capacity(rs.size()));
     for (auto& r : rs) {
         if (!--r.data->purpose_count) {
@@ -38,7 +51,7 @@ void Purpose::release (Slice<Resource> rs) {
         );
         next_r:;
     }
-    release_and_unload(rs);
+    release_and_unload(*this, rs);
     auto new_resources = UniqueArray<Resource>(Capacity(resources.size()));
     for (auto& res : resources) {
         for (auto& r : rs) {
@@ -51,8 +64,11 @@ void Purpose::release (Slice<Resource> rs) {
 }
 
 void Purpose::release_all () {
-    release_and_unload(resources);
+    release_and_unload(*this, resources);
     resources = {};
 }
+
+Purpose general_purpose;
+Purpose* current_purpose = &general_purpose;
 
 } // ayu

@@ -28,6 +28,11 @@ struct Universe {
         if (iter != schemes.end()) return iter->second;
         else raise(e_ResourceSchemeNotFound, name.spec());
     }
+    ~Universe() {
+         // TEMP WORKAROUND FOR DESTRUCTION ORDER PROBLEMS!
+         // Remove this once we implement reference counting for resources.
+        for (auto& [k, v] : resources) v.release();
+    }
 };
 
 inline Universe& universe () {
