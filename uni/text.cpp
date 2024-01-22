@@ -17,7 +17,14 @@ int natural_compare (Str a, Str b) noexcept {
          // If one has a number but not the other, the number comes afterwards.
          // e.g. image.png before image2.png
         if (*ap >= '0' && *ap <= '9') {
-            if (!(*bp >= '0' && *bp <= '9')) return 1;
+            if (!(*bp >= '0' && *bp <= '9')) {
+                 // Unless the number is at the beginning.  It seems to be
+                 // expected that filenames starting with numbers come first.
+                if (ap == a.begin() || ap[-1] == '/' || ap[-1] == '\\') {
+                    return -1;
+                }
+                return 1;
+            }
              // Skip zeroes
             auto az = ap;
             auto bz = bp;
@@ -50,7 +57,12 @@ int natural_compare (Str a, Str b) noexcept {
              // Zeros and digits are the same so continue with nondigits
             goto nondigit;
         }
-        else if (*bp >= '0' && *bp <= '9') return -1;
+        else if (*bp >= '0' && *bp <= '9') {
+            if (ap == a.begin() || ap[-1] == '/' || ap[-1] == '\\') {
+                return 1;
+            }
+            else return -1;
+        }
 
         nondigit:
         if (uint8(*ap) != uint8(*bp)) {
@@ -74,6 +86,8 @@ static tap::TestSet tests ("dirt/uni/text", []{
     is(natural_compare("a1b", "a10b"), -1);
     is(natural_compare("a9b", "a10b"), -1);
     is(natural_compare("a9b", "ab"), 1, "Numbers come after no numbers");
+    is(natural_compare("9a", "a"), -1, "...unless the number is at the beginning");
+    is(natural_compare("a/0a", "a/a"), -1, "...or after a /");
     is(natural_compare("a1b", "a01b"), -1, "More zeroes come after less zeroes");
     is(natural_compare("a", "a "), -1, "Longer comes after");
     is(natural_compare("a b", "ab"), -1);
