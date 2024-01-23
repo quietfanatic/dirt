@@ -5,19 +5,18 @@ namespace ayu {
 
 struct Purpose {
     UniqueArray<Resource> resources;
-     // Make sure these resources are loaded and add them to the purpose.  If
+     // Make sure this resources is loaded and add it to the purpose.  If
      // loading the resources causes more resources to be loaded, add them to
-     // this purpose as well.
-    void acquire (Slice<Resource>);
-    void acquire (Resource r) { acquire(Slice<Resource>{r}); }
+     // this purpose as well.  Can be rolled back with a ResourceTransaction.
+    void acquire (Resource);
      // Remove these resources from the purpose.  If this is the last purpose
      // with these resources, they will be unloaded.  If passed a resource that
      // is not in this purpose, throws e_ResourceNotInPurpose.  Note that this
      // will not release resources that were loaded as a result of these
-     // resources being loaded.
-    void release (Slice<Resource>);
-    void release (Resource r) { release(Slice<Resource>{r}); }
-     // Remove all resources from this purpose.
+     // resources being loaded.  Can be rolled back with a ResourceTransaction.
+    void release (Resource);
+     // Remove all resources from this purpose.  Can be rolled back with a
+     // ResourceTransaction.
     void release_all ();
     ~Purpose () { release_all(); }
 };

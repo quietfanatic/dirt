@@ -92,14 +92,15 @@ StaticString show_ResourceState (ResourceState state) noexcept {
         case UNLOADED: return "UNLOADED";
         case LOADED: return "LOADED";
         case LOAD_CONSTRUCTING: return "LOAD_CONSTRUCTING";
-        case LOAD_ROLLBACK: return "LOAD_ROLLBACK";
-        case SAVE_VERIFYING: return "SAVE_VERIFYING";
-        case SAVE_COMMITTING: return "SAVE_COMMITTING";
+        case LOAD_READY: return "LOAD_READY";
+        case LOAD_CANCELLING: return "LOAD_CANCELLING";
         case UNLOAD_VERIFYING: return "UNLOAD_VERIFYING";
+        case UNLOAD_READY: return "UNLOAD_READY";
         case UNLOAD_COMMITTING: return "UNLOAD_COMMITTING";
         case RELOAD_CONSTRUCTING: return "RELOAD_CONSTRUCTING";
         case RELOAD_VERIFYING: return "RELOAD_VERIFYING";
-        case RELOAD_ROLLBACK: return "RELOAD_ROLLBACK";
+        case RELOAD_READY: return "RELOAD_READY";
+        case RELOAD_CANCELLING: return "RELOAD_CANCELLING";
         case RELOAD_COMMITTING: return "RELOAD_COMMITTING";
         default: never();
     }
@@ -148,16 +149,28 @@ const IRI& Resource::name () const noexcept { return data->name; }
 ResourceState Resource::state () const noexcept { return data->state; }
 
 Dynamic& Resource::value () const {
-    if (data->state == UNLOADED) {
-        load(*this);
+    switch (data->state) {
+        case LOAD_CANCELLING:
+        case UNLOAD_READY:
+        case UNLOAD_COMMITTING:
+            raise_ResourceStateInvalid("value", *this);
+        case UNLOADED: load(*this); break;
+        default: break;
     }
     return data->value;
 }
 Dynamic& Resource::get_value () const noexcept {
     return data->value;
 }
+
 void Resource::set_value (MoveRef<Dynamic> value) const {
     Dynamic v = *move(value);
+    switch (data->state) {
+        case UNLOADED:
+        case LOAD_READY:
+        case LOADED: break;
+        default: raise_ResourceStateInvalid("set_value", *this);
+    }
     if (!v.has_value()) {
         raise_ResourceValueEmpty("set_value", *this);
     }
@@ -167,140 +180,145 @@ void Resource::set_value (MoveRef<Dynamic> value) const {
             raise_ResourceTypeRejected("set_value", *this, v.type);
         }
     }
-    switch (data->state) {
-        case UNLOADED:
-            data->state = LOADED;
-            break;
-        case LOAD_CONSTRUCTING:
-        case LOADED:
-            break;
-        default: raise_ResourceStateInvalid("set_value", *this);
-    }
     data->value = move(v);
+    if (data->state == UNLOADED) {
+        if (ResourceTransaction::depth) {
+            data->state = LOAD_READY;
+            struct SetValueCommitter : Committer {
+                Resource res;
+                SetValueCommitter (Resource r) : res(r) { }
+                void commit () noexcept override {
+                    res.data->state = LOADED;
+                }
+                void rollback () noexcept override {
+                    res.data->state = LOAD_CANCELLING;
+                    res.data->value = {};
+                    res.data->state = UNLOADED;
+                }
+            };
+            ResourceTransaction::add_committer(new SetValueCommitter(*this));
+        }
+        else data->state = LOADED;
+    }
 }
 
 Reference Resource::ref () const {
     return value().ptr();
 }
 Reference Resource::get_ref () const noexcept {
-    if (data->state == UNLOADED) return Reference();
-    else return get_value().ptr();
+    return get_value().ptr();
 }
 
 ///// RESOURCE OPERATIONS
 
 void load (Resource res) {
-    load(Slice<Resource>(&res, 1));
-}
-void load (Slice<Resource> reses) {
-    current_purpose->acquire(reses);
+    current_purpose->acquire(res);
 }
 
-void load_purposeless (Slice<Resource> reses) {
-    UniqueArray<Resource> rs;
-    for (auto res : reses)
+static void load_cancel (Resource res) {
+    res.data->state = LOAD_CANCELLING;
+    res.data->value = {};
+    res.data->state = UNLOADED;
+}
+
+void in::load_under_purpose (Resource res) {
     switch (res.data->state) {
-        case UNLOADED: rs.push_back(res); break;
         case LOADED:
-        case LOAD_CONSTRUCTING: continue;
+        case LOAD_CONSTRUCTING:
+        case LOAD_READY: return;
+        case UNLOADED: break;
         default: raise_ResourceStateInvalid("load", res);
     }
-    try {
-        for (auto res : rs) res.data->state = LOAD_CONSTRUCTING;
-        for (auto res : rs) {
-            auto scheme = universe().require_scheme(res.data->name);
-            auto filename = scheme->get_file(res.data->name);
-            Tree tree = tree_from_file(move(filename));
-            verify_tree_for_scheme(res, scheme, tree);
-            item_from_tree(
-                &res.data->value, tree, Location(res),
-                FromTreeOptions::DelaySwizzle
-            );
-        }
-        for (auto res : rs) res.data->state = LOADED;
-    }
-    catch (...) {
-         // TODO: When recursing load(), rollback innerly loading resources if
-         // an outerly loading resource throws.
-        for (auto res : rs) res.data->state = LOAD_ROLLBACK;
-        for (auto res : rs) {
-            try {
-                res.data->value = Dynamic();
-            }
-            catch (...) {
-                unrecoverable_exception("while rolling back load");
-            }
-            res.data->state = UNLOADED;
-        }
-        throw;
-    }
-}
 
-void rename (Resource old_res, Resource new_res) {
-    if (old_res.data->state != LOADED) {
-        raise_ResourceStateInvalid("rename from", old_res);
+    res.data->state = LOAD_CONSTRUCTING;
+    try {
+        auto scheme = universe().require_scheme(res.data->name);
+        auto filename = scheme->get_file(res.data->name);
+        Tree tree = tree_from_file(move(filename));
+        verify_tree_for_scheme(res, scheme, tree);
+         // Loading must be under a transaction so that recursive loads are all or
+         // nothing.  TODO: Move this into item_from_tree
+        ResourceTransaction tr;
+         // TODO: Call this on the value, not on the Dynamic.  The location isn't
+         // right.
+        expect(!res.data->value.has_value());
+        item_from_tree(
+            &res.data->value, tree, Location(res),
+            FromTreeOptions::DelaySwizzle
+        );
     }
-    if (new_res.data->state != UNLOADED) {
-        raise_ResourceStateInvalid("rename to", new_res);
+    catch (...) { load_cancel(res); throw; }
+
+    if (ResourceTransaction::depth) {
+        res.data->state = LOAD_READY;
+        struct LoadCommitter : Committer {
+            Resource res;
+            LoadCommitter (Resource r) : res(r) { }
+            void commit () noexcept override {
+                res.data->state = LOADED;
+            };
+            void rollback () noexcept override {
+                load_cancel(res);
+            }
+        };
+        ResourceTransaction::add_committer(
+            new LoadCommitter(res)
+        );
     }
-    new_res.data->value = move(old_res.data->value);
-    new_res.data->state = LOADED;
-    old_res.data->state = UNLOADED;
+    else {
+        res.data->state = LOADED;
+    }
 }
 
 void save (Resource res) {
-    save(Slice<Resource>(&res, 1));
-}
-void save (Slice<Resource> reses) {
-    for (auto res : reses) {
-        if (res.data->state != LOADED) raise_ResourceStateInvalid("save", res);
+    switch (res.data->state) {
+        case LOADED: break;
+        default: raise_ResourceStateInvalid("save", res);
     }
-    try {
-        for (auto res : reses) res.data->state = SAVE_VERIFYING;
-         // Serialize all before writing to disk
-        UniqueArray<std::function<void()>> committers (reses.size());
-        {
-            KeepLocationCache klc;
-            for (usize i = 0; i < reses.size(); i++) {
-                Resource res = reses[i];
-                if (!res.data->value.has_value()) {
-                    raise_ResourceValueEmpty("save", res);
-                }
-                auto scheme = universe().require_scheme(res.data->name);
-                if (!scheme->accepts_type(res.data->value.type)) {
-                    raise_ResourceTypeRejected("save", res, res.data->value.type);
-                }
-                auto filename = scheme->get_file(res.data->name);
-                auto contents = tree_to_string(
-                    item_to_tree(&res.data->value, Location(res)),
-                    PrintOptions::Pretty
-                );
-                committers[i] = [
-                    contents{move(contents)},
-                    filename{move(filename)}
-                ]{
-                    string_to_file(contents, move(filename));
-                };
+
+    KeepLocationCache klc;
+    if (!res.data->value.has_value()) {
+        raise_ResourceValueEmpty("save", res);
+    }
+    auto scheme = universe().require_scheme(res.data->name);
+    if (!scheme->accepts_type(res.data->value.type)) {
+        raise_ResourceTypeRejected("save", res, res.data->value.type);
+    }
+    auto filename = scheme->get_file(res.data->name);
+    auto contents = tree_to_string(
+        item_to_tree(&res.data->value, Location(res)),
+        PrintOptions::Pretty
+    );
+
+    if (ResourceTransaction::depth) {
+        FILE* file = open_file(filename, "wb");
+        struct SaveCommitter : Committer {
+            AnyString contents;
+            FILE* file;
+            AnyString filename;
+            SaveCommitter (AnyString&& c, FILE* f, AnyString&& n) :
+                contents(move(c)), file(f), filename(move(n))
+            { }
+            void commit () noexcept override {
+                string_to_file(contents, file, filename);
+                close_file(file, filename);
             }
-        }
-        for (auto res : reses) res.data->state = SAVE_COMMITTING;
-        for (auto& commit : committers) commit();
-        for (auto res : reses) res.data->state = LOADED;
+        };
+        ResourceTransaction::add_committer(
+            new SaveCommitter(move(contents), file, move(filename))
+        );
     }
-    catch (...) {
-        for (auto res : reses) res.data->state = LOADED;
-        throw;
+    else {
+        string_to_file(contents, filename);
     }
 }
 
-void unload (Resource res) {
-    unload(Slice<Resource>(&res, 1));
-}
 void unload (Slice<Resource> reses) {
     UniqueArray<Resource> rs;
     for (auto res : reses)
     switch (res.data->state) {
-        case UNLOADED: continue;
+        case UNLOADED:
+        case UNLOAD_READY: continue;
         case LOADED: rs.push_back(res); break;
         default: raise_ResourceStateInvalid("unload", res);
     }
@@ -358,45 +376,83 @@ void unload (Slice<Resource> reses) {
         throw;
     }
      // Destruct step
-    for (auto res : rs) res.data->state = UNLOAD_COMMITTING;
-    try {
+    if (ResourceTransaction::depth) {
+        for (auto res: rs) res.data->state = UNLOAD_READY;
+        struct UnloadCommitter : Committer {
+            UniqueArray<Resource> rs;
+            UnloadCommitter (UniqueArray<Resource>&& r) :
+                rs(move(r))
+            { }
+            void commit () noexcept override {
+                for (auto res: rs) {
+                    res.data->value = {};
+                    res.data->state = UNLOADED;
+                }
+            }
+        };
+        ResourceTransaction::add_committer(new UnloadCommitter(move(rs)));
+    }
+    else {
+         // TODO: tail call this
         for (auto res : rs) {
-            res.data->value = Dynamic();
+            res.data->value = {};
             res.data->state = UNLOADED;
         }
-    }
-    catch (...) {
-        unrecoverable_exception("while running destructor during unload");
     }
 }
 
 void force_unload (Resource res) {
-    force_unload(Slice<Resource>(&res, 1));
-}
-void force_unload (Slice<Resource> reses) {
-    UniqueArray<Resource> rs;
-    for (auto res : reses)
     switch (res.data->state) {
-        case UNLOADED: continue;
-        case LOADED: rs.push_back(res); break;
+        case UNLOADED: return;
+        case LOADED: break;
         default: raise_ResourceStateInvalid("force_unload", res);
     }
-     // Skip straight to destruct step
-    for (auto res : rs) res.data->state = UNLOAD_COMMITTING;
-    try {
-        for (auto res : rs) {
-            res.data->value = Dynamic();
-            res.data->state = UNLOADED;
-        }
+    if (ResourceTransaction::depth) {
+        res.data->state = UNLOAD_READY;
+        struct ForceUnloadCommitter : Committer {
+            Resource res;
+            ForceUnloadCommitter (Resource r) : res(r) { }
+            void commit () noexcept override {
+                res.data->state = UNLOAD_COMMITTING;
+                res.data->value = {};
+                res.data->state = UNLOADED;
+            }
+        };
+        ResourceTransaction::add_committer(new ForceUnloadCommitter(res));
     }
-    catch (...) {
-        unrecoverable_exception("while running destructor during force_unload");
+    else {
+        res.data->state = UNLOAD_COMMITTING;
+        res.data->value = {};
+        res.data->state = UNLOADED;
     }
 }
 
-void reload (Resource res) {
-    reload(Slice<Resource>(&res, 1));
+static void reload_commit (
+    Slice<Resource> rs, std::unordered_map<Reference, Reference> updates
+) {
+    for (auto res : rs) res.data->state = RELOAD_COMMITTING;
+    for (auto& [ref_ref, new_ref] : updates) {
+        if (auto a = ref_ref.address()) {
+            reinterpret_cast<Reference&>(*a) = new_ref;
+        }
+        else ref_ref.write([&new_ref](Mu& v){
+            reinterpret_cast<Reference&>(v) = new_ref;
+        });
+    }
+    for (auto res : rs) {
+        res.data->value = {};
+        res.data->state = LOADED;
+    }
 }
+
+static void reload_rollback (Slice<Resource> rs) {
+    for (auto res : rs) {
+        res.data->state = RELOAD_CANCELLING;
+        res.data->value = move(res.data->old_value);
+        res.data->state = LOADED;
+    }
+}
+
 void reload (Slice<Resource> reses) {
     for (auto res : reses)
     if (res.data->state != LOADED) {
@@ -405,6 +461,7 @@ void reload (Slice<Resource> reses) {
      // Preparation (this won't throw)
     for (auto res : reses) {
         res.data->state = RELOAD_CONSTRUCTING;
+        expect(!res.data->old_value.has_value());
         res.data->old_value = move(res.data->value);
     }
     std::unordered_map<Reference, Reference> updates;
@@ -473,43 +530,41 @@ void reload (Slice<Resource> reses) {
             }
         }
     }
-    catch (...) {
-        for (auto res : reses) res.data->state = RELOAD_ROLLBACK;
-        for (auto res : reses) {
-            try {
-                res.data->value = Dynamic();
-            }
-            catch (...) {
-                unrecoverable_exception("while rolling back reload");
-            }
-            res.data->value = move(res.data->old_value);
-        }
-        for (auto res : reses) res.data->state = LOADED;
-        throw;
-    }
+    catch (...) { reload_rollback(reses); throw; }
      // Commit step
-    try {
-        for (auto& [ref_ref, new_ref] : updates) {
-            if (auto a = ref_ref.address()) {
-                reinterpret_cast<Reference&>(*a) = new_ref;
+    if (ResourceTransaction::depth) {
+        for (auto res : reses) res.data->state = RELOAD_READY;
+        struct ReloadCommitter : Committer {
+            UniqueArray<Resource> rs;
+            std::unordered_map<Reference, Reference> updates;
+            ReloadCommitter (
+                UniqueArray<Resource>&& r, std::unordered_map<Reference, Reference>&& u
+            ) : rs(move(r)), updates(move(u))
+            { }
+            void commit () noexcept override {
+                reload_commit(rs, updates);
             }
-            else ref_ref.write([&new_ref](Mu& v){
-                reinterpret_cast<Reference&>(v) = new_ref;
-            });
-        }
+            void rollback () noexcept override {
+                reload_rollback(rs);
+            }
+        };
+        ResourceTransaction::add_committer(
+            new ReloadCommitter(reses, move(updates))
+        );
     }
-    catch (...) {
-        unrecoverable_exception("while updating references for reload");
+    else reload_commit(reses, updates);
+}
+
+void rename (Resource old_res, Resource new_res) {
+    if (old_res.data->state != LOADED) {
+        raise_ResourceStateInvalid("rename from", old_res);
     }
-     // Destruct step
-    for (auto res : reses) res.data->state = RELOAD_COMMITTING;
-    try {
-        for (auto res : reses) res.data->value = Dynamic();
+    if (new_res.data->state != UNLOADED) {
+        raise_ResourceStateInvalid("rename to", new_res);
     }
-    catch (...) {
-        unrecoverable_exception("while destructing old values for reload");
-    }
-    for (auto res : reses) res.data->state = LOADED;
+    new_res.data->value = move(old_res.data->value);
+    new_res.data->state = LOADED;
+    old_res.data->state = UNLOADED;
 }
 
 AnyString resource_filename (Resource res) {

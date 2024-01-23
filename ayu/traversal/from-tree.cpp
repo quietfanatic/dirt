@@ -2,6 +2,7 @@
 
 #include <memory>
 #include "../reflection/descriptors.private.h"
+#include "../resources/resource.h"
 #include "compound.h"
 #include "traversal.private.h"
 
@@ -718,6 +719,9 @@ void item_from_tree (
     const Reference& item, const Tree& tree, LocationRef loc,
     FromTreeOptions opts
 ) {
+     // Start a resource transaction so that dependency loads are all or
+     // nothing.
+    ResourceTransaction tr;
     TraverseFromTree::start(item, tree, loc, opts);
 }
 

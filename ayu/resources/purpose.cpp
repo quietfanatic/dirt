@@ -4,6 +4,7 @@
 #include "universe.private.h"
 
 namespace ayu {
+namespace in {
 
 struct PushCurrentPurpose {
     Purpose* old;
@@ -15,57 +16,104 @@ struct PushCurrentPurpose {
     }
 };
 
-void Purpose::acquire (Slice<Resource> rs) {
-    if (!rs) return;
+static Resource* find_in_purpose (Purpose& self, Resource res) {
+    for (auto& r : self.resources) {
+        if (r == res) return &r;
+    }
+    return null;
+}
+
+static void add_to_purpose (Purpose& self, Resource res) {
+    if (find_in_purpose(self, res)) return;
+    self.resources.push_back(res);
+    res.data->purpose_count++;
+}
+
+static void remove_from_purpose (Purpose& self, Resource res) {
+    if (auto p = find_in_purpose(self, res)) {
+        self.resources.erase(p);
+        --res.data->purpose_count;
+    }
+}
+
+} using namespace in;
+
+void Purpose::acquire (Resource res) {
+    add_to_purpose(*this, res);
     PushCurrentPurpose _(this);
-    load_purposeless(rs);
-    for (auto& r : rs) {
-        for (auto& res : resources) {
-            if (res == r) goto next_r;
-        }
-        resources.push_back(r);
-        r.data->purpose_count++;
-        next_r:;
+    try {
+        load_under_purpose(res);
+    }
+    catch (...) { remove_from_purpose(*this, res); throw; }
+
+    if (ResourceTransaction::depth) {
+        struct AcquireCommitter : Committer {
+            Purpose* self;
+            Resource res;
+            AcquireCommitter (Purpose* s, Resource r) : self(s), res(r) { }
+            void rollback () noexcept override {
+                remove_from_purpose(*self, res);
+                 // If remove_from_purpose returns false, it means we didn't
+                 // find the resource in out list, maybe because someone called
+                 // release() on this resource while the transaction was still
+                 // active.  I guess we'll let it slide.
+            }
+        };
+        ResourceTransaction::add_committer(
+            new AcquireCommitter{this, res}
+        );
     }
 }
 
-static void release_and_unload (Purpose& self, Slice<Resource> rs) {
-    PushCurrentPurpose _(&self);
-    auto to_unload = UniqueArray<Resource>(Capacity(rs.size()));
-    for (auto& r : rs) {
-        if (!--r.data->purpose_count) {
-            to_unload.push_back_expect_capacity(r);
-        }
-    }
-    unload(to_unload);
-}
-
-void Purpose::release (Slice<Resource> rs) {
-    if (!rs) return;
-    for (auto& r : rs) {
-        for (auto& res : resources) {
-            if (res == r) goto next_r;
-        }
+void Purpose::release (Resource res) {
+    if (!find_in_purpose(*this, res)) {
         raise(e_ResourceNotInPurpose,
             "Cannot release Resource from Purpose that doesn't have it."
         );
-        next_r:;
     }
-    release_and_unload(*this, rs);
-    auto new_resources = UniqueArray<Resource>(Capacity(resources.size()));
-    for (auto& res : resources) {
-        for (auto& r : rs) {
-            if (r == res) goto next_res;
-        }
-        new_resources.push_back(res);
-        next_res:;
+    if (!--res.data->purpose_count) {
+        unload(res);
     }
-    resources = new_resources;
+     // Don't reuse iterator from find_in_purpose, it might have been
+     // invalidated during unload().  Unlikely but possible.
+    remove_from_purpose(*this, res);
+    if (ResourceTransaction::depth) {
+        struct ReleaseCommitter : Committer {
+            Purpose* self;
+            Resource res;
+            ReleaseCommitter (Purpose* s, Resource r) : self(s), res(r) { }
+            void rollback () noexcept override {
+                add_to_purpose(*self, res);
+            }
+        };
+        ResourceTransaction::add_committer(
+            new ReleaseCommitter(this, res)
+        );
+    }
 }
 
 void Purpose::release_all () {
-    release_and_unload(*this, resources);
-    resources = {};
+    auto reses = move(resources);
+    for (auto& res : reses) {
+        if (!--res.data->purpose_count) {
+            unload(res);
+        }
+    }
+    if (ResourceTransaction::depth) {
+        struct ReleaseAllCommitter : Committer {
+            Purpose* self;
+            UniqueArray<Resource> reses;
+            ReleaseAllCommitter (Purpose* s, UniqueArray<Resource>&& r) :
+                self(s), reses(move(r))
+            { }
+            void rollback () noexcept override {
+                reses.consume([&](auto&& res) { add_to_purpose(*self, res); });
+            }
+        };
+        ResourceTransaction::add_committer(
+            new ReleaseAllCommitter(this, move(reses))
+        );
+    }
 }
 
 Purpose general_purpose;

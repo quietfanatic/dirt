@@ -1,7 +1,7 @@
 #include "resource.h"
 
-namespace ayu {
+namespace ayu::in {
 
-void load_purposeless (Slice<Resource>);
+void load_under_purpose (Resource);
 
-} // ayu
+} // ayu::in

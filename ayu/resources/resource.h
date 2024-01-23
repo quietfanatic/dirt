@@ -27,11 +27,16 @@
 
 #include "../common.h"
 #include "../reflection/reference.h"
+#include "../../uni/transaction.h"
 
 namespace ayu {
 
 ///// RESOURCES
 
+ // The possible states a Resource can have.  During normal program operation,
+ // Resources will only be UNLOADED or LOADED.  The other states will only occur
+ // while a resource operation is actively happening, or while a
+ // ResourceTransaction is open.
 enum ResourceState {
      // The resource is not loaded and has an empty value.
     UNLOADED,
@@ -39,38 +44,40 @@ enum ResourceState {
      // though that value may not reflect what is on disk.
     LOADED,
 
-     // The following states will only be encountered while an ayu resource
-     // operation is ongoing.
-
      // load() is being called on this resource.  Its value may be partially
      // constructed.
     LOAD_CONSTRUCTING,
-     // load() is being called on this resource, but there was an error, so
-     // its destructor is being or will be called.
-    LOAD_ROLLBACK,
-     // save() is being called on this resource, but it is not being written to
-     // disk yet.
-    SAVE_VERIFYING,
-     // save() is being called on this resource, and it is being or will be
-     // written to disk.
-    SAVE_COMMITTING,
+     // load() has been called on this resource and it is fully constructed, but
+     // we're in a transaction, so the load may be rolled back if another
+     // operation fails.
+    LOAD_READY,
+     // load() was being called on this resource, but there was an error, so
+     // its destructor is being called.
+    LOAD_CANCELLING,
+
      // unload() is being called on this resource, and other resources are being
-     // scanned for references to it.
+     // scanned for references to it to make sure it's safe to unload.
     UNLOAD_VERIFYING,
-     // unload() is being called on this resource, and its destructor is being
-     // or will be called.  There is no UNLOAD_ROLLBACK because unload doesn't
-     // need to roll anything back.
+     // unload() was called on this resource, but we're in a transaction, so the
+     // unload might be cancelled if another operation fails.
+    UNLOAD_READY,
+     // unload() was being called on this resource, and its destructor is being
+     // or will be called.
     UNLOAD_COMMITTING,
+
      // reload() is being called on this resource, and its new value is being
      // constructed.  value() will return its (maybe incomplete) new value.
     RELOAD_CONSTRUCTING,
      // reload() is being called on this resource, and other resources are being
      // scanned for references to update.
     RELOAD_VERIFYING,
-     // reload() is being called on this resource, but there was an error, so
+     // reload() was called on this resource, but we're in a transaction and the
+     // reload will be cancelled if another operation fails.
+    RELOAD_READY,
+     // reload() was called on this resource, but there was an error, so
      // its new value is being destructed and its old value will be restored.
-    RELOAD_ROLLBACK,
-     // reload() is being called on this resource, and its old value is being
+    RELOAD_CANCELLING,
+     // reload() was being called on this resource, and its old value is being
      // destructed.
     RELOAD_COMMITTING,
 };
@@ -106,21 +113,25 @@ struct Resource {
     ResourceState state () const noexcept;
 
      // If the resource is UNLOADED, automatically loads the resource from disk.
-     // Will throw if autoloading the resource but the file does not exist.
+     // Will throw if the load fails.  If a ResourceTransaction is currently
+     // active, the value will be cleared if the ResourceTransaction is rolled
+     // back.
     Dynamic& value () const;
-     // Gets the value without autoloading.  If the result is empty, do not
-     // write to it.  Nothing bad will happen immediately, but the value will
-     // be overwritten when the resource is loaded.
+     // Gets the value without autoloading.  Writing to this is Undefined
+     // Behavior if the state is anything except for LOADED or LOAD_READY.
     Dynamic& get_value () const noexcept;
-     // If the resource is UNLOADED, sets is state to LOADED without loading
-     // from disk, and sets its value.  Throws InvalidResourceState if the
-     // resource's state is anything but UNLOADED, LOADED, or LOAD_CONSTRUCTING.
-     // Throws UnacceptableResourceType if this resource has a name and the
-     // ResourceScheme associated with its name returns false from accepts_type.
+     // If the resource is UNLOADED, sets is state to LOADED or LOAD_READY
+     // without loading from disk, and sets its value.  Throws
+     // ResourceStateInvalid if the resource's state is anything but UNLOADED,
+     // LOADED, or LOAD_READY.  Throws ResourceTypeRejected if this resource has
+     // a name and the ResourceScheme associated with its name returns false
+     // from accepts_type.
     void set_value (MoveRef<Dynamic>) const;
 
      // Automatically loads and returns a reference to the value, which can be
-     // coerced to a pointer.
+     // coerced to a pointer.  If a ResourceTransaction is currently active, the
+     // value will be cleared if the transaction is rolled back, leaving the
+     // Reference dangling.
     Reference ref () const;
      // Gets a reference to the value without automatically loading.  If the
      // resource is UNLOADED, returns an empty Reference.
@@ -142,31 +153,34 @@ inline bool operator != (T a, T b) { return !(a == b); }
 
 ///// RESOURCE OPERATIONS
 
+ // While one of these is active, resource operations will have transactional
+ // semantics; that is, the results of the operations won't be finalized until
+ // the ResourceTransaction is destructed, at which point either all of the
+ // operations will committed, or all of them will be rolled back if an
+ // exception was thrown.
+ //
+ // It is not recommended to modify resource data while one of these is active.
+using ResourceTransaction = Transaction<Resource>;
+
  // Loads a resource into the current purpose.  Does nothing if the resource is
  // not UNLOADED.  Throws if the file doesn't exist on disk or can't be opened.
 void load (Resource);
- // Loads multiple resources at once.  If an exception is thrown, all the loads
- // will be cancelled and all of the given resources will end up in the UNLOADED
- // state (unless they were already LOADED beforehand).
-void load (Slice<Resource>);
-
- // Moves old_res's value to new_res.  Does not change the names of any Resource
- // objects, just the mapping from names to values.  Does not affect any files
- // on disk.  Will throw if old_res is not LOADED, or if new_res is not
- // UNLOADED.  After renaming, old_res will be UNLOADED and new_res will
- // be LOADED.
-void rename (Resource old_res, Resource new_res);
+ // Load multiple resources.  If an error is thrown, none of the resources will
+ // be loaded.
+inline void load (Slice<Resource> rs) {
+    ResourceTransaction tr;
+    for (auto& r : rs) load(r);
+}
 
  // Saves a loaded resource to disk.  Throws if the resource is not LOADED.  May
  // overwrite an existing file on disk.
 void save (Resource);
- // Saves multiple resources at once.  This will be more efficient than saving
- // them one at a time (the universe only needs to be scanned once for
- // serializing references).  If an error is thrown, none of the resources will
- // be saved.  (Exception: there may be some cases where if an error is thrown
- // while writing to disk, the on-disk resources may be left in an inconsistent
- // state.)
-void save (Slice<Resource>);
+ // Save multiple resources.  If an error is thrown, none of the resources will
+ // be saved.
+inline void save (Slice<Resource> rs) {
+    ResourceTransaction tr;
+    for (auto& r : rs) save(r);
+}
 
  // Clears the value of the resource and sets its state to UNLOADED.  Does
  // nothing if the resource is UNLOADED, and throws if it is LOADING.  Scans all
@@ -174,18 +188,19 @@ void save (Slice<Resource>);
  // resource, and if any are, this call will throw UnloadWouldBreak and the
  // resource will not be unloaded.
 void unload (Resource);
- // Unloads multiple resources at once.  This will be more efficient than
- // unloading them one at a time (the universe only needs to be scanned once),
- // and if two resources have references to eachother, they have to be unloaded
- // at the same time.  If unloading any of the resources causes an exception,
- // none of the references will be unloaded.
+ // Unload multiple resources simultaneously.  If multiple resources have a
+ // reference cycle between them, they must be unloaded simultaneously.
 void unload (Slice<Resource>);
+inline void unload (Resource r) { unload(Slice<Resource>(&r, 1)); }
 
  // Immediately unloads the file without scanning for references to it.  This is
  // faster, but if there are any references to data in this resource, they will
- // be left dangling.
+ // be left dangling.  This should never fail.
 void force_unload (Resource);
-void force_unload (Slice<Resource>);
+ // Unload multiple resources.
+inline void force_unload (Slice<Resource> rs) {
+    for (auto& r : rs) force_unload(r);
+}
 
  // Reloads a resource that is loaded.  Throws if the resource is not LOADED.
  // Scans all other resources for references to this one and updates them to
@@ -194,11 +209,19 @@ void force_unload (Slice<Resource>);
  // before the call to reload.  It is an error to reload while another resource
  // is being loaded.
 void reload (Resource);
- // Reloads multiple resources at once.  This wlil be more efficient than
- // reloading them one at a time.  If an exception is thrown for any of the
- // resources, all of them will be restored to their old value before the call
- // to reload.
+ // Reload multiple resources simultaneously.  This may be necessary or simply
+ // more efficient if there are reference cycles.
 void reload (Slice<Resource>);
+inline void reload (Resource r) { reload(Slice<Resource>(&r, 1)); }
+
+///// RESOURCE FILE MANIPULATION (NON-TRANSACTIONAL)
+
+ // Moves old_res's value to new_res.  Does not change the names of any Resource
+ // objects, just the mapping from names to values.  Does not affect any files
+ // on disk.  Will throw if old_res is not LOADED, or if new_res is not
+ // UNLOADED.  After renaming, old_res will be UNLOADED and new_res will
+ // be LOADED.
+void rename (Resource old_res, Resource new_res);
 
  // Deletes the source of the resource.  If the source is a file, deletes the
  // file without confirmation.  Does not change the resource's state or value.
