@@ -19,48 +19,62 @@ void raise_io_error (ErrorCode code, StaticString details, Str filename, int err
 } using namespace in;
 
 UniqueString string_from_file (AnyString filename) {
-    FILE* f = fopen_utf8(filename.c_str(), "rb");
-    if (!f) {
+    FILE* file = fopen_utf8(filename.c_str(), "rb");
+    if (!file) {
         raise_io_error(e_OpenFailed,
             "Failed to open for reading ", filename, errno
         );
     }
 
-    fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    require(usize(size) < AnyString::max_size_);
-    auto r = UniqueString(Uninitialized(size));
-    rewind(f);
+    UniqueString r;
+    try { r = string_from_file(file, filename); }
+    catch (...) { fclose(file); throw; }
 
-    usize did_read = fread(r.data(), 1, r.size(), f);
-    if (did_read != r.size()) {
-        int errnum = errno;
-        fclose(f);
-        raise_io_error(e_ReadFailed, "Failed to read from ", filename, errnum);
-    }
-
-    if (fclose(f) != 0) {
+    if (fclose(file) != 0) {
         int errnum = errno;
         raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
     }
     return r;
 }
 
+UniqueString string_from_file (FILE* file, Str filename) {
+     // Find how big the file is and preallocate
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    require(usize(size) < AnyString::max_size_);
+    auto r = UniqueString(Uninitialized(size));
+    rewind(file);
+     // Read
+    usize did_read = fread(r.data(), 1, r.size(), file);
+    if (did_read != r.size()) {
+        int errnum = errno;
+        raise_io_error(e_ReadFailed, "Failed to read from ", filename, errnum);
+    }
+    return r;
+}
+
 void string_to_file (Str content, AnyString filename) {
-    FILE* f = fopen_utf8(filename.c_str(), "wb");
-    if (!f) {
+    FILE* file = fopen_utf8(filename.c_str(), "wb");
+    if (!file) {
         raise_io_error(e_OpenFailed,
             "Failed to open for writing ", filename, errno
         );
     }
-    usize did_write = fwrite(content.data(), 1, content.size(), f);
+
+    try { string_to_file(content, file, filename); }
+    catch (...) { fclose(file); throw; }
+
+    if (fclose(file) != 0) {
+        int errnum = errno;
+        raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
+    }
+}
+
+void string_to_file (Str content, FILE* file, Str filename) {
+    usize did_write = fwrite(content.data(), 1, content.size(), file);
     if (did_write != content.size()) {
         int errnum = errno;
-        fclose(f);
         raise_io_error(e_WriteFailed, "Failed to write to ", filename, errnum);
-    }
-    if (fclose(f) != 0) {
-        raise_io_error(e_CloseFailed, "Failed to close ", filename, errno);
     }
 }
 

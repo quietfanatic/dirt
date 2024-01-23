@@ -9,8 +9,10 @@
 namespace uni {
 
 UniqueString string_from_file (AnyString filename);
+UniqueString string_from_file (FILE* file, Str filename = "(unknown)");
 
 void string_to_file (Str, AnyString filename);
+void string_to_file (Str, FILE* file, Str filename = "(unknown)");
 
 constexpr ErrorCode e_OpenFailed = "uni::e_OpenFailed";
 constexpr ErrorCode e_ReadFailed = "uni::e_ReadFailed";
