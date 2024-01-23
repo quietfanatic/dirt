@@ -18,22 +18,30 @@ void raise_io_error (ErrorCode code, StaticString details, Str filename, int err
 
 } using namespace in;
 
-UniqueString string_from_file (AnyString filename) {
-    FILE* file = fopen_utf8(filename.c_str(), "rb");
+FILE* open_file (AnyString filename, const char* mode) {
+    FILE* file = fopen_utf8(filename.c_str(), mode);
     if (!file) {
         raise_io_error(e_OpenFailed,
             "Failed to open for reading ", filename, errno
         );
     }
+    return file;
+}
 
-    UniqueString r;
-    try { r = string_from_file(file, filename); }
-    catch (...) { fclose(file); throw; }
-
+void close_file (FILE* file, Str filename) {
     if (fclose(file) != 0) {
         int errnum = errno;
         raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
     }
+}
+
+UniqueString string_from_file (AnyString filename) {
+    FILE* file = open_file(filename, "rb");
+
+    UniqueString r;
+    try { r = string_from_file(file, filename); }
+    catch (...) { fclose(file); throw; }
+    close_file(file, filename);
     return r;
 }
 
@@ -54,20 +62,11 @@ UniqueString string_from_file (FILE* file, Str filename) {
 }
 
 void string_to_file (Str content, AnyString filename) {
-    FILE* file = fopen_utf8(filename.c_str(), "wb");
-    if (!file) {
-        raise_io_error(e_OpenFailed,
-            "Failed to open for writing ", filename, errno
-        );
-    }
+    FILE* file = open_file(filename, "wb");
 
     try { string_to_file(content, file, filename); }
     catch (...) { fclose(file); throw; }
-
-    if (fclose(file) != 0) {
-        int errnum = errno;
-        raise_io_error(e_CloseFailed, "Failed to close ", filename, errnum);
-    }
+    close_file(file, filename);
 }
 
 void string_to_file (Str content, FILE* file, Str filename) {

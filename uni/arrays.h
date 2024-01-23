@@ -1520,7 +1520,7 @@ struct ArrayInterface {
      // back-to-front order, but consume() destroys the elements front-to-back.
     template <class F>
     void consume (F f) requires (
-        ac::is_Unique
+        ac::is_Unique && requires (T v) { f(move(v)); }
     ) {
         if (!impl.data) return;
         T* b = impl.data;
@@ -1549,7 +1549,7 @@ struct ArrayInterface {
      // usual).
     template <class F>
     void consume_reverse (F f) requires (
-        ac::is_Unique
+        ac::is_Unique && requires (T v) { f(move(v)); }
     ) {
         if (!impl.data) return;
         T* b = impl.data;

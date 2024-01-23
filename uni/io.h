@@ -8,6 +8,10 @@
 
 namespace uni {
 
+ // Throws on failure
+FILE* open_file (AnyString, const char* mode = "rb");
+void close_file (FILE*, Str filename = "(unknown)");
+
 UniqueString string_from_file (AnyString filename);
 UniqueString string_from_file (FILE* file, Str filename = "(unknown)");
 
