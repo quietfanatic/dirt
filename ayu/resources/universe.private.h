@@ -13,8 +13,8 @@ namespace ayu::in {
 struct ResourceData {
     IRI name;
     Dynamic value {};
-    Dynamic old_value {};  // Used when reloading
-    ResourceState state = UNLOADED;
+    Dynamic old_value {};  // Used when reloading.   TODO: Don't store this.
+    ResourceState state = RS::Unloaded;
     uint32 purpose_count = 0;
 };
 

@@ -94,19 +94,19 @@ static void verify_tree_for_scheme (
 
 StaticString show_ResourceState (ResourceState state) noexcept {
     switch (state) {
-        case UNLOADED: return "UNLOADED";
-        case LOADED: return "LOADED";
-        case LOAD_CONSTRUCTING: return "LOAD_CONSTRUCTING";
-        case LOAD_READY: return "LOAD_READY";
-        case LOAD_CANCELLING: return "LOAD_CANCELLING";
-        case UNLOAD_VERIFYING: return "UNLOAD_VERIFYING";
-        case UNLOAD_READY: return "UNLOAD_READY";
-        case UNLOAD_COMMITTING: return "UNLOAD_COMMITTING";
-        case RELOAD_CONSTRUCTING: return "RELOAD_CONSTRUCTING";
-        case RELOAD_VERIFYING: return "RELOAD_VERIFYING";
-        case RELOAD_READY: return "RELOAD_READY";
-        case RELOAD_CANCELLING: return "RELOAD_CANCELLING";
-        case RELOAD_COMMITTING: return "RELOAD_COMMITTING";
+        case RS::Unloaded: return "RS::Unloaded";
+        case RS::Loaded: return "RS::Loaded";
+        case RS::LoadConstructing: return "RS::LoadConstructing";
+        case RS::LoadReady: return "RS::LoadReady";
+        case RS::LoadCancelling: return "RS::LoadCancelling";
+        case RS::UnloadVerifying: return "RS::UnloadVerifying";
+        case RS::UnloadReady: return "RS::UnloadReady";
+        case RS::UnloadCommitting: return "RS::UnloadCommitting";
+        case RS::ReloadConstructing: return "RS::ReloadConstructing";
+        case RS::ReloadVerifying: return "RS::ReloadVerifying";
+        case RS::ReloadReady: return "RS::ReloadReady";
+        case RS::ReloadCancelling: return "RS::ReloadCancelling";
+        case RS::ReloadCommitting: return "RS::ReloadCommitting";
         default: never();
     }
 }
@@ -144,7 +144,7 @@ Resource::Resource (const IRI& name, MoveRef<Dynamic> value) :
     if (!v.has_value()) {
         raise_ResourceValueEmpty("construct", *this);
     }
-    if (data->state == UNLOADED) set_value(move(v));
+    if (data->state == RS::Unloaded) set_value(move(v));
     else {
         raise_ResourceStateInvalid("construct", *this);
     }
@@ -155,11 +155,11 @@ ResourceState Resource::state () const noexcept { return data->state; }
 
 Dynamic& Resource::value () const {
     switch (data->state) {
-        case LOAD_CANCELLING:
-        case UNLOAD_READY:
-        case UNLOAD_COMMITTING:
+        case RS::LoadCancelling:
+        case RS::UnloadReady:
+        case RS::UnloadCommitting:
             raise_ResourceStateInvalid("value", *this);
-        case UNLOADED: load(*this); break;
+        case RS::Unloaded: load(*this); break;
         default: break;
     }
     return data->value;
@@ -171,9 +171,9 @@ Dynamic& Resource::get_value () const noexcept {
 void Resource::set_value (MoveRef<Dynamic> value) const {
     Dynamic v = *move(value);
     switch (data->state) {
-        case UNLOADED:
-        case LOAD_READY:
-        case LOADED: break;
+        case RS::Unloaded:
+        case RS::LoadReady:
+        case RS::Loaded: break;
         default: raise_ResourceStateInvalid("set_value", *this);
     }
     if (!v.has_value()) {
@@ -186,24 +186,24 @@ void Resource::set_value (MoveRef<Dynamic> value) const {
         }
     }
     data->value = move(v);
-    if (data->state == UNLOADED) {
+    if (data->state == RS::Unloaded) {
         if (ResourceTransaction::depth) {
-            data->state = LOAD_READY;
+            data->state = RS::LoadReady;
             struct SetValueCommitter : Committer {
                 Resource res;
                 SetValueCommitter (Resource r) : res(r) { }
                 void commit () noexcept override {
-                    res.data->state = LOADED;
+                    res.data->state = RS::Loaded;
                 }
                 void rollback () noexcept override {
-                    res.data->state = LOAD_CANCELLING;
+                    res.data->state = RS::LoadCancelling;
                     res.data->value = {};
-                    res.data->state = UNLOADED;
+                    res.data->state = RS::Unloaded;
                 }
             };
             ResourceTransaction::add_committer(new SetValueCommitter(*this));
         }
-        else data->state = LOADED;
+        else data->state = RS::Loaded;
     }
 }
 
@@ -221,21 +221,21 @@ void load (Resource res) {
 }
 
 static void load_cancel (Resource res) {
-    res.data->state = LOAD_CANCELLING;
+    res.data->state = RS::LoadCancelling;
     res.data->value = {};
-    res.data->state = UNLOADED;
+    res.data->state = RS::Unloaded;
 }
 
 void in::load_under_purpose (Resource res) {
     switch (res.data->state) {
-        case LOADED:
-        case LOAD_CONSTRUCTING:
-        case LOAD_READY: return;
-        case UNLOADED: break;
+        case RS::Loaded:
+        case RS::LoadConstructing:
+        case RS::LoadReady: return;
+        case RS::Unloaded: break;
         default: raise_ResourceStateInvalid("load", res);
     }
 
-    res.data->state = LOAD_CONSTRUCTING;
+    res.data->state = RS::LoadConstructing;
     try {
         auto scheme = universe().require_scheme(res.data->name);
         auto filename = scheme->get_file(res.data->name);
@@ -255,12 +255,12 @@ void in::load_under_purpose (Resource res) {
     catch (...) { load_cancel(res); throw; }
 
     if (ResourceTransaction::depth) {
-        res.data->state = LOAD_READY;
+        res.data->state = RS::LoadReady;
         struct LoadCommitter : Committer {
             Resource res;
             LoadCommitter (Resource r) : res(r) { }
             void commit () noexcept override {
-                res.data->state = LOADED;
+                res.data->state = RS::Loaded;
             };
             void rollback () noexcept override {
                 load_cancel(res);
@@ -271,13 +271,13 @@ void in::load_under_purpose (Resource res) {
         );
     }
     else {
-        res.data->state = LOADED;
+        res.data->state = RS::Loaded;
     }
 }
 
 void save (Resource res) {
     switch (res.data->state) {
-        case LOADED: break;
+        case RS::Loaded: break;
         default: raise_ResourceStateInvalid("save", res);
     }
 
@@ -322,20 +322,20 @@ void unload (Slice<Resource> reses) {
     UniqueArray<Resource> rs;
     for (auto res : reses)
     switch (res.data->state) {
-        case UNLOADED:
-        case UNLOAD_READY: continue;
-        case LOADED: rs.push_back(res); break;
+        case RS::Unloaded:
+        case RS::UnloadReady: continue;
+        case RS::Loaded: rs.push_back(res); break;
         default: raise_ResourceStateInvalid("unload", res);
     }
      // Verify step
     try {
-        for (auto res : rs) res.data->state = UNLOAD_VERIFYING;
+        for (auto res : rs) res.data->state = RS::UnloadVerifying;
         UniqueArray<Resource> others;
         for (auto& [name, other] : universe().resources) {
             switch (other->state) {
-                case UNLOADED: continue;
-                case UNLOAD_VERIFYING: continue;
-                case LOADED: others.emplace_back(&*other); break;
+                case RS::Unloaded: continue;
+                case RS::UnloadVerifying: continue;
+                case RS::Loaded: others.emplace_back(&*other); break;
                 default: raise_ResourceStateInvalid("scan for unload", &*other);
             }
         }
@@ -377,12 +377,12 @@ void unload (Slice<Resource> reses) {
         }
     }
     catch (...) {
-        for (auto res : rs) res.data->state = LOADED;
+        for (auto res : rs) res.data->state = RS::Loaded;
         throw;
     }
      // Destruct step
     if (ResourceTransaction::depth) {
-        for (auto res: rs) res.data->state = UNLOAD_READY;
+        for (auto res: rs) res.data->state = RS::UnloadReady;
         struct UnloadCommitter : Committer {
             UniqueArray<Resource> rs;
             UnloadCommitter (UniqueArray<Resource>&& r) :
@@ -391,7 +391,7 @@ void unload (Slice<Resource> reses) {
             void commit () noexcept override {
                 for (auto res: rs) {
                     res.data->value = {};
-                    res.data->state = UNLOADED;
+                    res.data->state = RS::Unloaded;
                 }
             }
         };
@@ -401,41 +401,41 @@ void unload (Slice<Resource> reses) {
          // TODO: tail call this
         for (auto res : rs) {
             res.data->value = {};
-            res.data->state = UNLOADED;
+            res.data->state = RS::Unloaded;
         }
     }
 }
 
 void force_unload (Resource res) {
     switch (res.data->state) {
-        case UNLOADED: return;
-        case LOADED: break;
+        case RS::Unloaded: return;
+        case RS::Loaded: break;
         default: raise_ResourceStateInvalid("force_unload", res);
     }
     if (ResourceTransaction::depth) {
-        res.data->state = UNLOAD_READY;
+        res.data->state = RS::UnloadReady;
         struct ForceUnloadCommitter : Committer {
             Resource res;
             ForceUnloadCommitter (Resource r) : res(r) { }
             void commit () noexcept override {
-                res.data->state = UNLOAD_COMMITTING;
+                res.data->state = RS::UnloadCommitting;
                 res.data->value = {};
-                res.data->state = UNLOADED;
+                res.data->state = RS::Unloaded;
             }
         };
         ResourceTransaction::add_committer(new ForceUnloadCommitter(res));
     }
     else {
-        res.data->state = UNLOAD_COMMITTING;
+        res.data->state = RS::UnloadCommitting;
         res.data->value = {};
-        res.data->state = UNLOADED;
+        res.data->state = RS::Unloaded;
     }
 }
 
 static void reload_commit (
     Slice<Resource> rs, std::unordered_map<Reference, Reference> updates
 ) {
-    for (auto res : rs) res.data->state = RELOAD_COMMITTING;
+    for (auto res : rs) res.data->state = RS::ReloadCommitting;
     for (auto& [ref_ref, new_ref] : updates) {
         if (auto a = ref_ref.address()) {
             reinterpret_cast<Reference&>(*a) = new_ref;
@@ -446,26 +446,26 @@ static void reload_commit (
     }
     for (auto res : rs) {
         res.data->value = {};
-        res.data->state = LOADED;
+        res.data->state = RS::Loaded;
     }
 }
 
 static void reload_rollback (Slice<Resource> rs) {
     for (auto res : rs) {
-        res.data->state = RELOAD_CANCELLING;
+        res.data->state = RS::ReloadCancelling;
         res.data->value = move(res.data->old_value);
-        res.data->state = LOADED;
+        res.data->state = RS::Loaded;
     }
 }
 
 void reload (Slice<Resource> reses) {
     for (auto res : reses)
-    if (res.data->state != LOADED) {
+    if (res.data->state != RS::Loaded) {
         raise_ResourceStateInvalid("reload", res);
     }
      // Preparation (this won't throw)
     for (auto res : reses) {
-        res.data->state = RELOAD_CONSTRUCTING;
+        res.data->state = RS::ReloadConstructing;
         expect(!res.data->old_value.has_value());
         res.data->old_value = move(res.data->value);
     }
@@ -482,15 +482,15 @@ void reload (Slice<Resource> reses) {
             item_from_tree(&res.data->value, tree, SharedLocation(res));
         }
         for (auto res : reses) {
-            res.data->state = RELOAD_VERIFYING;
+            res.data->state = RS::ReloadVerifying;
         }
          // Verify step
         UniqueArray<Resource> others;
         for (auto& [name, other] : universe().resources) {
             switch (other->state) {
-                case UNLOADED: continue;
-                case RELOAD_VERIFYING: continue;
-                case LOADED: others.emplace_back(&*other); break;
+                case RS::Unloaded: continue;
+                case RS::ReloadVerifying: continue;
+                case RS::Loaded: others.emplace_back(&*other); break;
                 default: raise_ResourceStateInvalid("scan for reload", &*other);
             }
         }
@@ -538,7 +538,7 @@ void reload (Slice<Resource> reses) {
     catch (...) { reload_rollback(reses); throw; }
      // Commit step
     if (ResourceTransaction::depth) {
-        for (auto res : reses) res.data->state = RELOAD_READY;
+        for (auto res : reses) res.data->state = RS::ReloadReady;
         struct ReloadCommitter : Committer {
             UniqueArray<Resource> rs;
             std::unordered_map<Reference, Reference> updates;
@@ -561,15 +561,15 @@ void reload (Slice<Resource> reses) {
 }
 
 void rename (Resource old_res, Resource new_res) {
-    if (old_res.data->state != LOADED) {
+    if (old_res.data->state != RS::Loaded) {
         raise_ResourceStateInvalid("rename from", old_res);
     }
-    if (new_res.data->state != UNLOADED) {
+    if (new_res.data->state != RS::Unloaded) {
         raise_ResourceStateInvalid("rename to", new_res);
     }
     new_res.data->value = move(old_res.data->value);
-    new_res.data->state = LOADED;
-    old_res.data->state = UNLOADED;
+    new_res.data->state = RS::Loaded;
+    old_res.data->state = RS::Unloaded;
 }
 
 AnyString resource_filename (Resource res) {
@@ -596,7 +596,7 @@ bool source_exists (Resource res) {
 UniqueArray<Resource> loaded_resources () noexcept {
     UniqueArray<Resource> r;
     for (auto& [name, rd] : universe().resources)
-    if (rd->state != UNLOADED) {
+    if (rd->state != RS::Unloaded) {
         r.push_back(&*rd);
     }
     return r;
@@ -638,9 +638,9 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     Resource unicode ("ayu-test:/ユニコード.ayu");
     Resource unicode2 ("ayu-test:/ユニコード2.ayu");
 
-    is(input.state(), UNLOADED, "Resources start out unloaded");
+    is(input.state(), RS::Unloaded, "Resources start out unloaded");
     doesnt_throw([&]{ load(input); }, "load");
-    is(input.state(), LOADED, "Resource state is LOADED after loading");
+    is(input.state(), RS::Loaded, "Resource state is RS::Loaded after loading");
     ok(input.value().has_value(), "Resource has value after loading");
 
     throws_code<e_ResourceStateInvalid>([&]{
@@ -648,14 +648,14 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     }, "Creating resource throws on duplicate");
 
     doesnt_throw([&]{ unload(input); }, "unload");
-    is(input.state(), UNLOADED, "Resource state is UNLOADED after unloading");
+    is(input.state(), RS::Unloaded, "Resource state is RS::Unloaded after unloading");
     ok(!input.data->value.has_value(), "Resource has no value after unloading");
 
     ayu::Document* doc = null;
     doesnt_throw([&]{
         doc = &input.value().as<ayu::Document>();
     }, "Getting typed value from a resource");
-    is(input.state(), LOADED, "Resource::value() automatically loads resource");
+    is(input.state(), RS::Loaded, "Resource::value() automatically loads resource");
     is(input["foo"][1].get_as<int32>(), 4, "Value was generated properly (0)");
     is(input["bar"][1].get_as<std::string>(), "qux", "Value was generated properly (1)");
 
@@ -665,8 +665,8 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doc->new_named<int32>("asdf", 51);
 
     doesnt_throw([&]{ rename(input, output); }, "rename");
-    is(input.state(), UNLOADED, "Old resource is UNLOADED after renaming");
-    is(output.state(), LOADED, "New resource is LOADED after renaming");
+    is(input.state(), RS::Unloaded, "Old resource is RS::Unloaded after renaming");
+    is(output.state(), RS::Loaded, "New resource is RS::Loaded after renaming");
     is(&output.value().as<ayu::Document>(), doc, "Rename moves value without reconstructing it");
 
     doesnt_throw([&]{ save(output); }, "save");
@@ -712,7 +712,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         unload(input);
         load(input2);
     }, "Can load second file referencing first");
-    is(Resource(input).state(), LOADED, "Loading second file referencing first file loads first file");
+    is(Resource(input).state(), RS::Loaded, "Loading second file referencing first file loads first file");
     std::string* bar;
     doesnt_throw([&]{
         bar = input["bar"][1];

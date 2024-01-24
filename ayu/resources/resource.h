@@ -3,7 +3,7 @@
  //     - a source, which is by default a file on disk
  //     - a name, which in the case of files, is essentially its file path
  //     - a value, which is a Dynamic
- //     - a state, which is usually UNLOADED or LOADED.
+ //     - a state, which is usually RS::Unloaded or RS::Loaded.
  // Resources can be loaded, reloaded, unloaded, and saved.
  //
  // Resource names are an IRI.
@@ -34,53 +34,54 @@ namespace ayu {
 ///// RESOURCES
 
  // The possible states a Resource can have.  During normal program operation,
- // Resources will only be UNLOADED or LOADED.  The other states will only occur
+ // Resources will only be RS::Unloaded or RS::Loaded.  The other states will only occur
  // while a resource operation is actively happening, or while a
  // ResourceTransaction is open.
-enum ResourceState {
+enum class ResourceState : uint8 {
      // The resource is not loaded and has an empty value.
-    UNLOADED,
+    Unloaded,
      // This resource is fully loaded and has a non-empty up-to-date value,
      // though that value may not reflect what is on disk.
-    LOADED,
+    Loaded,
 
      // load() is being called on this resource.  Its value may be partially
      // constructed.
-    LOAD_CONSTRUCTING,
+    LoadConstructing,
      // load() has been called on this resource and it is fully constructed, but
      // we're in a transaction, so the load may be rolled back if another
      // operation fails.
-    LOAD_READY,
+    LoadReady,
      // load() was being called on this resource, but there was an error, so
      // its destructor is being called.
-    LOAD_CANCELLING,
+    LoadCancelling,
 
      // unload() is being called on this resource, and other resources are being
      // scanned for references to it to make sure it's safe to unload.
-    UNLOAD_VERIFYING,
+    UnloadVerifying,
      // unload() was called on this resource, but we're in a transaction, so the
      // unload might be cancelled if another operation fails.
-    UNLOAD_READY,
+    UnloadReady,
      // unload() was being called on this resource, and its destructor is being
      // or will be called.
-    UNLOAD_COMMITTING,
+    UnloadCommitting,
 
      // reload() is being called on this resource, and its new value is being
      // constructed.  value() will return its (maybe incomplete) new value.
-    RELOAD_CONSTRUCTING,
+    ReloadConstructing,
      // reload() is being called on this resource, and other resources are being
      // scanned for references to update.
-    RELOAD_VERIFYING,
+    ReloadVerifying,
      // reload() was called on this resource, but we're in a transaction and the
      // reload will be cancelled if another operation fails.
-    RELOAD_READY,
+    ReloadReady,
      // reload() was called on this resource, but there was an error, so
      // its new value is being destructed and its old value will be restored.
-    RELOAD_CANCELLING,
+    ReloadCancelling,
      // reload() was being called on this resource, and its old value is being
      // destructed.
-    RELOAD_COMMITTING,
+    ReloadCommitting,
 };
+using RS = ResourceState;
  // Get the string name of a resource state.
 StaticString show_ResourceState (ResourceState) noexcept;
 
@@ -112,18 +113,18 @@ struct Resource {
      // See enum ResourceState
     ResourceState state () const noexcept;
 
-     // If the resource is UNLOADED, automatically loads the resource from disk.
+     // If the resource is RS::Unloaded, automatically loads the resource from disk.
      // Will throw if the load fails.  If a ResourceTransaction is currently
      // active, the value will be cleared if the ResourceTransaction is rolled
      // back.
     Dynamic& value () const;
      // Gets the value without autoloading.  Writing to this is Undefined
-     // Behavior if the state is anything except for LOADED or LOAD_READY.
+     // Behavior if the state is anything except for RS::Loaded or RS::LoadReady.
     Dynamic& get_value () const noexcept;
-     // If the resource is UNLOADED, sets is state to LOADED or LOAD_READY
+     // If the resource is RS::Unloaded, sets is state to RS::Loaded or RS::LoadReady
      // without loading from disk, and sets its value.  Throws
-     // ResourceStateInvalid if the resource's state is anything but UNLOADED,
-     // LOADED, or LOAD_READY.  Throws ResourceTypeRejected if this resource has
+     // ResourceStateInvalid if the resource's state is anything but RS::Unloaded,
+     // RS::Loaded, or RS::LoadReady.  Throws ResourceTypeRejected if this resource has
      // a name and the ResourceScheme associated with its name returns false
      // from accepts_type.
     void set_value (MoveRef<Dynamic>) const;
@@ -134,7 +135,7 @@ struct Resource {
      // Reference dangling.
     Reference ref () const;
      // Gets a reference to the value without automatically loading.  If the
-     // resource is UNLOADED, returns an empty Reference.
+     // resource is RS::Unloaded, returns an empty Reference.
     Reference get_ref () const noexcept;
 
      // Syntax sugar
@@ -163,7 +164,7 @@ inline bool operator != (T a, T b) { return !(a == b); }
 using ResourceTransaction = Transaction<Resource>;
 
  // Loads a resource into the current purpose.  Does nothing if the resource is
- // not UNLOADED.  Throws if the file doesn't exist on disk or can't be opened.
+ // not RS::Unloaded.  Throws if the file doesn't exist on disk or can't be opened.
 void load (Resource);
  // Load multiple resources.  If an error is thrown, none of the resources will
  // be loaded.
@@ -172,7 +173,7 @@ inline void load (Slice<Resource> rs) {
     for (auto& r : rs) load(r);
 }
 
- // Saves a loaded resource to disk.  Throws if the resource is not LOADED.  May
+ // Saves a loaded resource to disk.  Throws if the resource is not RS::Loaded.  May
  // overwrite an existing file on disk.
 void save (Resource);
  // Save multiple resources.  If an error is thrown, none of the resources will
@@ -182,9 +183,9 @@ inline void save (Slice<Resource> rs) {
     for (auto& r : rs) save(r);
 }
 
- // Clears the value of the resource and sets its state to UNLOADED.  Does
- // nothing if the resource is UNLOADED, and throws if it is LOADING.  Scans all
- // other LOADED resources to make sure none of them are referencing this
+ // Clears the value of the resource and sets its state to RS::Unloaded.  Does
+ // nothing if the resource is RS::Unloaded, and throws if it is LOADING.  Scans all
+ // other RS::Loaded resources to make sure none of them are referencing this
  // resource, and if any are, this call will throw UnloadWouldBreak and the
  // resource will not be unloaded.
 void unload (Resource);
@@ -202,7 +203,7 @@ inline void force_unload (Slice<Resource> rs) {
     for (auto& r : rs) force_unload(r);
 }
 
- // Reloads a resource that is loaded.  Throws if the resource is not LOADED.
+ // Reloads a resource that is loaded.  Throws if the resource is not RS::Loaded.
  // Scans all other resources for references to this one and updates them to
  // the new address.  If the reference is no longer valid, this call will throw
  // ReloadWouldBreak, and the resource will be restored to its old value
@@ -218,9 +219,9 @@ inline void reload (Resource r) { reload(Slice<Resource>(&r, 1)); }
 
  // Moves old_res's value to new_res.  Does not change the names of any Resource
  // objects, just the mapping from names to values.  Does not affect any files
- // on disk.  Will throw if old_res is not LOADED, or if new_res is not
- // UNLOADED.  After renaming, old_res will be UNLOADED and new_res will
- // be LOADED.
+ // on disk.  Will throw if old_res is not RS::Loaded, or if new_res is not
+ // RS::Unloaded.  After renaming, old_res will be RS::Unloaded and new_res will
+ // be RS::Loaded.
 void rename (Resource old_res, Resource new_res);
 
  // Deletes the source of the resource.  If the source is a file, deletes the
@@ -238,7 +239,7 @@ bool source_exists (Resource);
  // Get the filename of the file backing this resource, if it has one.
 AnyString resource_filename (Resource);
 
- // Returns a list of all resources with state != UNLOADED.  This includes
+ // Returns a list of all resources with state != RS::Unloaded.  This includes
  // resources that are in the process of being loaded, reloaded, or unloaded.
 UniqueArray<Resource> loaded_resources () noexcept;
 

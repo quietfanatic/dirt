@@ -315,15 +315,17 @@ bool scan_references (
 bool scan_resource_pointers (
     const Resource& res, CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
-    if (res.state() == UNLOADED) return false;
-    return scan_pointers(res.get_value().ptr(), SharedLocation(res), cb);
+    auto& value = res.get_value();
+    if (!value.has_value()) return false;
+    return scan_pointers(value.ptr(), SharedLocation(res), cb);
 }
 
 bool scan_resource_references (
     const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
-    if (res.state() == UNLOADED) return false;
-    return scan_references(res.get_value().ptr(), SharedLocation(res), cb);
+    auto& value = res.get_value();
+    if (!value.has_value()) return false;
+    return scan_references(value.ptr(), SharedLocation(res), cb);
 }
 
 bool scan_universe_pointers (
