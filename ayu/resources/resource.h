@@ -85,8 +85,8 @@ using RS = ResourceState;
  // Get the string name of a resource state.
 StaticString show_ResourceState (ResourceState) noexcept;
 
- // The Resource class refers to a resource with reference semantics.
- // This class itself is cheap to copy.
+ // The interface for a Resource, accessed through a SharedResource or
+ // ResourceRef.
 struct Resource {
      // Internal data is kept perpetually, but may be refcounted at some point
      // (it's about 7-10 words long)
@@ -113,20 +113,20 @@ struct Resource {
      // See enum ResourceState
     ResourceState state () const noexcept;
 
-     // If the resource is RS::Unloaded, automatically loads the resource from disk.
-     // Will throw if the load fails.  If a ResourceTransaction is currently
-     // active, the value will be cleared if the ResourceTransaction is rolled
-     // back.
+     // If the resource is RS::Unloaded, automatically loads the resource from
+     // disk.  Will throw if the load fails.  If a ResourceTransaction is
+     // currently active, the value will be cleared if the ResourceTransaction
+     // is rolled back.
     Dynamic& value () const;
      // Gets the value without autoloading.  Writing to this is Undefined
      // Behavior if the state is anything except for RS::Loaded or RS::LoadReady.
     Dynamic& get_value () const noexcept;
-     // If the resource is RS::Unloaded, sets is state to RS::Loaded or RS::LoadReady
-     // without loading from disk, and sets its value.  Throws
-     // ResourceStateInvalid if the resource's state is anything but RS::Unloaded,
-     // RS::Loaded, or RS::LoadReady.  Throws ResourceTypeRejected if this resource has
-     // a name and the ResourceScheme associated with its name returns false
-     // from accepts_type.
+     // If the resource is RS::Unloaded, sets is state to RS::Loaded or
+     // RS::LoadReady without loading from disk, and sets its value.  Throws
+     // ResourceStateInvalid if the resource's state is anything but
+     // RS::Unloaded or RS::Loaded.  Throws ResourceTypeRejected if this
+     // resource has a name and the ResourceScheme associated with its name
+     // returns false from accepts_type.
     void set_value (MoveRef<Dynamic>) const;
 
      // Automatically loads and returns a reference to the value, which can be

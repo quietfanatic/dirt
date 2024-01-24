@@ -7,6 +7,7 @@
 #include "../reflection/describe.h"
 #include "../reflection/dynamic.h"
 #include "../reflection/reference.h"
+#include "../traversal/compound.h"
 #include "../traversal/from-tree.h"
 #include "../traversal/scan.h"
 #include "../traversal/to-tree.h"
@@ -69,7 +70,12 @@ static void raise_would_break (
     raise(code, move(mess));
 }
 
-static void verify_tree_for_scheme (
+struct TypeAndTree {
+    Type type;
+    Tree tree;
+};
+
+static TypeAndTree verify_tree_for_scheme (
     Resource res,
     const ResourceScheme* scheme,
     const Tree& tree
@@ -83,11 +89,9 @@ static void verify_tree_for_scheme (
         if (!scheme->accepts_type(type)) {
             raise_ResourceTypeRejected("load", res, type);
         }
+        return {type, a[1]};
     }
-    else {
-         // TODO: throw ResourceValueInvalid
-        require(false);
-    }
+    else raise_LengthRejected(Type::CppType<Dynamic>(), 2, 2, a.size());
 }
 
 } using namespace in;
@@ -172,7 +176,6 @@ void Resource::set_value (MoveRef<Dynamic> value) const {
     Dynamic v = *move(value);
     switch (data->state) {
         case RS::Unloaded:
-        case RS::LoadReady:
         case RS::Loaded: break;
         default: raise_ResourceStateInvalid("set_value", *this);
     }
@@ -240,15 +243,14 @@ void in::load_under_purpose (Resource res) {
         auto scheme = universe().require_scheme(res.data->name);
         auto filename = scheme->get_file(res.data->name);
         Tree tree = tree_from_file(move(filename));
-        verify_tree_for_scheme(res, scheme, tree);
-         // Loading must be under a transaction so that recursive loads are all or
-         // nothing.  TODO: Move this into item_from_tree
-        ResourceTransaction tr;
-         // TODO: Call this on the value, not on the Dynamic.  The location isn't
-         // right.
+        auto tnt = verify_tree_for_scheme(res, scheme, tree);
         expect(!res.data->value.has_value());
+         // Run item_from_tree on the Dynamic's value, not on the Dynamic
+         // itself.  Otherwise, the associated locations will have an extra +1
+         // in the fragment.
+        res.data->value = Dynamic(tnt.type);
         item_from_tree(
-            &res.data->value, tree, SharedLocation(res),
+            res.data->value.ptr(), tnt.tree, SharedLocation(res),
             FromTreeOptions::DelaySwizzle
         );
     }
@@ -290,8 +292,12 @@ void save (Resource res) {
         raise_ResourceTypeRejected("save", res, res.data->value.type);
     }
     auto filename = scheme->get_file(res.data->name);
+     // Do type and value separately, because the Location refers to the value,
+     // not the whole Dynamic.
+    auto type_tree = item_to_tree(&res.data->value.type);
+    auto value_tree = item_to_tree(res.data->value.ptr(), SharedLocation(res));
     auto contents = tree_to_string(
-        item_to_tree(&res.data->value, SharedLocation(res)),
+        Tree::array(move(type_tree), move(value_tree)),
         PrintOptions::Pretty
     );
 
@@ -431,22 +437,26 @@ void force_unload (Resource res) {
     }
 }
 
+struct Update {
+    Reference ref_ref;
+    Reference new_ref;
+};
+
 NOINLINE static void reload_commit (
-    Slice<Resource> rs, std::unordered_map<Reference, Reference> updates
+    Slice<Resource> rs, MoveRef<UniqueArray<Update>> ups
 ) {
     for (auto res : rs) res.data->state = RS::ReloadCommitting;
-    for (auto& [ref_ref, new_ref] : updates) {
-        if (auto a = ref_ref.address()) {
-            reinterpret_cast<Reference&>(*a) = new_ref;
+    auto updates = *move(ups);
+    updates.consume([](Update&& update){
+        if (auto a = update.ref_ref.address()) {
+            reinterpret_cast<Reference&>(*a) = move(update.new_ref);
         }
-        else ref_ref.write([&new_ref](Mu& v){
-            reinterpret_cast<Reference&>(v) = new_ref;
+        else update.ref_ref.write([new_ref{&update.new_ref} ](Mu& v){
+            reinterpret_cast<Reference&>(v) = move(*new_ref);
         });
-    }
-    for (auto res : rs) {
-        res.data->value = {};
-        res.data->state = RS::Loaded;
-    }
+        expect(!update.new_ref);
+    });
+    for (auto res : rs) res.data->state = RS::Loaded;
 }
 
 NOINLINE static void reload_rollback (
@@ -475,17 +485,20 @@ void reload (Slice<Resource> reses) {
         return move(reses[i].data->value);
     });
 
-    std::unordered_map<Reference, Reference> updates;
+     // Keep track of what references to update to what
+    UniqueArray<Update> updates;
     try {
          // Construct step
         for (auto res : reses) {
             auto scheme = universe().require_scheme(res.data->name);
             auto filename = scheme->get_file(res.data->name);
             Tree tree = tree_from_file(move(filename));
-            verify_tree_for_scheme(res, scheme, tree);
+            auto tnt = verify_tree_for_scheme(res, scheme, tree);
+            expect(!res.data->value.has_value());
+            res.data->value = Dynamic(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
-            item_from_tree(&res.data->value, tree, SharedLocation(res));
+            item_from_tree(res.data->value.ptr(), tnt.tree, SharedLocation(res));
         }
         for (auto res : reses) {
             res.data->state = RS::ReloadVerifying;
@@ -519,18 +532,17 @@ void reload (Slice<Resource> reses) {
                 scan_resource_references(
                     other,
                     [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc) {
-                         // TODO: scan Pointers as well
+                         // TODO: check for Pointer as well?
                         if (ref_ref.type() != Type::CppType<Reference>()) return false;
                         Reference ref = ref_ref.get_as<Reference>();
                         auto iter = old_refs.find(ref);
                         if (iter == old_refs.end()) return false;
                         try {
-                             // reference_from_location will use new resource value
                             Reference new_ref = reference_from_location(iter->second);
-                            updates.emplace(ref_ref, new_ref);
+                            updates.emplace_back(move(ref_ref), move(new_ref));
                         }
                         catch (std::exception&) {
-                             breaks.emplace_back(loc, iter->second);
+                            breaks.emplace_back(loc, iter->second);
                         }
                         return false;
                     }
@@ -547,16 +559,16 @@ void reload (Slice<Resource> reses) {
         for (auto res : reses) res.data->state = RS::ReloadReady;
         struct ReloadCommitter : Committer {
             UniqueArray<Resource> rs;
-            std::unordered_map<Reference, Reference> updates;
+            UniqueArray<Update> updates;
             UniqueArray<Dynamic> old_values;
             ReloadCommitter (
-                UniqueArray<Resource>&& r,
-                std::unordered_map<Reference, Reference>&& u,
+                MoveRef<UniqueArray<Resource>> r,
+                MoveRef<UniqueArray<Update>> u,
                 MoveRef<UniqueArray<Dynamic>> o
-            ) : rs(move(r)), updates(move(u)), old_values(*move(o))
+            ) : rs(*move(r)), updates(*move(u)), old_values(*move(o))
             { }
             void commit () noexcept override {
-                reload_commit(rs, updates);
+                reload_commit(rs, move(updates));
             }
             void rollback () noexcept override {
                 reload_rollback(rs, move(old_values));
