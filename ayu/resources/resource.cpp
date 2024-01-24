@@ -94,19 +94,19 @@ static void verify_tree_for_scheme (
 
 StaticString show_ResourceState (ResourceState state) noexcept {
     switch (state) {
-        case RS::Unloaded: return "RS::Unloaded";
-        case RS::Loaded: return "RS::Loaded";
-        case RS::LoadConstructing: return "RS::LoadConstructing";
-        case RS::LoadReady: return "RS::LoadReady";
-        case RS::LoadCancelling: return "RS::LoadCancelling";
-        case RS::UnloadVerifying: return "RS::UnloadVerifying";
-        case RS::UnloadReady: return "RS::UnloadReady";
-        case RS::UnloadCommitting: return "RS::UnloadCommitting";
-        case RS::ReloadConstructing: return "RS::ReloadConstructing";
-        case RS::ReloadVerifying: return "RS::ReloadVerifying";
-        case RS::ReloadReady: return "RS::ReloadReady";
-        case RS::ReloadCancelling: return "RS::ReloadCancelling";
-        case RS::ReloadCommitting: return "RS::ReloadCommitting";
+        case RS::Unloaded: return "Unloaded";
+        case RS::Loaded: return "Loaded";
+        case RS::LoadConstructing: return "LoadConstructing";
+        case RS::LoadReady: return "LoadReady";
+        case RS::LoadCancelling: return "LoadCancelling";
+        case RS::UnloadVerifying: return "UnloadVerifying";
+        case RS::UnloadReady: return "UnloadReady";
+        case RS::UnloadCommitting: return "UnloadCommitting";
+        case RS::ReloadConstructing: return "ReloadConstructing";
+        case RS::ReloadVerifying: return "ReloadVerifying";
+        case RS::ReloadReady: return "ReloadReady";
+        case RS::ReloadCancelling: return "ReloadCancelling";
+        case RS::ReloadCommitting: return "ReloadCommitting";
         default: never();
     }
 }
@@ -318,6 +318,14 @@ void save (Resource res) {
     }
 }
 
+NOINLINE static void unload_commit (MoveRef<UniqueArray<Resource>> rs) {
+    auto reses = *move(rs);
+    reses.consume([](Resource&& res){
+        res.data->value = {};
+        res.data->state = RS::Unloaded;
+    });
+}
+
 void unload (Slice<Resource> reses) {
     UniqueArray<Resource> rs;
     for (auto res : reses)
@@ -389,21 +397,12 @@ void unload (Slice<Resource> reses) {
                 rs(move(r))
             { }
             void commit () noexcept override {
-                for (auto res: rs) {
-                    res.data->value = {};
-                    res.data->state = RS::Unloaded;
-                }
+                unload_commit(move(rs));
             }
         };
         ResourceTransaction::add_committer(new UnloadCommitter(move(rs)));
     }
-    else {
-         // TODO: tail call this
-        for (auto res : rs) {
-            res.data->value = {};
-            res.data->state = RS::Unloaded;
-        }
-    }
+    else unload_commit(move(rs));
 }
 
 void force_unload (Resource res) {
@@ -432,7 +431,7 @@ void force_unload (Resource res) {
     }
 }
 
-static void reload_commit (
+NOINLINE static void reload_commit (
     Slice<Resource> rs, std::unordered_map<Reference, Reference> updates
 ) {
     for (auto res : rs) res.data->state = RS::ReloadCommitting;
@@ -450,12 +449,17 @@ static void reload_commit (
     }
 }
 
-static void reload_rollback (Slice<Resource> rs) {
-    for (auto res : rs) {
+NOINLINE static void reload_rollback (
+    Slice<Resource> rs, MoveRef<UniqueArray<Dynamic>> olds
+) {
+    auto old_values = *move(olds);
+    auto begin = old_values.begin();
+    old_values.consume_reverse([rs, begin](Dynamic&& old){
+        auto& res = rs[&old - begin];
         res.data->state = RS::ReloadCancelling;
-        res.data->value = move(res.data->old_value);
+        res.data->value = move(old);
         res.data->state = RS::Loaded;
-    }
+    });
 }
 
 void reload (Slice<Resource> reses) {
@@ -464,11 +468,13 @@ void reload (Slice<Resource> reses) {
         raise_ResourceStateInvalid("reload", res);
     }
      // Preparation (this won't throw)
-    for (auto res : reses) {
-        res.data->state = RS::ReloadConstructing;
-        expect(!res.data->old_value.has_value());
-        res.data->old_value = move(res.data->value);
-    }
+    auto old_values = UniqueArray<Dynamic>(
+        reses.size(), [reses](usize i) -> Dynamic&&
+    {
+        reses[i].data->state = RS::ReloadConstructing;
+        return move(reses[i].data->value);
+    });
+
     std::unordered_map<Reference, Reference> updates;
     try {
          // Construct step
@@ -498,9 +504,9 @@ void reload (Slice<Resource> reses) {
         if (others) {
              // First build mapping of old refs to locationss
             std::unordered_map<Reference, SharedLocation> old_refs;
-            for (auto res : reses) {
+            for (usize i = 0; i < reses.size(); i++) {
                 scan_references(
-                    res.data->old_value.ptr(), SharedLocation(res),
+                    old_values[i].ptr(), SharedLocation(reses[i]),
                     [&old_refs](const Reference& ref, LocationRef loc) {
                         old_refs.emplace(ref, loc);
                         return false;
@@ -535,26 +541,29 @@ void reload (Slice<Resource> reses) {
             }
         }
     }
-    catch (...) { reload_rollback(reses); throw; }
+    catch (...) { reload_rollback(reses, move(old_values)); throw; }
      // Commit step
     if (ResourceTransaction::depth) {
         for (auto res : reses) res.data->state = RS::ReloadReady;
         struct ReloadCommitter : Committer {
             UniqueArray<Resource> rs;
             std::unordered_map<Reference, Reference> updates;
+            UniqueArray<Dynamic> old_values;
             ReloadCommitter (
-                UniqueArray<Resource>&& r, std::unordered_map<Reference, Reference>&& u
-            ) : rs(move(r)), updates(move(u))
+                UniqueArray<Resource>&& r,
+                std::unordered_map<Reference, Reference>&& u,
+                MoveRef<UniqueArray<Dynamic>> o
+            ) : rs(move(r)), updates(move(u)), old_values(*move(o))
             { }
             void commit () noexcept override {
                 reload_commit(rs, updates);
             }
             void rollback () noexcept override {
-                reload_rollback(rs);
+                reload_rollback(rs, move(old_values));
             }
         };
         ResourceTransaction::add_committer(
-            new ReloadCommitter(reses, move(updates))
+            new ReloadCommitter(reses, move(updates), move(old_values))
         );
     }
     else reload_commit(reses, updates);

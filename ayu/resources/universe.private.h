@@ -5,18 +5,10 @@
 #include <memory>
 #include <unordered_map>
 #include "../common.h"
-#include "resource.h"
+#include "resource.private.h"
 #include "scheme.h"
 
 namespace ayu::in {
-
-struct ResourceData {
-    IRI name;
-    Dynamic value {};
-    Dynamic old_value {};  // Used when reloading.   TODO: Don't store this.
-    ResourceState state = RS::Unloaded;
-    uint32 purpose_count = 0;
-};
 
 struct Universe {
      // The Str here must refer to the resource's name.spec().
