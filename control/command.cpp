@@ -78,7 +78,7 @@ void Statement_from_tree (Statement& s, const ayu::Tree& t) {
     a.erase(usize(0));
     s.args = ayu::Dynamic(s.command->args_type());
     ayu::item_from_tree(
-        s.args.ptr(), ayu::Tree(move(a)), ayu::Location(),
+        s.args.ptr(), ayu::Tree(move(a)), {},
         ayu::FromTreeOptions::DelaySwizzle
     );
 }

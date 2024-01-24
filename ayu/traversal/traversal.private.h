@@ -50,8 +50,8 @@ struct Traversal {
     Reference to_reference () const noexcept;
     Reference to_reference_parent_addressable () const noexcept;
     Reference to_reference_chain () const noexcept;
-    Location to_location () const noexcept;
-    Location to_location_chain () const noexcept;
+    SharedLocation to_location () const noexcept;
+    SharedLocation to_location_chain () const noexcept;
     [[noreturn, gnu::cold]]
     void wrap_exception () const;
 };
@@ -398,40 +398,40 @@ Reference Traversal::to_reference_chain () const noexcept {
 }
 
 inline
-Location Traversal::to_location () const noexcept {
+SharedLocation Traversal::to_location () const noexcept {
     if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
-        if (*self.location) return self.location;
+        if (self.location) return self.location;
          // This * took a half a day of debugging to add. :(
-        else return Location(*self.reference);
+        else return SharedLocation(*self.reference);
     }
     else return to_location_chain();
 }
 
 NOINLINE inline
-Location Traversal::to_location_chain () const noexcept {
-    Location parent_loc = parent->to_location();
+SharedLocation Traversal::to_location_chain () const noexcept {
+    SharedLocation parent_loc = parent->to_location();
     switch (op) {
         case TraversalOp::Delegate: return parent_loc;
         case TraversalOp::Attr: {
             auto& self = static_cast<const AttrTraversal&>(*this);
-            return Location(move(parent_loc), *self.key);
+            return SharedLocation(move(parent_loc), *self.key);
         }
         case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
-            return Location(move(parent_loc), *self.key);
+            return SharedLocation(move(parent_loc), *self.key);
         }
         case TraversalOp::Elem: {
             auto& self = static_cast<const ElemTraversal&>(*this);
-            return Location(move(parent_loc), self.index);
+            return SharedLocation(move(parent_loc), self.index);
         }
         case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ElemFuncTraversal&>(*this);
-            return Location(move(parent_loc), self.index);
+            return SharedLocation(move(parent_loc), self.index);
         }
         case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const DataFuncTraversal&>(*this);
-            return Location(move(parent_loc), self.index);
+            return SharedLocation(move(parent_loc), self.index);
         }
         default: never();
     }

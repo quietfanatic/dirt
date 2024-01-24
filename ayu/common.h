@@ -28,7 +28,8 @@ struct Resource;
 
  // traversal/location.h
 struct Location;
-using LocationRef = CopyRef<Location>;
+struct SharedLocation;
+struct LocationRef;
 
  // reflection/type.h
 struct Type;

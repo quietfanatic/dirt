@@ -15,18 +15,18 @@ namespace ayu {
  // and subsequent calls to find_pointer will be as fast as a hash lookup.
  // Returns the empty Location if the pointer was not found or if a null pointer
  // was passed.
-Location find_pointer (Pointer);
+SharedLocation find_pointer (Pointer);
  // Same as above, but find a Reference.  Equivalent to the above if the
  // Reference is addressable.  If the Reference is not addressable, this may
  // fail since references with dynamically generated Accessors may not be
  // comparable.  Returns the empty Reference if the reference was not found or
  // if a null reference was passed.
-Location find_reference (const Reference&);
+SharedLocation find_reference (const Reference&);
 
  // These are the same as find_*, except they'll throw ReferenceNotFound
  // if the provided Pointer/Reference was not found (and is not null)
-Location pointer_to_location (Pointer);
-Location reference_to_location (const Reference&);
+SharedLocation pointer_to_location (Pointer);
+SharedLocation reference_to_location (const Reference&);
 
  // While this is alive, a cache mapping pointers to locations will be kept,
  // making find_pointer and find_reference faster.  Do not modify any program
@@ -40,11 +40,11 @@ struct KeepLocationCache {
  // While this is alive, if find_pointer() or find_reference() is called with
  // thie Reference, skip the scanning process and return this location.
 struct PushLikelyReference {
-    PushLikelyReference (Reference, Location) noexcept;
+    PushLikelyReference (Reference, MoveRef<SharedLocation>) noexcept;
     ~PushLikelyReference ();
 
     Reference reference;
-    Location location;
+    SharedLocation location;
     PushLikelyReference* next;
 };
 
@@ -57,7 +57,7 @@ struct PushLikelyReference {
  // type.  Skips unaddressable items, and the children of unaddressable items
  // that don't have pass_through_addressable.
  //   base_item: Pointer to the item to start scanning at.
- //   base_loc: Location of the base item, or Location() if you don't care.
+ //   base_loc: Location of the base item, or {} if you don't care.
  //   cb: Is called for each addressable item with its pointer and location
  //     (based on base_loc).  The callback is called for parent items before
  //     their child items and is first called with (base_item, base_loc) before
@@ -73,7 +73,7 @@ bool scan_pointers (
  // Scans all visible items under the given reference, whether or not they are
  // addressable.
  //   base_item: Reference to the item to start scanning at.
- //   base_loc: Location of the base item, or Location() if you don't care.
+ //   base_loc: Location of the base item, or {} if you don't care.
  //   cb: Is called for each item with a reference to it and its location (based
  //     on base_loc).  The callback is called for parent items before their
  //     child items and is first called with (base_item, base_loc) before any

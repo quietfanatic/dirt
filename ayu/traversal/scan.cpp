@@ -106,9 +106,8 @@ struct TraverseScan {
             auto acr = attr->acr();
              // Behave as though all included attrs are included (collapse the
              // location segment for the included attr).
-            Location child_loc =
-                !!(acr->attr_flags & AttrFlags::Include)
-                ? *loc : Location(loc, attr->key);
+            auto child_loc = !!(acr->attr_flags & AttrFlags::Include)
+                ? SharedLocation(loc) : SharedLocation(loc, attr->key);
              // TODO: verify that the child item is object-like.
             bool r = false; // init in case only_addressable skips cb
             trav_attr(trav, acr, attr->key, AccessMode::Read,
@@ -140,7 +139,7 @@ struct TraverseScan {
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
-            Location child_loc = Location(loc, key);
+            auto child_loc = SharedLocation(loc, key);
             bool r = false;
             trav_computed_attr(trav, ref, f, key, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
@@ -163,8 +162,8 @@ struct TraverseScan {
             auto acr = elem->acr();
              // It'd be weird to specify collapse_optional for non-computed
              // elems, but it's valid.
-            Location child_loc =
-                trav.collapse_optional ? *loc : Location(loc, i);
+            auto child_loc = trav.collapse_optional
+                ? SharedLocation(loc) : SharedLocation(loc, i);
              // TODO: verify that the child item is array-like.
             bool r = false;
             trav_elem(trav, acr, i, AccessMode::Read,
@@ -193,8 +192,8 @@ struct TraverseScan {
             auto ptr = f(*trav.address);
             auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < len; i++) {
-                Location child_loc =
-                    trav.collapse_optional ? *loc : Location(loc, i);
+                auto child_loc = trav.collapse_optional
+                    ? SharedLocation(loc) : SharedLocation(loc, i);
                 bool r = false;
                 trav_contiguous_elem(trav, ptr, f, i, AccessMode::Read,
                     [&r, child_loc, cb](const Traversal& child)
@@ -223,8 +222,8 @@ struct TraverseScan {
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            Location child_loc =
-                trav.collapse_optional ? *loc : Location(loc, i);
+            SharedLocation child_loc = trav.collapse_optional
+                ? SharedLocation(loc) : SharedLocation(loc, i);
             bool r = false;
             trav_computed_elem(trav, ref, f, i, AccessMode::Read,
                 [&r, child_loc, cb](const Traversal& child)
@@ -252,10 +251,10 @@ struct TraverseScan {
 
  // Store a typed Pointer instead of a Mu* because items at the same address
  // with different types are different items.
-static std::unordered_map<Pointer, Location> location_cache;
+static std::unordered_map<Pointer, SharedLocation> location_cache;
 static bool have_location_cache = false;
 static usize keep_location_cache_count = 0;
-std::unordered_map<Pointer, Location>* get_location_cache () {
+std::unordered_map<Pointer, SharedLocation>* get_location_cache () {
     if (!keep_location_cache_count) return null;
     if (!have_location_cache) {
         scan_universe_pointers([](Pointer ptr, LocationRef loc){
@@ -287,8 +286,10 @@ KeepLocationCache::~KeepLocationCache () {
 
 static PushLikelyReference* first_plr = null;
 
-PushLikelyReference::PushLikelyReference (Reference r, Location l) noexcept :
-    reference(r), location(l), next(first_plr)
+PushLikelyReference::PushLikelyReference (
+    Reference r, MoveRef<SharedLocation> l
+) noexcept :
+    reference(r), location(*move(l)), next(first_plr)
 {
 #ifndef NDEBUG
     require(reference_from_location(location) == reference);
@@ -315,21 +316,21 @@ bool scan_resource_pointers (
     const Resource& res, CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
     if (res.state() == UNLOADED) return false;
-    return scan_pointers(res.get_value().ptr(), Location(res), cb);
+    return scan_pointers(res.get_value().ptr(), SharedLocation(res), cb);
 }
 
 bool scan_resource_references (
     const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
     if (res.state() == UNLOADED) return false;
-    return scan_references(res.get_value().ptr(), Location(res), cb);
+    return scan_references(res.get_value().ptr(), SharedLocation(res), cb);
 }
 
 bool scan_universe_pointers (
     CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
-    if (Location loc = current_base_location()) {
-        if (auto ref = loc.reference()) {
+    if (auto loc = current_base_location()) {
+        if (auto ref = loc->reference()) {
             if (auto address = ref->address()) {
                scan_pointers(Pointer(ref->type(), address), loc, cb);
             }
@@ -349,8 +350,8 @@ bool scan_universe_references (
      // it's not in a Resource (so we don't duplicate work).
      // TODO: Maybe don't do this if the traversal was started by a scan,
      // instead of by a serialize.
-    if (Location loc = current_base_location()) {
-        if (auto ref = loc.reference()) {
+    if (auto loc = current_base_location()) {
+        if (auto ref = loc->reference()) {
             if (scan_references(*ref, loc, cb)) {
                 return true;
             }
@@ -362,8 +363,8 @@ bool scan_universe_references (
     return false;
 }
 
-Location find_pointer (Pointer item) {
-    if (!item) return Location();
+SharedLocation find_pointer (Pointer item) {
+    if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (Reference(item) == plr->reference) return plr->location;
     }
@@ -372,20 +373,20 @@ Location find_pointer (Pointer item) {
         if (it != cache->end()) {
              // Reject non-readonly pointer to readonly location
             if (it->first.readonly() && !item.readonly()) {
-                [[unlikely]] return Location();
+                [[unlikely]] return {};
             }
             return it->second;
         }
-        return Location();
+        return {};
     }
     else {
-        Location r;
+        SharedLocation r;
         scan_universe_pointers([&r, item](Pointer p, LocationRef loc){
             if (p == item) {
                  // If we get a non-readonly pointer to a readonly location,
                  // reject it, but also don't keep searching.
                 if (p.readonly() && !item.readonly()) [[unlikely]] return true;
-                new (&r) Location(loc);
+                new (&r) SharedLocation(loc);
                 return true;
             }
             return false;
@@ -394,8 +395,8 @@ Location find_pointer (Pointer item) {
     }
 }
 
-Location find_reference (const Reference& item) {
-    if (!item) return Location();
+SharedLocation find_reference (const Reference& item) {
+    if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (item == plr->reference) return plr->location;
     }
@@ -405,18 +406,18 @@ Location find_reference (const Reference& item) {
             auto it = cache->find(Pointer(item.type(), address));
             if (it != cache->end()) {
                 if (it->first.readonly() && !item.readonly()) {
-                    [[unlikely]] return Location();
+                    [[unlikely]] return {};
                 }
                 return it->second;
             }
-            return Location();
+            return {};
         }
         else {
              // Not addressable.  First find the host in the location cache.
             auto it = cache->find(item.host);
             if (it != cache->end()) {
                  // Now search under that host for the actual reference.
-                Location r;
+                SharedLocation r;
                 scan_references(
                     Reference(item.host), it->second,
                     [&r, &item](const Reference& ref, LocationRef loc)
@@ -425,19 +426,19 @@ Location find_reference (const Reference& item) {
                         if (ref.readonly() && !item.readonly()) {
                             [[unlikely]] return true;
                         }
-                        new (&r) Location(loc);
+                        new (&r) SharedLocation(loc);
                         return true;
                     }
                     else return false;
                 });
                 return r;
             }
-            else return Location();
+            else return {};
         }
     }
     else {
          // We don't have the location cache!  Time to do a global search.
-        Location r;
+        SharedLocation r;
         scan_universe_references(
             [&r, &item](const Reference& ref, LocationRef loc)
         {
@@ -445,7 +446,7 @@ Location find_reference (const Reference& item) {
                 if (ref.readonly() && !item.readonly()) {
                     [[unlikely]] return true;
                 }
-                new (&r) Location(loc);
+                new (&r) SharedLocation(loc);
                 return true;
             }
             else return false;
@@ -454,9 +455,9 @@ Location find_reference (const Reference& item) {
     }
 }
 
-Location pointer_to_location (Pointer item) {
-    if (!item) return Location();
-    else if (Location r = find_pointer(item)) {
+SharedLocation pointer_to_location (Pointer item) {
+    if (!item) return {};
+    else if (SharedLocation r = find_pointer(item)) {
         return r;
     }
     else raise(e_ReferenceNotFound, cat(
@@ -464,9 +465,9 @@ Location pointer_to_location (Pointer item) {
     ));
 }
 
-Location reference_to_location (const Reference& item) {
-    if (!item) return Location();
-    else if (Location r = find_reference(item)) {
+SharedLocation reference_to_location (const Reference& item) {
+    if (!item) return {};
+    else if (SharedLocation r = find_reference(item)) {
         return r;
     }
     else raise(e_ReferenceNotFound, cat(

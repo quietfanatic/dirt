@@ -3,83 +3,72 @@
 namespace ayu {
 namespace in {
 
-enum LocationForm {
-    RESOURCE,
-    REFERENCE,
-    KEY,
-    INDEX,
-};
-
-struct LocationData : RefCounted {
-    uint8 form;
-    LocationData (uint8 f) : form(f) { }
-};
  // ResourceLocation is extern to break a cyclic dependency.
-struct ReferenceLocation : LocationData {
+struct ReferenceLocation : Location {
     Reference reference;
     ReferenceLocation (MoveRef<Reference> ref) :
-        LocationData(REFERENCE), reference(*move(ref))
+        Location(REFERENCE), reference(*move(ref))
     { }
 };
-struct KeyLocation : LocationData {
-    Location parent;
+struct KeyLocation : Location {
+    SharedLocation parent;
     AnyString key;
-    KeyLocation (MoveRef<Location> p, MoveRef<AnyString> k) :
-        LocationData(in::KEY), parent(*move(p)), key(*move(k))
+    KeyLocation (MoveRef<SharedLocation> p, MoveRef<AnyString> k) :
+        Location(KEY), parent(*move(p)), key(*move(k))
     { }
 };
-struct IndexLocation : LocationData {
-    Location parent;
+struct IndexLocation : Location {
+    SharedLocation parent;
     uint32 index;
-    IndexLocation (MoveRef<Location> p, usize i) :
-        LocationData(in::INDEX), parent(*move(p)), index(i)
+    IndexLocation (MoveRef<SharedLocation> p, usize i) :
+        Location(INDEX), parent(*move(p)), index(i)
     { expect(index == i); }
 };
 
 };
 
-inline Location::Location (const Reference& ref) noexcept :
+inline SharedLocation::SharedLocation (const Reference& ref) noexcept :
     data(new in::ReferenceLocation(ref))
 { }
-inline Location::Location (MoveRef<Location> p, MoveRef<AnyString> k) noexcept :
+inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, MoveRef<AnyString> k) noexcept :
     data(new in::KeyLocation(expect(*move(p)), *move(k)))
 { }
-inline Location::Location (MoveRef<Location> p, usize i) noexcept :
+inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, usize i) noexcept :
     data(new in::IndexLocation(expect(*move(p)), i))
 { }
 
 inline const Reference* Location::reference () const noexcept {
-    switch (data->form) {
-        case in::REFERENCE:
-            return &static_cast<in::ReferenceLocation*>(data.p)->reference;
+    switch (form) {
+        case REFERENCE:
+            return &static_cast<const in::ReferenceLocation*>(this)->reference;
         default: return null;
     }
 }
 
-inline const Location* Location::parent () const noexcept {
-    switch (data->form) {
-        case in::KEY: return &static_cast<in::KeyLocation*>(data.p)->parent;
-        case in::INDEX: return &static_cast<in::IndexLocation*>(data.p)->parent;
-        default: return null;
+inline LocationRef Location::parent () const noexcept {
+    switch (form) {
+        case KEY: return static_cast<const in::KeyLocation*>(this)->parent;
+        case INDEX: return static_cast<const in::IndexLocation*>(this)->parent;
+        default: return {};
     }
 }
 inline const AnyString* Location::key () const noexcept {
-    switch (data->form) {
-        case in::KEY: return &static_cast<in::KeyLocation*>(data.p)->key;
+    switch (form) {
+        case KEY: return &static_cast<const in::KeyLocation*>(this)->key;
         default: return null;
     }
 }
 inline const uint32* Location::index () const noexcept {
-    switch (data->form) {
-        case in::INDEX: return &static_cast<in::IndexLocation*>(data.p)->index;
+    switch (form) {
+        case INDEX: return &static_cast<const in::IndexLocation*>(this)->index;
         default: return null;
     }
 }
 
-inline Location Location::root () const noexcept {
-    const Location* l = this;
+inline LocationRef Location::root () const noexcept {
+    auto l = LocationRef(this);
     while (l->parent()) l = l->parent();
-    return *l;
+    return l;
 }
 
 } // ayu

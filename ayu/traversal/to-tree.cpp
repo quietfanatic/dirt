@@ -14,7 +14,7 @@ struct TraverseToTree {
      // NOINLINE this because it generates a lot of code with the trav_start
     NOINLINE static
     Tree start (const Reference& item, LocationRef loc) {
-        PushBaseLocation pbl(*loc ? *loc : Location(item));
+        PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         Tree r;
         trav_start(item, loc, false, AccessMode::Read,
             [&r](const Traversal& child){ traverse(r, child); }

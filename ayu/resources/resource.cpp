@@ -43,9 +43,14 @@ static void raise_ResourceTypeRejected (
     ));
 }
 
+struct Break {
+    SharedLocation from;
+    SharedLocation to;
+};
+
 [[noreturn, gnu::cold]]
 static void raise_would_break (
-    ErrorCode code, CopyRef<UniqueArray<std::pair<Location, Location>>> breaks
+    ErrorCode code, CopyRef<UniqueArray<Break>> breaks
 ) {
     UniqueString mess = cat(
         (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
@@ -54,8 +59,8 @@ static void raise_would_break (
     for (usize i = 0; i < breaks->size(); ++i) {
         if (i > 5) break;
         mess = cat(move(mess),
-            "    ", location_to_iri(breaks[i].first).spec(),
-            " -> ", location_to_iri(breaks[i].second).spec(), '\n'
+            "    ", location_to_iri(breaks[i].from).spec(),
+            " -> ", location_to_iri(breaks[i].to).spec(), '\n'
         );
     }
     if (breaks->size() > 5) {
@@ -243,7 +248,7 @@ void in::load_under_purpose (Resource res) {
          // right.
         expect(!res.data->value.has_value());
         item_from_tree(
-            &res.data->value, tree, Location(res),
+            &res.data->value, tree, SharedLocation(res),
             FromTreeOptions::DelaySwizzle
         );
     }
@@ -286,7 +291,7 @@ void save (Resource res) {
     }
     auto filename = scheme->get_file(res.data->name);
     auto contents = tree_to_string(
-        item_to_tree(&res.data->value, Location(res)),
+        item_to_tree(&res.data->value, SharedLocation(res)),
         PrintOptions::Pretty
     );
 
@@ -337,7 +342,7 @@ void unload (Slice<Resource> reses) {
          // If we're unloading everything, no need to do any scanning.
         if (others) {
              // First build set of references to things being unloaded
-            std::unordered_map<Reference, Location> ref_set;
+            std::unordered_map<Reference, SharedLocation> ref_set;
             for (auto res : rs) {
                 scan_resource_references(
                     res,
@@ -348,7 +353,7 @@ void unload (Slice<Resource> reses) {
                 );
             }
              // Then check if any other resources contain references in that set
-            UniqueArray<std::pair<Location, Location>> breaks;
+            UniqueArray<Break> breaks;
             for (auto other : others) {
                 scan_resource_references(
                     other,
@@ -474,7 +479,7 @@ void reload (Slice<Resource> reses) {
             verify_tree_for_scheme(res, scheme, tree);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
-            item_from_tree(&res.data->value, tree, Location(res));
+            item_from_tree(&res.data->value, tree, SharedLocation(res));
         }
         for (auto res : reses) {
             res.data->state = RELOAD_VERIFYING;
@@ -492,10 +497,10 @@ void reload (Slice<Resource> reses) {
          // If we're reloading everything, no need to do any scanning.
         if (others) {
              // First build mapping of old refs to locationss
-            std::unordered_map<Reference, Location> old_refs;
+            std::unordered_map<Reference, SharedLocation> old_refs;
             for (auto res : reses) {
                 scan_references(
-                    res.data->old_value.ptr(), Location(res),
+                    res.data->old_value.ptr(), SharedLocation(res),
                     [&old_refs](const Reference& ref, LocationRef loc) {
                         old_refs.emplace(ref, loc);
                         return false;
@@ -503,7 +508,7 @@ void reload (Slice<Resource> reses) {
                 );
             }
              // Then build set of ref-refs to update.
-            UniqueArray<std::pair<Location, Location>> breaks;
+            UniqueArray<Break> breaks;
             for (auto other : others) {
                 scan_resource_references(
                     other,
@@ -675,7 +680,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         tree_from_file(resource_filename(output.name()));
     }, "Can't open file after calling remove_source");
     doesnt_throw([&]{ remove_source(output); }, "Can call remove_source twice");
-    Location loc;
+    SharedLocation loc;
     doesnt_throw([&]{
         item_from_string(&loc, cat('"', input.name().spec(), "#/bar+1\""));
     }, "Can read location from tree");

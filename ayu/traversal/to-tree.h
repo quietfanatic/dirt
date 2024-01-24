@@ -25,10 +25,10 @@ namespace ayu {
  //   4. delegate()
  // If none of the above are applicable, a CannotToTree exception will be
  // thrown.
-Tree item_to_tree (const Reference&, LocationRef loc = Location());
+Tree item_to_tree (const Reference&, LocationRef loc = {});
  // Slight optimization for pointers (the usual case)
 template <class T>
-Tree item_to_tree (T* item, LocationRef loc = Location()) {
+Tree item_to_tree (T* item, LocationRef loc = {}) {
     Reference ref = item;
     Tree r = item_to_tree(ref, loc);
     expect(!ref.acr);
@@ -50,7 +50,7 @@ struct DiagnosticSerialization {
 template <class T>
 UniqueString item_to_string (
     T&& item, PrintOptions opts = {},
-    LocationRef loc = Location()
+    LocationRef loc = {}
 ) {
     Tree t = item_to_tree(std::forward<T>(item), loc);
     return tree_to_string(t, opts);
@@ -58,7 +58,7 @@ UniqueString item_to_string (
 template <class T>
 void item_to_file (
     T&& item, AnyString filename,
-    PrintOptions opts = {}, LocationRef loc = Location()
+    PrintOptions opts = {}, LocationRef loc = {}
 ) {
     Tree t = item_to_tree(std::forward<T>(item), loc);
     return tree_to_file(t, move(filename), opts);

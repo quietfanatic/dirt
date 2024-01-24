@@ -15,10 +15,10 @@ struct SwizzleOp {
      // This can't be TreeRef because the referenced Tree could go away after a
      // nested from_tree is called with DelaySwizzle
     Tree tree;
-    Location loc;
+    SharedLocation loc;
 
     ALWAYS_INLINE
-    SwizzleOp (SwizzleFunc<Mu>* f, Reference&& i, const Tree& t, Location&& l) :
+    SwizzleOp (SwizzleFunc<Mu>* f, Reference&& i, const Tree& t, SharedLocation&& l) :
         f(f), item(move(i)), tree(t), loc(move(l))
     { }
      // Allow optimized reallocation
@@ -31,10 +31,10 @@ struct SwizzleOp {
 struct InitOp {
     InitFunc<Mu>* f;
     Reference item;
-    Location loc;
+    SharedLocation loc;
 
     ALWAYS_INLINE
-    InitOp (InitFunc<Mu>* f, Reference&& i, Location&& l) :
+    InitOp (InitFunc<Mu>* f, Reference&& i, SharedLocation&& l) :
         f(f), item(move(i)), loc(move(l))
     { }
      // Allow optimized reallocation
@@ -87,6 +87,9 @@ struct TraverseFromTree {
     void start_with_context (
         const Reference& item, const Tree& tree, LocationRef loc
     ) {
+         // Start a resource transaction so that dependency loads are all or
+         // nothing.
+        ResourceTransaction tr;
         IFTContext ctx;
         start_without_context(item, tree, loc);
         do_swizzle_init(ctx);
@@ -98,7 +101,7 @@ struct TraverseFromTree {
     void start_without_context (
         const Reference& item, const Tree& tree, LocationRef loc
     ) {
-        PushBaseLocation pbl(*loc ? *loc : Location(item));
+        PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         trav_start(item, loc, false, AccessMode::Write,
             [&tree](const Traversal& trav)
         { traverse(trav, tree); });
@@ -719,9 +722,6 @@ void item_from_tree (
     const Reference& item, const Tree& tree, LocationRef loc,
     FromTreeOptions opts
 ) {
-     // Start a resource transaction so that dependency loads are all or
-     // nothing.
-    ResourceTransaction tr;
     TraverseFromTree::start(item, tree, loc, opts);
 }
 

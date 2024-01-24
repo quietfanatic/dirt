@@ -12,7 +12,7 @@ using namespace in;
 
 [[gnu::cold]]
 void Reference::raise_WriteReadonly () const {
-    Location here = reference_to_location(*this);
+    SharedLocation here = reference_to_location(*this);
     raise(e_ReferenceReadonly, cat(
         "Can't write to readonly Reference of type ", type().name(),
         " at ", item_to_string(&here)
@@ -21,7 +21,7 @@ void Reference::raise_WriteReadonly () const {
 
 [[gnu::cold]]
 void Reference::raise_Unaddressable () const {
-    Location here = reference_to_location(*this);
+    SharedLocation here = reference_to_location(*this);
     raise(e_ReferenceUnaddressable, cat(
         "Can't get address of unaddressable Reference of type ", type().name(),
         " at ", item_to_string(&here)

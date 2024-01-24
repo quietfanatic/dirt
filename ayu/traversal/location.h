@@ -25,31 +25,24 @@
 
 namespace ayu {
 
- // Locations are a reference-counted pointer, so are cheap to copy.  Locations are
- // immutable once created.
-struct Location {
-    in::RCP<in::LocationData, in::delete_LocationData> data;
-     // The empty location cannot be transformed into a reference and will
-     // null-deref if you try to do anything but boolify it.
-    constexpr explicit Location (in::LocationData* p = null) : data(p) { } 
-    explicit operator bool () const { return !!data; }
-     // Constructs a root location from a Resource.
-    explicit Location (Resource) noexcept;
-     // Constructs a root location from an anonymous item.  as_iri() will return
-     // "anonymous-item:", and reference_from_location will return this
-     // Reference.
-    explicit Location (const Reference&) noexcept;
-     // Constructs a location based on another one with an added attribute key
-     // or element index.
-    Location (MoveRef<Location> parent, MoveRef<AnyString> key) noexcept;
-    Location (MoveRef<Location> parent, usize index) noexcept;
+ // TODO: enum class
+enum LocationForm {
+    RESOURCE,
+    REFERENCE,
+    KEY,
+    INDEX,
+};
 
-     // Returns null if this is not a resource root.
-    const Resource* resource () const noexcept;
+ // The abstract interface for Locations.
+struct Location : in::RefCounted {
+     // TODO: enum class
+    uint8 form;
+     // Returns empty if this is not a resource root.
+    Resource resource () const noexcept;
      // Returns null if this is not a reference root.
     const Reference* reference () const noexcept;
-     // Returns null if this is a root.
-    const Location* parent () const noexcept;
+     // Returns empty if this is a root.
+    LocationRef parent () const noexcept;
      // Returns null if this location is a root or has an index.
     const AnyString* key () const noexcept;
      // Returns null if this location is a root or has a key.
@@ -57,7 +50,43 @@ struct Location {
 
      // Walks down to the root Location (containing either a Resource or a
      // Reference) and returns it.
-    Location root () const noexcept;
+    LocationRef root () const noexcept;
+
+    protected:
+    Location (uint8 f) : form(f) { }
+};
+
+struct SharedLocation {
+    in::RCP<const Location, in::delete_Location> data;
+    explicit SharedLocation (const Location* p) : data(p) { }
+     // The empty location cannot be transformed into a reference and will
+     // null-deref if you try to do anything but boolify it.
+    constexpr SharedLocation () { }
+     // Constructs a root location from a Resource.
+    explicit SharedLocation (Resource) noexcept;
+     // Constructs a root location from an anonymous item.  as_iri() will return
+     // "anonymous-item:", and reference_from_location will return this
+     // Reference.
+    explicit SharedLocation (const Reference&) noexcept;
+     // Constructs a location based on another one with an added attribute key
+     // or element index.
+    SharedLocation (MoveRef<SharedLocation> parent, MoveRef<AnyString> key) noexcept;
+    SharedLocation (MoveRef<SharedLocation> parent, usize index) noexcept;
+
+    constexpr explicit operator bool () const { return !!data; }
+    const Location& operator* () const { return *data; }
+    const Location* operator-> () const { return data.p; }
+};
+
+struct LocationRef {
+    const Location* data;
+    constexpr LocationRef (SharedLocation p = {}) : data(p.data.p) { }
+    explicit LocationRef (const Location* p) : data(p) { }
+
+    constexpr explicit operator bool () const { return !!data; }
+    const Location& operator* () const { return *data; }
+    const Location* operator-> () const { return data; }
+    operator SharedLocation () const { return SharedLocation(data); }
 };
 
 ///// REFERENCE CONVERSION
@@ -93,23 +122,23 @@ IRI location_to_iri (LocationRef) noexcept;
  // Throws if there is anything between the # and the first / or +, or if a + is
  // followed by something that isn't a positive integer, or if the IRI is just
  // plain invalid.
-Location location_from_iri (const IRI& iri);
+SharedLocation location_from_iri (const IRI& iri);
 
 constexpr ErrorCode e_LocationIRIInvalid = "ayu::e_LocationIRIInvalid";
 
 ///// BASE MANAGEMENT
 
  // Get the current base location.  Always a Resource or Reference Location.
-Location current_base_location () noexcept;
+LocationRef current_base_location () noexcept;
  // The IRI corresponding to current_base_location().
  // When serializing IRIS with AYU, they will be read and written as relative
  // IRI reference strings, relative to this IRI.
 IRI current_base_iri () noexcept;
- // Temporarily set loc.root() as the current base location.  This is called in
+ // Temporarily set loc->root() as the current base location.  This is called in
  // item_to_tree and item_from_tree.
 struct PushBaseLocation {
-    Location old_base_location;
-    [[nodiscard]] PushBaseLocation (const Location& loc) noexcept;
+    SharedLocation old_base_location;
+    [[nodiscard]] PushBaseLocation (LocationRef loc) noexcept;
     ~PushBaseLocation ();
 };
 

@@ -10,35 +10,35 @@
 namespace ayu {
 namespace in {
 
-struct ResourceLocation : LocationData {
+struct ResourceLocation : Location {
     Resource resource;
     ResourceLocation (MoveRef<Resource> res) :
-        LocationData(RESOURCE), resource(*move(res))
+        Location(RESOURCE), resource(*move(res))
     { }
 };
 
 } using namespace in;
 
-Location::Location (Resource res) noexcept :
-    data(new ResourceLocation(move(res)))
+SharedLocation::SharedLocation (Resource res) noexcept :
+    data(new ResourceLocation(expect(move(res))))
 { }
 
-const Resource* Location::resource () const noexcept {
-    switch (data->form) {
-        case RESOURCE: return &static_cast<ResourceLocation*>(data.p)->resource;
-        default: return null;
+Resource Location::resource () const noexcept {
+    switch (form) {
+        case RESOURCE: return static_cast<const ResourceLocation*>(this)->resource;
+        default: return {};
     }
 }
 
 namespace in {
 
 NOINLINE
-void delete_LocationData (LocationData* p) noexcept {
+void delete_Location (const Location* p) noexcept {
     switch (p->form) {
-        case RESOURCE: delete static_cast<ResourceLocation*>(p); break;
-        case REFERENCE: delete static_cast<ReferenceLocation*>(p); break;
-        case KEY: delete static_cast<KeyLocation*>(p); break;
-        case INDEX: delete static_cast<IndexLocation*>(p); break;
+        case RESOURCE: delete static_cast<const ResourceLocation*>(p); break;
+        case REFERENCE: delete static_cast<const ReferenceLocation*>(p); break;
+        case KEY: delete static_cast<const KeyLocation*>(p); break;
+        case INDEX: delete static_cast<const IndexLocation*>(p); break;
         default: never();
     }
 }
@@ -48,17 +48,17 @@ void delete_LocationData (LocationData* p) noexcept {
  // It would be nice to be able to use Traversal for this, but this walks
  // upwards and Traversal only walks downwards.
 Reference reference_from_location (LocationRef loc) {
-    if (!*loc) return Reference();
-    switch (loc->data->form) {
-        case RESOURCE: return loc->resource()->ref();
+    if (!loc) return Reference();
+    switch (loc->form) {
+        case RESOURCE: return loc->resource().ref();
         case REFERENCE: return *loc->reference();
         case KEY: return item_attr(
-            reference_from_location(*loc->parent()),
-            *loc->key(), *loc->parent()
+            reference_from_location(loc->parent()),
+            *loc->key(), loc->parent()
         );
         case INDEX: return item_elem(
-            reference_from_location(*loc->parent()),
-            *loc->index(), *loc->parent()
+            reference_from_location(loc->parent()),
+            *loc->index(), loc->parent()
         );
         default: never();
     }
@@ -70,15 +70,15 @@ static constexpr IRI anonymous_iri ("ayu-anonymous:");
 
 NOINLINE static
 UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
-    switch (loc->data->form) {
-        case RESOURCE: base = &loc->resource()->name(); return "#";
+    switch (loc->form) {
+        case RESOURCE: base = &loc->resource().name(); return "#";
         case REFERENCE: base = &anonymous_iri; return "#";
         case KEY: return cat(
-            location_to_iri_accumulate(base, *loc->parent()),
+            location_to_iri_accumulate(base, loc->parent()),
             '/', *loc->key()
         );
         case INDEX: return cat(
-            location_to_iri_accumulate(base, *loc->parent()),
+            location_to_iri_accumulate(base, loc->parent()),
             '+', *loc->index()
         );
         default: never();
@@ -88,23 +88,23 @@ UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
 } // in
 
 IRI location_to_iri (LocationRef loc) noexcept {
-    if (!*loc) return IRI();
+    if (!loc) return IRI();
     const IRI* base;
     UniqueString fragment = location_to_iri_accumulate(base, loc);
     return IRI(fragment, *base);
 }
 
-Location location_from_iri (const IRI& iri) {
-    if (iri.empty()) return Location();
+SharedLocation location_from_iri (const IRI& iri) {
+    if (iri.empty()) return {};
     if (!iri) raise(e_LocationIRIInvalid, cat(
         "IRI is an invalid IRI by itself: ", iri.possibly_invalid_spec()
     ));
      // We could require that the location has a fragment, but instead lets
      // consider the lack of fragment to be equivalent to an empty fragment.
     auto root_iri = iri.chop_fragment();
-    Location r = root_iri == current_base_iri()
-        ? current_base_location()
-        : Location(Resource(root_iri));
+    auto r = root_iri == current_base_iri()
+        ? SharedLocation(current_base_location())
+        : SharedLocation(Resource(root_iri));
     Str fragment = iri.fragment();
     usize i = 0;
     while (i < fragment.size()) {
@@ -113,7 +113,7 @@ Location location_from_iri (const IRI& iri) {
             while (
                 i < fragment.size() && fragment[i] != '/' && fragment[i] != '+'
             ) ++i;
-            r = Location(move(r), iri::decode(fragment.slice(start, i)));
+            r = SharedLocation(move(r), iri::decode(fragment.slice(start, i)));
         }
         else if (fragment[i] == '+') {
             const char* start = fragment.begin() + ++i;
@@ -125,22 +125,25 @@ Location location_from_iri (const IRI& iri) {
                 iri.spec(), "invalid +index in #fragment"
             ));
             i += ptr - start;
-            r = Location(move(r), index);
+            r = SharedLocation(move(r), index);
         }
         else if (i == 0) raise(e_LocationIRIInvalid, cat(
             iri.spec(), "#fragment doesn't start with / or +"
         ));
-        else raise(e_LocationIRIInvalid, cat(
-            iri.spec(), "invalid +index in #fragment"
-        ));
+        else {
+             // We can get here if there's junk after a number.
+            raise(e_LocationIRIInvalid, cat(
+                iri.spec(), "invalid +index in #fragment"
+            ));
+        }
     }
     return r;
 }
 
-static Location cur_base_location;
+static SharedLocation cur_base_location;
 IRI cur_base_iri;
 
-Location current_base_location () noexcept { return cur_base_location; }
+LocationRef current_base_location () noexcept { return cur_base_location; }
 
 IRI current_base_iri () noexcept {
     if (!cur_base_iri) {
@@ -149,10 +152,10 @@ IRI current_base_iri () noexcept {
     return cur_base_iri;
 }
 
-PushBaseLocation::PushBaseLocation (const Location& loc) noexcept :
+PushBaseLocation::PushBaseLocation (LocationRef loc) noexcept :
     old_base_location(move(cur_base_location))
 {
-    cur_base_location = loc.root();
+    cur_base_location = loc->root();
     cur_base_iri = IRI();
 }
 PushBaseLocation::~PushBaseLocation () {
@@ -168,7 +171,7 @@ void rethrow_with_travloc (LocationRef loc) {
             {
                 DiagnosticSerialization ds;
                 e.details = cat(move(e.details),
-                    " (", item_to_string(&*loc), ')'
+                    " (", item_to_string(&loc), ')'
                 );
             }
         }
@@ -181,7 +184,7 @@ void rethrow_with_travloc (LocationRef loc) {
             DiagnosticSerialization ds;
             e.details = cat(
                 get_demangled_name(typeid(ex)), ": ", ex.what(),
-                " (", item_to_string(&*loc), ')'
+                " (", item_to_string(&loc), ')'
             );
         }
         e.has_travloc = true;
@@ -190,20 +193,25 @@ void rethrow_with_travloc (LocationRef loc) {
     }
 }
 
+NOINLINE static Tree location_to_tree (LocationRef v) {
+    auto iri = location_to_iri(v);
+    auto rel = iri.relative_to(current_base_iri());
+    return Tree(rel);
+}
+
 } using namespace ayu;
 
-AYU_DESCRIBE(ayu::Location,
-    to_tree([](const Location& v){
-        if (!v) return Tree("");
-        auto iri = location_to_iri(v);
-        return Tree(iri.relative_to(current_base_iri()));
-    }),
-    from_tree([](Location& v, const Tree& t){
+AYU_DESCRIBE(ayu::SharedLocation,
+    to_tree([](const SharedLocation& v){ return location_to_tree(v); }),
+    from_tree([](SharedLocation& v, const Tree& t){
         auto rel = Str(t);
-        if (!rel) v = Location();
         auto iri = IRI(rel, current_base_iri());
         v = location_from_iri(iri);
     })
+);
+
+AYU_DESCRIBE(ayu::LocationRef,
+    to_tree([](const LocationRef& v){ return location_to_tree(v); })
 );
 
 // TODO: more tests
@@ -216,8 +224,8 @@ static tap::TestSet tests ("dirt/ayu/traversal/location", []{
 
     test::TestEnvironment env;
 
-    auto loc = location_from_iri(IRI("ayu-test:/#/bar+1/bu%2Fp/+33+0/3//%2B/"));
-    const Location* l = &loc;
+    SharedLocation loc = location_from_iri(IRI("ayu-test:/#/bar+1/bu%2Fp/+33+0/3//%2B/"));
+    LocationRef l = loc;
     is(*l->key(), "", "Empty key");
     l = l->parent();
     is(*l->key(), "+", "Key with +");
@@ -238,7 +246,7 @@ static tap::TestSet tests ("dirt/ayu/traversal/location", []{
     l = l->parent();
     is(*l->key(), "bar", "String key");
     l = l->parent();
-    is(*l->resource(), Resource("ayu-test:/"), "Resource root");
+    is(l->resource(), Resource("ayu-test:/"), "Resource root");
     ok(!l->parent());
 
     done_testing();

@@ -17,10 +17,13 @@ struct Pointer {
     constexpr Pointer (Null n = null) : address(n) { }
     constexpr Pointer (Type t, Mu* a) : address(a), type(t) { }
 
-    template <class T>
-        requires (!std::is_same_v<std::remove_cv_t<T>, void>
-               && !std::is_same_v<std::remove_cv_t<T>, Mu>)
-    Pointer (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
+    template <class T> requires (
+        !std::is_same_v<std::remove_cv_t<T>, void> &&
+        !std::is_same_v<std::remove_cv_t<T>, Mu>
+    ) explicit (
+        std::is_same_v<std::remove_cv_t<T>, Pointer> ||
+        std::is_same_v<std::remove_cv_t<T>, Reference>
+    ) Pointer (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
 
      // Returns false if this Pointer is either (typed) null or (typeless)
      // empty.

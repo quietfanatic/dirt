@@ -15,22 +15,22 @@ namespace ayu {
 
  // Get a list of the keys in a object-like item.
 AnyArray<AnyString> item_get_keys (
-    const Reference&, LocationRef loc = Location()
+    const Reference&, LocationRef loc = {}
 );
  // Set the keys in an object-like item.  This may clear the entire contents
  // of the item.  If the item only accepts certain attribute keys, this may
  // throw e_AttrMissing or e_AttrRejected.
 void item_set_keys (
     const Reference&, AnyArray<AnyString>,
-    LocationRef loc = Location()
+    LocationRef loc = {}
 );
  // Get an attribute of an object-like item by its key, or empty Reference if
  // the attribute doesn't exist.
 Reference item_maybe_attr (
-    const Reference&, const AnyString&, LocationRef loc = Location());
+    const Reference&, const AnyString&, LocationRef loc = {});
  // Throws e_ElemNotFound if the attribute doesn't exist.  Guaranteed not to
  // return an empty or null Reference.
-Reference item_attr (const Reference&, const AnyString&, LocationRef loc = Location());
+Reference item_attr (const Reference&, const AnyString&, LocationRef loc = {});
 
 ///// OPERATIONS FOR ARRAY-LIKE TYPES
  // These use either the elems() descriptor or the keys() and elem_func()
@@ -38,22 +38,22 @@ Reference item_attr (const Reference&, const AnyString&, LocationRef loc = Locat
  // and if that isn't available, they throw e_ElemsNotSupported.
 
  // Get the length of an array-like item.
-usize item_get_length (const Reference&, LocationRef loc = Location());
+usize item_get_length (const Reference&, LocationRef loc = {});
  // Set the length of an array-like item.  This may clear some or all of the
  // contents of the item.  If the item only allows certain lengths, this may
  // throw e_WrongLength.
 void item_set_length (
-    const Reference&, usize, LocationRef loc = Location()
+    const Reference&, usize, LocationRef loc = {}
 );
  // Get an element of an array-like item by its index.  Returns an empty
  // Reference if the element doesn't exist.
 Reference item_maybe_elem (
-    const Reference&, usize, LocationRef loc = Location()
+    const Reference&, usize, LocationRef loc = {}
 );
  // Throws e_ElemNotFound if the element doesn't exist.  Guaranteed not to return
  // an empty or null Reference.
 Reference item_elem (
-    const Reference&, usize, LocationRef loc = Location()
+    const Reference&, usize, LocationRef loc = {}
 );
 
  // The set_keys operation (which is also part of the item_from_tree process)
