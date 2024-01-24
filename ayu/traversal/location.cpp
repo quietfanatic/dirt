@@ -13,7 +13,7 @@ namespace in {
 struct ResourceLocation : Location {
     Resource resource;
     ResourceLocation (MoveRef<Resource> res) :
-        Location(RESOURCE), resource(*move(res))
+        Location(LF::Resource), resource(*move(res))
     { }
 };
 
@@ -25,7 +25,7 @@ SharedLocation::SharedLocation (Resource res) noexcept :
 
 Resource Location::resource () const noexcept {
     switch (form) {
-        case RESOURCE: return static_cast<const ResourceLocation*>(this)->resource;
+        case LF::Resource: return static_cast<const ResourceLocation*>(this)->resource;
         default: return {};
     }
 }
@@ -35,10 +35,10 @@ namespace in {
 NOINLINE
 void delete_Location (const Location* p) noexcept {
     switch (p->form) {
-        case RESOURCE: delete static_cast<const ResourceLocation*>(p); break;
-        case REFERENCE: delete static_cast<const ReferenceLocation*>(p); break;
-        case KEY: delete static_cast<const KeyLocation*>(p); break;
-        case INDEX: delete static_cast<const IndexLocation*>(p); break;
+        case LF::Resource: delete static_cast<const ResourceLocation*>(p); break;
+        case LF::Reference: delete static_cast<const ReferenceLocation*>(p); break;
+        case LF::Key: delete static_cast<const KeyLocation*>(p); break;
+        case LF::Index: delete static_cast<const IndexLocation*>(p); break;
         default: never();
     }
 }
@@ -50,13 +50,13 @@ void delete_Location (const Location* p) noexcept {
 Reference reference_from_location (LocationRef loc) {
     if (!loc) return Reference();
     switch (loc->form) {
-        case RESOURCE: return loc->resource().ref();
-        case REFERENCE: return *loc->reference();
-        case KEY: return item_attr(
+        case LF::Resource: return loc->resource().ref();
+        case LF::Reference: return *loc->reference();
+        case LF::Key: return item_attr(
             reference_from_location(loc->parent()),
             *loc->key(), loc->parent()
         );
-        case INDEX: return item_elem(
+        case LF::Index: return item_elem(
             reference_from_location(loc->parent()),
             *loc->index(), loc->parent()
         );
@@ -71,13 +71,13 @@ static constexpr IRI anonymous_iri ("ayu-anonymous:");
 NOINLINE static
 UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
     switch (loc->form) {
-        case RESOURCE: base = &loc->resource().name(); return "#";
-        case REFERENCE: base = &anonymous_iri; return "#";
-        case KEY: return cat(
+        case LF::Resource: base = &loc->resource().name(); return "#";
+        case LF::Reference: base = &anonymous_iri; return "#";
+        case LF::Key: return cat(
             location_to_iri_accumulate(base, loc->parent()),
             '/', *loc->key()
         );
-        case INDEX: return cat(
+        case LF::Index: return cat(
             location_to_iri_accumulate(base, loc->parent()),
             '+', *loc->index()
         );

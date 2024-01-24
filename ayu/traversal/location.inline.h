@@ -7,21 +7,21 @@ namespace in {
 struct ReferenceLocation : Location {
     Reference reference;
     ReferenceLocation (MoveRef<Reference> ref) :
-        Location(REFERENCE), reference(*move(ref))
+        Location(LF::Reference), reference(*move(ref))
     { }
 };
 struct KeyLocation : Location {
     SharedLocation parent;
     AnyString key;
     KeyLocation (MoveRef<SharedLocation> p, MoveRef<AnyString> k) :
-        Location(KEY), parent(*move(p)), key(*move(k))
+        Location(LF::Key), parent(*move(p)), key(*move(k))
     { }
 };
 struct IndexLocation : Location {
     SharedLocation parent;
     uint32 index;
     IndexLocation (MoveRef<SharedLocation> p, usize i) :
-        Location(INDEX), parent(*move(p)), index(i)
+        Location(LF::Index), parent(*move(p)), index(i)
     { expect(index == i); }
 };
 
@@ -39,7 +39,7 @@ inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, usize i) noexc
 
 inline const Reference* Location::reference () const noexcept {
     switch (form) {
-        case REFERENCE:
+        case LF::Reference:
             return &static_cast<const in::ReferenceLocation*>(this)->reference;
         default: return null;
     }
@@ -47,20 +47,22 @@ inline const Reference* Location::reference () const noexcept {
 
 inline LocationRef Location::parent () const noexcept {
     switch (form) {
-        case KEY: return static_cast<const in::KeyLocation*>(this)->parent;
-        case INDEX: return static_cast<const in::IndexLocation*>(this)->parent;
+        case LF::Key: return static_cast<const in::KeyLocation*>(this)->parent;
+        case LF::Index:
+            return static_cast<const in::IndexLocation*>(this)->parent;
         default: return {};
     }
 }
 inline const AnyString* Location::key () const noexcept {
     switch (form) {
-        case KEY: return &static_cast<const in::KeyLocation*>(this)->key;
+        case LF::Key: return &static_cast<const in::KeyLocation*>(this)->key;
         default: return null;
     }
 }
 inline const uint32* Location::index () const noexcept {
     switch (form) {
-        case INDEX: return &static_cast<const in::IndexLocation*>(this)->index;
+        case LF::Index:
+            return &static_cast<const in::IndexLocation*>(this)->index;
         default: return null;
     }
 }

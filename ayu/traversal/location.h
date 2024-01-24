@@ -25,18 +25,17 @@
 
 namespace ayu {
 
- // TODO: enum class
-enum LocationForm {
-    RESOURCE,
-    REFERENCE,
-    KEY,
-    INDEX,
+enum class LocationForm : uint8 {
+    Resource,
+    Reference,
+    Key,
+    Index,
 };
+using LF = LocationForm;
 
  // The abstract interface for Locations.
 struct Location : in::RefCounted {
-     // TODO: enum class
-    uint8 form;
+    LocationForm form;
      // Returns empty if this is not a resource root.
     Resource resource () const noexcept;
      // Returns null if this is not a reference root.
@@ -53,7 +52,7 @@ struct Location : in::RefCounted {
     LocationRef root () const noexcept;
 
     protected:
-    Location (uint8 f) : form(f) { }
+    Location (LocationForm f) : form(f) { }
 };
 
 struct SharedLocation {
