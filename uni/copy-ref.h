@@ -196,7 +196,9 @@ struct MoveRef {
     MoveRef& operator= (const MoveRef&) = delete;
      // Construction
     template <class... Args>
-    ALWAYS_INLINE MoveRef (Args&&... args) {
+    ALWAYS_INLINE MoveRef (Args&&... args) requires (
+        requires { T(std::forward<Args>(args)...); }
+    ) {
 #ifndef NDEBUG
         active = true;
 #endif

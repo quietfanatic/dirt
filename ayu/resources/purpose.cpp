@@ -15,24 +15,15 @@ struct PushCurrentPurpose {
     }
 };
 
-static SharedResource* find_in_purpose (Purpose& self, ResourceRef res) {
-     // res may be invalid, don't deref
-    for (auto& r : self.resources) {
-        if (r == res) return &r;
-    }
-    return null;
-}
-
 static void add_to_purpose (Purpose& self, ResourceRef res) {
-    if (find_in_purpose(self, res)) return;
+    if (self.find(res)) return;
     self.resources.push_back(res);
     auto data = static_cast<ResourceData*>(res.data);
     data->purpose_count++;
 }
 
 static void remove_from_purpose (Purpose& self, ResourceRef res) {
-     // res may be invalid, don't deref
-    if (auto p = find_in_purpose(self, res)) {
+    if (auto p = self.find(res)) {
         self.resources.erase(p);
         auto data = static_cast<ResourceData*>(res.data);
         --data->purpose_count;
@@ -52,7 +43,12 @@ void Purpose::acquire (ResourceRef res) {
     if (ResourceTransaction::depth) {
         struct AcquireCommitter : Committer {
             Purpose* self;
-            ResourceRef res;  // May be invalid, don't deref.
+             // Keep a reference count for this resource.  We considered keeping
+             // a ResourceRef instead because we're never going to dereference
+             // it, but there's a possibility of another ResourceData being
+             // allocated that just happens to have the same address, which
+             // could cause problems.
+            SharedResource res;
             AcquireCommitter (Purpose* s, ResourceRef r) : self(s), res(r) { }
             void rollback () noexcept override {
                 remove_from_purpose(*self, res);
@@ -69,7 +65,7 @@ void Purpose::acquire (ResourceRef res) {
 }
 
 void Purpose::release (ResourceRef res) {
-    if (!find_in_purpose(*this, res)) {
+    if (!find(res)) {
         raise(e_ResourceNotInPurpose,
             "Cannot release Resource from Purpose that doesn't have it."
         );
@@ -119,6 +115,11 @@ void Purpose::release_all () {
             new ReleaseAllCommitter(this, move(reses))
         );
     }
+}
+
+SharedResource* Purpose::find (ResourceRef res) {
+    for (auto& r : resources) if (r == res) return &r;
+    return null;
 }
 
 Purpose general_purpose;

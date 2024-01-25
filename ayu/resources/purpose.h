@@ -18,11 +18,15 @@ struct Purpose {
      // Remove all resources from this purpose.  Can be rolled back with a
      // ResourceTransaction.
     void release_all ();
+     // Returns null if the given resource isn't in this purpose.
+    SharedResource* find (ResourceRef);
     ~Purpose () { release_all(); }
 };
 
  // The purpose resources will be acquired by if there is not other current
- // purpose.
+ // purpose.  This purpose is a bit special in that if unload() is called on a
+ // resource and it's in the general_purpose, it'll be released from the
+ // general_purpose.
 extern Purpose general_purpose;
  // Whatever purpose is currently acquiring or releasing resources.
 extern Purpose* current_purpose;

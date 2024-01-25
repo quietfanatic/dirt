@@ -340,13 +340,21 @@ void save (ResourceRef res) {
     }
 }
 
+NOINLINE static void unload_commit (ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
+    data->state = RS::UnloadCommitting;
+    data->value = {};
+    data->state = RS::Unloaded;
+    if (auto p = general_purpose.find(res)) {
+        general_purpose.resources.erase(p);
+        expect(data->purpose_count);
+        --data->purpose_count;
+    }
+}
+
 NOINLINE static void unload_commit (MoveRef<UniqueArray<SharedResource>> rs) {
     auto reses = *move(rs);
-    reses.consume([](SharedResource&& res){
-        auto data = static_cast<ResourceData*>(res.data.p);
-        data->value = {};
-        data->state = RS::Unloaded;
-    });
+    reses.consume([](SharedResource&& res){ unload_commit(res); });
 }
 
 void unload (Slice<ResourceRef> reses) {
@@ -428,13 +436,6 @@ void unload (Slice<ResourceRef> reses) {
     else unload_commit(move(rs));
 }
 
-NOINLINE static void force_unload_commit (ResourceRef res) {
-    auto data = static_cast<ResourceData*>(res.data);
-    data->state = RS::UnloadCommitting;
-    data->value = {};
-    data->state = RS::Unloaded;
-}
-
 void force_unload (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
     switch (data->state) {
@@ -447,11 +448,11 @@ void force_unload (ResourceRef res) {
         struct ForceUnloadCommitter : Committer {
             SharedResource res;
             ForceUnloadCommitter (SharedResource&& r) : res(move(r)) { }
-            void commit () noexcept override { force_unload_commit(res); }
+            void commit () noexcept override { unload_commit(res); }
         };
         ResourceTransaction::add_committer(new ForceUnloadCommitter(res));
     }
-    else force_unload_commit(res);
+    else unload_commit(res);
 }
 
 struct Update {
