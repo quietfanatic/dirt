@@ -931,6 +931,31 @@ struct ArrayInterface {
         return mut_substr(start, length);
     }
 
+     // Take a reinterpreted view.  TODO: Should these return GenericStr for
+     // string types?
+    template <class T2> ALWAYS_INLINE constexpr
+    Slice<T2> const_reinterpret () const {
+        static_assert(sizeof(T) == sizeof(T2),
+            "Cannot reinterpret array elements of different sizes."
+        );
+        return Slice<T2>(reinterpret_cast<const T2*>(const_data()), size());
+    }
+    template <class T2> ALWAYS_INLINE constexpr
+    MutSlice<T2> mut_reinterpret () requires (
+        ac::mut_default || ac::supports_owned
+    ) {
+        static_assert(sizeof(T) == sizeof(T2),
+            "Cannot reinterpret array elements of different sizes."
+        );
+        return MutSlice<T2>(reinterpret_cast<T2*>(mut_data()), size());
+    }
+    template <class T2> ALWAYS_INLINE constexpr
+    Slice<T2> reinterpret () const { return const_reinterpret<T2>(); }
+    template <class T2> ALWAYS_INLINE constexpr
+    MutSlice<T2> reinterpret () requires (ac::mut_default) {
+        return mut_reinterpret<T2>();
+    }
+
      // Get the current capacity of the owned buffer.  If this array is not
      // owned, returns 0 even if the array is not empty.
     ALWAYS_INLINE constexpr

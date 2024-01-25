@@ -90,10 +90,10 @@ bool scan_references (
  // determined from the resource's name.  This silently does nothing and returns
  // false if the resource's state is UNLOADED.
 bool scan_resource_pointers (
-    const Resource& res, CallbackRef<bool(Pointer, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(Pointer, LocationRef)> cb
 );
 bool scan_resource_references (
-    const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(const Reference&, LocationRef)> cb
 );
  // Scan all loaded resources.
 bool scan_universe_pointers (

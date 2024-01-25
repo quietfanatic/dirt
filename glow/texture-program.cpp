@@ -27,7 +27,7 @@ void draw_texture (const Texture& tex, const Rect& screen_rect, const Rect& tex_
     require(tex.target == GL_TEXTURE_2D);
 
     static TextureProgram* program =
-        ayu::Resource("res:/dirt/glow/texture-program.ayu")["program"][1];
+        ayu::ResourceRef("res:/dirt/glow/texture-program.ayu")["program"][1];
     program->use();
 
     glUniform1fv(program->u_screen_rect, 4, &screen_rect.l);
@@ -55,7 +55,7 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
 
     ImageTexture* tex;
     doesnt_throw([&]{
-        tex = ayu::Resource("test:/texture-test.ayu")["texture"][1];
+        tex = ayu::ResourceRef("test:/texture-test.ayu")["texture"][1];
     }, "Can load texture");
 
     RGBA8 bg = uint32(0x331100ee);

@@ -25,6 +25,8 @@ struct Document;
 
  // resources/resource.h
 struct Resource;
+struct SharedResource;
+struct ResourceRef;
 
  // traversal/location.h
 struct Location;

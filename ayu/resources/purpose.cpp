@@ -1,7 +1,6 @@
 #include "purpose.h"
 
 #include "resource.private.h"
-#include "universe.private.h"
 
 namespace ayu {
 namespace in {
@@ -16,29 +15,33 @@ struct PushCurrentPurpose {
     }
 };
 
-static Resource* find_in_purpose (Purpose& self, Resource res) {
+static SharedResource* find_in_purpose (Purpose& self, ResourceRef res) {
+     // res may be invalid, don't deref
     for (auto& r : self.resources) {
         if (r == res) return &r;
     }
     return null;
 }
 
-static void add_to_purpose (Purpose& self, Resource res) {
+static void add_to_purpose (Purpose& self, ResourceRef res) {
     if (find_in_purpose(self, res)) return;
     self.resources.push_back(res);
-    res.data->purpose_count++;
+    auto data = static_cast<ResourceData*>(res.data);
+    data->purpose_count++;
 }
 
-static void remove_from_purpose (Purpose& self, Resource res) {
+static void remove_from_purpose (Purpose& self, ResourceRef res) {
+     // res may be invalid, don't deref
     if (auto p = find_in_purpose(self, res)) {
         self.resources.erase(p);
-        --res.data->purpose_count;
+        auto data = static_cast<ResourceData*>(res.data);
+        --data->purpose_count;
     }
 }
 
 } using namespace in;
 
-void Purpose::acquire (Resource res) {
+void Purpose::acquire (ResourceRef res) {
     add_to_purpose(*this, res);
     PushCurrentPurpose _(this);
     try {
@@ -49,8 +52,8 @@ void Purpose::acquire (Resource res) {
     if (ResourceTransaction::depth) {
         struct AcquireCommitter : Committer {
             Purpose* self;
-            Resource res;
-            AcquireCommitter (Purpose* s, Resource r) : self(s), res(r) { }
+            ResourceRef res;  // May be invalid, don't deref.
+            AcquireCommitter (Purpose* s, ResourceRef r) : self(s), res(r) { }
             void rollback () noexcept override {
                 remove_from_purpose(*self, res);
                  // If remove_from_purpose returns false, it means we didn't
@@ -65,13 +68,14 @@ void Purpose::acquire (Resource res) {
     }
 }
 
-void Purpose::release (Resource res) {
+void Purpose::release (ResourceRef res) {
     if (!find_in_purpose(*this, res)) {
         raise(e_ResourceNotInPurpose,
             "Cannot release Resource from Purpose that doesn't have it."
         );
     }
-    if (!--res.data->purpose_count) {
+    auto data = static_cast<ResourceData*>(res.data);
+    if (!--data->purpose_count) {
         unload(res);
     }
      // Don't reuse iterator from find_in_purpose, it might have been
@@ -80,8 +84,8 @@ void Purpose::release (Resource res) {
     if (ResourceTransaction::depth) {
         struct ReleaseCommitter : Committer {
             Purpose* self;
-            Resource res;
-            ReleaseCommitter (Purpose* s, Resource r) : self(s), res(r) { }
+            SharedResource res;
+            ReleaseCommitter (Purpose* s, ResourceRef r) : self(s), res(r) { }
             void rollback () noexcept override {
                 add_to_purpose(*self, res);
             }
@@ -95,15 +99,16 @@ void Purpose::release (Resource res) {
 void Purpose::release_all () {
     auto reses = move(resources);
     for (auto& res : reses) {
-        if (!--res.data->purpose_count) {
+        auto data = static_cast<ResourceData*>(res.data.p);
+        if (!--data->purpose_count) {
             unload(res);
         }
     }
     if (ResourceTransaction::depth) {
         struct ReleaseAllCommitter : Committer {
             Purpose* self;
-            UniqueArray<Resource> reses;
-            ReleaseAllCommitter (Purpose* s, UniqueArray<Resource>&& r) :
+            UniqueArray<SharedResource> reses;
+            ReleaseAllCommitter (Purpose* s, UniqueArray<SharedResource>&& r) :
                 self(s), reses(move(r))
             { }
             void rollback () noexcept override {

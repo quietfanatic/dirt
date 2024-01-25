@@ -21,26 +21,26 @@ namespace ayu {
 namespace in {
 
 [[noreturn, gnu::cold]]
-static void raise_ResourceStateInvalid (StaticString tried, Resource res) {
+static void raise_ResourceStateInvalid (StaticString tried, ResourceRef res) {
     raise(e_ResourceStateInvalid, cat(
-        "Can't ", tried, ' ', res.name().spec(),
-        " when its state is ", show_ResourceState(res.state())
+        "Can't ", tried, ' ', res->name().spec(),
+        " when its state is ", show_ResourceState(res->state())
     ));
 }
 
 [[noreturn, gnu::cold]]
-static void raise_ResourceValueEmpty (StaticString tried, Resource res) {
+static void raise_ResourceValueEmpty (StaticString tried, ResourceRef res) {
     raise(e_ResourceValueInvalid, cat(
-        "Can't ", tried, ' ', res.name().spec(), " with empty value"
+        "Can't ", tried, ' ', res->name().spec(), " with empty value"
     ));
 }
 
 [[noreturn, gnu::cold]]
 static void raise_ResourceTypeRejected (
-    StaticString tried, Resource res, Type type
+    StaticString tried, ResourceRef res, Type type
 ) {
     raise(e_ResourceTypeRejected, cat(
-        "Can't ", tried, ' ', res.name().spec(), " with type ", type.name()
+        "Can't ", tried, ' ', res->name().spec(), " with type ", type.name()
     ));
 }
 
@@ -76,7 +76,7 @@ struct TypeAndTree {
 };
 
 static TypeAndTree verify_tree_for_scheme (
-    Resource res,
+    ResourceRef res,
     const ResourceScheme* scheme,
     const Tree& tree
 ) {
@@ -92,6 +92,13 @@ static TypeAndTree verify_tree_for_scheme (
         return {type, a[1]};
     }
     else raise_LengthRejected(Type::CppType<Dynamic>(), 2, 2, a.size());
+}
+
+template <class T>
+static void set_states (const T& rs, ResourceState state) {
+    for (auto r : rs) {
+        static_cast<ResourceData&>(*r).state = state;
+    }
 }
 
 } using namespace in;
@@ -115,9 +122,75 @@ StaticString show_ResourceState (ResourceState state) noexcept {
     }
 }
 
-///// RESOURCES
+///// ACCESSORS
 
-Resource::Resource (const IRI& name) {
+const IRI& Resource::name () const noexcept {
+    return static_cast<const ResourceData*>(this)->name;
+}
+ResourceState Resource::state () const noexcept {
+    return static_cast<const ResourceData*>(this)->state;
+}
+
+Dynamic& Resource::value () {
+    auto data = static_cast<ResourceData*>(this);
+    switch (data->state) {
+        case RS::LoadCancelling:
+        case RS::UnloadReady:
+        case RS::UnloadCommitting:
+            raise_ResourceStateInvalid("value", ResourceRef(this));
+        case RS::Unloaded: load(ResourceRef(this)); break;
+        default: break;
+    }
+    return data->value;
+}
+Dynamic& Resource::get_value () noexcept {
+    return static_cast<ResourceData*>(this)->value;
+}
+
+void Resource::set_value (MoveRef<Dynamic> value) {
+    auto data = static_cast<ResourceData*>(this);
+    Dynamic v = *move(value);
+    switch (data->state) {
+        case RS::Unloaded:
+        case RS::Loaded: break;
+        default: raise_ResourceStateInvalid("set_value", this);
+    }
+    if (!v.has_value()) {
+        raise_ResourceValueEmpty("set_value", this);
+    }
+    if (data->name) {
+        auto scheme = universe().require_scheme(data->name);
+        if (!scheme->accepts_type(v.type)) {
+            raise_ResourceTypeRejected("set_value", this, v.type);
+        }
+    }
+    data->value = move(v);
+    if (data->state == RS::Unloaded) {
+        if (ResourceTransaction::depth) {
+            data->state = RS::LoadReady;
+            struct SetValueCommitter : Committer {
+                SharedResource res;
+                SetValueCommitter (SharedResource&& r) : res(move(r)) { }
+                void commit () noexcept override {
+                    auto data = static_cast<ResourceData*>(res.data.p);
+                    data->state = RS::Loaded;
+                }
+                void rollback () noexcept override {
+                    auto data = static_cast<ResourceData*>(res.data.p);
+                    data->state = RS::LoadCancelling;
+                    data->value = {};
+                    data->state = RS::Unloaded;
+                }
+            };
+            ResourceTransaction::add_committer(new SetValueCommitter(this));
+        }
+        else data->state = RS::Loaded;
+    }
+}
+
+///// CONSTRUCTION, DESTRUCTION
+
+SharedResource::SharedResource (const IRI& name) {
     if (!name || name.has_fragment()) {
         raise(e_ResourceNameInvalid, name.possibly_invalid_spec());
     }
@@ -128,109 +201,54 @@ Resource::Resource (const IRI& name) {
     auto& resources = universe().resources;
     auto iter = resources.find(name.spec());
     if (iter != resources.end()) {
-        data = &*iter->second;
+        data = iter->second.data;
     }
     else {
-        auto ptr = std::make_unique<ResourceData>(name);
-        data = &*ptr;
-         // Be careful about storing the right Str
-        resources.emplace(data->name.spec(), move(ptr));
+        expect(!data);
+        data = new ResourceData(name);
+         // Be careful about storing the right Str.  Well okay, technically it
+         // doesn't matter since the strings are refcounted and share the same
+         // buffer, but
+        resources.emplace(data->name().spec(), *this);
     }
 }
-Resource::Resource (Str ref) :
-    Resource(IRI(ref, current_base_iri()))
+SharedResource::SharedResource (Str ref) :
+    SharedResource(IRI(ref, current_base_iri()))
 { }
 
-Resource::Resource (const IRI& name, MoveRef<Dynamic> value) :
-    Resource(name)
+SharedResource::SharedResource (const IRI& name, MoveRef<Dynamic> value) :
+    SharedResource(name)
 {
     Dynamic v = *move(value);
     if (!v.has_value()) {
         raise_ResourceValueEmpty("construct", *this);
     }
-    if (data->state == RS::Unloaded) set_value(move(v));
-    else {
-        raise_ResourceStateInvalid("construct", *this);
-    }
+    else if (data->state() == RS::Unloaded) data->set_value(move(v));
+    else raise_ResourceStateInvalid("construct", *this);
 }
 
-const IRI& Resource::name () const noexcept { return data->name; }
-ResourceState Resource::state () const noexcept { return data->state; }
-
-Dynamic& Resource::value () const {
-    switch (data->state) {
-        case RS::LoadCancelling:
-        case RS::UnloadReady:
-        case RS::UnloadCommitting:
-            raise_ResourceStateInvalid("value", *this);
-        case RS::Unloaded: load(*this); break;
-        default: break;
-    }
-    return data->value;
-}
-Dynamic& Resource::get_value () const noexcept {
-    return data->value;
-}
-
-void Resource::set_value (MoveRef<Dynamic> value) const {
-    Dynamic v = *move(value);
-    switch (data->state) {
-        case RS::Unloaded:
-        case RS::Loaded: break;
-        default: raise_ResourceStateInvalid("set_value", *this);
-    }
-    if (!v.has_value()) {
-        raise_ResourceValueEmpty("set_value", *this);
-    }
-    if (data->name) {
-        auto scheme = universe().require_scheme(data->name);
-        if (!scheme->accepts_type(v.type)) {
-            raise_ResourceTypeRejected("set_value", *this, v.type);
-        }
-    }
-    data->value = move(v);
-    if (data->state == RS::Unloaded) {
-        if (ResourceTransaction::depth) {
-            data->state = RS::LoadReady;
-            struct SetValueCommitter : Committer {
-                Resource res;
-                SetValueCommitter (Resource r) : res(r) { }
-                void commit () noexcept override {
-                    res.data->state = RS::Loaded;
-                }
-                void rollback () noexcept override {
-                    res.data->state = RS::LoadCancelling;
-                    res.data->value = {};
-                    res.data->state = RS::Unloaded;
-                }
-            };
-            ResourceTransaction::add_committer(new SetValueCommitter(*this));
-        }
-        else data->state = RS::Loaded;
-    }
-}
-
-Reference Resource::ref () const {
-    return value().ptr();
-}
-Reference Resource::get_ref () const noexcept {
-    return get_value().ptr();
+void in::delete_Resource (Resource* res) noexcept {
+    auto data = static_cast<ResourceData*>(res);
+    universe().resources.erase(data->name.spec());
+    delete data;
 }
 
 ///// RESOURCE OPERATIONS
 
-void load (Resource res) {
+void load (ResourceRef res) {
     current_purpose->acquire(res);
 }
 
-static void load_cancel (Resource res) {
-    res.data->state = RS::LoadCancelling;
-    res.data->value = {};
-    res.data->state = RS::Unloaded;
+static void load_cancel (ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
+    data->state = RS::LoadCancelling;
+    data->value = {};
+    data->state = RS::Unloaded;
 }
 
-void in::load_under_purpose (Resource res) {
-    switch (res.data->state) {
+void in::load_under_purpose (ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
+    switch (data->state) {
         case RS::Loaded:
         case RS::LoadConstructing:
         case RS::LoadReady: return;
@@ -238,31 +256,31 @@ void in::load_under_purpose (Resource res) {
         default: raise_ResourceStateInvalid("load", res);
     }
 
-    res.data->state = RS::LoadConstructing;
+    data->state = RS::LoadConstructing;
     try {
-        auto scheme = universe().require_scheme(res.data->name);
-        auto filename = scheme->get_file(res.data->name);
+        auto scheme = universe().require_scheme(data->name);
+        auto filename = scheme->get_file(data->name);
         Tree tree = tree_from_file(move(filename));
         auto tnt = verify_tree_for_scheme(res, scheme, tree);
-        expect(!res.data->value.has_value());
+        expect(!data->value.has_value());
          // Run item_from_tree on the Dynamic's value, not on the Dynamic
          // itself.  Otherwise, the associated locations will have an extra +1
          // in the fragment.
-        res.data->value = Dynamic(tnt.type);
+        data->value = Dynamic(tnt.type);
         item_from_tree(
-            res.data->value.ptr(), tnt.tree, SharedLocation(res),
+            data->value.ptr(), tnt.tree, SharedLocation(res),
             FromTreeOptions::DelaySwizzle
         );
     }
     catch (...) { load_cancel(res); throw; }
 
     if (ResourceTransaction::depth) {
-        res.data->state = RS::LoadReady;
+        data->state = RS::LoadReady;
         struct LoadCommitter : Committer {
-            Resource res;
-            LoadCommitter (Resource r) : res(r) { }
+            SharedResource res;
+            LoadCommitter (SharedResource&& r) : res(move(r)) { }
             void commit () noexcept override {
-                res.data->state = RS::Loaded;
+                static_cast<ResourceData&>(*res).state = RS::Loaded;
             };
             void rollback () noexcept override {
                 load_cancel(res);
@@ -273,29 +291,30 @@ void in::load_under_purpose (Resource res) {
         );
     }
     else {
-        res.data->state = RS::Loaded;
+        data->state = RS::Loaded;
     }
 }
 
-void save (Resource res) {
-    switch (res.data->state) {
+void save (ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
+    switch (data->state) {
         case RS::Loaded: break;
         default: raise_ResourceStateInvalid("save", res);
     }
 
     KeepLocationCache klc;
-    if (!res.data->value.has_value()) {
+    if (!data->value.has_value()) {
         raise_ResourceValueEmpty("save", res);
     }
-    auto scheme = universe().require_scheme(res.data->name);
-    if (!scheme->accepts_type(res.data->value.type)) {
-        raise_ResourceTypeRejected("save", res, res.data->value.type);
+    auto scheme = universe().require_scheme(data->name);
+    if (!scheme->accepts_type(data->value.type)) {
+        raise_ResourceTypeRejected("save", res, data->value.type);
     }
-    auto filename = scheme->get_file(res.data->name);
+    auto filename = scheme->get_file(data->name);
      // Do type and value separately, because the Location refers to the value,
      // not the whole Dynamic.
-    auto type_tree = item_to_tree(&res.data->value.type);
-    auto value_tree = item_to_tree(res.data->value.ptr(), SharedLocation(res));
+    auto type_tree = item_to_tree(&data->value.type);
+    auto value_tree = item_to_tree(data->value.ptr(), SharedLocation(res));
     auto contents = tree_to_string(
         Tree::array(move(type_tree), move(value_tree)),
         PrintOptions::Pretty
@@ -324,18 +343,19 @@ void save (Resource res) {
     }
 }
 
-NOINLINE static void unload_commit (MoveRef<UniqueArray<Resource>> rs) {
+NOINLINE static void unload_commit (MoveRef<UniqueArray<SharedResource>> rs) {
     auto reses = *move(rs);
-    reses.consume([](Resource&& res){
-        res.data->value = {};
-        res.data->state = RS::Unloaded;
+    reses.consume([](SharedResource&& res){
+        auto data = static_cast<ResourceData*>(res.data.p);
+        data->value = {};
+        data->state = RS::Unloaded;
     });
 }
 
-void unload (Slice<Resource> reses) {
-    UniqueArray<Resource> rs;
+void unload (Slice<ResourceRef> reses) {
+    UniqueArray<SharedResource> rs;
     for (auto res : reses)
-    switch (res.data->state) {
+    switch (res->state()) {
         case RS::Unloaded:
         case RS::UnloadReady: continue;
         case RS::Loaded: rs.push_back(res); break;
@@ -343,21 +363,21 @@ void unload (Slice<Resource> reses) {
     }
      // Verify step
     try {
-        for (auto res : rs) res.data->state = RS::UnloadVerifying;
-        UniqueArray<Resource> others;
+        set_states(rs, RS::UnloadVerifying);
+        UniqueArray<SharedResource> others;
         for (auto& [name, other] : universe().resources) {
-            switch (other->state) {
+            switch (other->state()) {
                 case RS::Unloaded: continue;
                 case RS::UnloadVerifying: continue;
-                case RS::Loaded: others.emplace_back(&*other); break;
-                default: raise_ResourceStateInvalid("scan for unload", &*other);
+                case RS::Loaded: others.emplace_back(other); break;
+                default: raise_ResourceStateInvalid("scan for unload", other);
             }
         }
          // If we're unloading everything, no need to do any scanning.
         if (others) {
              // First build set of references to things being unloaded
             std::unordered_map<Reference, SharedLocation> ref_set;
-            for (auto res : rs) {
+            for (ResourceRef res : rs) {
                 scan_resource_references(
                     res,
                     [&ref_set](const Reference& ref, LocationRef loc) {
@@ -368,7 +388,7 @@ void unload (Slice<Resource> reses) {
             }
              // Then check if any other resources contain references in that set
             UniqueArray<Break> breaks;
-            for (auto other : others) {
+            for (ResourceRef other : others) {
                 scan_resource_references(
                     other,
                     [&ref_set, &breaks](Reference ref_ref, LocationRef loc) {
@@ -391,15 +411,15 @@ void unload (Slice<Resource> reses) {
         }
     }
     catch (...) {
-        for (auto res : rs) res.data->state = RS::Loaded;
+        set_states(rs, RS::Loaded);
         throw;
     }
      // Destruct step
     if (ResourceTransaction::depth) {
-        for (auto res: rs) res.data->state = RS::UnloadReady;
+        set_states(rs, RS::UnloadReady);
         struct UnloadCommitter : Committer {
-            UniqueArray<Resource> rs;
-            UnloadCommitter (UniqueArray<Resource>&& r) :
+            UniqueArray<SharedResource> rs;
+            UnloadCommitter (UniqueArray<SharedResource>&& r) :
                 rs(move(r))
             { }
             void commit () noexcept override {
@@ -411,30 +431,30 @@ void unload (Slice<Resource> reses) {
     else unload_commit(move(rs));
 }
 
-void force_unload (Resource res) {
-    switch (res.data->state) {
+NOINLINE static void force_unload_commit (ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
+    data->state = RS::UnloadCommitting;
+    data->value = {};
+    data->state = RS::Unloaded;
+}
+
+void force_unload (ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
+    switch (data->state) {
         case RS::Unloaded: return;
         case RS::Loaded: break;
         default: raise_ResourceStateInvalid("force_unload", res);
     }
     if (ResourceTransaction::depth) {
-        res.data->state = RS::UnloadReady;
+        data->state = RS::UnloadReady;
         struct ForceUnloadCommitter : Committer {
-            Resource res;
-            ForceUnloadCommitter (Resource r) : res(r) { }
-            void commit () noexcept override {
-                res.data->state = RS::UnloadCommitting;
-                res.data->value = {};
-                res.data->state = RS::Unloaded;
-            }
+            SharedResource res;
+            ForceUnloadCommitter (SharedResource&& r) : res(move(r)) { }
+            void commit () noexcept override { force_unload_commit(res); }
         };
         ResourceTransaction::add_committer(new ForceUnloadCommitter(res));
     }
-    else {
-        res.data->state = RS::UnloadCommitting;
-        res.data->value = {};
-        res.data->state = RS::Unloaded;
-    }
+    else force_unload_commit(res);
 }
 
 struct Update {
@@ -443,9 +463,9 @@ struct Update {
 };
 
 NOINLINE static void reload_commit (
-    Slice<Resource> rs, MoveRef<UniqueArray<Update>> ups
+    Slice<ResourceRef> rs, MoveRef<UniqueArray<Update>> ups
 ) {
-    for (auto res : rs) res.data->state = RS::ReloadCommitting;
+    set_states(rs, RS::ReloadCommitting);
     auto updates = *move(ups);
     updates.consume([](Update&& update){
         if (auto a = update.ref_ref.address()) {
@@ -456,33 +476,35 @@ NOINLINE static void reload_commit (
         });
         expect(!update.new_ref);
     });
-    for (auto res : rs) res.data->state = RS::Loaded;
+    set_states(rs, RS::Loaded);
 }
 
 NOINLINE static void reload_rollback (
-    Slice<Resource> rs, MoveRef<UniqueArray<Dynamic>> olds
+    Slice<ResourceRef> rs, MoveRef<UniqueArray<Dynamic>> olds
 ) {
     auto old_values = *move(olds);
     auto begin = old_values.begin();
     old_values.consume_reverse([rs, begin](Dynamic&& old){
-        auto& res = rs[&old - begin];
-        res.data->state = RS::ReloadCancelling;
-        res.data->value = move(old);
-        res.data->state = RS::Loaded;
+        auto data = static_cast<ResourceData*>(rs[&old - begin].data);
+        data->state = RS::ReloadCancelling;
+        data->value = move(old);
+        data->state = RS::Loaded;
     });
 }
 
-void reload (Slice<Resource> reses) {
-    for (auto res : reses)
-    if (res.data->state != RS::Loaded) {
-        raise_ResourceStateInvalid("reload", res);
+void reload (Slice<ResourceRef> reses) {
+    for (auto res : reses) {
+        if (res->state() != RS::Loaded) {
+            raise_ResourceStateInvalid("reload", res);
+        }
     }
      // Preparation (this won't throw)
     auto old_values = UniqueArray<Dynamic>(
         reses.size(), [reses](usize i) -> Dynamic&&
     {
-        reses[i].data->state = RS::ReloadConstructing;
-        return move(reses[i].data->value);
+        auto data = static_cast<ResourceData*>(reses[i].data);
+        data->state = RS::ReloadConstructing;
+        return move(data->value);
     });
 
      // Keep track of what references to update to what
@@ -490,23 +512,22 @@ void reload (Slice<Resource> reses) {
     try {
          // Construct step
         for (auto res : reses) {
-            auto scheme = universe().require_scheme(res.data->name);
-            auto filename = scheme->get_file(res.data->name);
+            auto data = static_cast<ResourceData*>(res.data);
+            auto scheme = universe().require_scheme(data->name);
+            auto filename = scheme->get_file(data->name);
             Tree tree = tree_from_file(move(filename));
             auto tnt = verify_tree_for_scheme(res, scheme, tree);
-            expect(!res.data->value.has_value());
-            res.data->value = Dynamic(tnt.type);
+            expect(!data->value.has_value());
+            data->value = Dynamic(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
-            item_from_tree(res.data->value.ptr(), tnt.tree, SharedLocation(res));
+            item_from_tree(data->value.ptr(), tnt.tree, SharedLocation(res));
         }
-        for (auto res : reses) {
-            res.data->state = RS::ReloadVerifying;
-        }
+        set_states(reses, RS::ReloadVerifying);
          // Verify step
-        UniqueArray<Resource> others;
+        UniqueArray<ResourceRef> others;
         for (auto& [name, other] : universe().resources) {
-            switch (other->state) {
+            switch (other->state()) {
                 case RS::Unloaded: continue;
                 case RS::ReloadVerifying: continue;
                 case RS::Loaded: others.emplace_back(&*other); break;
@@ -556,57 +577,65 @@ void reload (Slice<Resource> reses) {
     catch (...) { reload_rollback(reses, move(old_values)); throw; }
      // Commit step
     if (ResourceTransaction::depth) {
-        for (auto res : reses) res.data->state = RS::ReloadReady;
+        set_states(reses, RS::ReloadReady);
         struct ReloadCommitter : Committer {
-            UniqueArray<Resource> rs;
+            UniqueArray<SharedResource> rs;
             UniqueArray<Update> updates;
             UniqueArray<Dynamic> old_values;
             ReloadCommitter (
-                MoveRef<UniqueArray<Resource>> r,
-                MoveRef<UniqueArray<Update>> u,
-                MoveRef<UniqueArray<Dynamic>> o
-            ) : rs(*move(r)), updates(*move(u)), old_values(*move(o))
+                UniqueArray<SharedResource>&& r,
+                UniqueArray<Update>&& u,
+                UniqueArray<Dynamic>&& o
+            ) : rs(move(r)), updates(move(u)), old_values(move(o))
             { }
             void commit () noexcept override {
-                reload_commit(rs, move(updates));
+                reload_commit(rs.reinterpret<ResourceRef>(), move(updates));
             }
             void rollback () noexcept override {
-                reload_rollback(rs, move(old_values));
+                reload_rollback(
+                    rs.reinterpret<ResourceRef>(), move(old_values)
+                );
             }
         };
         ResourceTransaction::add_committer(
-            new ReloadCommitter(reses, move(updates), move(old_values))
+            new ReloadCommitter(
+                UniqueArray<SharedResource>(reses),
+                move(updates), move(old_values)
+            )
         );
     }
-    else reload_commit(reses, updates);
+    else reload_commit(reses, move(updates));
 }
 
-void rename (Resource old_res, Resource new_res) {
-    if (old_res.data->state != RS::Loaded) {
+void rename (ResourceRef old_res, ResourceRef new_res) {
+    auto old_data = static_cast<ResourceData*>(old_res.data);
+    auto new_data = static_cast<ResourceData*>(new_res.data);
+    if (old_data->state != RS::Loaded) {
         raise_ResourceStateInvalid("rename from", old_res);
     }
-    if (new_res.data->state != RS::Unloaded) {
+    if (new_data->state != RS::Unloaded) {
         raise_ResourceStateInvalid("rename to", new_res);
     }
-    new_res.data->value = move(old_res.data->value);
-    new_res.data->state = RS::Loaded;
-    old_res.data->state = RS::Unloaded;
+    expect(!new_data->value.has_value());
+    new_data->value = move(old_data->value);
+    new_data->state = RS::Loaded;
+    old_data->state = RS::Unloaded;
 }
 
-AnyString resource_filename (Resource res) {
-    auto scheme = universe().require_scheme(res.data->name);
-    return scheme->get_file(res.data->name);
+AnyString resource_filename (const IRI& name) {
+    auto scheme = universe().require_scheme(name);
+    return scheme->get_file(name);
 }
 
-void remove_source (Resource res) {
-    auto scheme = universe().require_scheme(res.data->name);
-    auto filename = scheme->get_file(res.data->name);
+void remove_source (const IRI& name) {
+    auto scheme = universe().require_scheme(name);
+    auto filename = scheme->get_file(name);
     remove_utf8(filename.c_str());
 }
 
-bool source_exists (Resource res) {
-    auto scheme = universe().require_scheme(res.data->name);
-    auto filename = scheme->get_file(res.data->name);
+bool source_exists (const IRI& name) {
+    auto scheme = universe().require_scheme(name);
+    auto filename = scheme->get_file(name);
     if (std::FILE* f = fopen_utf8(filename.c_str())) {
         fclose(f);
         return true;
@@ -614,11 +643,11 @@ bool source_exists (Resource res) {
     else return false;
 }
 
-UniqueArray<Resource> loaded_resources () noexcept {
-    UniqueArray<Resource> r;
+UniqueArray<SharedResource> loaded_resources () noexcept {
+    UniqueArray<SharedResource> r;
     for (auto& [name, rd] : universe().resources)
-    if (rd->state != RS::Unloaded) {
-        r.push_back(&*rd);
+    if (rd->state() != RS::Unloaded) {
+        r.push_back(rd);
     }
     return r;
 }
@@ -627,13 +656,20 @@ UniqueArray<Resource> loaded_resources () noexcept {
 
 ///// DESCRIPTIONS
 
-AYU_DESCRIBE(ayu::Resource,
+AYU_DESCRIBE(ayu::SharedResource,
     delegate(const_ref_funcs<IRI>(
-        [](const Resource& v) -> const IRI& {
-            return v.data->name;
+        [](const SharedResource& v) -> const IRI& {
+            return v->name();
         },
-        [](Resource& v, const IRI& m){
-            v = Resource(m);
+        [](SharedResource& v, const IRI& m){
+            v = SharedResource(m);
+        }
+    ))
+)
+AYU_DESCRIBE(ayu::ResourceRef,
+    delegate(const_ref_func<IRI>(
+        [](const ResourceRef& v) -> const IRI& {
+            return v->name();
         }
     ))
 )
@@ -650,33 +686,33 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     test::TestEnvironment env;
 
-    Resource input ("ayu-test:/testfile.ayu");
-    Resource input2 ("ayu-test:/othertest.ayu");
-    Resource rec1 ("ayu-test:/rec1.ayu");
-    Resource rec2 ("ayu-test:/rec2.ayu");
-    Resource badinput ("ayu-test:/badref.ayu");
-    Resource output ("ayu-test:/test-output.ayu");
-    Resource unicode ("ayu-test:/ユニコード.ayu");
-    Resource unicode2 ("ayu-test:/ユニコード2.ayu");
+    SharedResource input ("ayu-test:/testfile.ayu");
+    SharedResource input2 ("ayu-test:/othertest.ayu");
+    SharedResource rec1 ("ayu-test:/rec1.ayu");
+    SharedResource rec2 ("ayu-test:/rec2.ayu");
+    SharedResource badinput ("ayu-test:/badref.ayu");
+    SharedResource output ("ayu-test:/test-output.ayu");
+    SharedResource unicode ("ayu-test:/ユニコード.ayu");
+    SharedResource unicode2 ("ayu-test:/ユニコード2.ayu");
 
-    is(input.state(), RS::Unloaded, "Resources start out unloaded");
+    is(input->state(), RS::Unloaded, "Resources start out unloaded");
     doesnt_throw([&]{ load(input); }, "load");
-    is(input.state(), RS::Loaded, "Resource state is RS::Loaded after loading");
-    ok(input.value().has_value(), "Resource has value after loading");
+    is(input->state(), RS::Loaded, "Resource state is RS::Loaded after loading");
+    ok(input->value().has_value(), "Resource has value after loading");
 
     throws_code<e_ResourceStateInvalid>([&]{
-        Resource(input.name(), Dynamic::make<int>(3));
+        SharedResource(input->name(), Dynamic::make<int>(3));
     }, "Creating resource throws on duplicate");
 
     doesnt_throw([&]{ unload(input); }, "unload");
-    is(input.state(), RS::Unloaded, "Resource state is RS::Unloaded after unloading");
-    ok(!input.data->value.has_value(), "Resource has no value after unloading");
+    is(input->state(), RS::Unloaded, "Resource state is RS::Unloaded after unloading");
+    ok(!input->get_value().has_value(), "Resource has no value after unloading");
 
     ayu::Document* doc = null;
     doesnt_throw([&]{
-        doc = &input.value().as<ayu::Document>();
+        doc = &input->value().as<ayu::Document>();
     }, "Getting typed value from a resource");
-    is(input.state(), RS::Loaded, "Resource::value() automatically loads resource");
+    is(input->state(), RS::Loaded, "Resource::value() automatically loads resource");
     is(input["foo"][1].get_as<int32>(), 4, "Value was generated properly (0)");
     is(input["bar"][1].get_as<std::string>(), "qux", "Value was generated properly (1)");
 
@@ -686,24 +722,24 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doc->new_named<int32>("asdf", 51);
 
     doesnt_throw([&]{ rename(input, output); }, "rename");
-    is(input.state(), RS::Unloaded, "Old resource is RS::Unloaded after renaming");
-    is(output.state(), RS::Loaded, "New resource is RS::Loaded after renaming");
-    is(&output.value().as<ayu::Document>(), doc, "Rename moves value without reconstructing it");
+    is(input->state(), RS::Unloaded, "Old resource is RS::Unloaded after renaming");
+    is(output->state(), RS::Loaded, "New resource is RS::Loaded after renaming");
+    is(&output->value().as<ayu::Document>(), doc, "Rename moves value without reconstructing it");
 
     doesnt_throw([&]{ save(output); }, "save");
-    is(tree_from_file(resource_filename(output.name())), tree_from_string(
+    is(tree_from_file(resource_filename(output->name())), tree_from_string(
         "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _next_id:0}]"
     ), "Resource was saved with correct contents");
-    ok(source_exists(output), "source_exists returns true before deletion");
-    doesnt_throw([&]{ remove_source(output); }, "remove_source");
-    ok(!source_exists(output), "source_exists returns false after deletion");
+    ok(source_exists(output->name()), "source_exists returns true before deletion");
+    doesnt_throw([&]{ remove_source(output->name()); }, "remove_source");
+    ok(!source_exists(output->name()), "source_exists returns false after deletion");
     throws_code<e_OpenFailed>([&]{
-        tree_from_file(resource_filename(output.name()));
+        tree_from_file(resource_filename(output->name()));
     }, "Can't open file after calling remove_source");
-    doesnt_throw([&]{ remove_source(output); }, "Can call remove_source twice");
+    doesnt_throw([&]{ remove_source(output->name()); }, "Can call remove_source twice");
     SharedLocation loc;
     doesnt_throw([&]{
-        item_from_string(&loc, cat('"', input.name().spec(), "#/bar+1\""));
+        item_from_string(&loc, cat('"', input->name().spec(), "#/bar+1\""));
     }, "Can read location from tree");
     Reference ref;
     doesnt_throw([&]{
@@ -712,7 +748,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{
         is(ref.get_as<std::string>(), "qux", "reference_from_location got correct item");
     });
-    doc = &output.value().as<ayu::Document>();
+    doc = &output->value().as<ayu::Document>();
     ref = output["asdf"][1].address_as<int32>();
     doesnt_throw([&]{
         loc = reference_to_location(ref);
@@ -722,7 +758,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{ save(output); }, "save with reference");
     doc->new_<int32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
-    is(tree_from_file(resource_filename(output.name())), tree_from_string(
+    is(tree_from_file(resource_filename(output->name())), tree_from_string(
         "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _0:[ayu::Reference #/bar+1] _1:[int32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct reference as location");
     throws_code<e_OpenFailed>([&]{
@@ -733,7 +769,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         unload(input);
         load(input2);
     }, "Can load second file referencing first");
-    is(Resource(input).state(), RS::Loaded, "Loading second file referencing first file loads first file");
+    is(input->state(), RS::Loaded, "Loading second file referencing first file loads first file");
     std::string* bar;
     doesnt_throw([&]{
         bar = input["bar"][1];
@@ -782,7 +818,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     isnt(rec1["ref"][1].get_as<int*>(), old_p, "Reference to reloaded file was updated");
 
     throws_code<e_ResourceTypeRejected>([&]{
-        load("ayu-test:/wrongtype.ayu");
+        load(SharedResource("ayu-test:/wrongtype.ayu"));
     }, "ResourceScheme::accepts_type rejects wrong type");
 
     done_testing();

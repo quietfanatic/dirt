@@ -11,19 +11,19 @@ namespace ayu {
 namespace in {
 
 struct ResourceLocation : Location {
-    Resource resource;
-    ResourceLocation (MoveRef<Resource> res) :
+    SharedResource resource;
+    ResourceLocation (MoveRef<SharedResource> res) :
         Location(LF::Resource), resource(*move(res))
     { }
 };
 
 } using namespace in;
 
-SharedLocation::SharedLocation (Resource res) noexcept :
-    data(new ResourceLocation(expect(move(res))))
+SharedLocation::SharedLocation (ResourceRef res) noexcept :
+    data(new ResourceLocation(expect(res)))
 { }
 
-Resource Location::resource () const noexcept {
+ResourceRef Location::resource () const noexcept {
     switch (form) {
         case LF::Resource: return static_cast<const ResourceLocation*>(this)->resource;
         default: return {};
@@ -50,7 +50,7 @@ void delete_Location (const Location* p) noexcept {
 Reference reference_from_location (LocationRef loc) {
     if (!loc) return Reference();
     switch (loc->form) {
-        case LF::Resource: return loc->resource().ref();
+        case LF::Resource: return loc->resource()->ref();
         case LF::Reference: return *loc->reference();
         case LF::Key: return item_attr(
             reference_from_location(loc->parent()),
@@ -71,7 +71,7 @@ static constexpr IRI anonymous_iri ("ayu-anonymous:");
 NOINLINE static
 UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
     switch (loc->form) {
-        case LF::Resource: base = &loc->resource().name(); return "#";
+        case LF::Resource: base = &loc->resource()->name(); return "#";
         case LF::Reference: base = &anonymous_iri; return "#";
         case LF::Key: return cat(
             location_to_iri_accumulate(base, loc->parent()),
@@ -104,7 +104,7 @@ SharedLocation location_from_iri (const IRI& iri) {
     auto root_iri = iri.chop_fragment();
     auto r = root_iri == current_base_iri()
         ? SharedLocation(current_base_location())
-        : SharedLocation(Resource(root_iri));
+        : SharedLocation(ResourceRef(root_iri));
     Str fragment = iri.fragment();
     usize i = 0;
     while (i < fragment.size()) {
@@ -246,7 +246,7 @@ static tap::TestSet tests ("dirt/ayu/traversal/location", []{
     l = l->parent();
     is(*l->key(), "bar", "String key");
     l = l->parent();
-    is(l->resource(), Resource("ayu-test:/"), "Resource root");
+    is(l->resource(), SharedResource("ayu-test:/"), "Resource root");
     ok(!l->parent());
 
     done_testing();

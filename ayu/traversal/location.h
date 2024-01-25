@@ -37,7 +37,7 @@ using LF = LocationForm;
 struct Location : in::RefCounted {
     LocationForm form;
      // Returns empty if this is not a resource root.
-    Resource resource () const noexcept;
+    ResourceRef resource () const noexcept;
      // Returns null if this is not a reference root.
     const Reference* reference () const noexcept;
      // Returns empty if this is a root.
@@ -61,8 +61,9 @@ struct SharedLocation {
      // The empty location cannot be transformed into a reference and will
      // null-deref if you try to do anything but boolify it.
     constexpr SharedLocation () { }
-     // Constructs a root location from a Resource.
-    explicit SharedLocation (Resource) noexcept;
+     // Constructs a root location from a Resource.  TODO: Change to
+     // MoveRef<SharedResource>
+    explicit SharedLocation (ResourceRef) noexcept;
      // Constructs a root location from an anonymous item.  as_iri() will return
      // "anonymous-item:", and reference_from_location will return this
      // Reference.
@@ -79,7 +80,7 @@ struct SharedLocation {
 
 struct LocationRef {
     const Location* data;
-    constexpr LocationRef (SharedLocation p = {}) : data(p.data.p) { }
+    constexpr LocationRef (const SharedLocation& p = {}) : data(p.data.p) { }
     explicit LocationRef (const Location* p) : data(p) { }
 
     constexpr explicit operator bool () const { return !!data; }

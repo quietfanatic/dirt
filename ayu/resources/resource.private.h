@@ -5,13 +5,14 @@
 
 namespace ayu::in {
 
-struct ResourceData {
+struct ResourceData : Resource {
+    uint32 purpose_count = 0;
     IRI name;
     Dynamic value {};
     ResourceState state = RS::Unloaded;
-    uint32 purpose_count = 0;
+    ResourceData (const IRI& n) : name(n) { }
 };
 
-void load_under_purpose (Resource);
+void load_under_purpose (ResourceRef);
 
 } // ayu::in

@@ -203,7 +203,7 @@ struct MoveRef {
         new (repr) T(std::forward<Args>(args)...);
          // Don't destroy t, the caller will destroy it.
     }
-     // Temporarily access.
+     // Temporarily access.  TODO: remove these, they seem dangerous.
     ALWAYS_INLINE T& operator* () & {
 #ifndef NDEBUG
         expect(active);
@@ -229,6 +229,15 @@ struct MoveRef {
 #endif
         return r;
     }
+    T* operator-> () && {
+         // We could make this work, but it would be a bit of work, and it'd be
+         // easy to make the destructor run at the wrong time.
+        static_assert((T*)null,
+            "Cannot use operator-> on rvalue MoveRef.  "
+            "Use (*move(ref)).member instead"
+        );
+    }
+
 #ifndef NDEBUG
     ~MoveRef () {
         expect(!active);

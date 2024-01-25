@@ -313,17 +313,17 @@ bool scan_references (
 }
 
 bool scan_resource_pointers (
-    const Resource& res, CallbackRef<bool(Pointer, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
-    auto& value = res.get_value();
+    auto& value = res->get_value();
     if (!value.has_value()) return false;
     return scan_pointers(value.ptr(), SharedLocation(res), cb);
 }
 
 bool scan_resource_references (
-    const Resource& res, CallbackRef<bool(const Reference&, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
-    auto& value = res.get_value();
+    auto& value = res->get_value();
     if (!value.has_value()) return false;
     return scan_references(value.ptr(), SharedLocation(res), cb);
 }
@@ -338,8 +338,8 @@ bool scan_universe_pointers (
             }
         }
     }
-    for (auto& [_, resdat] : universe().resources) {
-        if (scan_resource_pointers(&*resdat, cb)) return true;
+    for (auto& [_, res] : universe().resources) {
+        if (scan_resource_pointers(res, cb)) return true;
     }
     return false;
 }
@@ -359,8 +359,8 @@ bool scan_universe_references (
             }
         }
     }
-    for (auto& [_, resdat] : universe().resources) {
-        if (scan_resource_references(&*resdat, cb)) return true;
+    for (auto& [_, res] : universe().resources) {
+        if (scan_resource_references(res, cb)) return true;
     }
     return false;
 }

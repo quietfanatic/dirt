@@ -26,6 +26,7 @@
 #pragma once
 
 #include "../common.h"
+ // TODO: take out this dependency
 #include "../reflection/reference.h"
 #include "../../uni/transaction.h"
 
@@ -34,9 +35,10 @@ namespace ayu {
 ///// RESOURCES
 
  // The possible states a Resource can have.  During normal program operation,
- // Resources will only be RS::Unloaded or RS::Loaded.  The other states will only occur
- // while a resource operation is actively happening, or while a
- // ResourceTransaction is open.
+ // Resources will only be RS::Unloaded or RS::Loaded.  The other states will
+ // only occur while a resource operation is actively happening, or while a
+ // ResourceTransaction is open.  TODO: See if we want to get rid of some of
+ // these states and keep pending commit/rollback info in committers instead.
 enum class ResourceState : uint8 {
      // The resource is not loaded and has an empty value.
     Unloaded,
@@ -87,27 +89,7 @@ StaticString show_ResourceState (ResourceState) noexcept;
 
  // The interface for a Resource, accessed through a SharedResource or
  // ResourceRef.
-struct Resource {
-     // Internal data is kept perpetually, but may be refcounted at some point
-     // (it's about 7-10 words long)
-    in::ResourceData* data;
-
-    constexpr Resource (in::ResourceData* d = null) : data(d) { }
-     // Refers to the resource with this name, but does not load it yet.
-    Resource (const IRI& name);
-     // Takes an IRI reference relative to the current resource if there is one.
-    Resource (Str name);
-     // Too long of a conversion chain for C++ I guess
-    template <usize n>
-    Resource (const char (& name)[n]) : Resource(Str(name)) { }
-     // Creates the resource already loaded with the given data, without reading
-     // from disk.  Will throw InvalidResourceState if a resource with this
-     // name is already loaded or EmptyResourceValue if value is empty.
-    Resource (const IRI& name, MoveRef<Dynamic> value);
-     // Creates an anonymous resource with the given value
-     // TODO: I forgot to implement this
-    Resource (Null, MoveRef<Dynamic> value);
-
+struct Resource : in::RefCounted {
      // Returns the resource's name as an IRI
     const IRI& name () const noexcept;
      // See enum ResourceState
@@ -117,40 +99,79 @@ struct Resource {
      // disk.  Will throw if the load fails.  If a ResourceTransaction is
      // currently active, the value will be cleared if the ResourceTransaction
      // is rolled back.
-    Dynamic& value () const;
+    Dynamic& value ();
      // Gets the value without autoloading.  Writing to this is Undefined
      // Behavior if the state is anything except for RS::Loaded or RS::LoadReady.
-    Dynamic& get_value () const noexcept;
+    Dynamic& get_value () noexcept;
      // If the resource is RS::Unloaded, sets is state to RS::Loaded or
      // RS::LoadReady without loading from disk, and sets its value.  Throws
      // ResourceStateInvalid if the resource's state is anything but
      // RS::Unloaded or RS::Loaded.  Throws ResourceTypeRejected if this
      // resource has a name and the ResourceScheme associated with its name
      // returns false from accepts_type.
-    void set_value (MoveRef<Dynamic>) const;
+    void set_value (MoveRef<Dynamic>);
 
      // Automatically loads and returns a reference to the value, which can be
      // coerced to a pointer.  If a ResourceTransaction is currently active, the
      // value will be cleared if the transaction is rolled back, leaving the
      // Reference dangling.
-    Reference ref () const;
+    Reference ref () { return value().ptr(); }
      // Gets a reference to the value without automatically loading.  If the
      // resource is RS::Unloaded, returns an empty Reference.
-    Reference get_ref () const noexcept;
+    Reference get_ref () noexcept { return get_value().ptr(); }
 
      // Syntax sugar
-    explicit operator bool () const { return data; }
     auto operator [] (const AnyString& key) { return ref()[key]; }
     auto operator [] (usize index) { return ref()[index]; }
+
+    protected:
+    Resource () { }
 };
 
- // Resources are considered equal if their names are equal (Resources with the
- // same name will always have the same data pointer).
- // Automatic coercion is disabled for these operators.
-template <class T> requires (std::is_same_v<T, Resource>)
-inline bool operator == (T a, T b) { return a.data == b.data; }
-template <class T> requires (std::is_same_v<T, Resource>)
-inline bool operator != (T a, T b) { return !(a == b); }
+ // A refcounted pointer to a Resource.
+struct SharedResource {
+    in::RCP<Resource, in::delete_Resource> data;
+    constexpr SharedResource (Resource* d) : data(d) { }
+
+    constexpr SharedResource () { }
+     // Refers to the resource with this name, but does not load it yet.
+    SharedResource (const IRI& name);
+     // Takes an IRI reference relative to the current resource if there is one.
+    SharedResource (Str name);
+     // Too long of a conversion chain for C++ I guess
+    template <usize n>
+    SharedResource (const char (& name)[n]) : SharedResource(Str(name)) { }
+     // Creates the resource already loaded with the given data, without reading
+     // from disk.  Will throw ResourceStateInvalid if a resource with this name
+     // is already loaded or ResourceValueEmpty if value is empty.  This is
+     // equivalent to creating the SharedResource and then calling set_value.
+    SharedResource (const IRI& name, MoveRef<Dynamic> value);
+
+    Resource& operator* () const { return *data; }
+    Resource* operator-> () const { return &*data; }
+    constexpr explicit operator bool () const { return !!data; }
+    auto operator [] (const AnyString& key) { return data->ref()[key]; }
+    auto operator [] (usize index) { return data->ref()[index]; }
+};
+
+ // A non-owning reference to a Resource.
+struct ResourceRef {
+    Resource* data;
+    constexpr ResourceRef (Resource* d) : data(d) { }
+
+    constexpr ResourceRef () { }
+    constexpr ResourceRef (const SharedResource& p) : data(p.data.p) { }
+
+    Resource& operator* () const { return *data; }
+    Resource* operator-> () const { return data; }
+    operator SharedResource () const { return SharedResource(data); }
+    constexpr explicit operator bool () const { return !!data; }
+    auto operator [] (const AnyString& key) { return data->ref()[key]; }
+    auto operator [] (usize index) { return data->ref()[index]; }
+};
+
+inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data; }
+
 
 ///// RESOURCE OPERATIONS
 
@@ -165,20 +186,20 @@ using ResourceTransaction = Transaction<Resource>;
 
  // Loads a resource into the current purpose.  Does nothing if the resource is
  // not RS::Unloaded.  Throws if the file doesn't exist on disk or can't be opened.
-void load (Resource);
+void load (ResourceRef);
  // Load multiple resources.  If an error is thrown, none of the resources will
  // be loaded.
-inline void load (Slice<Resource> rs) {
+inline void load (Slice<ResourceRef> rs) {
     ResourceTransaction tr;
     for (auto& r : rs) load(r);
 }
 
  // Saves a loaded resource to disk.  Throws if the resource is not RS::Loaded.  May
  // overwrite an existing file on disk.
-void save (Resource);
+void save (ResourceRef);
  // Save multiple resources.  If an error is thrown, none of the resources will
  // be saved.
-inline void save (Slice<Resource> rs) {
+inline void save (Slice<ResourceRef> rs) {
     ResourceTransaction tr;
     for (auto& r : rs) save(r);
 }
@@ -188,18 +209,18 @@ inline void save (Slice<Resource> rs) {
  // other RS::Loaded resources to make sure none of them are referencing this
  // resource, and if any are, this call will throw UnloadWouldBreak and the
  // resource will not be unloaded.
-void unload (Resource);
+void unload (ResourceRef);
  // Unload multiple resources simultaneously.  If multiple resources have a
  // reference cycle between them, they must be unloaded simultaneously.
-void unload (Slice<Resource>);
-inline void unload (Resource r) { unload(Slice<Resource>(&r, 1)); }
+void unload (Slice<ResourceRef>);
+inline void unload (ResourceRef r) { unload(Slice<ResourceRef>(&r, 1)); }
 
  // Immediately unloads the file without scanning for references to it.  This is
  // faster, but if there are any references to data in this resource, they will
  // be left dangling.  This should never fail.
-void force_unload (Resource);
+void force_unload (ResourceRef);
  // Unload multiple resources.
-inline void force_unload (Slice<Resource> rs) {
+inline void force_unload (Slice<ResourceRef> rs) {
     for (auto& r : rs) force_unload(r);
 }
 
@@ -209,11 +230,11 @@ inline void force_unload (Slice<Resource> rs) {
  // ReloadWouldBreak, and the resource will be restored to its old value
  // before the call to reload.  It is an error to reload while another resource
  // is being loaded.
-void reload (Resource);
+void reload (ResourceRef);
  // Reload multiple resources simultaneously.  This may be necessary or simply
  // more efficient if there are reference cycles.
-void reload (Slice<Resource>);
-inline void reload (Resource r) { reload(Slice<Resource>(&r, 1)); }
+void reload (Slice<ResourceRef>);
+inline void reload (ResourceRef r) { reload(Slice<ResourceRef>(&r, 1)); }
 
 ///// RESOURCE FILE MANIPULATION (NON-TRANSACTIONAL)
 
@@ -222,26 +243,26 @@ inline void reload (Resource r) { reload(Slice<Resource>(&r, 1)); }
  // on disk.  Will throw if old_res is not RS::Loaded, or if new_res is not
  // RS::Unloaded.  After renaming, old_res will be RS::Unloaded and new_res will
  // be RS::Loaded.
-void rename (Resource old_res, Resource new_res);
+void rename (ResourceRef old_res, ResourceRef new_res);
 
  // Deletes the source of the resource.  If the source is a file, deletes the
  // file without confirmation.  Does not change the resource's state or value.
  // Does nothing if the source doesn't exist, but throws RemoveSourceFailed
  // if another error occurs (permission denied, etc.)  Calling load on the
  // resource should fail after this.
-void remove_source (Resource);
+void remove_source (const IRI&);
 
  // Returns true if the given resource's file exists on disk.  Does a pretty
  // basic test: it tries to open the file, and returns true if it can or false
  // if it can't.
-bool source_exists (Resource);
+bool source_exists (const IRI&);
 
  // Get the filename of the file backing this resource, if it has one.
-AnyString resource_filename (Resource);
+AnyString resource_filename (const IRI&);
 
  // Returns a list of all resources with state != RS::Unloaded.  This includes
  // resources that are in the process of being loaded, reloaded, or unloaded.
-UniqueArray<Resource> loaded_resources () noexcept;
+UniqueArray<SharedResource> loaded_resources () noexcept;
 
 ///// RESOURCE ERROR CODES
 
