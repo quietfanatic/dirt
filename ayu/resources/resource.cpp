@@ -212,9 +212,6 @@ SharedResource::SharedResource (const IRI& name) {
         resources.emplace(data->name().spec(), *this);
     }
 }
-SharedResource::SharedResource (Str ref) :
-    SharedResource(IRI(ref, current_base_iri()))
-{ }
 
 SharedResource::SharedResource (const IRI& name, MoveRef<Dynamic> value) :
     SharedResource(name)
@@ -686,14 +683,14 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     test::TestEnvironment env;
 
-    SharedResource input ("ayu-test:/testfile.ayu");
-    SharedResource input2 ("ayu-test:/othertest.ayu");
-    SharedResource rec1 ("ayu-test:/rec1.ayu");
-    SharedResource rec2 ("ayu-test:/rec2.ayu");
-    SharedResource badinput ("ayu-test:/badref.ayu");
-    SharedResource output ("ayu-test:/test-output.ayu");
-    SharedResource unicode ("ayu-test:/ユニコード.ayu");
-    SharedResource unicode2 ("ayu-test:/ユニコード2.ayu");
+    SharedResource input (IRI("ayu-test:/testfile.ayu"));
+    SharedResource input2 (IRI("ayu-test:/othertest.ayu"));
+    SharedResource rec1 (IRI("ayu-test:/rec1.ayu"));
+    SharedResource rec2 (IRI("ayu-test:/rec2.ayu"));
+    SharedResource badinput (IRI("ayu-test:/badref.ayu"));
+    SharedResource output (IRI("ayu-test:/test-output.ayu"));
+    SharedResource unicode (IRI("ayu-test:/ユニコード.ayu"));
+    SharedResource unicode2 (IRI("ayu-test:/ユニコード2.ayu"));
 
     is(input->state(), RS::Unloaded, "Resources start out unloaded");
     doesnt_throw([&]{ load(input); }, "load");
@@ -818,7 +815,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     isnt(rec1["ref"][1].get_as<int*>(), old_p, "Reference to reloaded file was updated");
 
     throws_code<e_ResourceTypeRejected>([&]{
-        load(SharedResource("ayu-test:/wrongtype.ayu"));
+        load(SharedResource(IRI("ayu-test:/wrongtype.ayu")));
     }, "ResourceScheme::accepts_type rejects wrong type");
 
     done_testing();

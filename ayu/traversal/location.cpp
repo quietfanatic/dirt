@@ -246,7 +246,7 @@ static tap::TestSet tests ("dirt/ayu/traversal/location", []{
     l = l->parent();
     is(*l->key(), "bar", "String key");
     l = l->parent();
-    is(l->resource(), SharedResource("ayu-test:/"), "Resource root");
+    is(l->resource(), SharedResource(IRI("ayu-test:/")), "Resource root");
     ok(!l->parent());
 
     done_testing();

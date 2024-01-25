@@ -171,6 +171,7 @@ AYU_DESCRIBE(glow::Program,
 )
 
 #ifndef TAP_DISABLE_TESTS
+#include "../iri/iri.h"
 #include "../ayu/resources/resource.h"
 #include "../ayu/traversal/to-tree.h"
 #include "../geo/rect.h"
@@ -187,7 +188,7 @@ static tap::TestSet tests ("dirt/glow/program", []{
 
     Program* program;
     doesnt_throw([&]{
-        program = ayu::ResourceRef("test:/test-program.ayu")["program"][1];
+        program = ayu::ResourceRef(iri::IRI("test:/test-program.ayu"))["program"][1];
     }, "Can load program from ayu document");
     program->use();
     int u_screen_rect = glGetUniformLocation(*program, "u_screen_rect");

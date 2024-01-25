@@ -25,10 +25,10 @@
 
 #pragma once
 
+#include "../../uni/transaction.h"
 #include "../common.h"
  // TODO: take out this dependency
 #include "../reflection/reference.h"
-#include "../../uni/transaction.h"
 
 namespace ayu {
 
@@ -136,11 +136,6 @@ struct SharedResource {
     constexpr SharedResource () { }
      // Refers to the resource with this name, but does not load it yet.
     SharedResource (const IRI& name);
-     // Takes an IRI reference relative to the current resource if there is one.
-    SharedResource (Str name);
-     // Too long of a conversion chain for C++ I guess
-    template <usize n>
-    SharedResource (const char (& name)[n]) : SharedResource(Str(name)) { }
      // Creates the resource already loaded with the given data, without reading
      // from disk.  Will throw ResourceStateInvalid if a resource with this name
      // is already loaded or ResourceValueEmpty if value is empty.  This is
