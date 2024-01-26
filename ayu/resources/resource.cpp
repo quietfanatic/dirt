@@ -11,7 +11,6 @@
 #include "../traversal/from-tree.h"
 #include "../traversal/scan.h"
 #include "../traversal/to-tree.h"
-#include "purpose.h"
 #include "scheme.h"
 #include "universe.private.h"
 
@@ -224,17 +223,15 @@ SharedResource::SharedResource (const IRI& name, MoveRef<Dynamic> value) :
     else raise_ResourceStateInvalid("construct", *this);
 }
 
-void in::delete_Resource (Resource* res) noexcept {
+void in::delete_Resource_if_unloaded (Resource* res) noexcept {
     auto data = static_cast<ResourceData*>(res);
-    universe().resources.erase(data->name.spec());
-    delete data;
+    if (data->state == RS::Unloaded) {
+        universe().resources.erase(data->name.spec());
+        delete data;
+    }
 }
 
 ///// RESOURCE OPERATIONS
-
-void load (ResourceRef res) {
-    current_purpose->acquire(res);
-}
 
 static void load_cancel (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
@@ -243,7 +240,7 @@ static void load_cancel (ResourceRef res) {
     data->state = RS::Unloaded;
 }
 
-void in::load_under_purpose (ResourceRef res) {
+void load (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
     switch (data->state) {
         case RS::Loaded:
@@ -345,10 +342,9 @@ NOINLINE static void unload_commit (ResourceRef res) {
     data->state = RS::UnloadCommitting;
     data->value = {};
     data->state = RS::Unloaded;
-    if (auto p = general_purpose.find(res)) {
-        general_purpose.resources.erase(p);
-        expect(data->purpose_count);
-        --data->purpose_count;
+    if (data->ref_count == 0) {
+        universe().resources.erase(res->name().spec());
+        delete data;
     }
 }
 

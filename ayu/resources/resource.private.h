@@ -13,6 +13,4 @@ struct ResourceData : Resource {
     ResourceData (const IRI& n) : name(n) { }
 };
 
-void load_under_purpose (ResourceRef);
-
 } // ayu::in

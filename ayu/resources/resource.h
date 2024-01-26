@@ -130,7 +130,7 @@ struct Resource : in::RefCounted {
 
  // A refcounted pointer to a Resource.
 struct SharedResource {
-    in::RCP<Resource, in::delete_Resource> data;
+    in::RCP<Resource, in::delete_Resource_if_unloaded> data;
     constexpr SharedResource (Resource* d) : data(d) { }
 
     constexpr SharedResource () { }
@@ -179,8 +179,8 @@ inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data;
  // It is not recommended to modify resource data while one of these is active.
 using ResourceTransaction = Transaction<Resource>;
 
- // Loads a resource into the current purpose.  Does nothing if the resource is
- // not RS::Unloaded.  Throws if the file doesn't exist on disk or can't be opened.
+ // Loads a resource.  Does nothing if the resource is not RS::Unloaded.  Throws
+ // if the file doesn't exist on disk or can't be opened.
 void load (ResourceRef);
  // Load multiple resources.  If an error is thrown, none of the resources will
  // be loaded.

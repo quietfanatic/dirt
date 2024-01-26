@@ -8,7 +8,7 @@ namespace ayu::in {
 struct DocumentData;
 struct Description;
 void delete_Location (const Location*) noexcept;
-void delete_Resource (Resource*) noexcept;
+void delete_Resource_if_unloaded (Resource*) noexcept;
 
  // Intrusive reference counting
 struct RefCounted {
