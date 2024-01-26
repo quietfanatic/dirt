@@ -18,6 +18,12 @@ struct TraverseScan {
         Pointer base_item, LocationRef base_loc,
         CallbackRef<bool(Pointer, LocationRef)> cb
     ) {
+        if (currently_scanning) {
+            raise(e_ScanWhileScanning,
+                "Cannot start scan while there's already a scan running."
+            );
+        }
+        currently_scanning = true;
         bool r = false;
         trav_start(base_item, base_loc, true, AccessMode::Read,
             [&r, base_loc, cb](const Traversal& trav)
@@ -29,6 +35,7 @@ struct TraverseScan {
                     cb(Pointer(trav.desc, trav.address), loc);
             });
         });
+        currently_scanning = false;
         return r;
     }
 
@@ -37,6 +44,12 @@ struct TraverseScan {
         const Reference& base_item, LocationRef base_loc,
         CallbackRef<bool(const Reference&, LocationRef)> cb
     ) {
+        if (currently_scanning) {
+            raise(e_ScanWhileScanning,
+                "Cannot start scan while there's already a scan running."
+            );
+        }
+        currently_scanning = true;
         bool r = false;
         trav_start(base_item, base_loc, false, AccessMode::Read,
             [&r, base_loc, cb](const Traversal& trav)
@@ -45,6 +58,7 @@ struct TraverseScan {
                 [cb](const Traversal& trav, LocationRef loc)
             { return cb(trav.to_reference(), loc); });
         });
+        currently_scanning = false;
         return r;
     }
 
@@ -476,5 +490,7 @@ SharedLocation reference_to_location (const Reference& item) {
         "Couldn't locate reference target of type ", item.type().name()
     ));
 }
+
+bool currently_scanning = false;
 
 } using namespace ayu;

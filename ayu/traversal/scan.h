@@ -88,7 +88,7 @@ bool scan_references (
 
  // Scan under a particular resource's data.  The location is automatically
  // determined from the resource's name.  This silently does nothing and returns
- // false if the resource's state is UNLOADED.
+ // false if the resource's state is RS::Unloaded.
 bool scan_resource_pointers (
     ResourceRef res, CallbackRef<bool(Pointer, LocationRef)> cb
 );
@@ -103,7 +103,13 @@ bool scan_universe_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb
 );
 
+ // This is true while there is an ongoing scan.  While this is true, you cannot
+ // start a new scan.
+extern bool currently_scanning;
+
  // reference_to_location or pointer_to_location failed to find the Reference.
 constexpr ErrorCode e_ReferenceNotFound = "ayu::e_ReferenceNotFound";
+ // Tried to start a new scan while there's still a scan going.
+constexpr ErrorCode e_ScanWhileScanning = "ayu::e_ScanWhileScanning";
 
 } // namespace ayu
