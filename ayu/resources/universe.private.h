@@ -5,7 +5,7 @@
 #include <memory>
 #include <unordered_map>
 #include "../common.h"
-#include "resource.private.h"
+#include "resource.h"
 #include "scheme.h"
 
 namespace ayu::in {

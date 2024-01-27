@@ -1,5 +1,6 @@
-#include "resource.private.h"
+#include "resource.h"
 
+#include "../../iri/iri.h"
 #include "../../uni/io.h"
 #include "../data/parse.h"
 #include "../data/print.h"
@@ -19,18 +20,27 @@
 namespace ayu {
 namespace in {
 
+struct ResourceData : Resource {
+    ResourceState state = RS::Unloaded;
+    IRI name;
+    Dynamic value {};
+    ResourceData (const IRI& n) : name(n) { }
+};
+
 [[noreturn, gnu::cold]]
 static void raise_ResourceStateInvalid (StaticString tried, ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
     raise(e_ResourceStateInvalid, cat(
-        "Can't ", tried, ' ', res->name().spec(),
-        " when its state is ", show_ResourceState(res->state())
+        "Can't ", tried, ' ', data->name.spec(),
+        " when its state is ", item_to_string(&data->state)
     ));
 }
 
 [[noreturn, gnu::cold]]
 static void raise_ResourceValueEmpty (StaticString tried, ResourceRef res) {
+    auto data = static_cast<ResourceData*>(res.data);
     raise(e_ResourceValueInvalid, cat(
-        "Can't ", tried, ' ', res->name().spec(), " with empty value"
+        "Can't ", tried, ' ', data->name.spec(), " with empty value"
     ));
 }
 
@@ -38,8 +48,9 @@ static void raise_ResourceValueEmpty (StaticString tried, ResourceRef res) {
 static void raise_ResourceTypeRejected (
     StaticString tried, ResourceRef res, Type type
 ) {
+    auto data = static_cast<ResourceData*>(res.data);
     raise(e_ResourceTypeRejected, cat(
-        "Can't ", tried, ' ', res->name().spec(), " with type ", type.name()
+        "Can't ", tried, ' ', data->name.spec(), " with type ", type.name()
     ));
 }
 
@@ -102,25 +113,6 @@ static void set_states (const T& rs, ResourceState state) {
 
 } using namespace in;
 
-StaticString show_ResourceState (ResourceState state) noexcept {
-    switch (state) {
-        case RS::Unloaded: return "Unloaded";
-        case RS::Loaded: return "Loaded";
-        case RS::LoadConstructing: return "LoadConstructing";
-        case RS::LoadReady: return "LoadReady";
-        case RS::LoadCancelling: return "LoadCancelling";
-        case RS::UnloadVerifying: return "UnloadVerifying";
-        case RS::UnloadReady: return "UnloadReady";
-        case RS::UnloadCommitting: return "UnloadCommitting";
-        case RS::ReloadConstructing: return "ReloadConstructing";
-        case RS::ReloadVerifying: return "ReloadVerifying";
-        case RS::ReloadReady: return "ReloadReady";
-        case RS::ReloadCancelling: return "ReloadCancelling";
-        case RS::ReloadCommitting: return "ReloadCommitting";
-        default: never();
-    }
-}
-
 ///// ACCESSORS
 
 const IRI& Resource::name () const noexcept {
@@ -132,13 +124,8 @@ ResourceState Resource::state () const noexcept {
 
 Dynamic& Resource::value () {
     auto data = static_cast<ResourceData*>(this);
-    switch (data->state) {
-        case RS::LoadCancelling:
-        case RS::UnloadReady:
-        case RS::UnloadCommitting:
-            raise_ResourceStateInvalid("value", ResourceRef(this));
-        case RS::Unloaded: load(ResourceRef(this)); break;
-        default: break;
+    if (data->state == RS::Unloaded) {
+        load(ResourceRef(this));
     }
     return data->value;
 }
@@ -149,10 +136,8 @@ Dynamic& Resource::get_value () noexcept {
 void Resource::set_value (MoveRef<Dynamic> value) {
     auto data = static_cast<ResourceData*>(this);
     Dynamic v = *move(value);
-    switch (data->state) {
-        case RS::Unloaded:
-        case RS::Loaded: break;
-        default: raise_ResourceStateInvalid("set_value", this);
+    if (data->state == RS::Loading) {
+        raise_ResourceStateInvalid("set_value", this);
     }
     if (!v.has_value()) {
         raise_ResourceValueEmpty("set_value", this);
@@ -163,28 +148,26 @@ void Resource::set_value (MoveRef<Dynamic> value) {
             raise_ResourceTypeRejected("set_value", this, v.type);
         }
     }
-    data->value = move(v);
-    if (data->state == RS::Unloaded) {
-        if (ResourceTransaction::depth) {
-            data->state = RS::LoadReady;
-            struct SetValueCommitter : Committer {
-                SharedResource res;
-                SetValueCommitter (SharedResource&& r) : res(move(r)) { }
-                void commit () noexcept override {
-                    auto data = static_cast<ResourceData*>(res.data.p);
-                    data->state = RS::Loaded;
-                }
-                void rollback () noexcept override {
-                    auto data = static_cast<ResourceData*>(res.data.p);
-                    data->state = RS::LoadCancelling;
-                    data->value = {};
-                    data->state = RS::Unloaded;
-                }
-            };
-            ResourceTransaction::add_committer(new SetValueCommitter(this));
-        }
-        else data->state = RS::Loaded;
+    if (ResourceTransaction::depth) {
+        struct SetValueCommitter : Committer {
+            SharedResource res;
+            Dynamic old_value;
+            SetValueCommitter (SharedResource&& r, Dynamic&& v) :
+                res(move(r)), old_value(move(v))
+            { }
+            void rollback () noexcept override {
+                auto data = static_cast<ResourceData*>(res.data.p);
+                data->value = move(old_value);
+                data->state = data->value.has_value() ?
+                    RS::Loaded : RS::Unloaded;
+            }
+        };
+        ResourceTransaction::add_committer(
+            new SetValueCommitter(this, move(data->value))
+        );
     }
+    data->value = move(v);
+    data->state = RS::Loaded;
 }
 
 ///// CONSTRUCTION, DESTRUCTION
@@ -235,22 +218,15 @@ void in::delete_Resource_if_unloaded (Resource* res) noexcept {
 
 static void load_cancel (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
-    data->state = RS::LoadCancelling;
     data->value = {};
     data->state = RS::Unloaded;
 }
 
 void load (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
-    switch (data->state) {
-        case RS::Loaded:
-        case RS::LoadConstructing:
-        case RS::LoadReady: return;
-        case RS::Unloaded: break;
-        default: raise_ResourceStateInvalid("load", res);
-    }
+    if (data->state != RS::Unloaded) return;
 
-    data->state = RS::LoadConstructing;
+    data->state = RS::Loading;
     try {
         auto scheme = universe().require_scheme(data->name);
         auto filename = scheme->get_file(data->name);
@@ -269,13 +245,9 @@ void load (ResourceRef res) {
     catch (...) { load_cancel(res); throw; }
 
     if (ResourceTransaction::depth) {
-        data->state = RS::LoadReady;
         struct LoadCommitter : Committer {
             SharedResource res;
             LoadCommitter (SharedResource&& r) : res(move(r)) { }
-            void commit () noexcept override {
-                static_cast<ResourceData&>(*res).state = RS::Loaded;
-            };
             void rollback () noexcept override {
                 load_cancel(res);
             }
@@ -284,16 +256,13 @@ void load (ResourceRef res) {
             new LoadCommitter(res)
         );
     }
-    else {
-        data->state = RS::Loaded;
-    }
+    data->state = RS::Loaded;
 }
 
 void save (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
-    switch (data->state) {
-        case RS::Loaded: break;
-        default: raise_ResourceStateInvalid("save", res);
+    if (data->state != RS::Loaded) {
+        raise_ResourceStateInvalid("save", res);
     }
 
     KeepLocationCache klc;
@@ -337,39 +306,41 @@ void save (ResourceRef res) {
     }
 }
 
-NOINLINE static void unload_commit (ResourceRef res) {
-    auto data = static_cast<ResourceData*>(res.data);
-    data->state = RS::UnloadCommitting;
-    data->value = {};
-    data->state = RS::Unloaded;
-    if (data->ref_count == 0) {
-        universe().resources.erase(res->name().spec());
-        delete data;
+struct ROV {
+     // Since this keeps a ref count on the ResourceData, if unload is called
+     // with a ResourceData that has a ref count of 0 (but wasn't deleted
+     // because it was loaded), then when this object is destroyed the ref count
+     // will go back to 0 and the ResourceData will be actually deleted (unless
+     // it was rolled back).
+    SharedResource res;
+    Dynamic old_value;
+    void rollback () {
+        auto data = static_cast<ResourceData*>(res.data.p);
+        data->value = move(old_value);
+        data->state = RS::Loaded;
     }
-}
-
-NOINLINE static void unload_commit (MoveRef<UniqueArray<SharedResource>> rs) {
-    auto reses = *move(rs);
-    reses.consume([](SharedResource&& res){ unload_commit(res); });
-}
+};
 
 void unload (Slice<ResourceRef> reses) {
-    UniqueArray<SharedResource> rs;
+    UniqueArray<ROV> rovs;
     for (auto res : reses)
     switch (res->state()) {
-        case RS::Unloaded:
-        case RS::UnloadReady: continue;
-        case RS::Loaded: rs.push_back(res); break;
+        case RS::Unloaded: continue;
+        case RS::Loaded: rovs.push_back({res, {}}); break;
         default: raise_ResourceStateInvalid("unload", res);
+    }
+    if (!rovs) return;
+    for (auto& rov : rovs) {
+        auto data = static_cast<ResourceData*>(rov.res.data.p);
+        rov.old_value = move(data->value);
+        data->state = RS::Unloaded;
     }
      // Verify step
     try {
-        set_states(rs, RS::UnloadVerifying);
         UniqueArray<SharedResource> others;
         for (auto& [name, other] : universe().resources) {
             switch (other->state()) {
                 case RS::Unloaded: continue;
-                case RS::UnloadVerifying: continue;
                 case RS::Loaded: others.emplace_back(other); break;
                 default: raise_ResourceStateInvalid("scan for unload", other);
             }
@@ -378,9 +349,9 @@ void unload (Slice<ResourceRef> reses) {
         if (others) {
              // First build set of references to things being unloaded
             std::unordered_map<Reference, SharedLocation> ref_set;
-            for (ResourceRef res : rs) {
+            for (auto& rov : rovs) {
                 scan_resource_references(
-                    res,
+                    rov.res,
                     [&ref_set](const Reference& ref, LocationRef loc) {
                         ref_set.emplace(ref, loc);
                         return false;
@@ -412,27 +383,25 @@ void unload (Slice<ResourceRef> reses) {
         }
     }
     catch (...) {
-        set_states(rs, RS::Loaded);
+        rovs.consume([](auto&& rov) { rov.rollback(); });
         throw;
     }
      // Destruct step
     if (ResourceTransaction::depth) {
-        set_states(rs, RS::UnloadReady);
         struct UnloadCommitter : Committer {
-            UniqueArray<SharedResource> rs;
-            UnloadCommitter (UniqueArray<SharedResource>&& r) :
-                rs(move(r))
+            UniqueArray<ROV> rovs;
+            UnloadCommitter (UniqueArray<ROV>&& r) :
+                rovs(move(r))
             { }
-            void commit () noexcept override {
-                unload_commit(move(rs));
+            void rollback () noexcept override {
+                rovs.consume([](auto&& rov) { rov.rollback(); });
             }
         };
-        ResourceTransaction::add_committer(new UnloadCommitter(move(rs)));
+        ResourceTransaction::add_committer(new UnloadCommitter(move(rovs)));
     }
-    else unload_commit(move(rs));
 }
 
-void force_unload (ResourceRef res) {
+void force_unload (ResourceRef res) noexcept {
     auto data = static_cast<ResourceData*>(res.data);
     switch (data->state) {
         case RS::Unloaded: return;
@@ -440,15 +409,19 @@ void force_unload (ResourceRef res) {
         default: raise_ResourceStateInvalid("force_unload", res);
     }
     if (ResourceTransaction::depth) {
-        data->state = RS::UnloadReady;
         struct ForceUnloadCommitter : Committer {
-            SharedResource res;
-            ForceUnloadCommitter (SharedResource&& r) : res(move(r)) { }
-            void commit () noexcept override { unload_commit(res); }
+            ROV rov;
+            ForceUnloadCommitter (ROV&& r) : rov(move(r)) { }
+            void rollback () noexcept override {
+                rov.rollback();
+            }
         };
-        ResourceTransaction::add_committer(new ForceUnloadCommitter(res));
+        ResourceTransaction::add_committer(
+            new ForceUnloadCommitter({res, move(data->value)})
+        );
     }
-    else unload_commit(res);
+    else data->value = {};
+    data->state = RS::Unloaded;
 }
 
 struct Update {
@@ -456,10 +429,7 @@ struct Update {
     Reference new_ref;
 };
 
-NOINLINE static void reload_commit (
-    Slice<ResourceRef> rs, MoveRef<UniqueArray<Update>> ups
-) {
-    set_states(rs, RS::ReloadCommitting);
+NOINLINE static void reload_commit (MoveRef<UniqueArray<Update>> ups) {
     auto updates = *move(ups);
     updates.consume([](Update&& update){
         if (auto a = update.ref_ref.address()) {
@@ -468,45 +438,37 @@ NOINLINE static void reload_commit (
         else update.ref_ref.write([new_ref{&update.new_ref} ](Mu& v){
             reinterpret_cast<Reference&>(v) = move(*new_ref);
         });
-        expect(!update.new_ref);
     });
-    set_states(rs, RS::Loaded);
 }
 
-NOINLINE static void reload_rollback (
-    Slice<ResourceRef> rs, MoveRef<UniqueArray<Dynamic>> olds
-) {
-    auto old_values = *move(olds);
-    auto begin = old_values.begin();
-    old_values.consume_reverse([rs, begin](Dynamic&& old){
-        auto data = static_cast<ResourceData*>(rs[&old - begin].data);
-        data->state = RS::ReloadCancelling;
-        data->value = move(old);
-        data->state = RS::Loaded;
+NOINLINE static void reload_rollback (MoveRef<UniqueArray<ROV>> rs) {
+    auto rovs = *move(rs);
+    rovs.consume([](auto&& rov){
+        auto data = static_cast<ResourceData*>(rov.res.data.p);
+        data->value = move(rov.old_value);
     });
 }
 
 void reload (Slice<ResourceRef> reses) {
+    UniqueArray<ROV> rovs;
     for (auto res : reses) {
-        if (res->state() != RS::Loaded) {
-            raise_ResourceStateInvalid("reload", res);
+        if (res->state() == RS::Loaded) {
+            rovs.push_back({res, {}});
         }
+        else raise_ResourceStateInvalid("reload", res);
     }
-     // Preparation (this won't throw)
-    auto old_values = UniqueArray<Dynamic>(
-        reses.size(), [reses](usize i) -> Dynamic&&
-    {
-        auto data = static_cast<ResourceData*>(reses[i].data);
-        data->state = RS::ReloadConstructing;
-        return move(data->value);
-    });
+     // Preserve step
+    for (auto& rov : rovs) {
+        auto data = static_cast<ResourceData*>(rov.res.data.p);
+        rov.old_value = move(data->value);
+    }
 
-     // Keep track of what references to update to what
     UniqueArray<Update> updates;
     try {
          // Construct step
         for (auto res : reses) {
             auto data = static_cast<ResourceData*>(res.data);
+            data->state = RS::Loading;
             auto scheme = universe().require_scheme(data->name);
             auto filename = scheme->get_file(data->name);
             Tree tree = tree_from_file(move(filename));
@@ -516,14 +478,13 @@ void reload (Slice<ResourceRef> reses) {
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
             item_from_tree(data->value.ptr(), tnt.tree, SharedLocation(res));
+            data->state = RS::Loaded;
         }
-        set_states(reses, RS::ReloadVerifying);
          // Verify step
         UniqueArray<ResourceRef> others;
         for (auto& [name, other] : universe().resources) {
             switch (other->state()) {
                 case RS::Unloaded: continue;
-                case RS::ReloadVerifying: continue;
                 case RS::Loaded: others.emplace_back(&*other); break;
                 default: raise_ResourceStateInvalid("scan for reload", &*other);
             }
@@ -532,9 +493,9 @@ void reload (Slice<ResourceRef> reses) {
         if (others) {
              // First build mapping of old refs to locationss
             std::unordered_map<Reference, SharedLocation> old_refs;
-            for (usize i = 0; i < reses.size(); i++) {
+            for (auto& rov : rovs) {
                 scan_references(
-                    old_values[i].ptr(), SharedLocation(reses[i]),
+                    rov.old_value.ptr(), SharedLocation(rov.res),
                     [&old_refs](const Reference& ref, LocationRef loc) {
                         old_refs.emplace(ref, loc);
                         return false;
@@ -568,37 +529,27 @@ void reload (Slice<ResourceRef> reses) {
             }
         }
     }
-    catch (...) { reload_rollback(reses, move(old_values)); throw; }
+    catch (...) { reload_rollback(move(rovs)); throw; }
      // Commit step
     if (ResourceTransaction::depth) {
-        set_states(reses, RS::ReloadReady);
         struct ReloadCommitter : Committer {
-            UniqueArray<SharedResource> rs;
+            UniqueArray<ROV> rovs;
             UniqueArray<Update> updates;
-            UniqueArray<Dynamic> old_values;
-            ReloadCommitter (
-                UniqueArray<SharedResource>&& r,
-                UniqueArray<Update>&& u,
-                UniqueArray<Dynamic>&& o
-            ) : rs(move(r)), updates(move(u)), old_values(move(o))
+            ReloadCommitter (UniqueArray<ROV>&& r, UniqueArray<Update>&& u) :
+                rovs(move(r)), updates(move(u))
             { }
             void commit () noexcept override {
-                reload_commit(rs.reinterpret<ResourceRef>(), move(updates));
+                reload_commit(move(updates));
             }
             void rollback () noexcept override {
-                reload_rollback(
-                    rs.reinterpret<ResourceRef>(), move(old_values)
-                );
+                reload_rollback(move(rovs));
             }
         };
         ResourceTransaction::add_committer(
-            new ReloadCommitter(
-                UniqueArray<SharedResource>(reses),
-                move(updates), move(old_values)
-            )
+            new ReloadCommitter(move(rovs), move(updates))
         );
     }
-    else reload_commit(reses, move(updates));
+    else reload_commit(move(updates));
 }
 
 void rename (ResourceRef old_res, ResourceRef new_res) {
@@ -650,9 +601,17 @@ UniqueArray<SharedResource> loaded_resources () noexcept {
 
 ///// DESCRIPTIONS
 
+AYU_DESCRIBE(ayu::ResourceState,
+    values(
+        value("unloaded", RS::Unloaded),
+        value("loading", RS::Loading),
+        value("loaded", RS::Loaded)
+    )
+)
 AYU_DESCRIBE(ayu::SharedResource,
     delegate(const_ref_funcs<IRI>(
         [](const SharedResource& v) -> const IRI& {
+             // TODO: Make relative to current resource?
             return v->name();
         },
         [](SharedResource& v, const IRI& m){
