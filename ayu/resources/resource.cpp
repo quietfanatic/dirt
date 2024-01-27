@@ -139,7 +139,7 @@ void Resource::set_value (MoveRef<Dynamic> value) {
     if (data->state == RS::Loading) {
         raise_ResourceStateInvalid("set_value", this);
     }
-    if (!v.has_value()) {
+    if (!v) {
         raise_ResourceValueEmpty("set_value", this);
     }
     if (data->name) {
@@ -158,8 +158,7 @@ void Resource::set_value (MoveRef<Dynamic> value) {
             void rollback () noexcept override {
                 auto data = static_cast<ResourceData*>(res.data.p);
                 data->value = move(old_value);
-                data->state = data->value.has_value() ?
-                    RS::Loaded : RS::Unloaded;
+                data->state = data->value ?  RS::Loaded : RS::Unloaded;
             }
         };
         ResourceTransaction::add_committer(
@@ -199,7 +198,7 @@ SharedResource::SharedResource (const IRI& name, MoveRef<Dynamic> value) :
     SharedResource(name)
 {
     Dynamic v = *move(value);
-    if (!v.has_value()) {
+    if (!v) {
         raise_ResourceValueEmpty("construct", *this);
     }
     else if (data->state() == RS::Unloaded) data->set_value(move(v));
@@ -232,10 +231,10 @@ void load (ResourceRef res) {
         auto filename = scheme->get_file(data->name);
         Tree tree = tree_from_file(move(filename));
         auto tnt = verify_tree_for_scheme(res, scheme, tree);
-        expect(!data->value.has_value());
          // Run item_from_tree on the Dynamic's value, not on the Dynamic
          // itself.  Otherwise, the associated locations will have an extra +1
          // in the fragment.
+        expect(!data->value);
         data->value = Dynamic(tnt.type);
         item_from_tree(
             data->value.ptr(), tnt.tree, SharedLocation(res),
@@ -266,7 +265,7 @@ void save (ResourceRef res) {
     }
 
     KeepLocationCache klc;
-    if (!data->value.has_value()) {
+    if (!data->value) {
         raise_ResourceValueEmpty("save", res);
     }
     auto scheme = universe().require_scheme(data->name);
@@ -473,7 +472,7 @@ void reload (Slice<ResourceRef> reses) {
             auto filename = scheme->get_file(data->name);
             Tree tree = tree_from_file(move(filename));
             auto tnt = verify_tree_for_scheme(res, scheme, tree);
-            expect(!data->value.has_value());
+            expect(!data->value);
             data->value = Dynamic(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
@@ -561,7 +560,7 @@ void rename (ResourceRef old_res, ResourceRef new_res) {
     if (new_data->state != RS::Unloaded) {
         raise_ResourceStateInvalid("rename to", new_res);
     }
-    expect(!new_data->value.has_value());
+    expect(!new_data->value);
     new_data->value = move(old_data->value);
     new_data->state = RS::Loaded;
     old_data->state = RS::Unloaded;
@@ -651,7 +650,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     is(input->state(), RS::Unloaded, "Resources start out unloaded");
     doesnt_throw([&]{ load(input); }, "load");
     is(input->state(), RS::Loaded, "Resource state is RS::Loaded after loading");
-    ok(input->value().has_value(), "Resource has value after loading");
+    ok(!!input->value(), "Resource has value after loading");
 
     throws_code<e_ResourceStateInvalid>([&]{
         SharedResource(input->name(), Dynamic::make<int>(3));
@@ -659,7 +658,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     doesnt_throw([&]{ unload(input); }, "unload");
     is(input->state(), RS::Unloaded, "Resource state is RS::Unloaded after unloading");
-    ok(!input->get_value().has_value(), "Resource has no value after unloading");
+    ok(!input->get_value(), "Resource has no value after unloading");
 
     ayu::Document* doc = null;
     doesnt_throw([&]{

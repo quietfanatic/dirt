@@ -69,15 +69,12 @@ struct Dynamic {
     constexpr ~Dynamic () {
         if (data) type.delete_(data);
     }
-     // Check contents.  No coercion to bool because that would be confusing.
-    constexpr bool has_value () const {
+     // Check contents.
+    constexpr explicit operator bool () const {
         expect(!!type == !!data);
         return !!type;
     }
-    constexpr bool empty () const {
-        expect(!!type == !!data);
-        return !type;
-    }
+    constexpr bool empty () const { return !*this; }
      // Get Pointer to the value
     constexpr Pointer ptr () { return Pointer(type, data); }
     constexpr Pointer readonly_ptr () const { return Pointer(type.add_readonly(), data); }

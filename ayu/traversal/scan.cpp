@@ -330,7 +330,7 @@ bool scan_resource_pointers (
     ResourceRef res, CallbackRef<bool(Pointer, LocationRef)> cb
 ) {
     auto& value = res->get_value();
-    if (!value.has_value()) return false;
+    if (!value) return false;
     return scan_pointers(value.ptr(), SharedLocation(res), cb);
 }
 
@@ -338,7 +338,7 @@ bool scan_resource_references (
     ResourceRef res, CallbackRef<bool(const Reference&, LocationRef)> cb
 ) {
     auto& value = res->get_value();
-    if (!value.has_value()) return false;
+    if (!value) return false;
     return scan_references(value.ptr(), SharedLocation(res), cb);
 }
 

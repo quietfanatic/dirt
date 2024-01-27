@@ -10,11 +10,11 @@ using namespace ayu::in;
 AYU_DESCRIBE(ayu::Dynamic,
     values_custom(
         [](const Dynamic& a, const Dynamic& b) -> bool {
-            expect(!b.has_value());
-            return !a.has_value();
+            expect(!b);
+            return !a;
         },
         [](Dynamic& a, const Dynamic& b) {
-            expect(!b.has_value());
+            expect(!b);
             a = Dynamic();
         },
         value(Tree::array(), Dynamic())
@@ -90,12 +90,12 @@ AYU_DESCRIBE(ayu::test::CustomConstructor,
 static tap::TestSet tests ("dirt/ayu/reflection/dynamic", []{
     using namespace tap;
     Dynamic d;
-    ok(!d.has_value(), "Default Dynamic::has_value is false");
+    ok(!d, "Default Dynamic is empty");
     d = Dynamic::make<bool>(true);
     ok(d.as<bool>(), "Can make Dynamic bool");
     d = Dynamic::make<bool>(false);
     ok(!d.as<bool>(), "Can make Dynamic false bool");
-    ok(d.has_value(), "Dynamic false bool has_value");
+    ok(!!d, "Dynamic false bool is not empty");
     d = Dynamic::make<DynamicTest>(4, 5);
     is(d.as<DynamicTest>().b, 5, "Can make Dynamic with struct type");
     throws_code<e_TypeCantCast>([&]{ d.as<bool>(); }, "TypeCantCast");
@@ -120,7 +120,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/dynamic", []{
     doesnt_throw([&]{
         item_from_string(&d, "[]");
     });
-    ok(!d.has_value(), "Dynamic from_tree with [] makes unhas_value Dynamic");
+    ok(!d, "Dynamic from_tree with [] makes empty Dynamic");
     doesnt_throw([&]{
         d = Dynamic::make<WeirdAlign>();
     }, "Can allocate object with non-standard alignment");
