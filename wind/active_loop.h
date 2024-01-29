@@ -4,6 +4,8 @@
 #include "../geo/vec.h"
 #include "../uni/common.h"
 
+union SDL_Event;
+
 namespace wind {
 using namespace uni;
 
@@ -23,12 +25,14 @@ struct ActiveLoop {
      //  frozen.
     double max_lag_tolerance = 3.0;
 
+     // Will be called before on_step for each currently queued SDL event.  If
+     // the function returns true, the event is considered handled, otherwise a
+     // default handler will run (which just stops the loop on SDL_Quit and
+     // pressing Escape).
+    std::function<bool(SDL_Event*)> on_event = null;
      // Will be called at the desired fps, unless slowdown happens.
-     // If on_step is null, then on step the loop will quit on SDL_QUIT and
-     // send other events through process_window_event (see window.h).
     std::function<void()> on_step = null;
      // Will be called at the desired fps, unless frameskip or slowdown happens.
-     // If on_draw is null, then on draw the loop will do nothing.
     std::function<void()> on_draw = null;
 
      // stop() has been called.

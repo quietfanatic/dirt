@@ -7,20 +7,17 @@
 
 namespace wind {
 
-static void default_on_step (ActiveLoop& self) {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        switch (event.type) {
-            case SDL_QUIT: {
+static void default_on_event (ActiveLoop& self, SDL_Event* event) {
+    switch (event->type) {
+        case SDL_QUIT: {
+            self.stop();
+            break;
+        }
+        case SDL_KEYDOWN: {
+            if (event->key.keysym.sym == SDLK_ESCAPE) {
                 self.stop();
-                break;
             }
-            case SDL_KEYDOWN: {
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    self.stop();
-                }
-                break;
-            }
+            break;
         }
     }
 }
@@ -28,10 +25,16 @@ static void default_on_step (ActiveLoop& self) {
 void ActiveLoop::start () {
     double lag = 0;
     uint32 last_ticks = SDL_GetTicks();
-    while (!stop_requested) {
+    for (;;) {
+         // Handle events
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            bool handled = on_event && on_event(&event);
+            if (!handled) default_on_event(*this, &event);
+        }
+        if (stop_requested) break;
          // Run step
         if (on_step) on_step();
-        else default_on_step(*this);
          // Calculate timing
         lag -= 1/fps;
         if (lag > max_lag_tolerance/fps) {
