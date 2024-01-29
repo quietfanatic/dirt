@@ -5,6 +5,7 @@
 #include "../uni/common.h"
 
 namespace wind {
+using namespace uni;
 
  // An active loop using SDL.  The default on_step calls poll_events.
  // WARNING: This hasn't been used in a while so it may be a bit stale.
