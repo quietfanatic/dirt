@@ -12,20 +12,36 @@ using namespace in;
 
 [[gnu::cold]]
 void Reference::raise_WriteReadonly () const {
-    SharedLocation here = reference_to_location(*this);
-    raise(e_ReferenceReadonly, cat(
-        "Can't write to readonly Reference of type ", type().name(),
-        " at ", item_to_string(&here)
-    ));
+    try {
+        SharedLocation here = reference_to_location(*this);
+        raise(e_ReferenceReadonly, cat(
+            "Can't write to readonly Reference of type ", type().name(),
+            " at ", item_to_string(&here)
+        ));
+    }
+    catch (std::exception& e) {
+        raise(e_ReferenceReadonly, cat(
+            "Can't write to readonly Reference of type ", type().name(),
+            " at (!exception thrown while getting location of Referene: ", e.what()
+        ));
+    }
 }
 
 [[gnu::cold]]
 void Reference::raise_Unaddressable () const {
-    SharedLocation here = reference_to_location(*this);
-    raise(e_ReferenceUnaddressable, cat(
-        "Can't get address of unaddressable Reference of type ", type().name(),
-        " at ", item_to_string(&here)
-    ));
+    try {
+        SharedLocation here = reference_to_location(*this);
+        raise(e_ReferenceUnaddressable, cat(
+            "Can't get address of unaddressable Reference of type ", type().name(),
+            " at ", item_to_string(&here)
+        ));
+    }
+    catch (std::exception& e) {
+        raise(e_ReferenceUnaddressable, cat(
+            "Can't get address of unaddressable Reference of type ", type().name(),
+            " at (!exception thrown while getting location of Referene: ", e.what()
+        ));
+    }
 }
 
 Reference Reference::operator[] (const AnyString& key) {
