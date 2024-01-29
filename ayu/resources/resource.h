@@ -135,7 +135,9 @@ inline void load (Slice<ResourceRef> rs) {
 }
 
  // Saves a loaded resource to its source.  Throws if the resource is not
- // RS::Loaded.  May overwrite an existing file.
+ // RS::Loaded.  May overwrite an existing file.  If called in a
+ // ResourceTransaction, no files will actually be written until the transaction
+ // succeeds.
 void save (ResourceRef);
  // Save multiple resources.  If an error is thrown, none of the resources will
  // be saved.
@@ -144,22 +146,39 @@ inline void save (Slice<ResourceRef> rs) {
     for (auto& r : rs) save(r);
 }
 
- // Clears the value of the resource and sets its state to RS::Unloaded.  Does
- // nothing if the resource is RS::Unloaded, and throws if it is RS::Loading.
- // Scans all other loaded resources to make sure none of them are referencing
- // this resource, and if any are, throws UnloadWouldBreak and leaves the
- // resource loaded.
+ // Attempts to unload the given resources and any resources that are not
+ // currently reachable.  Essentially, this does a garbage collection on all
+ // loaded resources, with special treatment for resources passed as arguments.
+ //   - Resources NOT passed as arguments to unload() are considered reachable
+ //     if there are any SharedResource handles pointing to them or if there is
+ //     another reachable resource containing a reference to any item inside the
+ //     resource.
+ //   - Resources passed as arguments to unload() will ignore SharedResource
+ //     handles and are only considered reachable through other resources.  If
+ //     a resource passed as an argument is found to be reachable, a
+ //     ResourceUnloadWouldBreak exception will be thrown, and no resources will
+ //     be unloaded.  Thus if unload() completes successfully, all arguments
+ //     will be unloaded, and some non-arguments may be unloaded.
+ //
+ // Calling unload() without any arguments will do a garbage collection run, but
+ // without any hard requirements on what resources to unload.
+ //
+ // If there are resources that have a reference cycle between them, they must
+ // be unloaded at the same time (this can be either from being passed as
+ // arguments or from having no SharedResource handles pointing to them).
+ //
+ // This operation is fully transactional.  If a recoverable error occurs, no
+ // resources will be unloaded.  If called during a ResourceTransaction and the
+ // transaction rolls back, all the unloaded resources will be restored to their
+ // previous loaded state.
 void unload (ResourceRef);
- // Unload multiple resources simultaneously.  If multiple resources have a
- // reference cycle between them, they may need to be unloaded together.
-void unload (Slice<ResourceRef>);
+void unload (Slice<ResourceRef> = {});
 inline void unload (ResourceRef r) { unload(Slice<ResourceRef>(&r, 1)); }
 
- // Immediately unloads the file without scanning for references to it.  This is
- // faster, but if there are any references to data in this resource, they will
- // be left dangling.
+ // Immediately unloads the resource without checking for reachability.  This is
+ // faster, but if there are any references to items in this resource, they will
+ // be left dangling.  This can be rolled back by a ResourceTransaction.
 void force_unload (ResourceRef) noexcept;
- // Unload multiple resources.
 inline void force_unload (Slice<ResourceRef> rs) noexcept {
     for (auto& r : rs) force_unload(r);
 }

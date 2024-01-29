@@ -22,6 +22,15 @@ namespace in {
 
 struct ResourceData : Resource {
     ResourceState state = RS::Unloaded;
+     // These are only used during reachability scanning, but we have extra room
+     // for them here.
+    bool root;
+    bool reachable;
+     // This is also only used during reachability scanning, and we don't have
+     // extra room for it, but storing it externally would require using an
+     // unordered_map (to use a UniqueArray, we need an integer index, but
+     // that's what this itself is).
+    uint32 node_id;
     IRI name;
     Dynamic value {};
     ResourceData (const IRI& n) : name(n) { }
@@ -104,12 +113,20 @@ static TypeAndTree verify_tree_for_scheme (
     else raise_LengthRejected(Type::CppType<Dynamic>(), 2, 2, a.size());
 }
 
-template <class T>
-static void set_states (const T& rs, ResourceState state) {
-    for (auto r : rs) {
-        static_cast<ResourceData&>(*r).state = state;
+struct ROV {
+     // Since this keeps a ref count on the ResourceData, if unload is called
+     // with a ResourceData that has a ref count of 0 (but wasn't deleted
+     // because it was loaded), then when this object is destroyed the ref count
+     // will go back to 0 and the ResourceData will be actually deleted (unless
+     // it was rolled back).
+    SharedResource res;
+    Dynamic old_value;
+    void rollback () {
+        auto data = static_cast<ResourceData*>(res.data.p);
+        data->value = move(old_value);
+        data->state = RS::Loaded;
     }
-}
+};
 
 } using namespace in;
 
@@ -305,98 +322,143 @@ void save (ResourceRef res) {
     }
 }
 
-struct ROV {
-     // Since this keeps a ref count on the ResourceData, if unload is called
-     // with a ResourceData that has a ref count of 0 (but wasn't deleted
-     // because it was loaded), then when this object is destroyed the ref count
-     // will go back to 0 and the ResourceData will be actually deleted (unless
-     // it was rolled back).
-    SharedResource res;
-    Dynamic old_value;
-    void rollback () {
-        auto data = static_cast<ResourceData*>(res.data.p);
-        data->value = move(old_value);
-        data->state = RS::Loaded;
-    }
-};
-
-void unload (Slice<ResourceRef> reses) {
-    UniqueArray<ROV> rovs;
-    for (auto res : reses)
-    switch (res->state()) {
-        case RS::Unloaded: continue;
-        case RS::Loaded: rovs.push_back({res, {}}); break;
-        default: raise_ResourceStateInvalid("unload", res);
-    }
-    if (!rovs) return;
-    for (auto& rov : rovs) {
-        auto data = static_cast<ResourceData*>(rov.res.data.p);
-        rov.old_value = move(data->value);
-        data->state = RS::Unloaded;
-    }
-     // Verify step
-    try {
-        UniqueArray<SharedResource> others;
-        for (auto& [name, other] : universe().resources) {
-            switch (other->state()) {
-                case RS::Unloaded: continue;
-                case RS::Loaded: others.emplace_back(other); break;
-                default: raise_ResourceStateInvalid("scan for unload", other);
-            }
-        }
-         // If we're unloading everything, no need to do any scanning.
-        if (others) {
-             // First build set of references to things being unloaded
-            std::unordered_map<Reference, SharedLocation> ref_set;
-            for (auto& rov : rovs) {
-                scan_resource_references(
-                    rov.res,
-                    [&ref_set](const Reference& ref, LocationRef loc) {
-                        ref_set.emplace(ref, loc);
-                        return false;
-                    }
-                );
-            }
-             // Then check if any other resources contain references in that set
-            UniqueArray<Break> breaks;
-            for (ResourceRef other : others) {
-                scan_resource_references(
-                    other,
-                    [&ref_set, &breaks](Reference ref_ref, LocationRef loc) {
-                         // TODO: Check for Pointer as well
-                        if (ref_ref.type() != Type::CppType<Reference>()) {
-                            return false;
-                        }
-                        Reference ref = ref_ref.get_as<Reference>();
-                        auto iter = ref_set.find(ref);
-                        if (iter != ref_set.end()) {
-                            breaks.emplace_back(loc, iter->second);
-                        }
-                        return false;
-                    }
-                );
-            }
-            if (breaks) {
-                raise_would_break(e_ResourceUnloadWouldBreak, move(breaks));
-            }
-        }
-    }
-    catch (...) {
-        rovs.consume([](auto&& rov) { rov.rollback(); });
-        throw;
-    }
-     // Destruct step
+static void really_unload (ResourceData* data) {
     if (ResourceTransaction::depth) {
-        struct UnloadCommitter : Committer {
-            UniqueArray<ROV> rovs;
-            UnloadCommitter (UniqueArray<ROV>&& r) :
-                rovs(move(r))
-            { }
+        struct ForceUnloadCommitter : Committer {
+            ROV rov;
+            ForceUnloadCommitter (ROV&& r) : rov(move(r)) { }
             void rollback () noexcept override {
-                rovs.consume([](auto&& rov) { rov.rollback(); });
+                rov.rollback();
             }
         };
-        ResourceTransaction::add_committer(new UnloadCommitter(move(rovs)));
+        ResourceTransaction::add_committer(
+            new ForceUnloadCommitter({data, move(data->value)})
+        );
+        data->state = RS::Unloaded;
+    }
+    else {
+        data->value = {};
+        if (!data->ref_count) {
+            universe().resources.erase(data->name.spec());
+            delete data;
+        }
+        else data->state = RS::Unloaded;
+    }
+}
+
+struct ResourceScanInfo {
+    ResourceData* data;
+    UniqueArray<Reference> outgoing_refs;
+};
+
+static void mark_reachable (
+    const UniqueArray<ResourceScanInfo>& scan_info,
+    const std::unordered_map<Reference, ResourceData*> refs_to_reses,
+    usize from_id
+) {
+    for (auto& ref : scan_info[from_id].outgoing_refs) {
+        auto it = refs_to_reses.find(ref);
+        if (it == refs_to_reses.end()) {
+             // Reference is already invalid?  Either that or it points to the
+             // root set, which we didn't bother studying because we already
+             // know it's reachable.
+            continue;
+        }
+        auto to_data = it->second;
+        if (to_data->reachable) continue;
+        to_data->reachable = true;
+        mark_reachable(scan_info, refs_to_reses, to_data->node_id);
+    }
+}
+
+void unload (Slice<ResourceRef> to_unload) {
+    auto& resources = universe().resources;
+     // TODO: Track how many loaded resources there are to preallocate this.
+    auto scan_info = UniqueArray<ResourceScanInfo>(Capacity(resources.size()));
+     // Start out be getting a bit of info about all loaded resources.
+    bool none_root = true;
+    bool all_root = true;
+    for (auto& [name, res] : resources) {
+        auto data = static_cast<ResourceData*>(res.data);
+         // Only scan loaded resources
+        if (data->state != RS::Loaded) continue;
+         // Assign integer ID for indexing
+        data->node_id = scan_info.size();
+        scan_info.emplace_back_expect_capacity(data, UniqueArray<Reference>());
+         // Our root set for the reachability traversal is all resources that
+         // have a reference count but were not explicitly requested to be
+         // unloaded.
+        if (data->ref_count) {
+            data->root = true;
+            for (auto& tu : to_unload) {
+                if (tu == res) {
+                    data->root = false;
+                    break;
+                }
+            }
+        }
+        else data->root = false;
+        if (data->root) none_root = false;
+        else all_root = false;
+        data->reachable = false;
+    }
+    if (all_root) {
+         // All resources are still in use and no resources were requested to be
+         // unloaded.  Everyone can go home.
+        return;
+    }
+    if (none_root) {
+         // Root set is empty!  We get to skip reachability scanning and just
+         // unload everything.
+        scan_info.consume([](auto&& info){ really_unload(info.data); });
+        return;
+    }
+     // Collect as much info as we can from one scan.  Unfortunately we can't
+     // traverse the data graph directly, because finding out what Resource a
+     // Reference points to requires a full scan itself.  We don't have to cache
+     // as much data as reference_to_location though; we only need to keep track
+     // of the Location's root, not the whole Location itself.
+    auto refs_to_reses = std::unordered_map<Reference, ResourceData*>();
+    for (auto& info : scan_info) {
+         // TODO: Don't generate locations if we're throwing them away
+        scan_resource_references(info.data,
+            [&refs_to_reses, &info](const Reference& item, LocationRef)
+        {
+             // Don't need to enumerate references for resources in the root
+             // set, because they start out reachable.
+            if (!info.data->root) {
+                refs_to_reses.emplace(item, info.data);
+            }
+            if (item.type() == Type::CppType<Reference>()) {
+                if (auto ref = item.get_as<Reference>()) {
+                    info.outgoing_refs.emplace_back(move(ref));
+                }
+            }
+            return false;
+        });
+    }
+     // Now traverse the graph starting with the root.
+    for (auto& info : scan_info) {
+        if (info.data->root) {
+            info.data->reachable = true;
+            mark_reachable(scan_info, refs_to_reses, info.data->node_id);
+        }
+    }
+     // At this point, all resources should be marked whether they're reachable.
+     // First throw an error if any resources we were explicitly told to unload
+     // are still reachable.
+    for (auto res : to_unload) {
+        auto data = static_cast<ResourceData*>(res.data);
+        if (data->reachable) {
+            raise(e_ResourceUnloadWouldBreak, cat(
+                "Cannot unload resource ", data->name.spec(),
+                " because it is still reachable.  Further info NYI."
+            ));
+        }
+    }
+     // Now finally unload all unreachable resources.
+    for (auto& info : scan_info) {
+        if (!info.data->reachable) really_unload(info.data);
     }
 }
 
@@ -407,20 +469,7 @@ void force_unload (ResourceRef res) noexcept {
         case RS::Loaded: break;
         default: raise_ResourceStateInvalid("force_unload", res);
     }
-    if (ResourceTransaction::depth) {
-        struct ForceUnloadCommitter : Committer {
-            ROV rov;
-            ForceUnloadCommitter (ROV&& r) : rov(move(r)) { }
-            void rollback () noexcept override {
-                rov.rollback();
-            }
-        };
-        ResourceTransaction::add_committer(
-            new ForceUnloadCommitter({res, move(data->value)})
-        );
-    }
-    else data->value = {};
-    data->state = RS::Unloaded;
+    really_unload(data);
 }
 
 struct Update {
@@ -449,6 +498,7 @@ NOINLINE static void reload_rollback (MoveRef<UniqueArray<ROV>> rs) {
 }
 
 void reload (Slice<ResourceRef> reses) {
+     // TODO: Start ResourceTransaction for dependently-loaded resources.
     UniqueArray<ROV> rovs;
     for (auto res : reses) {
         if (res->state() == RS::Loaded) {
@@ -762,6 +812,9 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{
         unload({rec1, rec2});
     }, "Can unload reference cycle by unload both resources at once");
+     // TODO: test that calling unload unloads dependent resources if there are
+     // no SharedResource handles pointing to them.
+
     load(rec1);
     int* old_p = rec1["ref"][1].get_as<int*>();
     doesnt_throw([&]{
