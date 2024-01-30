@@ -131,7 +131,8 @@ struct IRI {
      // The behavior of this function changes when run at constexpr time.  It
      // cannot canonicalize the IRI, because new strings can't be allocated at
      // compile time (and kept for run time).  So it must be given an IRI that
-     // is already fully resolved and canonical.  The base will be ignored.
+     // is already fully resolved and canonical.  The base will be ignored.  To
+     // force compile-time parsing, use iri::constant(ref).
     constexpr explicit IRI (Str ref, const IRI& base = IRI());
 
      // Construct an already-parsed IRI.  This will not do any validation.  If
@@ -299,6 +300,9 @@ struct IRI {
     const uint16 path_end = 0;
     const uint16 query_end = 0;
 };
+
+ // Force compile-time parsing
+consteval IRI constant (StaticString ref) { return IRI(ref); }
 
 } // namespace iri
 
