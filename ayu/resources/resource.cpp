@@ -211,10 +211,10 @@ SharedResource::SharedResource (const IRI& name) {
     }
 }
 
-SharedResource::SharedResource (const IRI& name, MoveRef<Dynamic> value) :
+SharedResource::SharedResource (const IRI& name, Dynamic&& value) :
     SharedResource(name)
 {
-    Dynamic v = *move(value);
+    Dynamic v = move(value);
     if (!v) {
         raise_ResourceValueEmpty("construct", *this);
     }

@@ -85,7 +85,7 @@ struct SharedResource {
      // this name is already loaded or ResourceValueInvalid if value is empty.
      // This is equivalent to creating the SharedResource and then calling
      // set_value.
-    SharedResource (const IRI& name, MoveRef<Dynamic> value);
+    SharedResource (const IRI& name, Dynamic&& value);
 
     Resource& operator* () const { return *data; }
     Resource* operator-> () const { return &*data; }
