@@ -16,9 +16,9 @@ void init () noexcept {
 [[gnu::cold]]
 void requirement_failed_sdl (std::source_location loc) noexcept {
     warn_utf8(uni::cat(
-        "ERROR: require_sdl() failed at", loc.file_name(),
+        "ERROR: require_sdl() failed at ", loc.file_name(),
         ':', loc.line(), "\n       in ", loc.function_name(),
-        "\n       SDL_GetError() == ", SDL_GetError()
+        "\n       SDL_GetError() == ", SDL_GetError(), "\n"
     ));
     std::abort();
 }
