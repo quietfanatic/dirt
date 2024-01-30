@@ -95,6 +95,23 @@ struct Dynamic {
         );
     }
 
+    Mu& as_known (Type t) {
+        expect(type == t);
+        return *data;
+    }
+    template <class T>
+    std::remove_cvref_t<T>& as_known () {
+        return reinterpret_cast<std::remove_cvref_t<T>&>(
+            as_known(Type::CppType<std::remove_cvref_t<T>>())
+        );
+    }
+    template <class T>
+    const std::remove_cvref_t<T>& as_known () const {
+        return reinterpret_cast<const std::remove_cvref_t<T>&>(
+            as_known(Type::CppType<std::remove_cvref_t<T>>())
+        );
+    }
+
     template <class T>
     std::unique_ptr<T> to_unique_ptr () && {
         if (empty()) return null;
