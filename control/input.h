@@ -31,7 +31,7 @@ struct Input {
     InputType type = InputType::None;
     InputFlags flags = InputFlags{0};
     int32 code = 0;
-    constexpr operator bool () const { return type != InputType::None; }
+    constexpr explicit operator bool () const { return type != InputType::None; }
      // Don't use this to check inputs against bindings, the Repeatable flag
      // will mess things up.  Use input_matches_binding instead.
     friend bool operator== (Input, Input) = default;
@@ -39,6 +39,11 @@ struct Input {
 
 Input input_from_event (SDL_Event*) noexcept;
 bool input_matches_binding (Input got, Input binding) noexcept;
+
+ // Only works for InputType::Key.  Ignores modifiers!
+bool input_currently_pressed (Input input) noexcept;
+ // To not duplicate calls to SDL_GetKeyboardState
+bool input_currently_pressed (Input input, const uint8* keyboard) noexcept;
 
  // Mainly for testing
 void send_input_as_event (Input i, int windowID) noexcept;

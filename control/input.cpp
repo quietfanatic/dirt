@@ -40,6 +40,23 @@ bool input_matches_binding (Input got, Input binding) noexcept {
     return got == binding;
 }
 
+bool input_currently_pressed (Input input) noexcept {
+    return input_currently_pressed(input, SDL_GetKeyboardState(null));
+}
+
+bool input_currently_pressed (Input input, const uint8* keyboard) noexcept {
+    switch (input.type) {
+        case InputType::Key: {
+            return keyboard[SDL_GetScancodeFromKey(input.code)];
+        }
+        case InputType::Button: {
+            raise(e_General, "input_currently_pressed with InputType::Button is NYI");
+        }
+        case InputType::None: return false;
+        default: never();
+    }
+}
+
 static SDL_Event new_event () {
     SDL_Event r;
     std::memset(&r, 0, sizeof(r));
