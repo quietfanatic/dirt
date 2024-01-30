@@ -90,7 +90,7 @@ AYU_DESCRIBE(glow::Texture,
         attr("target", value_funcs<TextureTarget>(
             [](const Texture& v){ return TextureTarget(v.target); },
             [](Texture& v, TextureTarget m){ v = Texture(m); }
-        )),
+        ), optional),
         attr("wrap", value_funcs<TextureWrap>(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);

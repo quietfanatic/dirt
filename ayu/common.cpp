@@ -10,7 +10,7 @@ void dump_refs (Slice<Reference> rs) {
     DiagnosticSerialization _;
     switch (rs.size()) {
         case 0: warn_utf8("[]\n"); break;
-        case 1: warn_utf8(item_to_string(rs[0])); break;
+        case 1: warn_utf8(cat(item_to_string(rs[0]), "\n")); break;
         default: {
             UniqueString r = "[";
             r.append(item_to_string(rs[0]));
