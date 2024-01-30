@@ -258,10 +258,9 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::set<T>),
     desc::computed_name([]{
-        static uni::StaticString r; if (!r) r = ayu::in::make_template_name_1(
+        return ayu::in::make_template_name_1(
             "std::set<", ayu::Type::CppType<T>()
         );
-        return r;
     }),
     desc::delegate(desc::template mixed_funcs<uni::UniqueArray<T>>(
         [](const std::set<T>& v) {
@@ -303,10 +302,10 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(T[n]),
     desc::computed_name([]{
-        return uni::cat(
+        return uni::AnyString(uni::cat(
             ayu::Type::CppType<T>().name(),
             '[', n, ']'
-        );
+        ));
     }),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](T(& v )[n]){
@@ -321,7 +320,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(char[n]),
     desc::computed_name([]{
-        return uni::cat("char[", n, ']');
+        return uni::AnyString(uni::cat("char[", n, ']'));
     }),
      // Serialize as a string
     desc::to_tree([](const char(& v )[n]){
@@ -369,10 +368,10 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::array<T, n>),
     desc::computed_name([]{
-        return uni::cat(
-            "std::array<" + ayu::Type::CppType<T>().name(),
+        return uni::AnyString(uni::cat(
+            "std::array<", ayu::Type::CppType<T>().name(),
             ", ", n, '>'
-        );
+        ));
     }),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](std::array<T, n>& v){
@@ -385,10 +384,10 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class A, class B),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::pair<A, B>),
     desc::computed_name([]{
-        return uni::cat(
+        return uni::AnyString(uni::cat(
             "std::pair<", ayu::Type::CppType<A>().name(),
             ", ", ayu::Type::CppType<B>().name(), '>'
-        );
+        ));
     }),
     desc::elems(
         desc::elem(&std::pair<A, B>::first),
