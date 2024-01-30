@@ -154,13 +154,13 @@ GRANGE_UNARY_OP(~)
  // overlaps(a, b) == !empty(a & b)
 template <class T>
 constexpr bool overlaps (const GRange<T>& a, const GRange<T>& b) {
-    return a.l < b.r && a.r < b.l;
+    return a.l < b.r && b.l < a.r;
 }
  // Returns true if overlapping or touching.
  // touches(a, b) == proper(a & b)
 template <class T>
 constexpr bool touches (const GRange<T>& a, const GRange<T>& b) {
-    return a.l <= b.r && a.r <= b.l;
+    return a.l <= b.r && b.l <= a.r;
 }
 
  // b is fully contained in a.
