@@ -73,14 +73,20 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
 
     RGBA8 bg = uint32(0x331100ee);
     RGBA8 fg = uint32(0x2674dbf0);
+    RGBA8 fg2 = uint32(0x2674dbff);
 
     is(tex->size(), IVec{7, 5}, "Created texture has correct size");
-    is(tex2->size(), IVec{7, 5}, "Image texture has correct size");
+    is(tex2->size(), IVec{7, 5}, "File image texture has correct size");
 
     UniqueImage tex_image (ImageRef(tex->source).size);
     glBindTexture(tex->target, *tex);
     glGetTexImage(tex->target, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_image.pixels);
     is(tex_image[{4, 3}], fg, "Created texture has correct content");
+
+    glBindTexture(tex2->target, *tex2);
+    UniqueImage tex2_image (ImageRef(tex2->source).size);
+    glGetTexImage(tex2->target, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex2_image.pixels);
+    is(tex2_image[{4, 3}], fg2, "File image texture has corrent content");
 
     glClearColor(bg.r/255.f, bg.g/255.f, bg.b/255.f, bg.a/255.f);
     glClear(GL_COLOR_BUFFER_BIT);

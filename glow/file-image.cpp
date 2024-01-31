@@ -43,7 +43,7 @@ FileImage::operator ImageRef () {
     load();
     return ImageRef(
         {storage->w, storage->h},
-        storage->pitch,  // Probably not necessary
+        storage->pitch / sizeof(RGBA8),  // Probably not necessary
         (RGBA8*)storage->pixels
     );
 }
