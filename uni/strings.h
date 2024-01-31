@@ -241,6 +241,20 @@ struct StringConversion<T> {
     ALWAYS_INLINE constexpr const char* data () const { return digits; }
 };
 
+template <class T> requires (!std::is_same_v<std::remove_cvref_t<T>, char>)
+struct StringConversion<T*> {
+    using Self = StringConversion<T*>;
+    T* v;
+    ALWAYS_INLINE constexpr usize size () const { return sizeof(usize) * 2; }
+    constexpr char* write (char* out) const {
+        for (usize i = 0; i < size(); i++) {
+            uint8 nyb = (usize(v) >> (size() - i - 1) * 4) & 0xf;
+            *out++ = nyb >= 10 ? 'a' + nyb - 10 : '0' + nyb;
+        }
+        return out;
+    }
+};
+
 template <class T> requires (
     requires (const T& v) { v.size(); v.data(); }
 )
