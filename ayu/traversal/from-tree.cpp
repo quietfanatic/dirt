@@ -30,12 +30,13 @@ struct SwizzleOp {
 };
 struct InitOp {
     InitFunc<Mu>* f;
+    double priority;
     Reference item;
     SharedLocation loc;
 
     ALWAYS_INLINE
-    InitOp (InitFunc<Mu>* f, Reference&& i, SharedLocation&& l) :
-        f(f), item(move(i)), loc(move(l))
+    InitOp (InitFunc<Mu>* f, double p, Reference&& i, SharedLocation&& l) :
+        f(f), priority(p), item(move(i)), loc(move(l))
     { }
      // Allow optimized reallocation
     ALWAYS_INLINE
@@ -677,8 +678,13 @@ struct TraverseFromTree {
             );
         }
         if (auto init = trav.desc->init()) {
-            IFTContext::current->init_ops.emplace_back(
-                init->f, trav.to_reference(), trav.to_location()
+            auto& init_ops = IFTContext::current->init_ops;
+            uint32 i;
+            for (i = init_ops.size(); i > 0; --i) {
+                if (init->priority <= init_ops[i-1].priority) break;
+            }
+            init_ops.emplace(i,
+                init->f, init->priority, trav.to_reference(), trav.to_location()
             );
         }
     }

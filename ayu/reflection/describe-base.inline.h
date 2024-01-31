@@ -28,8 +28,8 @@ constexpr auto _AYU_DescribeBase<T>::swizzle (in::SwizzleFunc<T>* f) {
     return in::SwizzleDcr<T>{{}, f};
 }
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::init (in::InitFunc<T>* f) {
-    return in::InitDcr<T>{{}, f};
+constexpr auto _AYU_DescribeBase<T>::init (in::InitFunc<T>* f, double pri) {
+    return in::InitDcr<T>{{}, f, pri};
 }
 
 template <class T>

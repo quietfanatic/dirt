@@ -74,7 +74,12 @@ namespace ayu::test {
         int value;
         int value_after_init = 0;
     };
+    struct LateInitTest {
+        int* place;
+        int value_after_init = 0;
+    };
     struct NestedInitTest {
+        LateInitTest lit;
         InitTest it;
         int it_val = -1;
     };
@@ -184,8 +189,17 @@ AYU_DESCRIBE(ayu::test::InitTest,
         v.value_after_init = v.value + 1;
     })
 )
+AYU_DESCRIBE(ayu::test::LateInitTest,
+    attrs(),
+    init([](LateInitTest& v){
+        v.value_after_init = *v.place + 1;
+    }, -10)
+)
 AYU_DESCRIBE(ayu::test::NestedInitTest,
-    attrs(attr("it", &NestedInitTest::it)),
+    attrs(
+        attr("lit", &NestedInitTest::lit),
+        attr("it", &NestedInitTest::it)
+    ),
     init([](NestedInitTest& v){
         v.it_val = v.it.value_after_init;
     })
@@ -412,11 +426,13 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         item_from_string(&initt, "6");
     });
     is(initt.value_after_init, 7, "Basic init works");
-    NestedInitTest nit {{3}};
+    NestedInitTest nit {{null}, {3}};
+    nit.lit.place = &nit.it_val;
     doesnt_throw([&]{
-        item_from_string(&nit, "{it:55}");
+        item_from_string(&nit, "{lit:{} it:55}");
     });
     is(nit.it_val, 56, "Children get init() before parent");
+    is(nit.lit.value_after_init, 57, "init() with lower priority gets called after");
 
     ScalarElemTest set = ScalarElemTest(0xab);
     try_to_tree(&set, "[0xa 0xb]", "Can use elems() on scalar type (to_tree)");

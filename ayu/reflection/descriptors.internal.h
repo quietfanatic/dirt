@@ -209,6 +209,7 @@ using InitFunc = void(T&);
 template <class T>
 struct InitDcr : AttachedDescriptor<T> {
     InitFunc<T>* f;
+    double priority;
 };
 
 template <class T>

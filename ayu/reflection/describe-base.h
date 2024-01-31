@@ -115,11 +115,22 @@ struct _AYU_DescribeBase {
      // can have a window type which sets all its parameters using attrs(), and
      // then calls a library function to open the window in init().
      //
-     // For compound types, this will be called first on all the child items in
-     // order, then on the parent item.  Be aware that an optional attr or elem
-     // will not have init called on it or its child items if it is not provided
-     // with a value in the from_tree operation.
-    static constexpr auto init (void(* f )(T&));
+     // Init functions will be called in descending priority order.  If init
+     // functions have the same priority, they will be called first on child
+     // items in order, then on parent items.
+     //
+     // Be aware that an optional attr or elem will not have init called on it
+     // or its child items if it is not provided with a value in the from_tree
+     // operation.
+     //
+     // There is not currently a way to have multiple inits of different
+     // priorities on the same type.
+     //
+     // If the init function causes more items to be deserialized (by
+     // autoloading a resource, for instance), all currently queued init
+     // operations will run before the new items' init operations, regardless of
+     // priority.
+    static constexpr auto init (void(* f )(T&), double priority = 0);
      // Make this type behave like another type.  `accessor` must be the result
      // of one of the accessor functions in the ACCESSOR section below.  If both
      // delegate() and other descriptors are specified, some behaviors may be
@@ -689,8 +700,8 @@ struct _AYU_DescribeBase {
      // And an overload for init() (a descriptor, not an accessor, but this
      // seems convenient, as a lot of class-like types have a method for this.
     template <void(T3::* m )()>
-    static constexpr auto init () {
-        return init([](T& v){ (v.*m)(); });
+    static constexpr auto init (double priority = 0) {
+        return init([](T& v){ (v.*m)(); }, priority);
     }
 
     ///// FLAGS AND INTERNAL STUFF
