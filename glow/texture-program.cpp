@@ -92,7 +92,7 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
     glClear(GL_COLOR_BUFFER_BIT);
 
     doesnt_throw([&]{
-        draw_texture(*tex, Rect{-.5, -.5, .5, .5});
+        draw_texture(*tex2, Rect{-.5, -.5, .5, .5});
     }, "Can draw texture");
 
     UniqueImage expected (env.size);
@@ -100,7 +100,7 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
     for (int x = 0; x < env.size.x; x++) {
         if (y >= env.size.y / 4 && y < env.size.y * 3 / 4
          && x >= env.size.x / 4 && x < env.size.x * 3 / 4) {
-            expected[{x, y}] = fg;
+            expected[{x, y}] = fg2;
         }
         else {
             expected[{x, y}] = bg;

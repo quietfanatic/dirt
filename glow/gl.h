@@ -2,6 +2,19 @@
 
 #include "common.h"
 
+#ifdef GLOW_TRACE_GL
+#include "../uni/io.h"
+#include "../uni/strings.h"
+#endif
+
+#ifndef APIENTRY
+#ifdef _WIN32
+#define APIENTRY __stdcall
+#else
+#define APIENTRY
+#endif
+#endif
+
 namespace glow {
     void register_gl_function (void*, const char*) noexcept;
     void init_gl_functions () noexcept;
@@ -43,14 +56,6 @@ Ret(APIENTRY* p_##name )params noexcept = \
 
 #include <type_traits>
 
-#ifndef APIENTRY
-#ifdef _WIN32
-#define APIENTRY __stdcall
-#else
-#define APIENTRY
-#endif
-#endif
-
 namespace glow {
     template <class Ret, class... Args>
     auto checked_gl_function(
@@ -62,10 +67,16 @@ namespace glow {
         return [=](Args... args) -> Ret {
             if constexpr (std::is_void_v<Ret>) {
                 p(args...);
+#ifdef GLOW_TRACE_GL
+                warn_utf8(cat("void ", fname, cat(" ", args)..., "\n"));
+#endif
                 throw_on_glGetError(fname + 2, srcloc);
             }
             else {
                 Ret r = p(args...);
+#ifdef GLOW_TRACE_GL
+                warn_utf8(cat(r, " ", fname, cat(" ", args)..., "\n"));
+#endif
                 throw_on_glGetError(fname + 2, srcloc);
                 return r;
             }

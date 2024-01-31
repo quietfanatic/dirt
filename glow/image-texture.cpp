@@ -5,6 +5,12 @@
 
 namespace glow {
 
+ImageTexture::ImageTexture () : Texture(GL_TEXTURE_2D) {
+    glBindTexture(target, id);
+    glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+}
+
 void ImageTexture::init () {
     if (target && source) {
         require(target == GL_TEXTURE_2D
@@ -17,7 +23,7 @@ void ImageTexture::init () {
         glTexImage2D(
             target,
             0, // level
-            internalformat,
+            GL_RGBA8,
             processed.size.x,
             processed.size.y,
             0, // border
@@ -36,8 +42,7 @@ AYU_DESCRIBE(glow::ImageTexture,
         attr("Texture", base<Texture>(), include),
         attr("SubImage", &ImageTexture::source, include),
         attr("replace_color", &ImageTexture::replace_color, optional),
-        attr("flip", &ImageTexture::flip, optional),
-        attr("internalformat", &ImageTexture::internalformat, optional)
+        attr("flip", &ImageTexture::flip, optional)
     ),
     init([](ImageTexture& v){ v.init(); })
 )
