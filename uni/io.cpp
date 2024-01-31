@@ -3,6 +3,7 @@
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
+#include "utf.h"
 #endif
 
 namespace uni {

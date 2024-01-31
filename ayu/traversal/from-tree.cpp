@@ -243,8 +243,12 @@ struct TraverseFromTree {
         constexpr usize stack_capacity_0 = 64; // 15 keys
         constexpr usize stack_capacity_1 = 256; // 63 keys
         constexpr usize stack_capacity_2 = 1024; // 255 keys
+         // Linux has a larger default stack limit than other OSes so it's safe
+         // to use more stack space.  Linux: 8M, Windows: 1M, MacOS: 512K
+#ifdef __linux__
          // 4096 triggers some extra code on GCC
         constexpr usize stack_capacity_3 = 4080; // 1019 keys
+#endif
         auto len = tree.meta >> 1;
         if (len + 1 <= stack_capacity_0 / 4) {
             use_attrs_stack<stack_capacity_0>(trav, tree, attrs);
@@ -255,8 +259,6 @@ struct TraverseFromTree {
         else if (len + 1 <= stack_capacity_2 / 4) {
             use_attrs_stack<stack_capacity_2>(trav, tree, attrs);
         }
-         // Linux has a larger default stack limit than other OSes so it's safe
-         // to use more stack space.  Linux: 8M, Windows: 1M, MacOS: 512K
 #ifdef __linux__
         else if (len + 1 <= stack_capacity_3 / 4) {
             use_attrs_stack<stack_capacity_3>(trav, tree, attrs);

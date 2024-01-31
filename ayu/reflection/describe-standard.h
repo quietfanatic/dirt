@@ -351,7 +351,7 @@ AYU_DESCRIBE_TEMPLATE(
                     ayu::Type::CppType<char[n]>(), n, n, s.size()
                 );
             }
-            for (uint i = 0; i < n; i++) {
+            for (uni::usize i = 0; i < n; i++) {
                 v[i] = s[i];
             }
         }
@@ -362,7 +362,7 @@ AYU_DESCRIBE_TEMPLATE(
                     ayu::Type::CppType<char[n]>(), n, n, a.size()
                 );
             }
-            for (uint i = 0; i < n; i++) {
+            for (uni::usize i = 0; i < n; i++) {
                 v[i] = char(a[i]);
             }
         }
