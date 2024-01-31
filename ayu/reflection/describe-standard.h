@@ -288,13 +288,29 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(T*),
-    desc::computed_name([]{
-        return ayu::in::make_pointer_name(ayu::Type::CppType<T>());
-    }),
+    []{
+        if constexpr (std::is_void_v<std::remove_cv_t<T>>) {
+            return desc::name("void*");
+        }
+        else {
+            return desc::computed_name([]{
+                return ayu::in::make_pointer_name(ayu::Type::CppType<T>());
+            });
+        }
+    }(),
      // This will probably be faster if we skip the delegate chain, but let's
      // save that until we know we need it.  Note that when we do that we will
      // have to adjust the breakage scanning in resource.cpp.
-    desc::delegate(desc::template assignable<ayu::Pointer>())
+    []{
+        if constexpr (std::is_void_v<std::remove_cv_t<T>>) {
+            return desc::to_tree([](T* const& v){
+                return ayu::Tree(uni::usize(v), ayu::TreeFlags::PreferHex);
+            });
+        }
+        else {
+            return desc::delegate(desc::template assignable<ayu::Pointer>());
+        }
+    }()
 )
 
  // Raw arrays T[n] - I can't believe this works
@@ -324,7 +340,7 @@ AYU_DESCRIBE_TEMPLATE(
     }),
      // Serialize as a string
     desc::to_tree([](const char(& v )[n]){
-        return ayu::Tree(Str(v, n));
+        return ayu::Tree(uni::Str(v, n));
     }),
      // Deserialize as either a string or an array
     desc::from_tree([](char(& v )[n], const ayu::Tree& tree){
