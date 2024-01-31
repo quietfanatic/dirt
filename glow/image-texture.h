@@ -1,13 +1,14 @@
 #pragma once
 #include "image.h"
 #include "objects.h"
+#include "image-transform.h"
 
 namespace glow {
 
  // Represents a texture loaded from an image.  Does not automatically support mipmaps.
 struct ImageTexture : Texture {
     SubImage source;
-     // TODO: move back to SubImage?
+    ReplaceColor replace_color;
     BVec flip;
     uint internalformat;
      // Supported targets: GL_TEXTURE_2D, GL_TEXTURE_1D_ARRAY, GL_TEXTURE_RECTANGLE

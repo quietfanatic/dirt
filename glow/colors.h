@@ -23,9 +23,6 @@ struct RGBA8 {
 inline bool operator == (RGBA8 a, RGBA8 b) {
     return uint32(a) == uint32(b);
 }
-inline bool operator != (RGBA8 a, RGBA8 b) {
-    return uint32(a) != uint32(b);
-}
 
 } // namespace glow
 

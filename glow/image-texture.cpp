@@ -12,15 +12,7 @@ void ImageTexture::init () {
             || target == GL_TEXTURE_RECTANGLE
         );
         ImageRef data = source;
-        UniqueImage processed (data.size);
-        IRect bounds = data.bounds();
-        for (int y = 0; y < processed.size.y; y++)
-        for (int x = 0; x < processed.size.x; x++) {
-            processed[{x, y}] = data[{
-                flip.x ? bounds.r - x - 1 : bounds.l + x,
-                flip.y ? bounds.t - y - 1 : bounds.b + y
-            }];
-        }
+        UniqueImage processed = replace_color.apply(data, flip);
         glBindTexture(target, id);
         glTexImage2D(
             target,
@@ -43,6 +35,7 @@ AYU_DESCRIBE(glow::ImageTexture,
          // TODO: figure out how to make this optional without regenning texture
         attr("Texture", base<Texture>(), include),
         attr("SubImage", &ImageTexture::source, include),
+        attr("replace_color", &ImageTexture::replace_color, optional),
         attr("flip", &ImageTexture::flip, optional),
         attr("internalformat", &ImageTexture::internalformat, optional)
     ),
