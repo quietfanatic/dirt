@@ -350,24 +350,25 @@ struct ResourceScanInfo {
     ResourceData* data;
     UniqueArray<Reference> outgoing_refs;
 };
+using RefsToReses = std::unordered_map<Reference, ResourceData*>;
 
-static void mark_reachable (
+static void reach_reference (
     const UniqueArray<ResourceScanInfo>& scan_info,
-    const std::unordered_map<Reference, ResourceData*> refs_to_reses,
-    usize from_id
+    const RefsToReses& refs_to_reses,
+    const Reference& item
 ) {
-    for (auto& ref : scan_info[from_id].outgoing_refs) {
-        auto it = refs_to_reses.find(ref);
-        if (it == refs_to_reses.end()) {
-             // Reference is already invalid?  Either that or it points to the
-             // root set, which we didn't bother studying because we already
-             // know it's reachable.
-            continue;
-        }
-        auto to_data = it->second;
-        if (to_data->reachable) continue;
-        to_data->reachable = true;
-        mark_reachable(scan_info, refs_to_reses, to_data->node_id);
+    auto it = refs_to_reses.find(item);
+    if (it == refs_to_reses.end()) {
+         // Reference is already invalid?  Either that or it points to the
+         // root set, which we didn't bother studying because we already
+         // know it's reachable.
+        return;
+    }
+    auto to_data = it->second;
+    if (to_data->reachable) return;
+    to_data->reachable = true;
+    for (auto& ref : scan_info[to_data->node_id].outgoing_refs) {
+        reach_reference(scan_info, refs_to_reses, ref);
     }
 }
 
@@ -407,7 +408,7 @@ void unload (Slice<ResourceRef> to_unload) {
          // unloaded.  Everyone can go home.
         return;
     }
-    if (none_root) {
+    if (none_root && !universe().globals) {
          // Root set is empty!  We get to skip reachability scanning and just
          // unload everything.
         scan_info.consume([](auto&& info){ really_unload(info.data); });
@@ -437,11 +438,24 @@ void unload (Slice<ResourceRef> to_unload) {
             return false;
         });
     }
-     // Now traverse the graph starting with the root.
+     // Now traverse the graph starting with the globals and roots.
+    for (auto& g : universe().globals) {
+        scan_references(
+            g, {},
+            [&scan_info, refs_to_reses](const Reference& item, LocationRef)
+        {
+            if (item.type() == Type::CppType<Reference>()) {
+                reach_reference(scan_info, refs_to_reses, item);
+            }
+            return false;
+        });
+    }
     for (auto& info : scan_info) {
         if (info.data->root) {
             info.data->reachable = true;
-            mark_reachable(scan_info, refs_to_reses, info.data->node_id);
+            for (auto& ref : scan_info[info.data->node_id].outgoing_refs) {
+                reach_reference(scan_info, refs_to_reses, ref);
+            }
         }
     }
      // At this point, all resources should be marked whether they're reachable.
@@ -498,7 +512,6 @@ NOINLINE static void reload_rollback (MoveRef<UniqueArray<ROV>> rs) {
 }
 
 void reload (Slice<ResourceRef> reses) {
-     // TODO: Start ResourceTransaction for dependently-loaded resources.
     UniqueArray<ROV> rovs;
     for (auto res : reses) {
         if (res->state() == RS::Loaded) {
@@ -515,6 +528,7 @@ void reload (Slice<ResourceRef> reses) {
     UniqueArray<Update> updates;
     try {
          // Construct step
+         // TODO: Start ResourceTransaction for dependently-loaded resources.
         for (auto res : reses) {
             auto data = static_cast<ResourceData*>(res.data);
             data->state = RS::Loading;
@@ -537,10 +551,14 @@ void reload (Slice<ResourceRef> reses) {
                 case RS::Loaded: others.emplace_back(&*other); break;
                 default: raise_ResourceStateInvalid("scan for reload", &*other);
             }
+            for (auto res : reses) {
+                if (res == other) goto next_other;
+            }
+            next_other:;
         }
          // If we're reloading everything, no need to do any scanning.
         if (others) {
-             // First build mapping of old refs to locationss
+             // First build mapping of old refs to locations
             std::unordered_map<Reference, SharedLocation> old_refs;
             for (auto& rov : rovs) {
                 scan_references(
@@ -553,25 +571,28 @@ void reload (Slice<ResourceRef> reses) {
             }
              // Then build set of ref-refs to update.
             UniqueArray<Break> breaks;
+            auto check_ref =
+                [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc)
+            {
+                 // TODO: check for Pointer as well?
+                if (ref_ref.type() != Type::CppType<Reference>()) return false;
+                Reference ref = ref_ref.get_as<Reference>();
+                auto iter = old_refs.find(ref);
+                if (iter == old_refs.end()) return false;
+                try {
+                    Reference new_ref = reference_from_location(iter->second);
+                    updates.emplace_back(move(ref_ref), move(new_ref));
+                }
+                catch (std::exception&) {
+                    breaks.emplace_back(loc, iter->second);
+                }
+                return false;
+            };
+            for (auto global : universe().globals) {
+                scan_references(global, {}, check_ref);
+            }
             for (auto other : others) {
-                scan_resource_references(
-                    other,
-                    [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc) {
-                         // TODO: check for Pointer as well?
-                        if (ref_ref.type() != Type::CppType<Reference>()) return false;
-                        Reference ref = ref_ref.get_as<Reference>();
-                        auto iter = old_refs.find(ref);
-                        if (iter == old_refs.end()) return false;
-                        try {
-                            Reference new_ref = reference_from_location(iter->second);
-                            updates.emplace_back(move(ref_ref), move(new_ref));
-                        }
-                        catch (std::exception&) {
-                            breaks.emplace_back(loc, iter->second);
-                        }
-                        return false;
-                    }
-                );
+                scan_resource_references(other, check_ref);
             }
             if (breaks) {
                 raise_would_break(e_ResourceReloadWouldBreak, move(breaks));
@@ -579,7 +600,8 @@ void reload (Slice<ResourceRef> reses) {
         }
     }
     catch (...) { reload_rollback(move(rovs)); throw; }
-     // Commit step
+     // Commit step.  TODO: Update references now and roll them back if
+     // necessary
     if (ResourceTransaction::depth) {
         struct ReloadCommitter : Committer {
             UniqueArray<ROV> rovs;
@@ -680,6 +702,7 @@ AYU_DESCRIBE(ayu::ResourceRef,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../test/test-environment.private.h"
+#include "global.h"
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<int32*>)
 
@@ -817,10 +840,15 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     load(rec1);
     int* old_p = rec1["ref"][1].get_as<int*>();
+    int* global_p = old_p;
+    ayu::global(&global_p);
+
     doesnt_throw([&]{
         reload(rec2);
     }, "Can reload file with references to it");
-    isnt(rec1["ref"][1].get_as<int*>(), old_p, "Reference to reloaded file was updated");
+    int* new_p = rec1["ref"][1].get_as<int*>();
+    isnt(new_p, old_p, "Reference to reloaded file was updated");
+    is(global_p, new_p, "Global was updated.");
 
     throws_code<e_ResourceTypeRejected>([&]{
         load(SharedResource(IRI("ayu-test:/wrongtype.ayu")));
