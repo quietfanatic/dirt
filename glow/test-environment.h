@@ -5,7 +5,7 @@
 #include "../wind/window.h"
 
 namespace glow {
-struct Image;
+struct UniqueImage;
 
 struct TestEnvironment {
     geo::IVec size;
@@ -14,7 +14,7 @@ struct TestEnvironment {
     TestEnvironment (geo::IVec size = {120, 120});
     ~TestEnvironment ();
 
-    Image read_pixels ();
+    UniqueImage read_pixels ();
 };
 
 } // namespace glow

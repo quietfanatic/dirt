@@ -50,6 +50,7 @@ AYU_DESCRIBE(glow::TextureProgram,
 #include "../ayu/traversal/to-tree.h"
 #include "../tap/tap.h"
 #include "../wind/window.h"
+#include "image-texture.h"
 #include "test-environment.h"
 
 static tap::TestSet tests ("dirt/glow/texture-program", []{
@@ -67,7 +68,7 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
 
     is(tex->size(), IVec{7, 5}, "Created texture has correct size");
 
-    Image tex_image (tex->source.size());
+    UniqueImage tex_image (ImageRef(tex->source).size);
     glGetTexImage(tex->target, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_image.pixels);
     is(tex_image[{4, 3}], fg, "Created texture has correct content");
 
@@ -78,7 +79,7 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
         draw_texture(*tex, Rect{-.5, -.5, .5, .5});
     }, "Can draw texture");
 
-    Image expected (env.size);
+    UniqueImage expected (env.size);
     for (int y = 0; y < env.size.y; y++)
     for (int x = 0; x < env.size.x; x++) {
         if (y >= env.size.y / 4 && y < env.size.y * 3 / 4
@@ -90,7 +91,7 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
         }
     }
 
-    Image got = env.read_pixels();
+    UniqueImage got = env.read_pixels();
 
     bool match = true;
     for (int y = 0; y < env.size.y; y++)

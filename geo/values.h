@@ -20,6 +20,7 @@ struct GNAN_t {
     template <class T> requires (std::is_integral_v<T>)
     constexpr operator T () const {
         static_assert((T*)nullptr, "Cannot coerce GNAN to integer type");
+        return *(T*)nullptr;
     }
     constexpr GNAN_t operator + () const { return *this; }
     constexpr GNAN_t operator - () const { return *this; }
