@@ -1374,7 +1374,7 @@ struct ArrayInterface {
      // moves it into the slot.
     template <class... Args>
     T& emplace (usize offset, Args&&... args) requires (ac::supports_owned) {
-        expect(offset < size());
+        expect(offset <= size());
         if constexpr (noexcept(T(std::forward<Args>(args)...))) {
             T* dat = do_split(impl, offset, 1);
             T* r = new ((void*)&dat[offset]) T(std::forward<Args>(args)...);
@@ -1940,8 +1940,11 @@ struct ArrayInterface {
                 }
             }
             catch (...) { never(); }
-             // Don't use remove_ref, it'll call the destructors again
-            SharableBuffer<T>::deallocate(self.impl.data);
+             // data could be null if size is 0
+            if (self.impl.data) {
+                 // Don't use remove_ref, it'll call the destructors again
+                SharableBuffer<T>::deallocate(self.impl.data);
+            }
         }
         else if constexpr (std::is_copy_constructible_v<T>) { // Not unique
             usize head_i = 0;
