@@ -18,6 +18,6 @@ struct ResourceTexture : Texture {
     void load ();
 };
 
-constexpr uni::ErrorCode e_ResourceTextureLoadFailed = "e_ResourceTextureLoadFailed";
+constexpr uni::ErrorCode e_ResourceTextureLoadFailed = "glow::e_ResourceTextureLoadFailed";
 
 } // namespace glow

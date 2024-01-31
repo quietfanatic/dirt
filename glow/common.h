@@ -6,8 +6,11 @@
 #include "../uni/errors.h"
 #include "../uni/strings.h"
 
+namespace iri { struct IRI; }
+
 namespace glow {
 using namespace uni;
+using iri::IRI;
 
 void init () noexcept;
 

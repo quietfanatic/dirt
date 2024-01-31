@@ -6,10 +6,11 @@
 namespace glow {
 
 UniqueImage::UniqueImage (IVec s) noexcept :
-    size((require(area(s) >= 0), s)), pixels(new RGBA8 [area(size)])
+    size((require(area(s) >= 0), s)),
+    pixels((RGBA8*)std::malloc(area(size) * sizeof(RGBA8)))
 { }
 
-UniqueImage::~UniqueImage () { delete[](pixels); }
+UniqueImage::~UniqueImage () { std::free(pixels); }
 
 void SubImage::validate () {
     if (bounds != GINF) {
@@ -48,8 +49,10 @@ AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
         },
         [](UniqueImagePixelsProxy& image, usize len){
             require(area(image.size) == isize(len));
-            delete[](image.pixels);
-            const_cast<RGBA8*&>(image.pixels) = new RGBA8 [area(image.size)];
+            std::free(image.pixels);
+            image.pixels = (RGBA8*)std::malloc(
+                area(image.size) * sizeof(RGBA8)
+            );
         }
     )),
     contiguous_elems([](UniqueImagePixelsProxy& image){

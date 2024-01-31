@@ -60,15 +60,22 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
 
     ImageTexture* tex;
     doesnt_throw([&]{
-        tex = ayu::ResourceRef(iri::IRI("test:/texture-test.ayu"))["texture"][1];
+        tex = ayu::ResourceRef(IRI("test:/texture-test.ayu"))["texture"][1];
     }, "Can load texture");
+
+    ImageTexture* tex2;
+    doesnt_throw([&]{
+        tex2 = ayu::ResourceRef(IRI("test:/texture-test.ayu"))["texture2"][1];
+    }, "Can load texture from file image");
 
     RGBA8 bg = uint32(0x331100ee);
     RGBA8 fg = uint32(0x2674dbf0);
 
     is(tex->size(), IVec{7, 5}, "Created texture has correct size");
+    is(tex2->size(), IVec{7, 5}, "Image texture has correct size");
 
     UniqueImage tex_image (ImageRef(tex->source).size);
+    glBindTexture(tex->target, *tex);
     glGetTexImage(tex->target, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_image.pixels);
     is(tex_image[{4, 3}], fg, "Created texture has correct content");
 

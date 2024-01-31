@@ -17,6 +17,6 @@ struct FileTexture : Texture {
     ~FileTexture ();
 };
 
-constexpr uni::ErrorCode e_FileTextureLoadFailed = "e_FileTextureLoadFailed";
+constexpr uni::ErrorCode e_FileTextureLoadFailed = "glow::e_FileTextureLoadFailed";
 
 } // namespace glow

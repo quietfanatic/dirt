@@ -43,9 +43,8 @@ struct Image {
  // An image that owns its pixels and cannot be trimmed.
 struct UniqueImage : Image {
     IVec size;
-     // The allocation method of this is not specified, so if you take this
-     // pointer somewhere else, be sure to return it to an Image to deallocate
-     // it.
+     // The pixel buffer is allocated with std::malloc.  If you steal it you
+     // need to deallocate it with std::free.
     RGBA8* pixels;
 
     constexpr UniqueImage () : pixels(null) { }
@@ -54,9 +53,15 @@ struct UniqueImage : Image {
      // Allocate new pixels array.  The contents are undefined.
     explicit UniqueImage (IVec size) noexcept;
 
-    UniqueImage (UniqueImage&& o) : size(o.size), pixels(o.pixels) {
+    constexpr UniqueImage (UniqueImage&& o) : size(o.size), pixels(o.pixels) {
         o.pixels = null;
     }
+    UniqueImage& operator= (UniqueImage&& o) {
+        this->~UniqueImage();
+        size = o.size; pixels = o.pixels; o.pixels = null;
+        return *this;
+    }
+
     ~UniqueImage ();
 
     constexpr explicit operator bool () const { return pixels; }

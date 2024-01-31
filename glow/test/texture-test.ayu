@@ -15,4 +15,11 @@
         image: #/image+1
         filter: GL_LINEAR
     }]
+    file_image: [glow::FileImage {
+        source: image.png
+    }]
+    texture2: [glow::ImageTexture {
+        target: GL_TEXTURE_2D
+        image: #/file_image+1
+    }]
 }]
