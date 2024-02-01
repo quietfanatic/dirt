@@ -225,6 +225,7 @@ AYU_DESCRIBE(ayu::in::DocumentItemRef,
             }
         )),
         elem(reference_func([](DocumentItemRef& v){
+            if (!v.header) raise(e_DocumentItemNotFound, v.name);
             return Reference(v.header->type, v.header->data());
         }))
     )
