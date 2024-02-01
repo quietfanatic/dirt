@@ -17,4 +17,9 @@ struct ImageTexture : Texture {
     void init ();
 };
 
+ // An image texture that defaults to GL_TEXTURE_RECTANGLE and GL_NEAREST
+struct PixelTexture : ImageTexture {
+    PixelTexture ();
+};
+
 } // glow

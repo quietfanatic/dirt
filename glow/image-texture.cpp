@@ -11,6 +11,12 @@ ImageTexture::ImageTexture () : Texture(GL_TEXTURE_2D) {
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 }
 
+PixelTexture::PixelTexture () {
+    new (this) Texture(GL_TEXTURE_RECTANGLE);
+    glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+}
+
 void ImageTexture::init () {
     if (target && source) {
         require(target == GL_TEXTURE_2D
@@ -45,5 +51,9 @@ AYU_DESCRIBE(glow::ImageTexture,
         attr("flip", &ImageTexture::flip, optional)
     ),
     init([](ImageTexture& v){ v.init(); })
+)
+
+AYU_DESCRIBE(glow::PixelTexture,
+    delegate(base<ImageTexture>())
 )
 
