@@ -46,8 +46,8 @@ void never () {
 [[noreturn]] ALWAYS_INLINE static
 void never (std::source_location loc = std::source_location::current()) {
     abort_requirement_failed(loc);
-#endif
 }
+#endif
 
 template <class T> ALWAYS_INLINE static constexpr
 T&& require (T&& v, std::source_location loc) {
