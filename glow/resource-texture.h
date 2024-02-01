@@ -7,7 +7,7 @@
 #include "../iri/iri.h"
 #include "../uni/common.h"
 #include "gl.h"
-#include "objects.h"
+#include "texture.h"
 
 namespace glow {
 

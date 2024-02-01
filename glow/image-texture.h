@@ -1,6 +1,6 @@
 #pragma once
 #include "image.h"
-#include "objects.h"
+#include "texture.h"
 #include "image-transform.h"
 
 namespace glow {

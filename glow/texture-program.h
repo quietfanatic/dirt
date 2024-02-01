@@ -4,7 +4,7 @@
  // Not that useful, mainly for testing.
 
 #include "../geo/rect.h"
-#include "objects.h"
+#include "texture.h"
 
 namespace glow {
 using namespace geo;

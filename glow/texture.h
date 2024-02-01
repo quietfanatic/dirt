@@ -5,8 +5,6 @@
 
 namespace glow {
 
- // TODO: Rename this to texture.h
-
  // A texture in video memory.
  // glGenTextures will be called on construction and glDeleteTextures on
  //  destruction.
