@@ -9,7 +9,7 @@ struct UniqueImage;
 
 struct TestEnvironment {
     geo::IVec size;
-    ayu::FileResourceScheme test_scheme;
+    ayu::FolderResourceScheme test_scheme;
     wind::Window window;
     TestEnvironment (geo::IVec size = {120, 120});
     ~TestEnvironment ();

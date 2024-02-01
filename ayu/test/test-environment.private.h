@@ -7,8 +7,8 @@
 #include "../resources/scheme.h"
 
 namespace ayu::test {
-    struct TestResourceScheme : FileResourceScheme {
-        using FileResourceScheme::FileResourceScheme;
+    struct TestResourceScheme : FolderResourceScheme {
+        using FolderResourceScheme::FolderResourceScheme;
         bool accepts_type (Type type) const override {
             return type == Type::CppType<Document>();
         }

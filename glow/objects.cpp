@@ -14,7 +14,9 @@ Texture::Texture (uint target) : target(target) {
 }
 
 Texture::~Texture () {
-    if (id) glDeleteTextures(1, &id);
+    if (id) {
+        glDeleteTextures(1, &id);
+    }
 }
 
 geo::IVec Texture::size (int level) {

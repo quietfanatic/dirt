@@ -181,8 +181,27 @@ static tap::TestSet tests ("dirt/iri/path", []{
     is(path_extension("foo.bar/baz."), "", "path_extension trailing dot ignored");
      // TODO: Make these tests work on Windows
      // TODO: test relative paths somehow
-    is(from_fs_path("/foo/bar?baz").spec(), "file:/foo/bar%3Fbaz", "from_fs_path");
-    is(to_fs_path(IRI("file:/foo/bar%23baz")), "/foo/bar#baz", "to_fs_path");
+    AnyString exp;
+    if constexpr (backwards_slashes) {
+        Str wd = working_directory().path();
+        ok(wd.size() > 2);
+        ok(wd[1] >= 'A' && wd[1] <= 'Z');
+        is(wd[2], ':');
+        exp = cat("file:/", wd[1], ":/foo/bar%3Fbaz");
+    }
+    else {
+        exp = "file:/foo/bar%3Fbaz";
+    }
+    is(from_fs_path("/foo/bar?baz").spec(), exp, "from_fs_path");
+    AnyString exp2;
+    if constexpr (backwards_slashes) {
+        Str wd = working_directory().path();
+        exp2 = cat(wd[1], ":/foo/bar?baz");
+    }
+    else {
+        exp2 = "/foo/bar?baz";
+    }
+    is(to_fs_path(IRI(exp)), exp2, "to_fs_path");
 
     done_testing();
 });

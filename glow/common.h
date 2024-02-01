@@ -17,7 +17,7 @@ void init () noexcept;
 [[noreturn]]
 void requirement_failed_sdl (
     std::source_location loc = std::source_location::current()
-) noexcept;
+);
 
 template <class T>
 [[gnu::always_inline]]
@@ -27,5 +27,7 @@ static constexpr T&& require_sdl (
     if (!v) [[unlikely]] requirement_failed_sdl(loc);
     return std::forward<T>(v);
 }
+
+constexpr uni::ErrorCode e_SDLRequirementFailed = "glow::e_SDLRequirementFailed";
 
 } // namespace glow

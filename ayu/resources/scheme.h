@@ -6,6 +6,7 @@
 #pragma once
 
 #include "../../iri/iri.h"
+#include "../../iri/path.h"
 #include "../common.h"
 #include "../reflection/type.h"
 
@@ -79,8 +80,9 @@ constexpr ErrorCode e_ResourceSchemeNameDuplicate = "ayu::e_ResourceSchemeNameDu
 constexpr ErrorCode e_ResourceSchemeNotFound = "ayu::e_ResourceSchemeNotFound";
 
  // Maps resource names to the contents of a folder.
-struct FileResourceScheme : ResourceScheme {
-    AnyString folder;
+struct FolderResourceScheme : ResourceScheme {
+     // Must be a file:/ IRI
+    IRI folder;
 
     bool accepts_iri (const IRI& iri) const override {
         return iri && !iri.has_authority() && !iri.has_query()
@@ -88,18 +90,29 @@ struct FileResourceScheme : ResourceScheme {
     }
 
     AnyString get_file (const IRI& iri) const override {
-        return cat(folder, iri::decode(iri.path()));
+        require(iri.hierarchical());
+        IRI abs = IRI(iri.path().slice(1), folder);
+        return iri::to_fs_path(abs);
     }
 
-    FileResourceScheme (
-        AnyString scheme, AnyString folder, bool auto_activate = true
+    FolderResourceScheme (
+        AnyString scheme, Str folder, bool auto_activate = true
     ) :
         ResourceScheme(move(scheme), auto_activate),
-        folder(move(folder))
+        folder(iri::from_fs_path(cat(folder, '/')))
+    { }
+
+    FolderResourceScheme (
+        AnyString scheme, const IRI& folder, bool auto_activate = true
+    ) :
+        ResourceScheme(move(scheme), auto_activate),
+        folder(folder)
     {
-         // TODO
-//        require(folder);
-//        while (folder.size() > 1 && folder.back() == '/') folder.pop_back();
+        require(
+            folder.scheme() == "file" &&
+            folder.hierarchical() &&
+            folder.path().back() == '/'
+        );
     }
 };
 
