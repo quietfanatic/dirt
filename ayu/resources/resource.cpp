@@ -150,9 +150,9 @@ Dynamic& Resource::get_value () noexcept {
     return static_cast<ResourceData*>(this)->value;
 }
 
-void Resource::set_value (MoveRef<Dynamic> value) {
+void Resource::set_value (Dynamic&& value) {
     auto data = static_cast<ResourceData*>(this);
-    Dynamic v = *move(value);
+    Dynamic v = move(value);
     if (data->state == RS::Loading) {
         raise_ResourceStateInvalid("set_value", this);
     }

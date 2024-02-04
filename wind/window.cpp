@@ -93,7 +93,7 @@ AYU_DESCRIBE(wind::Window,
                 );
             }
         ), optional),
-         // Put this last so that everything else will be set first
+         // Putting this last so that everything else will be set first
         attr("hidden", value_funcs<bool>(
             [](const Window& window) -> bool {
                 return SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN;

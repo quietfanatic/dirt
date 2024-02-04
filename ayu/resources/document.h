@@ -17,6 +17,12 @@ struct Document {
      // Deletes all items
     ~Document ();
     Document (const Document&) = delete;
+    Document (Document&& o) : data(o.data) { o.data = null; }
+    Document& operator= (Document&& o) {
+        this->~Document();
+        data = o.data; o.data = null;
+        return *this;
+    }
 
     template <class T, class... Args>
     T* new_ (Args&&... args) {

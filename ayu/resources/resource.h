@@ -53,7 +53,7 @@ struct Resource : in::RefCounted {
      // if the state is RS::Loading.  Throws ResourceTypeRejected if the
      // ResourceScheme associated with this Resource returns false from
      // accepts_type.
-    void set_value (MoveRef<Dynamic>);
+    void set_value (Dynamic&&);
 
      // Automatically loads and returns a reference to the value, which can be
      // coerced to a pointer.  If a ResourceTransaction is currently active, the
@@ -111,7 +111,6 @@ struct ResourceRef {
 };
 
 inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data; }
-
 
 ///// RESOURCE OPERATIONS
 

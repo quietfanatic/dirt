@@ -497,7 +497,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     if constexpr (std::is_trivially_destructible_v<T>) {
         header.trivial_destroy = &trivial_destroy;
     }
-    else if constexpr (requires (T v) { v.~T(); }) {
+     // Make sure to use T& here so that arrays don't decay
+    else if constexpr (requires (T& v) { v.~T(); }) {
         header.destroy = &destroy<T>;
     }
     else {
