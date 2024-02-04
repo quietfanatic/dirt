@@ -534,8 +534,9 @@ struct TraverseFromTree {
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }
-        usize nonignored = elems->chop_flag(AttrFlags::Ignored);
-        for (usize i = 0; i < nonignored; i++) {
+        for (usize i = 0; i < array.size(); i++) {
+            auto acr = elems->elem(i)->acr();
+            if (!!(acr->attr_flags & AttrFlags::Ignored)) continue;
             const Tree& child_tree = array[i];
             trav_elem(trav, elems->elem(i)->acr(), i, AccessMode::Write,
                 [&child_tree](const Traversal& child)
