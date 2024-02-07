@@ -11,13 +11,13 @@
         ]
     }]
     texture: [glow::ImageTexture {
-        image: #/image+1
+        image: #image
         filter: GL_LINEAR
     }]
     file_image: [glow::FileImage {
         source: image.png
     }]
     texture2: [glow::ImageTexture {
-        image: #/file_image+1
+        image: #file_image
     }]
 }]

@@ -260,6 +260,7 @@ struct _AYU_DescribeBase {
      //     If the item serializes to an non-array or an array of more than one
      //     element, an exception will be thrown.  This flag cannot be combined
      //     with optional, include, or collapse_empty.
+     // TODO: Reject multiple attrs with the same name.
     template <class Acr>
     static constexpr auto attr (
         StaticString key,

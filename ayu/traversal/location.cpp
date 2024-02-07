@@ -122,18 +122,24 @@ SharedLocation location_from_iri (const IRI& iri) {
                 start, fragment.end(), index
             );
             if (ptr == start) raise(e_LocationIRIInvalid, cat(
-                iri.spec(), "invalid +index in #fragment"
+                iri.spec(), " invalid +index in #fragment"
             ));
             i += ptr - start;
             r = SharedLocation(move(r), index);
         }
-        else if (i == 0) raise(e_LocationIRIInvalid, cat(
-            iri.spec(), "#fragment doesn't start with / or +"
-        ));
+        else if (i == 0) {
+             // #foo is a shortcut for #/foo+1
+            usize start = i;
+            while (
+                i < fragment.size() && fragment[i] != '/' && fragment[i] != '+'
+            ) ++i;
+            r = SharedLocation(move(r), iri::decode(fragment.slice(start, i)));
+            r = SharedLocation(move(r), 1);
+        }
         else {
              // We can get here if there's junk after a number.
             raise(e_LocationIRIInvalid, cat(
-                iri.spec(), "invalid +index in #fragment"
+                iri.spec(), " invalid +index in #fragment"
             ));
         }
     }

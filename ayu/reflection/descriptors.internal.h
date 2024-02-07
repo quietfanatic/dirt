@@ -454,6 +454,9 @@ constexpr void for_variadic (F f, Arg&& arg, Args&&... args) {
     for_variadic(f, std::forward<Args>(args)...);
 }
 
+ // TODO: Prevent this from causing a template parameter deduction failure due
+ // to missing make_static.  If make_description is given incorrect arguments,
+ // we should try and make a custom compile-time error.
 template <class T, class... Dcrs>
 using FullDescription = Cat<
     DescriptionFor<T>,
