@@ -58,11 +58,18 @@ AYU_DESCRIBE(const Command*,
     ))
 )
 
- // External for debugging
+ // External for debugging.  There are some problems around serializing and
+ // deserializing commands containing pointers, revolving around the fact that
+ // we can't set the serialization location when we're delegating to
+ // item_*_tree on std::tuple and then changing the tree.  Currently everything
+ // seems to work, but if you perturb this, it may stop working in mysterious
+ // ways.
 ayu::Tree Statement_to_tree (const Statement& s) {
      // Serialize the args and stick the command name in front
      // TODO: allow constructing readonly Reference from const Dynamic
-    auto args_tree = ayu::item_to_tree(const_cast<ayu::Dynamic&>(s.args).ptr());
+    auto args_tree = ayu::item_to_tree(
+        const_cast<ayu::Dynamic&>(s.args).ptr()
+    );
     auto a = AnyArray<ayu::Tree>(move(args_tree));
     a.emplace(a.begin(), Str(s.command->name));
     return ayu::Tree(move(a));

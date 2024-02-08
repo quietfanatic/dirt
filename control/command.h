@@ -29,7 +29,7 @@ struct Command {
     template <class... Args>
     constexpr Command (
         Function<void(Args...)> f,
-        StaticString name, StaticString desc, usize req = sizeof...(Args)
+        StaticString name, StaticString desc = "", usize req = sizeof...(Args)
     ) :
         wrapper(
             CommandWrapper<Args...>::get_unwrap(std::index_sequence_for<Args...>{})
