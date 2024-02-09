@@ -81,6 +81,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (Mu* b = delegate->type(p).try_upcast_to(to, a))
         return b;
 
+    if (!desc->keys_acr())
     if (auto attrs = desc->attrs())
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
@@ -90,6 +91,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
             return b;
     }
 
+    if (!desc->length_acr())
     if (auto elems = desc->elems())
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
@@ -121,6 +123,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
     if (Mu* b = delegate->inverse_address(*a))
         return b;
 
+    if (!desc->keys_acr())
     if (auto attrs = desc->attrs())
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
@@ -131,6 +134,7 @@ Mu* Type::try_downcast_to (Type to, Mu* p) const {
             return b;
     }
 
+    if (!desc->length_acr())
     if (auto elems = desc->elems())
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
