@@ -186,11 +186,23 @@ constexpr GRect<T> properize (const GRect<T>& a) {
 #define GRECT_UNARY_OP(op) \
 template <class T> \
 constexpr GRect<T> operator op (const GRect<T>& a) { \
-    return {op a.l, op a.b, op a.t, op a.r}; \
+    return GRect<T>(op a.l, op a.b, op a.t, op a.r); \
 }
 GRECT_UNARY_OP(+)
 GRECT_UNARY_OP(-)
 #undef GRECT_UNARY_OP
+
+ // Rounding each component
+#define GRECT_ROUND_OP(op) \
+template <class T> \
+constexpr auto op (const GRect<T>& a) { \
+    return GRect<decltype(op(a.l))>(op(a.l), op(a.b), op(a.r), op(a.t)); \
+}
+GRECT_ROUND_OP(trunc)
+GRECT_ROUND_OP(round)
+GRECT_ROUND_OP(floor)
+GRECT_ROUND_OP(ceil)
+#undef GRECT_ROUND_OP
 
 ///// RELATIONSHIPS
 
