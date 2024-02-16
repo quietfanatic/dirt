@@ -213,6 +213,11 @@ struct InitDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
+struct FlagsDcr : DetachedDescriptor<T> {
+    TypeFlags flags;
+};
+
+template <class T>
 struct ValueDcr : ComparableAddress {
     Tree name;
 };
@@ -516,6 +521,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     bool have_from_tree = false;
     bool have_swizzle = false;
     bool have_init = false;
+    bool have_flags = false;
     bool have_values = false;
     bool have_keys = false;
     bool have_attrs = false;
@@ -581,6 +587,13 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         }
         else if constexpr (std::is_base_of_v<InitDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(InitDcr, init)
+        }
+        else if constexpr (std::is_base_of_v<FlagsDcr<T>, Dcr>) {
+            if (have_flags) {
+                ERROR_duplicate_descriptors<FlagsDcr<T>>();
+            }
+            have_flags = true;
+            header.type_flags = dcr.flags;
         }
         else if constexpr (std::is_base_of_v<ValuesDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(ValuesDcr, values)

@@ -32,6 +32,11 @@ enum class DescFlags : uint16 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
 
+enum class TypeFlags : uint16 {
+    NoReferencesToChildren = 1 << 0
+};
+DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
+
 struct Description : ComparableAddress {
 #ifdef AYU_STORE_TYPE_INFO
     const std::type_info* cpp_type = null;
@@ -47,6 +52,7 @@ struct Description : ComparableAddress {
     };
 
     DescFlags flags = {};
+    TypeFlags type_flags = {};
 
     uint16 to_tree_offset = 0;
     uint16 from_tree_offset = 0;

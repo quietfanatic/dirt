@@ -42,6 +42,11 @@ constexpr auto _AYU_DescribeBase<T>::destroy (void(* f )(T*)) {
 }
 
 template <class T>
+constexpr auto _AYU_DescribeBase<T>::flags (in::TypeFlags f) {
+    return in::FlagsDcr<T>{{}, f};
+}
+
+template <class T>
 template <class... Values>
     requires (requires (T v) { v == v; v = v; })
 constexpr auto _AYU_DescribeBase<T>::values (Values&&... vs) {
@@ -193,7 +198,10 @@ constexpr auto _AYU_DescribeBase<T>::contiguous_elems (in::DataFunc<T>* f) {
 template <class T>
 template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::delegate (const Acr& acr) {
-    return in::DelegateDcrWith<T, Acr>(acr);
+    if constexpr (std::is_member_object_pointer_v<Acr>) {
+        return delegate(_AYU_DescribeBase<T>::member(acr));
+    }
+    else return in::DelegateDcrWith<T, Acr>(acr);
 }
 
 template <class T>

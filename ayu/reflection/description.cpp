@@ -30,6 +30,7 @@ static void init_names () {
     auto& r = registry();
     if (!r.initted) {
         r.initted = true;
+        plog("init types begin");
 #ifdef AYU_STORE_TYPE_INFO
         for (auto& p : r.by_cpp_type) {
             r.by_name.emplace(get_description_name(p.second), p.second);
@@ -39,6 +40,7 @@ static void init_names () {
             r.by_name.emplace(get_description_name(desc), desc);
         });
 #endif
+        plog("init types end");
     }
 }
 

@@ -77,6 +77,10 @@ struct TraverseScan {
          // Also we're only checking offsets here, not converting them to
          // variables, because doing so before calling the cb would require
          // saving and restoring those variables.
+        if (!!(trav.desc->type_flags & TypeFlags::NoReferencesToChildren)) {
+            // Wait, never mind, don't scan under this.
+            return cb(trav, loc);
+        }
         if (trav.desc->preference() == DescFlags::PreferObject) {
             if (trav.desc->keys_offset) {
                 return use_computed_attrs(trav, loc, cb);
@@ -271,6 +275,7 @@ static usize keep_location_cache_count = 0;
 std::unordered_map<Pointer, SharedLocation>* get_location_cache () {
     if (!keep_location_cache_count) return null;
     if (!have_location_cache) {
+        plog("Generate location cache begin");
         scan_universe_pointers([](Pointer ptr, LocationRef loc){
              // We're deliberately ignoring the case where the same typed
              // pointer turns up twice in the data tree.  If this happens, we're
@@ -282,6 +287,10 @@ std::unordered_map<Pointer, SharedLocation>* get_location_cache () {
             return false;
         });
         have_location_cache = true;
+        plog("Generate location cache end");
+#ifdef AYU_PROFILE
+        fprintf(stderr, "Location cache entries: %ld\n", location_cache.size());
+#endif
     }
     return &location_cache;
 }

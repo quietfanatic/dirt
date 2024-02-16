@@ -22,7 +22,7 @@ void Reference::raise_WriteReadonly () const {
     catch (std::exception& e) {
         raise(e_ReferenceReadonly, cat(
             "Can't write to readonly Reference of type ", type().name(),
-            " at (!exception thrown while getting location of Referene: ", e.what()
+            " at (!exception thrown while getting location of Reference: ", e.what()
         ));
     }
 }
@@ -39,7 +39,7 @@ void Reference::raise_Unaddressable () const {
     catch (std::exception& e) {
         raise(e_ReferenceUnaddressable, cat(
             "Can't get address of unaddressable Reference of type ", type().name(),
-            " at (!exception thrown while getting location of Referene: ", e.what()
+            " at (!exception thrown while getting location of Reference: ", e.what()
         ));
     }
 }

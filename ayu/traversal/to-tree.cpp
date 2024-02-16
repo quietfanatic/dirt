@@ -2,6 +2,7 @@
 
 #include "../reflection/descriptors.private.h"
 #include "compound.h"
+#include "scan.h"
 #include "traversal.private.h"
 
 namespace ayu {
@@ -14,11 +15,14 @@ struct TraverseToTree {
      // NOINLINE this because it generates a lot of code with the trav_start
     NOINLINE static
     Tree start (const Reference& item, LocationRef loc) {
+        plog("to_tree start");
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
+        KeepLocationCache klc;
         Tree r;
         trav_start(item, loc, false, AccessMode::Read,
             [&r](const Traversal& child){ traverse(r, child); }
         );
+        plog("to_tree end");
         return r;
     }
 

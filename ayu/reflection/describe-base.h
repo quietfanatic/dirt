@@ -150,6 +150,11 @@ struct _AYU_DescribeBase {
      // do not delete/free it.  It will be deallocated automatically.
     static constexpr auto destroy (void(* f )(T*));
 
+     // Specify flags for this type specifically.  Currently, the only flag
+     // supported is no_references_to_children, which forbids other items from
+     // referencing child items of this item.
+    static constexpr auto flags (in::TypeFlags);
+
     ///// DESCRIPTORS FOR ENUM-LIKE TYPES
 
      // You can use this for enum-like types to provide specific representations
@@ -707,6 +712,7 @@ struct _AYU_DescribeBase {
 
     ///// FLAGS AND INTERNAL STUFF
 
+    static constexpr in::TypeFlags no_references_to_children = in::TypeFlags::NoReferencesToChildren;
     static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;

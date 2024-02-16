@@ -71,6 +71,7 @@ struct TraverseFromTree {
         const Reference& item, const Tree& tree, LocationRef loc,
         FromTreeOptions opts
     ) {
+        plog("from_tree start");
         if (tree.form == Form::Undefined) {
             raise(e_FromTreeFormRejected,
                 "Undefined tree given to item_from_tree"
@@ -82,6 +83,7 @@ struct TraverseFromTree {
             start_without_context(item, tree, loc);
         }
         else start_with_context(item, tree, loc);
+        plog("from_tree end");
     }
 
     NOINLINE static
@@ -352,6 +354,9 @@ struct TraverseFromTree {
         else if (auto attrs = trav.desc->attrs()) {
             claim_attrs_use_attrs(trav, tree, next_list, attrs);
         }
+        else if (auto acr = trav.desc->delegate_acr()) {
+            claim_attrs_use_delegate(trav, tree, next_list, acr);
+        }
         else raise_AttrsNotSupported(trav.desc);
     }
 
@@ -455,6 +460,16 @@ struct TraverseFromTree {
          // Consume entire list
         next_list[-1] = -1;
         finish_item(trav, tree);
+    }
+
+    NOINLINE static
+    void claim_attrs_use_delegate (
+        const Traversal& trav, const Tree& tree, uint32* next_list,
+        const Accessor* acr
+    ) {
+        trav_delegate(trav, acr, AccessMode::Write,
+            [&tree, next_list](const Traversal& child)
+        { claim_attrs(child, tree, next_list); });
     }
 
     static

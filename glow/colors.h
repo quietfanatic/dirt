@@ -19,6 +19,8 @@ struct RGBA8 {
     constexpr explicit operator uint32 () const {
         return uint32(r) << 24 | uint32(g) << 16 | uint32(b) << 8 | uint32(a);
     }
+     // operator bool only checks alpha.
+    constexpr explicit operator bool () const { return a; }
 };
 inline bool operator == (RGBA8 a, RGBA8 b) {
     return uint32(a) == uint32(b);

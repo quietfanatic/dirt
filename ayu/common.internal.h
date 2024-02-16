@@ -2,7 +2,22 @@
 
 #include "common.h"
 
+#ifdef AYU_PROFILE
+#include <cstdio>
+#include <ctime> // Will be using POSIX functions though
+#endif
+
 namespace ayu::in {
+
+#ifdef AYU_PROFILE
+inline void plog (const char* s) {
+    struct timespec t;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &t);
+    fprintf(stderr, "[%ld.%09ld] %s\n", long(t.tv_sec), long(t.tv_nsec), s);
+}
+#else
+inline void plog (const char*) { }
+#endif
 
  // Predeclare some private classes
 struct DocumentData;

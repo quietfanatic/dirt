@@ -53,6 +53,10 @@ struct GRect {
         l(lr.l), b(bt.l), r(lr.r), t(bt.r)
     { }
 
+     // Convert from another rect type
+    template <class T2> constexpr explicit
+    GRect (const GRect<T2>& o) : l(o.l), b(o.b), r(o.r), t(o.t) { }
+
      // Don't use this to check for definedness or area = 0.  It only checks
      // that each side is strictly zero.
     constexpr explicit operator bool () const { return l || b || r || t; }
