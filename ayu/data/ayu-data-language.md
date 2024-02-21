@@ -70,10 +70,11 @@ are supported in quoted strings.
 Some of these escape sequences may be obscure or useless, but they're included
 for compatibility with JSON.
 
-A string does not have to be quoted if it:
-- is not `null`, `true`, or `false`
-- starts with a letter or one of `_`, `/`, `?`, or `#`
-- only contains the following:
+A string does not have to be quoted if all of the below are true:
+- It is not `null`, `true`, or `false`.
+- It starts with a letter or one of `_`, `/`, `?`, or `#`, or a `.` not followed by
+  a digit or `+` or `-`.
+- It only contains the following:
     - ASCII letters, numbers, or underscores
     - any of these symbols: `!`, `$`, `%`, `+`, `-`, `.`, `/`, `<`, `>`, `?`, `@`,
       `^`, `_`, `~`, `#`, `&`, `*`, `=`

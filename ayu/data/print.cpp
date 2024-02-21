@@ -226,6 +226,13 @@ struct Printer {
 
         switch (s[0]) {
             case ANY_WORD_STARTER: break;
+            case '.': {
+                if (s.size() > 1) switch (s[1]) {
+                    case ANY_DECIMAL_DIGIT: case '-': case '+': goto quoted;
+                    default: break;
+                }
+                break;
+            }
             default: goto quoted;
         }
 

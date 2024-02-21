@@ -76,8 +76,8 @@ struct Parser {
         if (in >= end) return got_error(in, r);
         switch (*in) {
             case ANY_WORD_STARTER: return got_word(in, r);
-            case ANY_DECIMAL_DIGIT:
-            case '.': return got_digit(in, r);
+            case ANY_DECIMAL_DIGIT: return got_digit(in, r);
+            case '.': return got_dot(in, r);
             case '+': return got_plus(in, r);
              // Comments starting with -- should already have been skipped by a
              // previous skip_ws().
@@ -133,7 +133,6 @@ struct Parser {
     [[noreturn, gnu::cold]] NOINLINE
     void error_invalid_number (const char* in, const char* num_end) {
         if (in < end) {
-            if (in[0] == '.') error(in, "Number can't start with .");
             check_error_chars(num_end);
         }
         error(in, "Couldn't parse number");
@@ -177,7 +176,7 @@ struct Parser {
         if (num_end[0] == '.') {
             if (num_end + 1 >= word_end ||
                 (num_end[1] & ~('a' & ~'A')) == (hex ? 'P' : 'E')
-            ) error(in, "Number cannot end with .");
+            ) error(in, "Number cannot end with a dot.");
         }
         return parse_floating<hex>(in, r, word_end, minus);
     }
@@ -189,6 +188,21 @@ struct Parser {
             return parse_number<true>(in, r, word_end, minus);
         }
         else return parse_number<false>(in, r, word_end, minus);
+    }
+
+    NOINLINE const char* got_digit (const char* in, Tree& r) {
+        return parse_number_based(in, r, find_word_end(in), false);
+    }
+
+    NOINLINE const char* got_dot (const char* in, Tree& r) {
+        auto word_end = find_word_end(in);
+        if (in+1 < word_end) switch (in[1]) {
+            case ANY_DECIMAL_DIGIT: case '+': case '-': {
+                error(in, "Number cannot start with a dot.");
+            }
+        }
+        new (&r) Tree(Str(in, word_end));
+        return word_end;
     }
 
     NOINLINE const char* got_plus (const char* in, Tree& r) {
@@ -211,10 +225,6 @@ struct Parser {
             return word_end;
         }
         return parse_number_based(in+1, r, word_end, true);
-    }
-
-    NOINLINE const char* got_digit (const char* in, Tree& r) {
-        return parse_number_based(in, r, find_word_end(in), false);
     }
 
 ///// STRINGS (quoted)
@@ -606,6 +616,7 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     y("-inf", Tree(-1.0/0.0));
     y("\"\"", Tree(""));
     y("asdf", Tree("asdf"));
+    y("../foo", Tree("../foo"));
     y("\"null\"", Tree("null"));
     y("\"true\"", Tree("true"));
     y("\"false\"", Tree("false"));
