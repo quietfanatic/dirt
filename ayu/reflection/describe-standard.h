@@ -68,7 +68,10 @@ AYU_DESCRIBE_TEMPLATE(
         }
     )),
     desc::contiguous_elems([](std::optional<T>& v){
-        return ayu::Pointer(std::to_address(v));
+        uni::expect(v);
+         // For some reason, std::to_address returns a const pointer here, which
+         // screws up deserialization (you can't deserialize a const item).
+        return ayu::Pointer(std::addressof(*v));
     })
 )
 

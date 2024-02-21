@@ -157,6 +157,9 @@ struct TraverseFromTree {
 
     NOINLINE static
     void traverse (const Traversal& trav, const Tree& tree) {
+        if (trav.readonly) {
+            raise(e_General, "Tried to do from_tree operation on a readonly reference?");
+        }
          // If description has a from_tree, just use that.
         if (auto from_tree = trav.desc->from_tree()) [[likely]] {
             use_from_tree(trav, tree, from_tree->f);
