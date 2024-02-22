@@ -546,7 +546,7 @@ struct ArrayInterface {
         if constexpr (sizeof(T) == 1 &&
             std::is_trivially_copy_constructible_v<T>
         ) {
-            dat = (T*)std::memset((void*)dat, v, s);
+            dat = (T*)std::memset((void*)dat, v, s * sizeof(T));
         }
         else {
             T* p;
@@ -2008,7 +2008,7 @@ struct ArrayInterface {
                     std::memmove(
                         self.impl.data + offset,
                         self.impl.data + offset + count,
-                        old_size - offset - count
+                        (old_size - offset - count) * sizeof(T)
                     );
                 }
                 else for (usize i = offset; count + i < old_size; ++i) {
@@ -2098,7 +2098,7 @@ constexpr bool operator== (
          // lesserness or greaterness.  If you expect your strings to be very
          // long, it may be faster to call memcmp yourself, but for ordinary
          // sized strings our implementation of memeq is faster.
-        return uni::memeq(ad, std::to_address(bd), as);
+        return uni::memeq(ad, std::to_address(bd), as * sizeof(T));
     }
     else {
         for (auto end = ad + as; ad != end; ++ad, ++bd) {
