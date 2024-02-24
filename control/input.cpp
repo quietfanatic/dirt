@@ -290,7 +290,7 @@ Input input_from_string (Str name) {
             }
             else break;
         }
-        else if (b == e) break;
+        else if (b == mid) break;
         else if (hash < entry.hash) e = mid;
         else b = mid;
     }
