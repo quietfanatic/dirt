@@ -20,20 +20,18 @@ template <class A, class B, class... Ts> requires (
 )
 constexpr auto min (A a, B b, Ts&&... rest) {
     return a != a ? a
-         : a <= b ? a
-         : min(b, std::forward<Ts>(rest)...);
+         : min(a <= b ? a : b, std::forward<Ts>(rest)...);
 }
 template <class T>
 constexpr auto max (T a) {
     return a;
 }
 template <class A, class B, class... Ts> requires (
-    requires (A a, B b) { a <= b; }
+    requires (A a, B b) { a >= b; }
 )
 constexpr auto max (A a, B b, Ts&&... rest) {
     return a != a ? a
-         : a >= b ? a
-         : max(b, std::forward<Ts>(rest)...);
+         : max(a >= b ? a : b, std::forward<Ts>(rest)...);
 }
 
  // clamp(a, low, high) is equivalent to min(max(a, low), high).
