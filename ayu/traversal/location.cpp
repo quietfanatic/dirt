@@ -97,7 +97,10 @@ IRI location_to_iri (LocationRef loc) noexcept {
 SharedLocation location_from_iri (const IRI& iri) {
     if (iri.empty()) return {};
     if (!iri) raise(e_LocationIRIInvalid, cat(
-        "IRI is an invalid IRI by itself: ", iri.possibly_invalid_spec()
+        "Invalid IRI: ", iri.possibly_invalid_spec()
+    ));
+    if (!iri.has_fragment()) raise(e_LocationIRIInvalid, cat(
+        "Location IRI does not have a #fragment: ", iri.spec()
     ));
      // We could require that the location has a fragment, but instead lets
      // consider the lack of fragment to be equivalent to an empty fragment.
