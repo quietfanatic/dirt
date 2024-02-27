@@ -27,6 +27,9 @@ enum class InputFlags : uint8 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(InputFlags)
 
+ // Input serializes to an array containing any of ctrl, alt, shift, repeatable,
+ // and exactly one of whatever comes from input_to_string or input_to_integer
+ // (with an exception for InputType::None serializing to an empty array).
 struct Input {
     InputType type = InputType::None;
     InputFlags flags = InputFlags{0};
@@ -36,6 +39,10 @@ struct Input {
      // will mess things up.  Use input_matches_binding instead.
     friend bool operator== (Input, Input) = default;
 };
+
+ // An alternative version of Input that deserializes from a plain string or
+ // integer instead of an array.  InputType::None cannot be serialized.
+struct InputNoModifiers : Input { };
 
 Input input_from_event (SDL_Event*) noexcept;
 bool input_matches_binding (Input got, Input binding) noexcept;
@@ -50,8 +57,8 @@ void send_input_as_event (Input i, int windowID) noexcept;
 
  // 0..9 map to the number keys, and other numbers are raw scancodes.
  // Does not work for mouse buttons.
-Input input_from_integer (int d) noexcept;
-int input_to_integer (Input i) noexcept;
+Input input_from_integer (int32 d) noexcept;
+int32 input_to_integer (Input i) noexcept;
 
  // Symbolic name in all lowercase (Ignores modifier keys).
  // May not work on obscure keys.

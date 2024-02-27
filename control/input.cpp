@@ -125,7 +125,7 @@ void send_input_as_event (Input input, int window) noexcept {
     }
 }
 
-Input input_from_integer (int i) noexcept {
+Input input_from_integer (int32 i) noexcept {
     switch (i) {
         case 0: case 1: case 2: case 3: case 4:
         case 5: case 6: case 7: case 8: case 9:
@@ -138,7 +138,7 @@ Input input_from_integer (int i) noexcept {
     }
 }
 
-int input_to_integer (Input input) noexcept {
+int32 input_to_integer (Input input) noexcept {
     if (input.type != InputType::Key) return -1;
     switch (input.code) {
         case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
@@ -165,7 +165,7 @@ static constexpr auto inputs_by_hash = []{
 #define ALT(n, c) KEY(n, c)
 #define BTN(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Button, .code = c}},
 #define BTN_ALT(n, c) BTN(n, c)
-#include "keys-table.private.h"
+#include "keys-table.h"
     };
     constexpr usize len = sizeof(unsorted) / sizeof(unsorted[0]);
     std::array<TableEntry, len> r;
@@ -230,7 +230,7 @@ static constexpr auto inputs_by_code = []{
     for (auto& i : r.btn) i = -1;
     constexpr uint32 keys [] = {
 #define KEY(n, c) hash32(n),
-#include "keys-table.private.h"
+#include "keys-table.h"
     };
     for (uint32 hash : keys) {
         for (usize i = 0; i < inputs_by_hash.size(); i++) {
@@ -246,7 +246,7 @@ static constexpr auto inputs_by_code = []{
     }
     constexpr uint32 btns [] = {
 #define BTN(n, c) hash32(n),
-#include "keys-table.private.h"
+#include "keys-table.h"
     };
     for (uint32 hash : btns) {
         for (usize i = 0; i < inputs_by_hash.size(); i++) {
@@ -270,6 +270,7 @@ static constexpr StaticArray<uint8> inputs_by_code_high (inputs_by_code.high);
 static constexpr StaticArray<uint8> inputs_by_code_btn (inputs_by_code.btn);
 
 Input input_from_string (Str name) {
+    if (!name) return Input{};
     if (name.size() > 32) {
         raise(e_General, "Input descriptor is too long to be an input name");
     }
@@ -386,6 +387,7 @@ static ayu::Tree input_to_tree (const Input& input) {
 static void input_from_tree (Input& input, const ayu::Tree& tree) {
     auto a = Slice<ayu::Tree>(tree);
     input = {};
+    if (!a) return;
     for (auto& e : a) {
         if (e.form == ayu::Form::Number) {
             if (input.type != InputType::None) {
@@ -411,6 +413,47 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
             }
         }
     }
+    if (input.type == InputType::None) {
+        ayu::raise(ayu::e_General, "Input has modifiers but no actual code");
+    }
+}
+
+static ayu::Tree input_to_tree_no_modifiers (const InputNoModifiers& input) {
+    switch (input.type) {
+        case InputType::None: return ayu::Tree("");
+        case InputType::Key: {
+            switch (input.code) {
+                case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
+                case SDLK_5: case SDLK_6: case SDLK_7: case SDLK_8: case SDLK_9:
+                    return ayu::Tree(input.code - SDLK_0);
+                default: {
+                    StaticString name = input_to_string(input);
+                    if (!name.empty()) return ayu::Tree(name);
+                    else return ayu::Tree(input_to_integer(input));
+                }
+            }
+            break;
+        }
+        case InputType::Button: {
+            StaticString name = input_to_string(input);
+            return ayu::Tree(expect(name));
+        }
+        default: never();
+    }
+}
+
+static void input_from_tree_no_modifiers (InputNoModifiers& input, const ayu::Tree& tree) {
+    switch (tree.form) {
+        case ayu::Form::String: {
+            input = InputNoModifiers(input_from_string(Str(tree)));
+            break;
+        }
+        case ayu::Form::Number: {
+            input = InputNoModifiers(input_from_integer(int32(tree)));
+            break;
+        }
+        default: ayu::raise(e_General, "InputNoModifiers wasn't given a string or integer");
+    }
 }
 
 } using namespace control;
@@ -418,6 +461,11 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
 AYU_DESCRIBE(control::Input,
     to_tree(&input_to_tree),
     from_tree(&input_from_tree)
+)
+
+AYU_DESCRIBE(control::InputNoModifiers,
+    to_tree(&input_to_tree_no_modifiers),
+    from_tree(&input_from_tree_no_modifiers)
 )
 
 #ifndef TAP_DISABLE_TESTS

@@ -1,3 +1,7 @@
+ // This file lists all the input code names that are supported by this library.
+ // If a key doesn't have a name, it can still be referred to with an integer
+ // corresponding to its SDL_Keycode value.
+
 #ifndef KEY
 #define KEY(n, k)
 #endif
