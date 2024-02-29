@@ -244,13 +244,13 @@ constexpr bool normal (const GVec<T, n>& a) {
 }
 
  // Slope of the line from the origin to a.
-template <class T>
+template <Fractional T>
 constexpr T slope (const GVec<T, 2>& a) {
     return a.y / a.x;
 }
  // 1 / slope(a).  This is separate because floating point arithmetic doesn't
  // optimize very well.
-template <class T>
+template <Fractional T>
 constexpr T aspect (const GVec<T, 2>& a) {
     return a.x / a.y;
 }
