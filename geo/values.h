@@ -22,6 +22,13 @@ struct GNAN_t {
         static_assert((T*)nullptr, "Cannot coerce GNAN to integer type");
         return *(T*)nullptr;
     }
+     // This is getting REALLY dumb
+    template <class T> requires (
+        requires { T(float(0)); } && !std::is_integral_v<T>
+    )
+    explicit constexpr operator T () const {
+        return T(std::numeric_limits<float>::quiet_NaN());
+    }
     constexpr GNAN_t operator + () const { return *this; }
     constexpr GNAN_t operator - () const { return *this; }
 };
