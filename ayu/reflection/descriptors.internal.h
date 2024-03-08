@@ -297,6 +297,18 @@ struct AttrDcrWith : AttrDcr<T> {
          // yet.  Do it in attr() in describe-base.inline.h instead.
     }
 };
+ // We can't put the default value after the acr because it has variable size,
+ // and we can't put it between the key and the acr if it might not exist.  So
+ // just put it before the beginning of the object instead!  It'll be fiiiiine
+struct AttrDefault { Tree default_value; };
+template <class T, class Acr>
+struct AttrDefaultDcrWith : AttrDefault, AttrDcrWith<T, Acr> {
+    constexpr AttrDefaultDcrWith (const Tree& t, const AttrDcrWith<T, Acr>& a) :
+        AttrDefault(t), AttrDcrWith<T, Acr>(a)
+    {
+        AttrDcrWith<T, Acr>::acr.attr_flags |= AttrFlags::HasDefault;
+    }
+};
 
 template <class T>
 struct AttrsDcr : AttachedDescriptor<T> {
@@ -321,7 +333,7 @@ struct AttrsDcrWith : AttrsDcr<T> {
         bool r = false;
         attrs.for_each([&](const auto& attr){
             r |= !!(attr.acr.attr_flags &
-                (AttrFlags::Include|AttrFlags::CollapseEmpty|
+                (AttrFlags::Include|AttrFlags::HasDefault|
                  AttrFlags::CollapseOptional)
             );
         });

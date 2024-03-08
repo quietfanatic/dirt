@@ -49,9 +49,9 @@ enum class AttrFlags : uint8 {
     Invisible = 0x4,
      // If this is set, the attr will not be deserialized in from_tree.
     Ignored = 0x8,
-     // If this is set, map an empty object or empty array to the attribute
-     // being missing from the object.
-    CollapseEmpty = 0x10,
+     // If this is set, there is a tree 16 bytes before the attr's key, which is
+     // the default value of the attr.
+    HasDefault = 0x10,
      // If this is set, map an empty array to the attribute being missing from
      // the object, and an array of one element to the attribute being present
      // with that element as its value.

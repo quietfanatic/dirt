@@ -246,12 +246,6 @@ struct _AYU_DescribeBase {
      //     it will still be read when serializing (unless it's also invisible,
      //     which it probably should be).  Implies optional.  Use this if you
      //     have an obsolete attribute that no longer has meaning.
-     //   - collapse_empty: If this attribute's value serializes to an empty
-     //     object or array, just leave the attribute out of this object
-     //     entirely.  Conversely, if the attribute is missing when
-     //     deserializing, deserialize it from an empty object or array
-     //     (whichever it would serialize to by default).  This flag cannot be
-     //     combined with optional, include, or collapse_optional.
      //   - collapse_optional: Only for item types that serialize to an array of
      //     0 or 1 elements (such as std::optional and std::unique_ptr).  An
      //     empty array corresponds to the attribute being entirely missing from
@@ -266,12 +260,31 @@ struct _AYU_DescribeBase {
      //     }
      //     If the item serializes to an non-array or an array of more than one
      //     element, an exception will be thrown.  This flag cannot be combined
-     //     with optional, include, or collapse_empty.
+     //     with optional or include.
      // TODO: Reject multiple attrs with the same name.
     template <class Acr>
     static constexpr auto attr (
         StaticString key,
         const Acr& accessor,
+        in::AttrFlags = {}
+    );
+     // Same as attr(), but with an extra parameter that specifies a default
+     // value.  This parameter is anything that can be converted to a Tree,
+     // similar to the name parameter of values.  When serializing, if the
+     // serialized attribute's value is equal to this Tree, it will be left out
+     // of the object, and when deserializing, if the attribute is left out of
+     // the object, it will be deserialized from this Tree.
+     //
+     // Because you can't create dynamically-allocated storage at runtime, to
+     // make the default value an array or object, you need to declare an array
+     // at global scope and pass that in as a StaticArray<Tree> or
+     // StaticArray<TreePair>.
+    template <class Acr, class Default>
+        requires (requires (const Default& def) { Tree(def); })
+    static constexpr auto attr_default (
+        StaticString key,
+        const Acr& accessor,
+        const Default& default_value,
         in::AttrFlags = {}
     );
      // Use this for items that may have a variable number of attributes.
@@ -730,7 +743,6 @@ struct _AYU_DescribeBase {
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
     static constexpr in::AttrFlags ignored = in::AttrFlags::Ignored;
-    static constexpr in::AttrFlags collapse_empty = in::AttrFlags::CollapseEmpty;
     static constexpr in::AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
     static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;
     static constexpr in::AcrFlags prefer_hex = in::AcrFlags::PreferHex;

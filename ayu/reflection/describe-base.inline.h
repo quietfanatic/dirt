@@ -2,7 +2,6 @@
 namespace ayu {
 
 static void ERROR_conflicting_flags_on_attr () { }
-static void ERROR_elem_cannot_have_collapse_empty_flag () { }
 static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 
 template <class T>
@@ -125,7 +124,6 @@ constexpr auto _AYU_DescribeBase<T>::attr (
 ) {
     uint count = !!(flags & in::AttrFlags::Optional)
                + !!(flags & in::AttrFlags::Include)
-               + !!(flags & in::AttrFlags::CollapseEmpty)
                + !!(flags & in::AttrFlags::CollapseOptional);
     if (count > 1) {
         ERROR_conflicting_flags_on_attr();
@@ -145,6 +143,21 @@ constexpr auto _AYU_DescribeBase<T>::attr (
     }
 }
 template <class T>
+template <class Acr, class Default>
+    requires (requires (const Default& def) { Tree(def); })
+constexpr auto _AYU_DescribeBase<T>::attr_default (
+    StaticString key, const Acr& acr, const Default& def, in::AttrFlags flags
+) {
+     // We still need to handle member pointers because it changes the type Acr
+    if constexpr (std::is_member_object_pointer_v<Acr>) {
+        return attr_default(key, _AYU_DescribeBase<T>::member(acr), def, flags);
+    }
+    else return in::AttrDefaultDcrWith<T, Acr>(
+        Tree(def),
+        _AYU_DescribeBase<T>::attr(key, acr, flags)
+    );
+}
+template <class T>
 template <class... Elems>
 constexpr auto _AYU_DescribeBase<T>::elems (Elems&&... es) {
     return in::ElemsDcrWith<T, Elems...>(move(es)...);
@@ -154,9 +167,6 @@ template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::elem (
     const Acr& acr, in::AttrFlags flags
 ) {
-    if (!!(flags & in::AttrFlags::CollapseEmpty)) {
-        ERROR_elem_cannot_have_collapse_empty_flag();
-    }
     if (!!(flags & in::AttrFlags::CollapseOptional)) {
         ERROR_elem_cannot_have_collapse_optional_flag();
     }

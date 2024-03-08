@@ -122,9 +122,9 @@ struct TraverseToTree {
             usize len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
                 auto flags = attrs->attr(i)->acr()->attr_flags;
-                 // Ignore CollapseEmpty; it can only decrease the length by 1,
-                 // and the calculation for whether to do it is a bit
-                 // complicated, so I'd rather just overallocate.
+                 // Ignore HasDefault; it can only decrease the length by 1, and
+                 // checking whether it does requires comparing Trees, so I'd
+                 // rather just overallocate.
                 if (!!(flags &
                     (AttrFlags::Include|AttrFlags::CollapseOptional)
                 )) {
@@ -151,16 +151,6 @@ struct TraverseToTree {
                         new_object.emplace_back_expect_capacity(pair);
                     }
                 }
-                else if (!!(flags & AttrFlags::CollapseEmpty)) {
-                    bool compound = value.form == Form::Array ||
-                                    value.form == Form::Object;
-                    if (!compound || value.meta >> 1) {
-                        new_object.emplace_back_expect_capacity(
-                            move(key), move(value)
-                        );
-                    }
-                    else { } // Drop the attr
-                }
                 else if (!!(flags & AttrFlags::CollapseOptional)) {
                     if (value.form != Form::Array || (value.meta >> 1) > 1) {
                         raise(e_General,
@@ -171,6 +161,14 @@ struct TraverseToTree {
                     if (auto a = AnyArray<Tree>(move(value))) {
                         new_object.emplace_back_expect_capacity(
                             move(key), a[0]
+                        );
+                    }
+                    else { } // Drop the attr
+                }
+                else if (const Tree* def = attr->default_value()) {
+                    if (value != *def) {
+                        new_object.emplace_back_expect_capacity(
+                            move(key), move(value)
                         );
                     }
                     else { } // Drop the attr

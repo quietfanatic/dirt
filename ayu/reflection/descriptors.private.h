@@ -45,6 +45,12 @@ struct AttrDcrPrivate : AttrDcr<Mu> {
         static_assert(sizeof(AttrDcr<Mu>) % alignof(Accessor) == 0);
         return (const Accessor*)((char*)this + sizeof(AttrDcr<Mu>));
     }
+    const Tree* default_value () const {
+        if (!!(acr()->attr_flags & AttrFlags::HasDefault)) {
+            return (const Tree*)((char*)this - sizeof(Tree));
+        }
+        else return null;
+    }
 };
 
 struct AttrsDcrPrivate : AttrsDcr<Mu> {
