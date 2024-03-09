@@ -91,6 +91,12 @@ struct _AYU_DescribeBase {
      // TODO: Add construct_from_tree for types that refuse to be default
      // constructed no matter what.
     static constexpr auto from_tree (void(* f )(T&, const Tree&));
+     // This is similar to from_tree.  The difference is that after this
+     // function is called, deserialization will continue with any other
+     // applicable descriptors.  The use case for this is for polymorphic types
+     // that need to inspect the tree to know how to allocate their storage, but
+     // after that will use delegate() with a more concrete type.
+    static constexpr auto before_from_tree (void(* f )(T&, const Tree&));
      // If your type needs extra work to link it to other items after
      // from_tree() has been called on all of them, use this function.  As an
      // example, this is used for pointers so that they can point to other

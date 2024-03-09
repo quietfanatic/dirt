@@ -23,6 +23,10 @@ constexpr auto _AYU_DescribeBase<T>::from_tree (in::FromTreeFunc<T>* f) {
     return in::FromTreeDcr<T>{{}, f};
 }
 template <class T>
+constexpr auto _AYU_DescribeBase<T>::before_from_tree (in::FromTreeFunc<T>* f) {
+    return in::BeforeFromTreeDcr<T>{{}, f};
+}
+template <class T>
 constexpr auto _AYU_DescribeBase<T>::swizzle (in::SwizzleFunc<T>* f) {
     return in::SwizzleDcr<T>{{}, f};
 }

@@ -33,7 +33,6 @@ static void ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs () { }
 static void ERROR_keys_and_computed_attrs_must_be_together () { }
 static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
 static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
-static void ERROR_cannot_have_non_ignored_elem_after_ignored_elem () { }
 static void ERROR_elems_cannot_be_combined_with_length_and_computed_elems () { }
 static void ERROR_cannot_have_length_without_computed_or_contiguous_elems () { }
 static void ERROR_cannot_have_both_computed_and_contiguous_elems () { }
@@ -194,6 +193,11 @@ template <class T>
 using FromTreeFunc = void(T&, const Tree&);
 template <class T>
 struct FromTreeDcr : AttachedDescriptor<T> {
+    FromTreeFunc<T>* f;
+};
+
+template <class T>
+struct BeforeFromTreeDcr : AttachedDescriptor<T> {
     FromTreeFunc<T>* f;
 };
 
@@ -369,7 +373,6 @@ struct ElemsDcrWith : ElemsDcr<T> {
     {
         bool have_optional = false;
         bool have_invisible = false;
-        bool have_ignored = false;
         uint16 i = 0;
         elems.for_each([&]<class Elem>(const Elem& elem){
             if (!!(elem.acr.attr_flags & AttrFlags::Optional)) {
@@ -383,12 +386,6 @@ struct ElemsDcrWith : ElemsDcr<T> {
             }
             else if (have_invisible) {
                 ERROR_cannot_have_non_invisible_elem_after_invisible_elem();
-            }
-            if (!!(elem.acr.attr_flags & AttrFlags::Ignored)) {
-                have_ignored = true;
-            }
-            else if (have_ignored) {
-                ERROR_cannot_have_non_ignored_elem_after_ignored_elem();
             }
             offsets[i++] = static_cast<const ComparableAddress*>(&elem)
                          - static_cast<const ComparableAddress*>(this);
@@ -531,6 +528,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     bool have_computed_name = false;
     bool have_to_tree = false;
     bool have_from_tree = false;
+    bool have_before_from_tree = false;
     bool have_swizzle = false;
     bool have_init = false;
     bool have_flags = false;
@@ -593,6 +591,9 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         }
         else if constexpr (std::is_base_of_v<FromTreeDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(FromTreeDcr, from_tree)
+        }
+        else if constexpr (std::is_base_of_v<BeforeFromTreeDcr<T>, Dcr>) {
+            AYU_APPLY_OFFSET(BeforeFromTreeDcr, before_from_tree)
         }
         else if constexpr (std::is_base_of_v<SwizzleDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(SwizzleDcr, swizzle)

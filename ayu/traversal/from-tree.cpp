@@ -160,6 +160,20 @@ struct TraverseFromTree {
         if (trav.readonly) {
             raise(e_General, "Tried to do from_tree operation on a readonly reference?");
         }
+        if (auto before = trav.desc->before_from_tree()) {
+            use_before(trav, tree, before->f);
+        }
+        else after_before(trav, tree);
+    }
+
+    NOINLINE static
+    void use_before (const Traversal& trav, const Tree& tree, FromTreeFunc<Mu>* f) {
+        f(*trav.address, tree);
+        after_before(trav, tree);
+    }
+
+    NOINLINE static
+    void after_before (const Traversal& trav, const Tree& tree) {
          // If description has a from_tree, just use that.
         if (auto from_tree = trav.desc->from_tree()) [[likely]] {
             use_from_tree(trav, tree, from_tree->f);

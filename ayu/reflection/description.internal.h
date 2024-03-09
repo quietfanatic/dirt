@@ -18,7 +18,7 @@ static_assert(sizeof(ComparableAddress) == 1);
 
 using NameFunc = AnyString();
 
-enum class DescFlags : uint16 {
+enum class DescFlags : uint8 {
     PreferArray = 1 << 0,
     PreferObject = 1 << 1,
     Preference = PreferArray | PreferObject,
@@ -32,7 +32,7 @@ enum class DescFlags : uint16 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
 
-enum class TypeFlags : uint16 {
+enum class TypeFlags : uint8 {
     NoReferencesToChildren = 1 << 0
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
@@ -56,6 +56,7 @@ struct Description : ComparableAddress {
 
     uint16 to_tree_offset = 0;
     uint16 from_tree_offset = 0;
+    uint16 before_from_tree_offset = 0;
     uint16 swizzle_offset = 0;
     uint16 init_offset = 0;
     uint16 values_offset = 0;
