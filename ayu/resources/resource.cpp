@@ -275,7 +275,8 @@ void load (ResourceRef res) {
     data->state = RS::Loaded;
 }
 
-void save (ResourceRef res) {
+void save (ResourceRef res, PrintOptions opts) {
+    if (!(opts & PrintOptions::Compact)) opts |= PrintOptions::Pretty;
     auto data = static_cast<ResourceData*>(res.data);
     if (data->state != RS::Loaded) {
         raise_ResourceStateInvalid("save", res);
@@ -295,8 +296,7 @@ void save (ResourceRef res) {
     auto type_tree = item_to_tree(&data->value.type);
     auto value_tree = item_to_tree(data->value.ptr(), SharedLocation(res));
     auto contents = tree_to_string(
-        Tree::array(move(type_tree), move(value_tree)),
-        PrintOptions::Pretty
+        Tree::array(move(type_tree), move(value_tree)), opts
     );
 
     if (ResourceTransaction::depth) {

@@ -10,6 +10,7 @@
 
 #include "../../uni/transaction.h"
 #include "../common.h"
+#include "../data/print.h"
  // TODO: take out this dependency
 #include "../reflection/reference.h"
 
@@ -137,12 +138,12 @@ inline void load (Slice<ResourceRef> rs) {
  // RS::Loaded.  May overwrite an existing file.  If called in a
  // ResourceTransaction, no files will actually be written until the transaction
  // succeeds.
-void save (ResourceRef);
+void save (ResourceRef, PrintOptions opts = {});
  // Save multiple resources.  If an error is thrown, none of the resources will
  // be saved.
-inline void save (Slice<ResourceRef> rs) {
+inline void save (Slice<ResourceRef> rs, PrintOptions opts = {}) {
     ResourceTransaction tr;
-    for (auto& r : rs) save(r);
+    for (auto& r : rs) save(r, opts);
 }
 
  // Attempts to unload the given resources and any resources that are not
