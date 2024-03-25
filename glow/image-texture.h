@@ -17,7 +17,7 @@ struct ImageTexture : Texture {
     void init ();
 };
 
- // An image texture that defaults to GL_TEXTURE_RECTANGLE and GL_NEAREST
+ // An image texture that defaults to GL_NEAREST filtering
 struct PixelTexture : ImageTexture {
     PixelTexture ();
 };

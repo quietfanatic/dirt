@@ -12,7 +12,6 @@ ImageTexture::ImageTexture () : Texture(GL_TEXTURE_2D) {
 }
 
 PixelTexture::PixelTexture () {
-    new (this) Texture(GL_TEXTURE_RECTANGLE);
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 }
