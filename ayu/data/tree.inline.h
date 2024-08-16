@@ -94,14 +94,15 @@ constexpr Tree& Tree::operator= (Tree&& o) {
 constexpr Tree& Tree::operator= (const Tree& o) {
     this->~Tree();
     form = o.form; flags = o.flags; meta = o.meta; data = o.data;
-    if (meta & 1 && data.as_char_ptr) {
+    if (meta & 1) {
+         // data.as_*_ptr should never be null if the refcounted bit is set
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
     return *this;
 }
 
 constexpr Tree::~Tree () {
-    if (meta & 1 && data.as_char_ptr) {
+    if (meta & 1) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }
