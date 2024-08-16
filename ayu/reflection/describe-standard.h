@@ -132,7 +132,9 @@ AYU_DESCRIBE_TEMPLATE(
         uni::usize, &uni::AnyArray<T>::size, &uni::AnyArray<T>::resize
     >()),
     desc::contiguous_elems([](uni::AnyArray<T>& v){
-        return ayu::Pointer(v.data());
+         // Make sure to return mut_data() because data() is const/readonly.
+         // This array should not become shared while this pointer is active.
+        return ayu::Pointer(v.mut_data());
     })
 )
 

@@ -2,6 +2,7 @@
  //
  // A type can be described to AYU by declaring a description with the
  // AYU_DESCRIBE macro.  Here's an example of its usage.
+ //
  //     AYU_DESCRIBE(myns::MyClass,
  //         attrs(
  //             attr("MyBase", base<MyBase>(), include),
@@ -12,14 +13,15 @@
  //             )
  //         )
  //     )
+ //
  // AYU_DESCRIBE descriptions must be declared in the global namespace.  For
  // non-template types, you should declare them in the .cpp file associated with
  // your class (or a nearby .cpp file).
  //
  // The first parameter to AYU_DESCRIBE is the type name as you wish it to
  // appear in data files.  It's recommended to fully qualify all namespaces even
- // if you have "using namespace" declarations nearby, because the type name is
- // stringified and used exactly as it appears.
+ // if you have "using namespace" declarations nearby, because the type name
+ // will be stringified by the macro exactly the way it appears.
  //
  // All later parameters to AYU_DESCRIBE must be descriptors, which are
  // documented later in this file under various sections.  Some of the
@@ -275,6 +277,7 @@ struct _AYU_DescribeBase {
      // Use this for items that may have a variable number of attributes.
      // `accessor` must be the output of one of the accessor functions (see
      // ACCESSORS), and its child type must be uni::AnyArray<uni::AnyString>.
+     // Writing to this accessor may clear the contents of this item.
      //
      // During serialization, the list of keys will be determined with
      // `accessor`'s read operation, and for each key, the attribute's value
@@ -365,8 +368,9 @@ struct _AYU_DescribeBase {
     );
     template <class Acr>
      // Use this for array-like items of variable length (or fixed-size items
-     // that might have very long length).  The accessor must have a child type
-     // of usize (size_t).
+     // with very long length).  The accessor must have a child type
+     // of usize (AKA size_t).  Writing to this accessor may clear the contents
+     // of the item.
      //
      // When serializing, the length of the resulting array Tree will be
      // determined by calling `accessor`s read method.
@@ -385,9 +389,8 @@ struct _AYU_DescribeBase {
      // indexes.  The return value must be an ayu::Reference, which can be
      // created any way you like, including by using an accessor.
      //
-     // This might be called with an index larger than what was returned by the
-     // length() accessor.  If that happens, you should return an empty or null
-     // Reference.
+     // This might be called with an out-of-bounds index.  If that happens, you
+     // should return an empty or null Reference.
      //
      // Make sure not to return a Reference to a temporary and then keep that
      // Reference beyond the temporary's lifetime.  See also computed_attrs.
@@ -399,10 +402,20 @@ struct _AYU_DescribeBase {
      // sequentially in memory.  The provided function must return a pointer to
      // the 0th element, and each subsequent element must be sizeof(Element)
      // bytes after the next one, for a total number of elements equal to
-     // whatever is read from the accessor passed to length().
+     // whatever is read from or written to the accessor passed to length().
      //
      // If the length is 0, this may or may not be called.  You're allowed to
      // return null if the length is 0, but must not return null otherwise.
+     //
+     // The returned pointer must not be invalidated by:
+     //   - Reading or writing any items that would come after this one in a
+     //     serialization operation, including child elems of this item and
+     //     sibling items that are ordered after this one.
+     //   - Any swizzle or init operations that could be performed in the same
+     //     serialization operation.
+     // It may be (and probably will be) invalidated by:
+     //   - Writing to the length() accessor of this item.
+     //   - Writing to length() or keys() of any parent items of this one.
      //
      // If contiguous_elems() is present, length() must also be present, and
      // elems() and computed_elems() must not be present.
