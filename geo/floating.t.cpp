@@ -1,4 +1,4 @@
-#ifndef tap_disable_tests
+#ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
 #include "floating.h"
 

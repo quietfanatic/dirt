@@ -67,9 +67,9 @@ struct Description : ComparableAddress {
     uint16 length_offset = 0;
     union {
         uint16 elems_offset = 0; // length_offset == 0
-         // length_offset != 0 && !CONTIGUOUS_ELEMS
+         // length_offset != 0 && !ElemsContiguous
         uint16 computed_elems_offset;
-         // length_offset != 0 && CONTIGUOUS_ELEMS
+         // length_offset != 0 && ElemsContiguous
         uint16 contiguous_elems_offset;
     };
     uint16 delegate_offset = 0;

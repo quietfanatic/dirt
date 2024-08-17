@@ -19,6 +19,9 @@ constexpr bool defined (T a) {
     return a == a;
 }
 
+
+ // MEGA TODO!  Something seems to have declared finite(double) in the global
+ // scope!  What should we do about this?
 template <Floating T>
 constexpr bool finite (T a) {
      // A full exponent mask means the number is not finite.  This ends up being
@@ -27,7 +30,8 @@ constexpr bool finite (T a) {
      // expressions.
     auto rep = std::bit_cast<SameSizeInt<T>>(a);
     auto mask = TypeTraits<T>::EXPONENT_MASK;
-    return (rep & mask) != mask;
+     // This compiles slightly smaller than (rep & mask) != mask
+    return ~rep & mask;
 }
 
  // AKA sqr
@@ -35,7 +39,18 @@ template <Floating T>
 constexpr T length2 (T v) { return v * v; }
  // Okay, I admit, I just wanted a constexpr abs
 template <Floating T>
-constexpr T length (T v) { return v < 0 ? -v : v; }
+constexpr T length (T v) {
+     // The compiler REALLY does not like optimizing floating point code.
+    //return v < 0 ? -v : v;
+     // This is a little better but it still loads static data on x64 (also it's
+     // not constexpr).
+    //return fabs(v);
+     // This is still a bit unoptimal due to moving the data between float
+     // (vector) and integer registers, but it beats branching and/or reading
+     // memory.
+    auto rep = std::bit_cast<SameSizeInt<T>>(v);
+    return std::bit_cast<T>(rep & ~TypeTraits<T>::SIGN_BIT);
+}
 
 ///// CONSTEXPR SQUARE ROOT
 // Calling these root2 instead of sqrt to avoid ambiguity with std::sqrt
@@ -118,52 +133,53 @@ constexpr SameSizeInt<T> ceil (T a) {
  // guarantees next_quantum(v) > v unless v is NAN or +INF.
 template <Floating T>
 constexpr T next_quantum (T v) {
-    if (!finite(v)) {
-        if (exact_eq(v, TypeTraits<T>::MINUS_INF)) {
-            return TypeTraits<T>::MINUS_HUGE;
+    auto rep = std::bit_cast<SameSizeInt<T>>(v);
+    if (geo::finite(v)) [[likely]] {
+        if (rep < 0) {
+            if (
+                rep == std::bit_cast<SameSizeInt<T>>(TypeTraits<T>::MINUS_ZERO)
+            ) [[unlikely]] {
+                 // -0 == 0, so skip over 0
+                rep = 1;
+            }
+            else rep -= 1;
         }
-        else return v;
+        else rep += 1;
     }
-    else if (exact_eq(v, TypeTraits<T>::MINUS_ZERO)) {
-         // -0 == 0, so skip over 0
-        return TypeTraits<T>::PLUS_TINY;
+    else if (rep == std::bit_cast<SameSizeInt<T>>(TypeTraits<T>::MINUS_INF)) {
+        rep -= 1;
     }
-    else {
-        auto rep = std::bit_cast<SameSizeInt<T>>(v);
-        if (rep & TypeTraits<T>::SIGN_BIT) {
-            return std::bit_cast<T>(rep - 1);
-        }
-        else return std::bit_cast<T>(rep + 1);
-    }
+    return std::bit_cast<T>(rep);
 }
 
  // Get next smaller representable value.
  // guarantees prev_quantum(v) < v unless v is NAN or -INF.
 template <Floating T>
 constexpr T prev_quantum (T v) {
-    if (!finite(v)) {
-        if (exact_eq(v, TypeTraits<T>::PLUS_INF)) {
-            return TypeTraits<T>::PLUS_HUGE;
+    auto rep = std::bit_cast<SameSizeInt<T>>(v);
+    if (geo::finite(v)) [[likely]] {
+        if (rep > 0) {
+            if (
+                rep == std::bit_cast<SameSizeInt<T>>(TypeTraits<T>::PLUS_ZERO)
+            ) [[unlikely]] {
+                 // 0 == -0, so skip over -0
+                rep = -1;
+            }
+            else rep -= 1;
         }
-        else return v;
+        else rep += 1;
     }
-    else if (exact_eq(v, TypeTraits<T>::PLUS_ZERO)) {
-         // -0 == 0, so skip over -0
-        return TypeTraits<T>::MINUS_TINY;
+    else if (rep == std::bit_cast<SameSizeInt<T>>(TypeTraits<T>::PLUS_INF)) {
+        rep -= 1;
     }
-    else {
-        auto rep = std::bit_cast<SameSizeInt<T>>(v);
-        if (rep & TypeTraits<T>::SIGN_BIT) {
-            return std::bit_cast<T>(rep + 1);
-        }
-        else return std::bit_cast<T>(rep - 1);
-    }
+    return std::bit_cast<T>(rep);
 }
 
  // AKA sign for scalars
 template <Floating T>
 constexpr T normalize (T v) {
      // (Can't use (v > 0) - (v < 0) because it converts NAN to 0)
+     // There might be a better way to do this but I can't find it
     return v > 0 ? 1 : v < 0 ? -1 : v;
 }
 
@@ -188,10 +204,17 @@ constexpr A rem (A a, B b) {
     else [[unlikely]] return GNAN;
 }
 
- // AKA copysign
+ // AKA copysign, but propagates NANs and returns 0 if b == 0
 template <Floating A, Floating B>
 constexpr A align (A a, B b) {
-    return b >= 0 ? length(a) : -length(a);
+    auto rep = std::bit_cast<SameSizeInt<A>>(a);
+    if (b > 0) {
+        return std::bit_cast<A>(rep & ~TypeTraits<A>::SIGN_BIT);
+    }
+    else if (b < 0) {
+        return std::bit_cast<A>(rep & TypeTraits<A>::SIGN_BIT);
+    }
+    else return b;
 }
 
  // This is the standard lerping formula.

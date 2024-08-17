@@ -90,6 +90,7 @@ template <> struct TypeTraits<float> {
     static constexpr bool is_signed = true;
      // A number of functions in this library assume standard floating point
      // layout.
+     // TODO: smallest normals
     static constexpr uint32 SIGN_BIT = 0x8000'0000;
     static constexpr uint32 EXPONENT_MASK = 0x7f80'0000;
     static constexpr float MINUS_INF = std::bit_cast<float>(0xff80'0000);
