@@ -398,7 +398,9 @@ void ValueFuncsAcr1<To>::_access (
     auto self = static_cast<const ValueFuncsAcr2<Mu, To>*>(acr);
     switch (mode) {
         case AccessMode::Read: {
-            return cb.reinterpret<void(const To&)>()(self->getter(from));
+            To tmp = self->getter(from);
+            cb.reinterpret<void(const To&)>()(tmp);
+            return;
         }
         case AccessMode::Write: {
             To tmp;
@@ -412,6 +414,11 @@ void ValueFuncsAcr1<To>::_access (
         }
         default: never();
     }
+     // Feels like this should compile smaller but it doesn't, probably because
+     // mode has to be saved through the function calls.
+    //To tmp = mode != AccessMode::Write ? self->getter(from) : To();
+    //cb.reinterpret<void(To&)>()(tmp);
+    //if (mode != AccessMode::Read) self->setter(from, move(tmp));
 }
 
 /// mixed_funcs

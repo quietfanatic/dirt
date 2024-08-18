@@ -1108,7 +1108,9 @@ struct ArrayInterface {
 
      // Make this array unique and if it has more capacity than necessary,
      // reallocate so that capacity is equal to length (rounded up to allocation
-     // granularity).
+     // granularity).  Note that if this array is sharing its buffer with
+     // another array, calling this will increase memory usage instead of
+     // decreasing it.
     ALWAYS_INLINE constexpr
     void shrink_to_fit () requires (ac::supports_owned) {
         if (!unique() ||
@@ -1270,7 +1272,11 @@ struct ArrayInterface {
     ALWAYS_INLINE
     void pop_back () {
         expect(size() > 0);
-        shrink(size() - 1);
+        if constexpr (ac::is_Any && std::is_trivially_destructible_v<T>) {
+             // Compiler isn't quite smart enough to do this optimization
+            impl.sizex2_with_owned -= 2;
+        }
+        else shrink(size() - 1);
     }
 
      // Append multiple elements by copying them.

@@ -72,7 +72,7 @@ struct ArrayImplementation;
 
 template <class T>
 struct ArrayImplementation<ArrayClass::AnyArray, T> {
-     // The first bit is owned, the rest is size (shifted left by 1).
+     // The lowest bit is owned, the rest is size (shifted left by 1).
      // owned = sizex2_with_owned & 1
      // size = sizex2_with_owned >> 1
      // We are not using bitfields because they are not optimized very well.
