@@ -1,6 +1,12 @@
  // CallbackRef<Ret(Args...)>
  // A super lightweight callback class with reference semantics (std::function
  // has value semantics and can be copied and moved, so it's way bigger.)
+ //
+ // std::function is essentially a std::shared_ptr.
+ // std::move_only_function (C++23) is essentially a std::unique_ptr.
+ // CallbackRef is essentially a const*
+ //
+ // This is probably equivalent to std::function_ref (C++26).
 
 #pragma once
 

@@ -39,11 +39,21 @@
 //
 ///// Interface
 //
+// This uses a collection of string types from ../uni/arrays.h.  They are:
+//   - AnyString: A string type that can be reference-counted or static.  This
+//     is used to store the spec of the IRI.
+//   - Str: A non-owning view of a string, like std::string_view.
+//   - UniqueString: A string type that is uniquely-owned, similarly to
+//     std::string.
+//   - StaticString: A string that is known (or believed) to have static
+//     lifetime (will never be deallocated).
+// You may be able to change these out with aliases or macros.
+//
 // None of the strings returned by any methods will be NUL-terminated.
 //
 // Will not throw when given an invalid IRI spec.  Instead will mark the IRI as
 // invalid, and all accessors will return false or empty.  You can see what went
-// wrong by looking at the return of possibly_invalid_spec().
+// wrong by looking at the return of error() and possibly_invalid_spec().
 //
 // The component getter functions will not decode % sequences, because which
 // characters have to be % encoding can be application-specific.  Call decode()
@@ -56,8 +66,16 @@
 //
 // There are no facilities for parsing query strings yet.
 //
-// Not all functions of IRI are constexpr.  In particular, parsing from a string
-// is not constexpr.
+// Most of the behavior of this library is constexpr; however, parsing IRIs is
+// limited at constexpr time.  Validation can be done at constexpr time, but not
+// canonicalization.  Therefore, constexpr IRIs must already be fully
+// absolute and canonicalized, including:
+//   - The scheme must be lowercase
+//   - The path, if hierarchical, must not contain .. or . segments
+//   - All percent-sequences must be uppercase
+//   - All characters that are canonically percent-encoded must be
+//     percent-encoded, and all characters that aren't must not be (including
+//     non-ASCII unicode characters).
 
 #pragma once
 
@@ -69,13 +87,28 @@ using namespace uni;
 
 constexpr uint32 maximum_length = uint16(-1);
 
+///// PERCENT-ENCODING
+
  // Replace reserved characters with % sequences.
 UniqueString encode (Str) noexcept;
  // Replace % sequences with their characters.  If there's an invalid escape
  // sequence anywhere in the input, returns the empty string.
 UniqueString decode (Str) noexcept;
 
- // The first component that the given IRI reference has.
+///// IRI REFERENCES
+ // An IRI reference is a string which is either a full IRI spec or a part of
+ // one that can be resolved to a full IRI by applying it to a base IRI.
+ // Basically anything that can be the value of an href="..." attribute in HTML.
+ //
+ // Not to be confused with a C++ reference to IRI (IRI&).
+ //
+ // To resolve a relative IRI reference, simply construct an IRI with it and
+ // pass the base IRI as the second parameter to the constructor.
+
+ // This enum indicates "how" relative an IRI reference is.  Each value is named
+ // after the first component the reference has.  A reference with
+ // Relativity::Scheme is an absolute reference, and can be resolved without a
+ // base IRI.  All other relativities require a base IRI to resolve against.
 enum class Relativity {
     Scheme,       // scheme://auth/path?query#fragment
     Authority,    // //auth/path?query#fragment
@@ -87,8 +120,13 @@ enum class Relativity {
 
  // Return what kind of relative reference this is.  This only does basic
  // detection, and when given an invalid reference, may return anything.  To be
- // sure that the reference is valid, resolve it into a full IRI.
+ // sure that the reference is valid, resolve it into a full IRI.  There is not
+ // currently a function to validate an IRI reference without a base IRI to
+ // resolve it against.  Using a base IRI of "foo://bar/" will error with
+ // references that start with "../".
 constexpr Relativity relativity (Str);
+
+///// ERRORS
 
  // What went wrong when parsing an IRI
 enum class Error : uint16 {
@@ -120,6 +158,8 @@ enum class Error : uint16 {
     InputInvalid
 };
 
+///// IRI
+
 struct IRI {
      // Construct the empty IRI.  This is not a valid IRI.
     constexpr IRI () { }
@@ -130,9 +170,9 @@ struct IRI {
      //
      // The behavior of this function changes when run at constexpr time.  It
      // cannot canonicalize the IRI, because new strings can't be allocated at
-     // compile time (and kept for run time).  So it must be given an IRI that
-     // is already fully resolved and canonical.  The base will be ignored.  To
-     // force compile-time parsing, use iri::constant(ref).
+     // compile time (unless they're deleted at compile time).  So it must be
+     // given an IRI that is already fully resolved and canonical.  The base
+     // will be ignored.  To force compile-time parsing, use iri::constant(ref).
     constexpr explicit IRI (Str ref, const IRI& base = IRI());
 
      // Construct an already-parsed IRI.  This will not do any validation.  If
@@ -157,7 +197,7 @@ struct IRI {
      // Returns whether this IRI is valid or not.  If the IRI is invalid, all
      // bool accessors will return false, all Str accessors will return empty,
      // and all IRI accessors will return an invalid IRI with error() ==
-     // Error::InputInvalid.
+     // Error::InputInvalid and possibly_invalid_spec() == "".
     constexpr bool valid () const;
      // Returns whether this IRI is the empty IRI.  The empty IRI is also
      // invalid, but not all invalid IRIs are empty.
@@ -170,8 +210,9 @@ struct IRI {
 
      // Gets the full text of the IRI only if this IRI is valid.
     constexpr const AnyString& spec () const;
-     // Get full text of IRI even it is not valid.  This is only for diagnosing
-     // what is wrong with the IRI.  Don't use it for anything important.
+     // Get full text of IRI even if it is not valid.  This is only for
+     // diagnosing what is wrong with the IRI.  Don't use it for anything
+     // important.
     constexpr const AnyString& possibly_invalid_spec () const;
 
      // Steal the spec string, leaving this IRI empty.
@@ -179,7 +220,8 @@ struct IRI {
      // Steal the spec string even if it's invalid.
     constexpr AnyString move_possibly_invalid_spec ();
 
-     // Check for existence of components.
+     // Check for existence of components.  Every IRI has a scheme, so
+     // has_scheme() is equivalent to valid().
     constexpr bool has_scheme () const;
     constexpr bool has_authority () const;
     constexpr bool has_path () const;
@@ -226,7 +268,8 @@ struct IRI {
      // Get everything up to and including the last / in the path.  If the path
      // already ends in /, returns the same IRI (but without the query or
      // fragment).  If the IRI is not hierarchical (path doesn't start with /),
-     // returns an invalid IRI with error() == Error::CouldNotResolve.
+     // returns an invalid IRI with error() == Error::CouldNotResolve.  This is
+     // equivalent to resolving the IRI reference "." but faster.
     constexpr IRI chop_filename () const;
      // Like chop_filename but also takes off the last /.  If the path ends with
      // /, just the / will be taken off.  If the path doesn't contain any /s
@@ -239,11 +282,16 @@ struct IRI {
      // Get everything but the fragment
     constexpr IRI chop_fragment () const;
 
-     // Chop the IRI at a semi-arbitrary position.  You are not allowed to chop
-     // in the middle of a %-sequence, before the first : after the scheme, or
-     // between the //s that introduce the authority.  This library does not
-     // parse the authority, so if you chop in the middle of the authority, you
-     // may produce an invalid authority.
+     // Chop the IRI at a semi-arbitrary position.  You are not allowed to chop:
+     //   - in the middle of a %-sequence (Error::PercentSequenceInvalid)
+     //   - before the first : after the scheme (Error::SchemeInvalid)
+     //   - between the //s that introduce the authority (Error::InputInvalid)
+     // This library does not parse the authority, so if you chop in the middle
+     // of the authority, you may produce an invalid authority.
+     //
+     // iri.chop(n) is almost the same as IRI(iri.spec().chop(n)), except that
+     // you can't turn the authority's // into a /, because that would change
+     // its meaning.
     constexpr IRI chop (usize new_size) const;
     constexpr IRI chop (const char* new_end) const;
 
@@ -270,8 +318,8 @@ struct IRI {
         return a op b.spec_; \
     }
 #if __cplusplus >= 202002L
-    IRI_FRIEND_OP(<=>)
     IRI_FRIEND_OP(==)
+    IRI_FRIEND_OP(<=>)
 #else
     IRI_FRIEND_OP(<)
     IRI_FRIEND_OP(<=)
@@ -294,9 +342,11 @@ struct IRI {
         std::memcpy((void*)&b, &tmp.iri, sizeof(IRI));
     }
 
+     // These members are publically accessible but only use them if you know
+     // what you're doing.
     const AnyString spec_;
-    const uint16 scheme_end = 0;
-    const uint16 authority_end = 0; // reused to store error
+    const uint16 scheme_end = 0; // 0 means invalid IRI
+    const uint16 authority_end = 0; // reused to store error code (except Empty)
     const uint16 path_end = 0;
     const uint16 query_end = 0;
 };

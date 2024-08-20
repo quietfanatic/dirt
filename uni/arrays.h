@@ -61,7 +61,6 @@
 #include "memeq.h"
 
 namespace uni {
-inline namespace strings { namespace in { struct Cats; } }
 inline namespace arrays {
 
 ///// THIS HEADER PROVIDES
@@ -104,6 +103,11 @@ using MutSlice = ArrayInterface<ArrayClass::MutSlice, T>;
  // NUL element.  Note that by default these strings are not NUL-terminated.  To
  // get a NUL-terminated string out, either explicitly NUL-terminate them or use
  // c_str().
+ //
+ // These string types do not support operator+, because concatenating strings
+ // two at a time is inefficient and the precedence is confusing.  Instead, use
+ // the variadic cat(...) from strings.h, which only does a single allocation
+ // per invocation.
 template <class T>
 using GenericAnyString = ArrayInterface<ArrayClass::AnyString, T>;
 template <class T>
@@ -243,7 +247,7 @@ struct ArrayInterface {
     >;
     using SelfMutSlice = std::conditional_t<ac::is_String,
         ArrayInterface<ArrayClass::MutStr, T>,
-        ArrayInterface<ArrayClass::MutStr, T>
+        ArrayInterface<ArrayClass::MutSlice, T>
     >;
 
     ///// CONSTRUCTION

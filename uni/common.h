@@ -31,13 +31,13 @@ using Null = std::nullptr_t;
 constexpr Null null = nullptr;
 
 #ifdef nan
-#warning "Somebody defined nan as a macro, undefining it"
-#undef nan
+    #warning "Somebody defined nan as a macro, undefining it"
+    #undef nan
 #endif
 constexpr float nan = std::numeric_limits<float>::quiet_NaN();
 #ifdef inf
-#warning "Somebody defined inf as a macro, undefining it"
-#undef inf
+    #warning "Somebody defined inf as a macro, undefining it"
+    #undef inf
 #endif
 constexpr float inf = std::numeric_limits<float>::infinity();
 

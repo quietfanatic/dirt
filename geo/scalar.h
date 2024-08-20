@@ -9,6 +9,15 @@
 
 namespace geo {
 
+#ifdef min
+    #warning "Somebody defined min as a macro, undefining it"
+    #undef min
+#endif
+#ifdef max
+    #warning "Somebody defined min as a macro, undefining it"
+    #undef max
+#endif
+
  // Variadic min and max.  These return whichever is the smallest or largest of
  // their arguments.  They propagate NANs and prefer the left side if equal.
 template <class T>

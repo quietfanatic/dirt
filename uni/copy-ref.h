@@ -152,7 +152,6 @@ using CRef = std::conditional_t<
  // Technical differences between MoveRef<T> and T&&:
  //   - Using a MoveRef<T> after it has been moved from is an error (assert in
  //     debug builds, undefined behavior in release builds).
- //     (detected at runtime in debug builds).
  //   - Failing to move from a MoveRef<T> before it goes out of scope is
  //     an error (assert in debug builds, undefined behavior in release builds).
  //   - When a function takes a MoveRef<T>, it guarantees that it will take
@@ -205,19 +204,7 @@ struct MoveRef {
         new (repr) T(std::forward<Args>(args)...);
          // Don't destroy t, the caller will destroy it.
     }
-     // Temporarily access.  TODO: remove these, they seem dangerous.
-    ALWAYS_INLINE T& operator* () & {
-#ifndef NDEBUG
-        expect(active);
-#endif
-        return *reinterpret_cast<T*>(repr);
-    }
-    ALWAYS_INLINE T* operator-> () & {
-#ifndef NDEBUG
-        expect(active);
-#endif
-        return reinterpret_cast<T*>(repr);
-    }
+
      // Move back to a T value.  The object is no longer leakable.  Coercion
      // with "operator T () &&" doesn't seem to work.
     ALWAYS_INLINE T operator* () && {
@@ -230,14 +217,6 @@ struct MoveRef {
         active = false;
 #endif
         return r;
-    }
-    T* operator-> () && {
-         // We could make this work, but it would be a bit of work, and it'd be
-         // easy to make the destructor run at the wrong time.
-        static_assert((T*)null,
-            "Cannot use operator-> on rvalue MoveRef.  "
-            "Use (*move(ref)).member instead"
-        );
     }
 
 #ifndef NDEBUG

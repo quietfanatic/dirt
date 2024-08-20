@@ -124,11 +124,13 @@ struct ConstexprValidator {
     constexpr void parse_scheme () {
         switch (*in) {
             case IRI_LOWERCASE: in++; break;
+            case IRI_UPPERCASE: ERROR_canonical_scheme_must_be_lowercase();
             default: ERROR_invalid_scheme();
         }
         while (in < end) switch (*in) {
             case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
                 in++; break;
+            case IRI_UPPERCASE: ERROR_canonical_scheme_must_be_lowercase();
             case ':':
                 scheme_end = in - begin;
                 in++;
@@ -297,6 +299,7 @@ struct ConstexprValidator {
     [[noreturn]] static void ERROR_character_must_canonically_be_percent_encoded () { never(); }
     [[noreturn]] static void ERROR_character_must_canonically_not_be_percent_encoded () { never(); }
     [[noreturn]] static void ERROR_canonical_percent_sequence_must_be_uppercase () { never(); }
+    [[noreturn]] static void ERROR_canonical_scheme_must_be_lowercase () { never(); }
     [[noreturn]] static void ERROR_canonical_path_cannot_have_dot_or_dotdot () { never(); }
 };
 

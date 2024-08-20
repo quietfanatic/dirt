@@ -16,11 +16,14 @@ UniqueString encode_path (Str input) noexcept {
     for (auto c : input) {
         switch (c) {
             case IRI_FORBIDDEN: case IRI_IFFY:
-            case '?': case '#': case '%': cap += 2;
+            case '?': case '#': case '%':
+                if (backwards_slashes && c == '\\') break;
+                cap += 2; break;
             default: break;
         }
     }
-    require(cap < iri::maximum_length);
+     // Don't bother failing here
+    //require(cap < iri::maximum_length);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
     for (auto c : input) {
@@ -48,7 +51,6 @@ UniqueString encode_path (Str input) noexcept {
 }
 
 Str path_filename (Str path) noexcept {
-    if (!path) return path;
     for (const char* p = path.end(); p != path.begin(); --p) {
         if (p[-1] == '/') return Str(p, path.end());
     }
@@ -71,7 +73,13 @@ Str path_chop_last_slash (Str path) noexcept {
 
 Str path_extension (Str path) noexcept {
     for (const char* p = path.end(); p != path.begin(); --p) {
-        if (p[-1] == '.') return Str(p, path.end());
+        if (p[-1] == '.') {
+            if (p-1 == path.begin() || p[-2] == '/') {
+                 // Filename starts with . and has no extension
+                return "";
+            }
+            else return Str(p, path.end());
+        }
         else if (p[-1] == '/') return "";
     }
     return "";
@@ -79,21 +87,35 @@ Str path_extension (Str path) noexcept {
 
 ///// FILE SCHEME IRIS
 
+static IRI current_working_directory;
+
 const IRI& working_directory () noexcept {
+     // Not threadsafe, but IRIs use unthreadsafe reference counting anyway.
+    if (!current_working_directory) update_working_directory();
+    return current_working_directory;
+}
+
+void update_working_directory () noexcept {
      // Make sure to tack a / on the end or relative resolving won't work
-    static IRI r = from_fs_path(
+    current_working_directory = expect(from_fs_path(
         cat(fs::current_path().generic_u8string(), '/')
-    );
-    return r;
+    ));
 }
 
 const IRI& program_location () noexcept {
     static IRI r = []{
         int len = wai_getExecutablePath(nullptr, 0, nullptr);
-        expect(len > 0);
+        require(len > 0);
         auto path = (char*)std::malloc(len);
-        expect(wai_getExecutablePath(path, len, nullptr) == len);
+        require(wai_getExecutablePath(path, len, nullptr) == len);
         IRI r = from_fs_path(Str(path, len));
+        expect(r);
+         // Promote the AnyString to static, unless someone replaced the type
+         // with something incompatible.
+        if (requires { r.spec_.impl.sizex2_with_owned; }) {
+            auto& sx2wo = r.spec_.impl.sizex2_with_owned;
+            const_cast<uint32&>(sx2wo) &= ~1;
+        }
         std::free(path);
         return r;
     }();
@@ -110,7 +132,7 @@ IRI from_fs_path (Str path, const IRI& base) noexcept {
          // code is untested and also assumes that the provided path is a
          // valid Windows path.  If not, unintuitive results may occur.
         if (encoded.size() >= 2 && encoded[1] == ':') {
-            expect(
+            require(
                 encoded.size() >= 3 &&
                 ((encoded[0] >= 'a' && encoded[0] <= 'z') ||
                  (encoded[0] >= 'A' && encoded[0] <= 'Z')) &&
@@ -151,7 +173,7 @@ IRI from_fs_path (Str path, const IRI& base) noexcept {
 
 UniqueString to_fs_path (const IRI& iri) noexcept {
     require(iri.scheme() == "file");
-    require(!iri.authority());
+    require(!iri.authority());  // authority can exist if empty
     require(iri.hierarchical());
     require(!iri.has_query() && !iri.has_fragment());
     if constexpr (backwards_slashes) {
@@ -179,7 +201,6 @@ static tap::TestSet tests ("dirt/iri/path", []{
     is(path_extension("foo/bar.baz"), "baz", "path_extension");
     is(path_extension("foo.bar/baz"), "", "path_extension none");
     is(path_extension("foo.bar/baz."), "", "path_extension trailing dot ignored");
-     // TODO: Make these tests work on Windows
      // TODO: test relative paths somehow
     AnyString exp;
     if constexpr (backwards_slashes) {
