@@ -56,11 +56,17 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
             return std::memcmp(ap, bp, 4) == 0 &&
                    std::memcmp(ap + s - 4, bp + s - 4, 4) == 0;
         }
-        else if (s >= 2) {
-            if (std::memcmp(ap, bp, 2) != 0) return false;
-            return s == 2 || ap[2] == bp[2];
+        else {
+             // There isn't really anything satisfying to do here.  This
+             // specific sequence seems to optimize well without using too many
+             // registers.
+            if (s >= 2) {
+                if (std::memcmp(ap, bp, 2) != 0) return false;
+                ap += 2; bp += 2; s -= 2;
+            }
+            if (s && ap[0] != bp[0]) return false;
+            return true;
         }
-        else return s == 0 || ap[0] == bp[0];
     }
 #else
      // Misaligned access may not be supported, so play it safe.

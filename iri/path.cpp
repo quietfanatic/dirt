@@ -58,7 +58,7 @@ Str path_filename (Str path) noexcept {
 }
 
 Str path_chop_filename (Str path) noexcept {
-    if (!path) return path;
+    if (!path) [[unlikely]] return "";
     for (const char* p = path.end(); p != path.begin(); --p) {
         if (p[-1] == '/') return Str(path.begin(), p);
     }
@@ -66,7 +66,7 @@ Str path_chop_filename (Str path) noexcept {
 }
 
 Str path_chop_last_slash (Str path) noexcept {
-    if (!path) return path;
+    if (!path) [[unlikely]] return "";
     Str wf = path_chop_filename(path);
     return wf.chop(wf.size() - 1);
 }

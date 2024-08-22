@@ -54,7 +54,8 @@ struct HasBytes<T> {
 };
 
 ///// HASHING
-// Using FNV-1a
+// Using FNV-1a.  This isn't the fastest hash on modern CPUs, because it can
+// only do one byte at a time, but it's very small.
 
 template <class T>
 constexpr uint64 hash64 (const T& v) {

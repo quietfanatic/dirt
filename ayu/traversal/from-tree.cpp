@@ -642,6 +642,7 @@ struct TraverseFromTree {
     ) {
         for (uint i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
+             // These are for optimization, not safety
             expect(tree.form == Form::String);
             expect(value->name.form == Form::String);
             if (Str(tree) == Str(value->name)) {

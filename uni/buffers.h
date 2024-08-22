@@ -60,6 +60,7 @@ inline namespace buffers {
             constexpr usize min = min_capacity < 4 ? 4 : min_capacity;
             if (size <= min) return min;
             else if (size <= (max_capacity >> 1) + 1) {
+                 // This should be fast on any modern processor
                 return std::bit_ceil(uint32(size));
             }
             else [[unlikely]] {

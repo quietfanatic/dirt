@@ -80,6 +80,11 @@ struct CallbackRef<Ret(Args...)> {
 #pragma GCC diagnostic ignored "-Wcast-function-type"
      // If your're only capturing a single thing, this will be more efficient
      // than using a lambda (which may use more stack space).
+     //
+     // The C&& is a forwarding reference, so the context can be a const C&, a
+     // C&, or a C&&, whichever you want.  The second argument is laundered a
+     // bit to keep it from interfering with deduction, but its first parameter
+     // will match the referencality of this first argument.
     template <class C>
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRef (C&& c, std::type_identity_t<Ret(*)(C&&, Args...)> f) :
