@@ -11,6 +11,7 @@
 #pragma once
 
 #include <type_traits>
+#include "common.h"
 
 namespace uni {
 
@@ -73,12 +74,12 @@ struct CallbackRef<Ret(Args...)> {
     { }
 #endif
 
-     // If your're only capturing a single thing, this will be more efficient
-     // than using a lambda (which may use more stack space).
 #pragma GCC diagnostic push
  // Complains about casting function taking reference to function taking void*.
  // These are compatible in every ABI I'm aware of.
 #pragma GCC diagnostic ignored "-Wcast-function-type"
+     // If your're only capturing a single thing, this will be more efficient
+     // than using a lambda (which may use more stack space).
     template <class C>
     [[gnu::artificial]] ALWAYS_INLINE
     constexpr CallbackRef (C&& c, std::type_identity_t<Ret(*)(C&&, Args...)> f) :
