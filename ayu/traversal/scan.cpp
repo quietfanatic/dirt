@@ -269,11 +269,11 @@ struct TraverseScan {
 
  // Store a typed Pointer instead of a Mu* because items at the same address
  // with different types are different items.
-static std::unordered_map<Pointer, SharedLocation> location_cache;
+static UniqueArray<Pair<Pointer, SharedLocation>> location_cache;
 static bool have_location_cache = false;
 static usize keep_location_cache_count = 0;
-std::unordered_map<Pointer, SharedLocation>* get_location_cache () {
-    if (!keep_location_cache_count) return null;
+bool get_location_cache () {
+    if (!keep_location_cache_count) return false;
     if (!have_location_cache) {
         plog("Generate location cache begin");
         scan_universe_pointers([](Pointer ptr, LocationRef loc){
@@ -283,16 +283,33 @@ std::unordered_map<Pointer, SharedLocation>* get_location_cache () {
              // and in that case it shouldn't matter which location gets cached.
              // It could theoretically be a problem if the pointers differ in
              // readonlyness, but that should probably never happen.
-            location_cache.emplace(ptr, loc);
+            location_cache.emplace_back(ptr, loc);
             return false;
         });
+        plog("Generate location cache sort");
+        std::sort(location_cache.begin(), location_cache.end(),
+            [](const auto& a, const auto& b){ return a.first < b.first; }
+        );
         have_location_cache = true;
         plog("Generate location cache end");
 #ifdef AYU_PROFILE
         fprintf(stderr, "Location cache entries: %ld\n", location_cache.size());
 #endif
     }
-    return &location_cache;
+    return true;
+}
+
+const Pair<Pointer, SharedLocation>* search_location_cache (Pointer item) {
+    if (!have_location_cache) return null;
+    auto bottom = location_cache.begin();
+    auto top = location_cache.end();
+    while (top != bottom) {
+        auto mid = bottom + (top - bottom) / 2;
+        if (mid->first == item) return mid;
+        if (mid->first < item) bottom = mid;
+        else top = mid;
+    }
+    return null;
 }
 
 } using namespace in;
@@ -393,9 +410,8 @@ SharedLocation find_pointer (Pointer item) {
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (Reference(item) == plr->reference) return plr->location;
     }
-    if (auto cache = get_location_cache()) {
-        auto it = cache->find(item);
-        if (it != cache->end()) {
+    if (get_location_cache()) {
+        if (auto it = search_location_cache(item)) {
              // Reject non-readonly pointer to readonly location
             if (it->first.readonly() && !item.readonly()) {
                 [[unlikely]] return {};
@@ -425,11 +441,11 @@ SharedLocation find_reference (const Reference& item) {
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (item == plr->reference) return plr->location;
     }
-    if (auto cache = get_location_cache()) {
+    if (get_location_cache()) {
         if (Mu* address = item.address()) {
              // Addressable! This will be fast.
-            auto it = cache->find(Pointer(item.type(), address));
-            if (it != cache->end()) {
+            auto ptr = Pointer(item.type(), address);
+            if (auto it = search_location_cache(ptr)) {
                 if (it->first.readonly() && !item.readonly()) {
                     [[unlikely]] return {};
                 }
@@ -439,8 +455,7 @@ SharedLocation find_reference (const Reference& item) {
         }
         else {
              // Not addressable.  First find the host in the location cache.
-            auto it = cache->find(item.host);
-            if (it != cache->end()) {
+            if (auto it = search_location_cache(item.host)) {
                  // Now search under that host for the actual reference.
                 SharedLocation r;
                 scan_references(
