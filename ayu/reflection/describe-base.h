@@ -169,7 +169,7 @@ struct _AYU_DescribeBase {
      // for specific values.  All arguments to values(...) must be one of:
      //   - value(NAME, VALUE), where NAME can be a string, an integer, a
      //   double, a bool, or null; and VALUE is a constexpr value of this type.
-     //   - value_pointer(NAME, VALUE), where NAME is as above, and VALUE is a
+     //   - value_ptr(NAME, VALUE), where NAME is as above, and VALUE is a
      //   pointer to a (possibly non-constexpr) value of this type.
      //
      // When serializing, the current item will be compared to each VALUE using
@@ -210,7 +210,7 @@ struct _AYU_DescribeBase {
      // pointer to an item of this type, which doesn't have to be constexpr, but
      // it must be initialized before you call any AYU serialization functions.
     template <class N>
-    static constexpr auto value_pointer (const N& name, const T* value);
+    static constexpr auto value_ptr (const N& name, const T* value);
 
     ///// DESCRIPTORS FOR OBJECT-LIKE TYPES
 
@@ -618,7 +618,7 @@ struct _AYU_DescribeBase {
      // but it must be initialized before calling any AYU serialization
      // functions.  This accessor is addressable.
     template <class M>
-    static constexpr auto constant_pointer (
+    static constexpr auto constant_ptr (
         const M* p, in::AcrFlags = {}
     );
      // Like constant(), but provides read-write access to a variable which is

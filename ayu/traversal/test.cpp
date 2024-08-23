@@ -108,7 +108,7 @@ AYU_DESCRIBE(ayu::test::ValuesTest,
         value("vta", VTA),
         value(null, VTNULL),
         value(int(0), VTZERO),
-        value_pointer(nan, &vtnan)
+        value_ptr(nan, &vtnan)
     )
 )
 AYU_DESCRIBE(ayu::test::MemberTest,

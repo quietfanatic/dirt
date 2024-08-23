@@ -103,7 +103,7 @@ constexpr auto _AYU_DescribeBase<T>::value (const N& n, const T& v) {
 
 template <class T>
 template <class N>
-constexpr auto _AYU_DescribeBase<T>::value_pointer (const N& n, const T* p) {
+constexpr auto _AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
     Tree name;
     if constexpr (
         !requires { Null(n); } &&
@@ -316,7 +316,7 @@ constexpr auto _AYU_DescribeBase<T>::constant (
 }
 template <class T>
 template <class M>
-constexpr auto _AYU_DescribeBase<T>::constant_pointer (
+constexpr auto _AYU_DescribeBase<T>::constant_ptr (
     const M* p, in::AcrFlags flags
 ) {
     return in::ConstantPointerAcr2<T, M>(p, flags);

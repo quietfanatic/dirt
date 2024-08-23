@@ -165,7 +165,7 @@ void trav_acr (
     child.acr = acr;
     child.desc = DescriptionPrivate::get(acr->type(parent.address));
     child.address = acr->address(*parent.address);
-    if (child.address) {
+    if (child.address) [[likely]] {
         child.addressable = parent.children_addressable;
         child.children_addressable = parent.children_addressable;
         cb(child);
