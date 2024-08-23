@@ -179,6 +179,9 @@ constexpr bool operator == (Type a, Type b) {
 constexpr bool operator != (Type a, Type b) {
     return a.data != b.data;
 }
+constexpr bool operator < (Type a, Type b) {
+    return a.data < b.data;
+}
 
  // Tried to map a C++ type to an AYU type, but AYU doesn't know about that type
  // (it has no AYU_DESCRIBE description).

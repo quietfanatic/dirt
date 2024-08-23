@@ -95,7 +95,7 @@ struct Pointer {
 
  // Pointers have a slightly evil property where a readonly pointer can equal a
  // non-readonly pointer.  This may be unintuitive, but it matches the behavior
- // of native C++ poitners and also makes looking them up in a hash table much
+ // of native C++ pointers and also makes looking them up in a hash table much
  // easier.
 constexpr bool operator == (const Pointer& a, const Pointer& b) {
     return a.address == b.address &&
@@ -103,6 +103,11 @@ constexpr bool operator == (const Pointer& a, const Pointer& b) {
 }
 constexpr bool operator != (const Pointer& a, const Pointer& b) {
     return !(a == b);
+}
+constexpr bool operator < (const Pointer& a, const Pointer& b) {
+    return a.address == b.address
+        ? a.type.remove_readonly() < b.type.remove_readonly()
+        : a.address < b.address;
 }
 
 } // namespace ayu
