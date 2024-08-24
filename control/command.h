@@ -4,7 +4,7 @@
 #pragma once
 
 #include <utility>
-#include "../ayu/reflection/dynamic.h" 
+#include "../ayu/reflection/anyval.h" 
  // For tuple describability
 #include "../ayu/reflection/describe-standard.h"
 #include "../ayu/reflection/type.h"
@@ -57,13 +57,13 @@ const Command* require_command (Str name);
  // but it doesn't support optional arguments unless you deserialize from ayu.
 struct Statement {
     const Command* command = null;
-    ayu::Dynamic args;  // Type must be command->args_type (std::tuple)
+    ayu::AnyVal args;  // Type must be command->args_type (std::tuple)
 
     constexpr Statement() { }
-    Statement (Command* c, ayu::Dynamic&& a);
+    Statement (Command* c, ayu::AnyVal&& a);
     template <class... Args>
     Statement (Command* c, Args... args) :
-        Statement(c, ayu::Dynamic::make<StatementStorage<Args...>>(
+        Statement(c, ayu::AnyVal::make<StatementStorage<Args...>>(
             std::forward<Args>(args)...
         ))
     { }

@@ -40,7 +40,7 @@
  //
  // The list of descriptors passed to AYU_DESCRIBE may be empty, in which case
  // the type cannot be serialized or deserialized, but it can still be used with
- // Reference and Dynamic, etc.
+ // Reference and AnyVal, etc.
 
 #pragma once
 
@@ -351,7 +351,7 @@ struct _AYU_DescribeBase {
      //
      // Elems are deserialized in order starting at index 0, so it is acceptable
      // to have the first elem clear the contents of the object when written to,
-     // in anticipation of the other elems being written.  Dynamic does this,
+     // in anticipation of the other elems being written.  AnyVal does this,
      // for instance, because its first element is its type, and changing the
      // type necessitates clearing its contents.
      //

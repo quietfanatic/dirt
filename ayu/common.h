@@ -42,8 +42,8 @@ struct Pointer;
  // reflection/reference.h
 struct Reference;
 
- // reflection/dynamic.h
-struct Dynamic;
+ // reflection/anyval.h
+struct AnyVal;
 
  // data/tree.h
 struct Tree;

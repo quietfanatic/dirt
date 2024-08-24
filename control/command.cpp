@@ -28,7 +28,7 @@ const Command* require_command (Str name) {
     else ayu::raise(e_CommandNotFound, name);
 }
 
-Statement::Statement (Command* c, ayu::Dynamic&& a) : command(c), args(move(a)) {
+Statement::Statement (Command* c, ayu::AnyVal&& a) : command(c), args(move(a)) {
     if (args.type != command->args_type()) {
         ayu::raise(e_StatementArgsTypeIncorrect, cat(
             "Statement args type for ", command->name, " is incorrect; expected ",
@@ -66,9 +66,9 @@ AYU_DESCRIBE(const Command*,
  // ways.
 ayu::Tree Statement_to_tree (const Statement& s) {
      // Serialize the args and stick the command name in front
-     // TODO: allow constructing readonly Reference from const Dynamic
+     // TODO: allow constructing readonly Reference from const AnyVal
     auto args_tree = ayu::item_to_tree(
-        const_cast<ayu::Dynamic&>(s.args).ptr()
+        const_cast<ayu::AnyVal&>(s.args).ptr()
     );
     auto a = AnyArray<ayu::Tree>(move(args_tree));
     a.emplace(a.begin(), Str(s.command->name));
@@ -83,7 +83,7 @@ void Statement_from_tree (Statement& s, const ayu::Tree& t) {
     }
     s.command = require_command(Str(a[0]));
     a.erase(usize(0));
-    s.args = ayu::Dynamic(s.command->args_type());
+    s.args = ayu::AnyVal(s.command->args_type());
     ayu::item_from_tree(
         s.args.ptr(), ayu::Tree(move(a)), {},
         ayu::FromTreeOptions::DelaySwizzle

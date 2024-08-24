@@ -2,7 +2,7 @@
  // resource has:
  //     - a source, which is generally a file on disk
  //     - a name, which is an IRI that identifies the source
- //     - a value, which is a Dynamic
+ //     - a value, which is an AnyVal
  //     - a state, which is usually RS::Unloaded or RS::Loaded.
  // Resources can be loaded, reloaded, unloaded, and saved.
 
@@ -11,7 +11,8 @@
 #include "../../uni/transaction.h"
 #include "../common.h"
 #include "../data/print.h"
- // TODO: take out this dependency
+ // TODO: see if we can take out these dependencies
+#include "../reflection/anyval.h"
 #include "../reflection/reference.h"
 
 namespace ayu {
@@ -43,18 +44,18 @@ struct Resource : in::RefCounted {
      // disk.  Will throw if the load fails.  If a ResourceTransaction is
      // currently active, the value will be cleared if the ResourceTransaction
      // is rolled back.
-    Dynamic& value ();
+    AnyVal& value ();
      // Gets the value without autoloading.  If the state is RS::Unloaded,
-     // returns an empty Dynamic and writing to it is Undefined Behavior.  If
+     // returns an empty AnyVal and writing to it is Undefined Behavior.  If
      // the state is RS::Loading, returns a value that may not be completely
      // initialized.
-    Dynamic& get_value () noexcept;
+    AnyVal& get_value () noexcept;
      // If the resource is RS::Unloaded, sets is state to RS::Loaded without
      // loading from the source, and sets its value.  Throw ResourceStateInvalid
      // if the state is RS::Loading.  Throws ResourceTypeRejected if the
      // ResourceScheme associated with this Resource returns false from
      // accepts_type.
-    void set_value (Dynamic&&);
+    void set_value (AnyVal&&);
 
      // Automatically loads and returns a reference to the value, which can be
      // coerced to a pointer.  If a ResourceTransaction is currently active, the
@@ -86,7 +87,7 @@ struct SharedResource {
      // this name is already loaded or ResourceValueInvalid if value is empty.
      // This is equivalent to creating the SharedResource and then calling
      // set_value.
-    SharedResource (const IRI& name, Dynamic&& value);
+    SharedResource (const IRI& name, AnyVal&& value);
 
     Resource& operator* () const { return *data; }
     Resource* operator-> () const { return &*data; }
@@ -236,8 +237,8 @@ constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";
  // provided for the resource.  This can happen either while loading from a
  // file, or when setting a resource's value programmatically.
 constexpr ErrorCode e_ResourceTypeRejected = "ayu::e_ResourceTypeRejected";
- // Tried to create a resource with an empty Dynamic, or load from a tree that
- // didn't correspond to a valid Dynamic.
+ // Tried to create a resource with an empty AnyVal, or load from a tree that
+ // didn't correspond to a valid AnyVal.
 constexpr ErrorCode e_ResourceValueInvalid = "ayu::e_ResourceValueInvalid";
  // Tried to perform an operation on a resource, but its state() was not valid
  // for that operation.

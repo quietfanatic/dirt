@@ -45,7 +45,6 @@
 #include <type_traits>
 
 #include "accessors.internal.h"
-#include "dynamic.h"
 #include "pointer.h"
 
 namespace ayu {

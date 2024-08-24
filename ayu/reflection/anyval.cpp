@@ -1,4 +1,4 @@
-#include "dynamic.h"
+#include "anyval.h"
 
 #include "describe.h"
 #include "reference.h"
@@ -7,26 +7,26 @@ using namespace ayu;
 using namespace ayu::in;
 
  // We need to use values_custom
-AYU_DESCRIBE(ayu::Dynamic,
+AYU_DESCRIBE(ayu::AnyVal,
     values_custom(
-        [](const Dynamic& a, const Dynamic& b) -> bool {
+        [](const AnyVal& a, const AnyVal& b) -> bool {
             expect(!b);
             return !a;
         },
-        [](Dynamic& a, const Dynamic& b) {
+        [](AnyVal& a, const AnyVal& b) {
             expect(!b);
-            a = Dynamic();
+            a = AnyVal();
         },
-        value(Tree::array(), Dynamic())
+        value(Tree::array(), AnyVal())
     ),
     elems(
         elem(value_funcs<Type>(
-            [](const Dynamic& v){ return v.type; },
-            [](Dynamic& v, Type t){
-                v = Dynamic(t);
+            [](const AnyVal& v){ return v.type; },
+            [](AnyVal& v, Type t){
+                v = AnyVal(t);
             }
         )),
-        elem(reference_func([](Dynamic& v){ return Reference(v.ptr()); }))
+        elem(reference_func([](AnyVal& v){ return Reference(v.ptr()); }))
     )
 )
 
@@ -37,7 +37,7 @@ AYU_DESCRIBE(ayu::Dynamic,
 #include "../traversal/to-tree.h"
 
 namespace ayu::test {
-    struct DynamicTest {
+    struct AnyValTest {
         int a;
         int b;
     };
@@ -75,7 +75,7 @@ namespace ayu::test {
 } using namespace ayu::test;
 
  // The things here should work without any descriptions
-AYU_DESCRIBE(ayu::test::DynamicTest)
+AYU_DESCRIBE(ayu::test::AnyValTest)
 AYU_DESCRIBE(ayu::test::Test2)
 AYU_DESCRIBE(ayu::test::NoConstructor)
 AYU_DESCRIBE(ayu::test::NoCopy)
@@ -89,40 +89,40 @@ AYU_DESCRIBE(ayu::test::CustomConstructor,
 
 static tap::TestSet tests ("dirt/ayu/reflection/dynamic", []{
     using namespace tap;
-    Dynamic d;
-    ok(!d, "Default Dynamic is empty");
-    d = Dynamic::make<bool>(true);
-    ok(d.as<bool>(), "Can make Dynamic bool");
-    d = Dynamic::make<bool>(false);
-    ok(!d.as<bool>(), "Can make Dynamic false bool");
-    ok(!!d, "Dynamic false bool is not empty");
-    d = Dynamic::make<DynamicTest>(4, 5);
-    is(d.as<DynamicTest>().b, 5, "Can make Dynamic with struct type");
+    AnyVal d;
+    ok(!d, "Default AnyVal is empty");
+    d = AnyVal::make<bool>(true);
+    ok(d.as<bool>(), "Can make AnyVal bool");
+    d = AnyVal::make<bool>(false);
+    ok(!d.as<bool>(), "Can make AnyVal false bool");
+    ok(!!d, "AnyVal false bool is not empty");
+    d = AnyVal::make<AnyValTest>(4, 5);
+    is(d.as<AnyValTest>().b, 5, "Can make AnyVal with struct type");
     throws_code<e_TypeCantCast>([&]{ d.as<bool>(); }, "TypeCantCast");
     throws_code<e_TypeCantDefaultConstruct>([&]{
-        Dynamic(Type::CppType<NoConstructor>());
+        AnyVal(Type::CppType<NoConstructor>());
     }, "TypeCantDefaultConstruct");
     throws_code<e_TypeCantDestroy>([&]{
-        d = Dynamic(Type::CppType<NoDestructor>());
+        d = AnyVal(Type::CppType<NoDestructor>());
     }, "Cannot construct type without destructor");
 
     doesnt_throw([&]{
-        d = Dynamic(Type::CppType<CustomConstructor>());
+        d = AnyVal(Type::CppType<CustomConstructor>());
     }, "Can construct type with externally-supplied constructor/destructor");
 
-    d = Dynamic::make<int32>(4);
-    is(item_to_tree(&d), tree_from_string("[int32 4]"), "Dynamic to_tree works");
+    d = AnyVal::make<int32>(4);
+    is(item_to_tree(&d), tree_from_string("[int32 4]"), "AnyVal to_tree works");
     doesnt_throw([&]{
         item_from_string(&d, "[double 55]");
     });
-    is(d.type, Type::CppType<double>(), "Dynamic from_tree gives correct type");
-    is(d.as<double>(), double(55), "Dynamic from_tree gives correct value");
+    is(d.type, Type::CppType<double>(), "AnyVal from_tree gives correct type");
+    is(d.as<double>(), double(55), "AnyVal from_tree gives correct value");
     doesnt_throw([&]{
         item_from_string(&d, "[]");
     });
-    ok(!d, "Dynamic from_tree with [] makes empty Dynamic");
+    ok(!d, "AnyVal from_tree with [] makes empty AnyVal");
     doesnt_throw([&]{
-        d = Dynamic::make<WeirdAlign>();
+        d = AnyVal::make<WeirdAlign>();
     }, "Can allocate object with non-standard alignment");
     is(usize(d.data) & 255, 0u, "Weird alignment data has correct alignment");
 

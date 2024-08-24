@@ -4,9 +4,9 @@
 #include "../../uni/io.h"
 #include "../data/parse.h"
 #include "../data/print.h"
+#include "../reflection/anyval.h"
 #include "../reflection/describe-standard.h"
 #include "../reflection/describe.h"
-#include "../reflection/dynamic.h"
 #include "../reflection/reference.h"
 #include "../traversal/compound.h"
 #include "../traversal/from-tree.h"
@@ -32,7 +32,7 @@ struct ResourceData : Resource {
      // that's what this itself is).
     uint32 node_id;
     IRI name;
-    Dynamic value {};
+    AnyVal value {};
     ResourceData (const IRI& n) : name(n) { }
 };
 
@@ -110,7 +110,7 @@ static TypeAndTree verify_tree_for_scheme (
         }
         return {type, a[1]};
     }
-    else raise_LengthRejected(Type::CppType<Dynamic>(), 2, 2, a.size());
+    else raise_LengthRejected(Type::CppType<AnyVal>(), 2, 2, a.size());
 }
 
 struct ROV {
@@ -120,7 +120,7 @@ struct ROV {
      // will go back to 0 and the ResourceData will be actually deleted (unless
      // it was rolled back).
     SharedResource res;
-    Dynamic old_value;
+    AnyVal old_value;
     void rollback () {
         auto data = static_cast<ResourceData*>(res.data.p);
         data->value = move(old_value);
@@ -139,20 +139,20 @@ ResourceState Resource::state () const noexcept {
     return static_cast<const ResourceData*>(this)->state;
 }
 
-Dynamic& Resource::value () {
+AnyVal& Resource::value () {
     auto data = static_cast<ResourceData*>(this);
     if (data->state == RS::Unloaded) {
         load(ResourceRef(this));
     }
     return data->value;
 }
-Dynamic& Resource::get_value () noexcept {
+AnyVal& Resource::get_value () noexcept {
     return static_cast<ResourceData*>(this)->value;
 }
 
-void Resource::set_value (Dynamic&& value) {
+void Resource::set_value (AnyVal&& value) {
     auto data = static_cast<ResourceData*>(this);
-    Dynamic v = move(value);
+    AnyVal v = move(value);
     if (data->state == RS::Loading) {
         raise_ResourceStateInvalid("set_value", this);
     }
@@ -168,8 +168,8 @@ void Resource::set_value (Dynamic&& value) {
     if (ResourceTransaction::depth) {
         struct SetValueCommitter : Committer {
             SharedResource res;
-            Dynamic old_value;
-            SetValueCommitter (SharedResource&& r, Dynamic&& v) :
+            AnyVal old_value;
+            SetValueCommitter (SharedResource&& r, AnyVal&& v) :
                 res(move(r)), old_value(move(v))
             { }
             void rollback () noexcept override {
@@ -211,10 +211,10 @@ SharedResource::SharedResource (const IRI& name) {
     }
 }
 
-SharedResource::SharedResource (const IRI& name, Dynamic&& value) :
+SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
     SharedResource(name)
 {
-    Dynamic v = move(value);
+    AnyVal v = move(value);
     if (!v) {
         raise_ResourceValueEmpty("construct", *this);
     }
@@ -248,11 +248,11 @@ void load (ResourceRef res) {
         auto filename = scheme->get_file(data->name);
         Tree tree = tree_from_file(move(filename));
         auto tnt = verify_tree_for_scheme(res, scheme, tree);
-         // Run item_from_tree on the Dynamic's value, not on the Dynamic
+         // Run item_from_tree on the AnyVal's value, not on the AnyVal
          // itself.  Otherwise, the associated locations will have an extra +1
          // in the fragment.
         expect(!data->value);
-        data->value = Dynamic(tnt.type);
+        data->value = AnyVal(tnt.type);
         item_from_tree(
             data->value.ptr(), tnt.tree, SharedLocation(res),
             FromTreeOptions::DelaySwizzle
@@ -292,7 +292,7 @@ void save (ResourceRef res, PrintOptions opts) {
     }
     auto filename = scheme->get_file(data->name);
      // Do type and value separately, because the Location refers to the value,
-     // not the whole Dynamic.
+     // not the whole AnyVal.
     auto type_tree = item_to_tree(&data->value.type);
     auto value_tree = item_to_tree(data->value.ptr(), SharedLocation(res));
     auto contents = tree_to_string(
@@ -537,7 +537,7 @@ void reload (Slice<ResourceRef> reses) {
             Tree tree = tree_from_file(move(filename));
             auto tnt = verify_tree_for_scheme(res, scheme, tree);
             expect(!data->value);
-            data->value = Dynamic(tnt.type);
+            data->value = AnyVal(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
             item_from_tree(data->value.ptr(), tnt.tree, SharedLocation(res));
@@ -726,7 +726,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     ok(!!input->value(), "Resource has value after loading");
 
     throws_code<e_ResourceStateInvalid>([&]{
-        SharedResource(input->name(), Dynamic::make<int>(3));
+        SharedResource(input->name(), AnyVal::make<int>(3));
     }, "Creating resource throws on duplicate");
 
     doesnt_throw([&]{ unload(input); }, "unload");

@@ -1,14 +1,14 @@
 // Represents a dynamically typed object with value semantics.  This is always
 // allocated on the heap.  Can only represent types known to ayu.  Can be moved
-// but not copied.  There is an empty Dynamic which has no type and no value,
-// but unlike Reference, there is no "null" Dynamic which has type and no value.
-// If there is a type there is a value, and vice versa.
+// but not copied.  There is an empty AnyVal which has no type and no value, but
+// unlike Reference, there is no "null" AnyVal which has type and no value.  If
+// there is a type there is a value, and vice versa.
 //
-// Dynamics can either be statically const (e.g. const Dynamic&) or dynamically
-// const (having a readonly type).
+// AnyVals can either be statically const (e.g. const AnyVal&) or dynamically
+// const (having a readonly type).  Arguably the latter is not very useful.
 //
-// Dynamics cannot be constructed until main() starts (except for the empty
-// Dynamic).
+// AnyVals cannot be constructed until main() starts (except for the empty
+// AnyVal).
 #pragma once
 
 #include <type_traits>
@@ -19,32 +19,32 @@
 
 namespace ayu {
 
-struct Dynamic {
+struct AnyVal {
     Type type;
     Mu* data;
 
      // The empty value will cause null derefs if you do anything with it.
-    constexpr Dynamic () : type(), data(null) { }
+    constexpr AnyVal () : type(), data(null) { }
      // Create from internal data.  Takes ownership.
-    constexpr Dynamic (Type t, Mu*&& d) : type(t), data(d) { d = null; }
+    constexpr AnyVal (Type t, Mu*&& d) : type(t), data(d) { d = null; }
      // Default construction
-    constexpr explicit Dynamic (Type t) :
+    constexpr explicit AnyVal (Type t) :
         type(t),
         data(t ? t.default_new() : null)
     { }
      // Move construct
-    constexpr Dynamic (Dynamic&& o) : type(o.type), data(o.data) {
+    constexpr AnyVal (AnyVal&& o) : type(o.type), data(o.data) {
         o.type = Type();
         o.data = null;
     }
      // Construct with arguments.
     template <class T, class... Args>
-    static Dynamic make (Args&&... args) {
+    static AnyVal make (Args&&... args) {
         auto type = Type::CppType<T>();
         void* data = type.allocate();
         try {
             new (data) T (std::forward<Args>(args)...);
-            return Dynamic(type, reinterpret_cast<Mu*>(data));
+            return AnyVal(type, reinterpret_cast<Mu*>(data));
         }
         catch (...) {
             type.deallocate(data);
@@ -53,12 +53,12 @@ struct Dynamic {
     }
      // Move construct from std::unique_ptr
     template <class T>
-    Dynamic (std::unique_ptr<T> p) :
+    AnyVal (std::unique_ptr<T> p) :
         type(Type::CppType<T>()), data((Mu*)p.release())
     { }
      // Move assignment
-    constexpr Dynamic& operator = (Dynamic&& o) {
-        this->~Dynamic();
+    constexpr AnyVal& operator = (AnyVal&& o) {
+        this->~AnyVal();
         type = o.type;
         data = o.data;
         o.type = Type();
@@ -66,7 +66,7 @@ struct Dynamic {
         return *this;
     }
      // Destroy
-    constexpr ~Dynamic () {
+    constexpr ~AnyVal () {
         if (data) type.delete_(data);
     }
      // Check contents.
