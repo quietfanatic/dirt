@@ -38,14 +38,14 @@ struct KeepLocationCache {
 };
 
  // While this is alive, if find_pointer() or find_reference() is called with
- // thie AnyRef, skip the scanning process and return this location.
-struct PushLikelyAnyRef {
-    PushLikelyAnyRef (AnyRef, MoveRef<SharedLocation>) noexcept;
-    ~PushLikelyAnyRef ();
+ // this reference, skip the scanning process and return this location.
+struct PushLikelyRef {
+    PushLikelyRef (AnyRef, MoveRef<SharedLocation>) noexcept;
+    ~PushLikelyRef ();
 
     AnyRef reference;
     SharedLocation location;
-    PushLikelyAnyRef* next;
+    PushLikelyRef* next;
 };
 
 ///// Scanning operations

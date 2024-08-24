@@ -324,9 +324,9 @@ KeepLocationCache::~KeepLocationCache () {
     }
 }
 
-static PushLikelyAnyRef* first_plr = null;
+static PushLikelyRef* first_plr = null;
 
-PushLikelyAnyRef::PushLikelyAnyRef (
+PushLikelyRef::PushLikelyRef (
     AnyRef r, MoveRef<SharedLocation> l
 ) noexcept :
     reference(r), location(*move(l)), next(first_plr)
@@ -336,7 +336,7 @@ PushLikelyAnyRef::PushLikelyAnyRef (
 #endif
     first_plr = this;
 }
-PushLikelyAnyRef::~PushLikelyAnyRef () { first_plr = next; }
+PushLikelyRef::~PushLikelyRef () { first_plr = next; }
 
 bool scan_pointers (
     AnyPtr base_item, LocationRef base_loc,
