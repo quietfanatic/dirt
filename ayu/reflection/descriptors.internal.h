@@ -12,8 +12,6 @@
 #include "accessors.internal.h"
 #include "../data/tree.h"
 
-namespace ayu { struct Reference; }
-
 namespace ayu::in {
 
 // The goal of this module is to allow descriptions to be laid out in memory at
@@ -406,7 +404,7 @@ struct KeysDcrWith : KeysDcr<T> {
 };
 
 template <class T>
-using AttrFunc = Reference(T&, const AnyString&);
+using AttrFunc = AnyRef(T&, const AnyString&);
 template <class T>
 struct ComputedAttrsDcr : AttachedDescriptor<T> {
     AttrFunc<T>* f;
@@ -425,7 +423,7 @@ struct LengthDcrWith : LengthDcr<T> {
 };
 
 template <class T>
-using ElemFunc = Reference(T&, usize);
+using ElemFunc = AnyRef(T&, usize);
 template <class T>
 struct ComputedElemsDcr : AttachedDescriptor<T> {
     ElemFunc<T>* f;

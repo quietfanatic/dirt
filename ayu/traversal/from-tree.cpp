@@ -11,14 +11,14 @@ namespace in {
 
 struct SwizzleOp {
     SwizzleFunc<Mu>* f;
-    Reference item;
+    AnyRef item;
      // This can't be TreeRef because the referenced Tree could go away after a
      // nested from_tree is called with DelaySwizzle
     Tree tree;
     SharedLocation loc;
 
     ALWAYS_INLINE
-    SwizzleOp (SwizzleFunc<Mu>* f, Reference&& i, const Tree& t, SharedLocation&& l) :
+    SwizzleOp (SwizzleFunc<Mu>* f, AnyRef&& i, const Tree& t, SharedLocation&& l) :
         f(f), item(move(i)), tree(t), loc(move(l))
     { }
      // Allow optimized reallocation
@@ -31,11 +31,11 @@ struct SwizzleOp {
 struct InitOp {
     InitFunc<Mu>* f;
     double priority;
-    Reference item;
+    AnyRef item;
     SharedLocation loc;
 
     ALWAYS_INLINE
-    InitOp (InitFunc<Mu>* f, double p, Reference&& i, SharedLocation&& l) :
+    InitOp (InitFunc<Mu>* f, double p, AnyRef&& i, SharedLocation&& l) :
         f(f), priority(p), item(move(i)), loc(move(l))
     { }
      // Allow optimized reallocation
@@ -68,7 +68,7 @@ struct TraverseFromTree {
 
     static
     void start (
-        const Reference& item, const Tree& tree, LocationRef loc,
+        const AnyRef& item, const Tree& tree, LocationRef loc,
         FromTreeOptions opts
     ) {
         plog("from_tree start");
@@ -88,7 +88,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void start_with_context (
-        const Reference& item, const Tree& tree, LocationRef loc
+        const AnyRef& item, const Tree& tree, LocationRef loc
     ) {
          // Start a resource transaction so that dependency loads are all or
          // nothing.
@@ -102,7 +102,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void start_without_context (
-        const Reference& item, const Tree& tree, LocationRef loc
+        const AnyRef& item, const Tree& tree, LocationRef loc
     ) {
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         trav_start(item, loc, false, AccessMode::Write,
@@ -535,7 +535,7 @@ struct TraverseFromTree {
         const Traversal& trav, const TreePair& pair, AttrFunc<Mu>* f
     ) {
         auto& [key, value] = pair;
-        Reference ref = f(*trav.address, key);
+        AnyRef ref = f(*trav.address, key);
         if (!ref) raise_AttrNotFound(trav.desc, key);
         trav_computed_attr(trav, ref, f, key, AccessMode::Write,
             [&value](const Traversal& child)
@@ -750,7 +750,7 @@ struct TraverseFromTree {
 } using namespace in;
 
 void item_from_tree (
-    const Reference& item, const Tree& tree, LocationRef loc,
+    const AnyRef& item, const Tree& tree, LocationRef loc,
     FromTreeOptions opts
 ) {
     TraverseFromTree::start(item, tree, loc, opts);

@@ -1,7 +1,7 @@
 #include "anyval.h"
 
+#include "anyref.h"
 #include "describe.h"
-#include "reference.h"
 
 using namespace ayu;
 using namespace ayu::in;
@@ -26,7 +26,7 @@ AYU_DESCRIBE(ayu::AnyVal,
                 v = AnyVal(t);
             }
         )),
-        elem(reference_func([](AnyVal& v){ return Reference(v.ptr()); }))
+        elem(anyref_func([](AnyVal& v){ return AnyRef(v.ptr()); }))
     )
 )
 

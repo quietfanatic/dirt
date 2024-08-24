@@ -1,11 +1,11 @@
 #include "anyptr.h"
 
+#include "anyref.h"
 #include "describe.h"
-#include "reference.h"
 
 namespace ayu {
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::AnyPtr,
-    delegate(assignable<Reference>())
+    delegate(assignable<AnyRef>())
 );

@@ -8,10 +8,10 @@ namespace in {
 
  // Pulling out this callback to avoid redundant instantiations of
  // lambdas due to all lambdas having unique types.
-struct ReceiveReference {
-    Reference& r;
+struct ReceiveAnyRef {
+    AnyRef& r;
     void operator() (const Traversal& child) const {
-        new (&r) Reference(child.to_reference());
+        new (&r) AnyRef(child.to_reference());
     }
 };
 
@@ -21,7 +21,7 @@ struct TraverseGetKeys {
     UniqueArray<AnyString> keys;
 
     NOINLINE
-    void start (const Reference& item, LocationRef loc) {
+    void start (const AnyRef& item, LocationRef loc) {
         trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
         { traverse(trav); });
@@ -89,7 +89,7 @@ struct TraverseGetKeys {
 } using namespace in;
 
 AnyArray<AnyString> item_get_keys (
-    const Reference& item, LocationRef loc
+    const AnyRef& item, LocationRef loc
 ) {
     UniqueArray<AnyString> keys;
     reinterpret_cast<TraverseGetKeys&>(keys).start(item, loc);
@@ -104,7 +104,7 @@ struct TraverseSetKeys {
     UniqueArray<AnyString> keys;
 
     NOINLINE
-    void start (const Reference& item, LocationRef loc) {
+    void start (const AnyRef& item, LocationRef loc) {
         trav_start(item, loc, false, AccessMode::Read,
             [this](const Traversal& trav)
         {
@@ -218,7 +218,7 @@ struct TraverseSetKeys {
 } using namespace in;
 
 void item_set_keys (
-    const Reference& item, AnyArray<AnyString> keys, LocationRef loc
+    const AnyRef& item, AnyArray<AnyString> keys, LocationRef loc
 ) {
     TraverseSetKeys(move(keys)).start(item, loc);
 }
@@ -227,10 +227,10 @@ void item_set_keys (
 
 struct TraverseAttr {
     NOINLINE static
-    Reference start (
-        const Reference& item, const AnyString& key, LocationRef loc
+    AnyRef start (
+        const AnyRef& item, const AnyString& key, LocationRef loc
     ) {
-        Reference r;
+        AnyRef r;
         trav_start(item, loc, false, AccessMode::Read,
             [&r, &key](const Traversal& trav)
         { traverse(r, trav, key); });
@@ -238,7 +238,7 @@ struct TraverseAttr {
     }
 
     NOINLINE static
-    void traverse (Reference& r, const Traversal& trav, const AnyString& key) {
+    void traverse (AnyRef& r, const Traversal& trav, const AnyString& key) {
         if (trav.desc->keys_offset) {
             return use_computed_attrs(r, trav, key);
         }
@@ -253,7 +253,7 @@ struct TraverseAttr {
 
     NOINLINE static
     void use_attrs (
-        Reference& r, const Traversal& trav, const AnyString& key,
+        AnyRef& r, const Traversal& trav, const AnyString& key,
         const AttrsDcrPrivate* attrs
     ) {
          // First check direct attrs
@@ -282,11 +282,11 @@ struct TraverseAttr {
 
     NOINLINE static
     void use_computed_attrs (
-        Reference& r, const Traversal& trav, const AnyString& key
+        AnyRef& r, const Traversal& trav, const AnyString& key
     ) {
         expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
-        if (Reference ref = f(*trav.address, key)) {
+        if (AnyRef ref = f(*trav.address, key)) {
             trav_computed_attr(trav, move(ref), f, key, AccessMode::Read,
                 [&r](const Traversal& child)
             { r = child.to_reference(); });
@@ -295,7 +295,7 @@ struct TraverseAttr {
 
     NOINLINE static
     void use_delegate (
-        Reference& r, const Traversal& trav, const AnyString& key,
+        AnyRef& r, const Traversal& trav, const AnyString& key,
         const Accessor* acr
     ) {
         trav_delegate(trav, acr, AccessMode::Read,
@@ -304,14 +304,14 @@ struct TraverseAttr {
     }
 };
 
-Reference item_maybe_attr (
-    const Reference& item, const AnyString& key, LocationRef loc
+AnyRef item_maybe_attr (
+    const AnyRef& item, const AnyString& key, LocationRef loc
 ) {
     return TraverseAttr::start(item, key, loc);
 }
 
-Reference item_attr (const Reference& item, const AnyString& key, LocationRef loc) {
-    Reference r = TraverseAttr::start(item, key, loc);
+AnyRef item_attr (const AnyRef& item, const AnyString& key, LocationRef loc) {
+    AnyRef r = TraverseAttr::start(item, key, loc);
     if (!r) {
         try { raise_AttrNotFound(item.type(), key); }
         catch (...) { rethrow_with_travloc(loc); }
@@ -325,7 +325,7 @@ namespace in {
 
 struct TraverseGetLength {
     static
-    usize start (const Reference& item, LocationRef loc) try {
+    usize start (const AnyRef& item, LocationRef loc) try {
         if (auto addr = item.address()) {
             return traverse(*addr, item.type());
         }
@@ -365,7 +365,7 @@ struct TraverseGetLength {
 
 } // in
 
-usize item_get_length (const Reference& item, LocationRef loc) {
+usize item_get_length (const AnyRef& item, LocationRef loc) {
     return TraverseGetLength::start(item, loc);
 }
 
@@ -375,7 +375,7 @@ namespace in {
 
 struct TraverseSetLength {
     static
-    void start (const Reference& item, usize len, LocationRef loc) try {
+    void start (const AnyRef& item, usize len, LocationRef loc) try {
         if (auto addr = item.address()) {
             traverse(*addr, item.type(), len);
         }
@@ -424,7 +424,7 @@ struct TraverseSetLength {
 
 } // in
 
-void item_set_length (const Reference& item, usize len, LocationRef loc) {
+void item_set_length (const AnyRef& item, usize len, LocationRef loc) {
     TraverseSetLength::start(item, len, loc);
 }
 
@@ -436,8 +436,8 @@ namespace in {
  // directly.
 struct TraverseElem {
     NOINLINE static
-    Reference start (const Reference& item, usize index, LocationRef loc) {
-        Reference r;
+    AnyRef start (const AnyRef& item, usize index, LocationRef loc) {
+        AnyRef r;
         trav_start(item, loc, false, AccessMode::Read,
             [&r, index](const Traversal& trav)
         { traverse(r, trav, index); });
@@ -445,7 +445,7 @@ struct TraverseElem {
     }
 
     NOINLINE static
-    void traverse (Reference& r, const Traversal& trav, usize index) {
+    void traverse (AnyRef& r, const Traversal& trav, usize index) {
         if (auto length = trav.desc->length_acr()) {
             if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
                 use_contiguous_elems(r, trav, index, length);
@@ -465,7 +465,7 @@ struct TraverseElem {
 
     NOINLINE static
     void use_elems (
-        Reference& r, const Traversal& trav, usize index,
+        AnyRef& r, const Traversal& trav, usize index,
         const ElemsDcrPrivate* elems
     ) {
         if (index > elems->n_elems) return;
@@ -476,7 +476,7 @@ struct TraverseElem {
 
     NOINLINE static
     void use_contiguous_elems (
-        Reference& r, const Traversal& trav, usize index,
+        AnyRef& r, const Traversal& trav, usize index,
         const Accessor* length_acr
     ) {
          // We have to read the length to do bounds checking.
@@ -499,11 +499,11 @@ struct TraverseElem {
 
     NOINLINE static
     void use_computed_elems (
-        Reference& r, const Traversal& trav, usize index
+        AnyRef& r, const Traversal& trav, usize index
     ) {
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        Reference ref = f(*trav.address, index);
+        AnyRef ref = f(*trav.address, index);
         if (!ref) return;
         trav_computed_elem(trav, ref, f, index, AccessMode::Read,
             [&r](const Traversal& child)
@@ -512,7 +512,7 @@ struct TraverseElem {
 
     NOINLINE static
     void use_delegate (
-        Reference& r, const Traversal& trav, usize index,
+        AnyRef& r, const Traversal& trav, usize index,
         const Accessor* acr
     ) {
         trav_delegate(trav, acr, AccessMode::Read,
@@ -523,14 +523,14 @@ struct TraverseElem {
 
 } // in
 
-Reference item_maybe_elem (
-    const Reference& item, usize index, LocationRef loc
+AnyRef item_maybe_elem (
+    const AnyRef& item, usize index, LocationRef loc
 ) {
     return TraverseElem::start(item, index, loc);
 }
 
-Reference item_elem (const Reference& item, usize index, LocationRef loc) {
-    Reference r = TraverseElem::start(item, index, loc);
+AnyRef item_elem (const AnyRef& item, usize index, LocationRef loc) {
+    AnyRef r = TraverseElem::start(item, index, loc);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
         catch (...) { rethrow_with_travloc(loc); }

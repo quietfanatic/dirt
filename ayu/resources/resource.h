@@ -12,8 +12,8 @@
 #include "../common.h"
 #include "../data/print.h"
  // TODO: see if we can take out these dependencies
+#include "../reflection/anyref.h"
 #include "../reflection/anyval.h"
-#include "../reflection/reference.h"
 
 namespace ayu {
 
@@ -60,11 +60,11 @@ struct Resource : in::RefCounted {
      // Automatically loads and returns a reference to the value, which can be
      // coerced to a pointer.  If a ResourceTransaction is currently active, the
      // value will be cleared if the transaction is rolled back, leaving the
-     // Reference dangling.
-    Reference ref () { return value().ptr(); }
+     // reference dangling.
+    AnyRef ref () { return value().ptr(); }
      // Gets a reference to the value without automatically loading.  If the
-     // resource is RS::Unloaded, returns an empty Reference.
-    Reference get_ref () noexcept { return get_value().ptr(); }
+     // resource is RS::Unloaded, returns an empty AnyRef.
+    AnyRef get_ref () noexcept { return get_value().ptr(); }
 
      // Syntax sugar
     auto operator [] (const AnyString& key) { return ref()[key]; }

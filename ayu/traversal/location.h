@@ -1,27 +1,27 @@
-// A Location is an intermediate step between a Reference and an IRI.  A valid
+// A Location is an intermediate step between an AnyRef and an IRI.  A valid
 // Location can be easily converted to and from a valid IRI.  A Location can
-// also be easily converted to a Reference, but converting a Reference to a
+// also be easily converted to a AnyRef, but converting a AnyRef to a
 // Location may require scanning a lot of data.  The functions for doing these
-// conversions are in serialize.h.
+// conversions are in scan.h.
 //
 // You shouldn't have to use this class directly, but I guess you can if you
 // want to.
 //
 // Internally, a Location is a recursive object that is a symbolic
-// representation of a Reference, explaining how to reach the referend from the
+// representation of a AnyRef, explaining how to reach the referend from the
 // root Resource by a chain of item_attr() and item_elem() calls. In ADT syntax,
 //     data Location = RootLocation Resource
-//                   | ReferenceLocation Reference
+//                   | RefLocation AnyRef
 //                   | KeyLocation Location AnyString
 //                   | IndexLocation Location usize
 //
-// TODO: Provide functions to translate References directly to and from IRIs
+// TODO: Provide functions to translate AnyRefs directly to and from IRIs
 // somewhere.
 
 #pragma once
 
 #include "../common.internal.h"
-#include "../reflection/reference.h"
+#include "../reflection/anyref.h"
 
 namespace ayu {
 
@@ -39,7 +39,7 @@ struct Location : in::RefCounted {
      // Returns empty if this is not a resource root.
     ResourceRef resource () const noexcept;
      // Returns null if this is not a reference root.
-    const Reference* reference () const noexcept;
+    const AnyRef* reference () const noexcept;
      // Returns empty if this is a root.
     LocationRef parent () const noexcept;
      // Returns null if this location is a root or has an index.
@@ -48,7 +48,7 @@ struct Location : in::RefCounted {
     const uint32* index () const noexcept;
 
      // Walks down to the root Location (containing either a Resource or a
-     // Reference) and returns it.
+     // AnyRef) and returns it.
     LocationRef root () const noexcept;
 
     protected:
@@ -66,8 +66,8 @@ struct SharedLocation {
     explicit SharedLocation (ResourceRef) noexcept;
      // Constructs a root location from an anonymous item.  as_iri() will return
      // "anonymous-item:", and reference_from_location will return this
-     // Reference.
-    explicit SharedLocation (const Reference&) noexcept;
+     // AnyRef.
+    explicit SharedLocation (const AnyRef&) noexcept;
      // Constructs a location based on another one with an added attribute key
      // or element index.
     SharedLocation (MoveRef<SharedLocation> parent, MoveRef<AnyString> key) noexcept;
@@ -91,16 +91,16 @@ struct LocationRef {
 
 ///// REFERENCE CONVERSION
 
- // Convert a Location to a Reference.  This will not have to do any scanning,
+ // Convert a Location to a AnyRef.  This will not have to do any scanning,
  // so it should be fairly quick.  Well, quicker than reference_to_location.
  // reference_to_location is in scan.h
-Reference reference_from_location (LocationRef);
+AnyRef reference_from_location (LocationRef);
 
 ///// IRI CONVERSION
 
- // Gets an IRI corresponding to the given Location.  If the root is a Resource,
+ // Gets an IRI corresponding to the given Location.  If the root is a resource,
  // the IRI up to the fragment will be the resource's name.  If the root is a
- // Reference, the non-fragment part of the IRI will be "ayu-anonymous:".
+ // reference, the non-fragment part of the IRI will be "ayu-anonymous:".
  // A key location will have /key appended to the fragment, and an index
  // location will have +index appended to the fragment.
 IRI location_to_iri (LocationRef) noexcept;
@@ -128,7 +128,7 @@ constexpr ErrorCode e_LocationIRIInvalid = "ayu::e_LocationIRIInvalid";
 
 ///// BASE MANAGEMENT
 
- // Get the current base location.  Always a Resource or Reference Location.
+ // Get the current base location.  Always a Resource or AnyRef Location.
 LocationRef current_base_location () noexcept;
  // The IRI corresponding to current_base_location().
  // When serializing IRIS with AYU, they will be read and written as relative

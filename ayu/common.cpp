@@ -6,7 +6,7 @@
 namespace ayu {
 using namespace in;
 
-void dump_refs (Slice<Reference> rs) {
+void dump_refs (Slice<AnyRef> rs) {
     DiagnosticSerialization _;
     switch (rs.size()) {
         case 0: warn_utf8("[]\n"); break;

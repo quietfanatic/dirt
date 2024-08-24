@@ -5,8 +5,8 @@ namespace in {
 
  // ResourceLocation is extern to break a cyclic dependency.
 struct ReferenceLocation : Location {
-    Reference reference;
-    ReferenceLocation (MoveRef<Reference> ref) :
+    AnyRef reference;
+    ReferenceLocation (MoveRef<AnyRef> ref) :
         Location(LF::Reference), reference(*move(ref))
     { }
 };
@@ -27,7 +27,7 @@ struct IndexLocation : Location {
 
 };
 
-inline SharedLocation::SharedLocation (const Reference& ref) noexcept :
+inline SharedLocation::SharedLocation (const AnyRef& ref) noexcept :
     data(new in::ReferenceLocation(ref))
 { }
 inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, MoveRef<AnyString> k) noexcept :
@@ -37,7 +37,7 @@ inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, usize i) noexc
     data(new in::IndexLocation(expect(*move(p)), i))
 { }
 
-inline const Reference* Location::reference () const noexcept {
+inline const AnyRef* Location::reference () const noexcept {
     switch (form) {
         case LF::Reference:
             return &static_cast<const in::ReferenceLocation*>(this)->reference;

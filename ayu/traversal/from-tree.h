@@ -7,7 +7,7 @@
 #include "../common.h"
 #include "../data/parse.h"
 #include "../data/tree.h"
-#include "../reflection/reference.h"
+#include "../reflection/anyref.h"
 #include "location.h"
 
 namespace ayu {
@@ -51,7 +51,7 @@ DECLARE_ENUM_BITWISE_OPERATORS(FromTreeOptions)
  // If none of those descriptors are applicable, a CannotFromTree exception will
  // be thrown.
 void item_from_tree (
-    const Reference&, const Tree&, LocationRef loc = {},
+    const AnyRef&, const Tree&, LocationRef loc = {},
     FromTreeOptions opts = {}
 );
  // Slight optimization for pointers (the usual case)
@@ -60,7 +60,7 @@ void item_from_tree (
     T* item, const Tree& t, LocationRef loc = {},
     FromTreeOptions opts = {}
 ) {
-    Reference ref = item;
+    AnyRef ref = item;
     item_from_tree(ref, t, loc, opts);
     expect(!ref.acr);
 }

@@ -1,8 +1,8 @@
 #include "accessors.private.h"
 
+#include "anyref.h"
 #include "describe.h"
 #include "descriptors.private.h"
-#include "reference.h"
 
 namespace ayu::in {
 
@@ -66,20 +66,20 @@ void ConstantPtrAcr0::_access (
     cb(*const_cast<Mu*>(self->pointer));
 }
 
-Type ReferenceFuncAcr1::_type (const Accessor* acr, Mu* from) {
+Type AnyRefFuncAcr1::_type (const Accessor* acr, Mu* from) {
     if (!from) return Type();
-    auto self = static_cast<const ReferenceFuncAcr2<Mu>*>(acr);
+    auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
     return self->f(*from).type();
 }
-void ReferenceFuncAcr1::_access (
+void AnyRefFuncAcr1::_access (
     const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
 ) {
-    auto self = static_cast<const ReferenceFuncAcr2<Mu>*>(acr);
-     // This will null deref if f returns an empty Reference
+    auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
+     // This will null deref if f returns an empty AnyRef
     self->f(from).access(mode, cb);
 }
-Mu* ReferenceFuncAcr1::_address (const Accessor* acr, Mu& from) {
-    auto self = static_cast<const ReferenceFuncAcr2<Mu>*>(acr);
+Mu* AnyRefFuncAcr1::_address (const Accessor* acr, Mu& from) {
+    auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
     auto ref = self->f(from);
     expect(ref.type());
     return expect(ref.address());

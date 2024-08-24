@@ -1,8 +1,8 @@
 #include "document.h"
 
 #include "../common.h"
+#include "../reflection/anyref.h"
 #include "../reflection/describe.h"
-#include "../reflection/reference.h"
 
 namespace ayu {
 namespace in {
@@ -193,11 +193,11 @@ AYU_DESCRIBE(ayu::Document,
     )),
     computed_attrs([](ayu::Document& v, const AnyString& k){
         if (k == "_next_id") {
-            return Reference(&v.data->next_id);
+            return AnyRef(&v.data->next_id);
         }
         else {
             auto ref = DocumentItemRef(v.data, k);
-            return Reference(
+            return AnyRef(
                 v, variable(move(ref), pass_through_addressable)
             );
         }
@@ -224,9 +224,9 @@ AYU_DESCRIBE(ayu::in::DocumentItemRef,
                 t.default_construct(data);
             }
         )),
-        elem(reference_func([](DocumentItemRef& v){
+        elem(anyref_func([](DocumentItemRef& v){
             if (!v.header) raise(e_DocumentItemNotFound, v.name);
-            return Reference(v.header->type, v.header->data());
+            return AnyRef(v.header->type, v.header->data());
         }))
     )
 )

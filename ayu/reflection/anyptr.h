@@ -22,7 +22,7 @@ struct AnyPtr {
         !std::is_same_v<std::remove_cv_t<T>, Mu>
     ) explicit (
         std::is_same_v<std::remove_cv_t<T>, AnyPtr> ||
-        std::is_same_v<std::remove_cv_t<T>, Reference>
+        std::is_same_v<std::remove_cv_t<T>, AnyRef>
     ) AnyPtr (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
 
      // Returns false if this AnyPtr is either (typed) null or (typeless)

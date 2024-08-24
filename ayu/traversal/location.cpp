@@ -47,8 +47,8 @@ void delete_Location (const Location* p) noexcept {
 
  // It would be nice to be able to use Traversal for this, but this walks
  // upwards and Traversal only walks downwards.
-Reference reference_from_location (LocationRef loc) {
-    if (!loc) return Reference();
+AnyRef reference_from_location (LocationRef loc) {
+    if (!loc) return AnyRef();
     switch (loc->form) {
         case LF::Resource: return loc->resource()->ref();
         case LF::Reference: return *loc->reference();

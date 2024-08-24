@@ -1,8 +1,8 @@
 #include "scan.h"
 
 #include "../reflection/anyptr.h"
+#include "../reflection/anyref.h"
 #include "../reflection/descriptors.private.h"
-#include "../reflection/reference.h"
 #include "../resources/universe.private.h"
 #include "compound.h"
 #include "location.h"
@@ -41,8 +41,8 @@ struct TraverseScan {
 
     static
     bool start_references (
-        const Reference& base_item, LocationRef base_loc,
-        CallbackRef<bool(const Reference&, LocationRef)> cb
+        const AnyRef& base_item, LocationRef base_loc,
+        CallbackRef<bool(const AnyRef&, LocationRef)> cb
     ) {
         if (currently_scanning) {
             raise(e_ScanWhileScanning,
@@ -77,7 +77,7 @@ struct TraverseScan {
          // Also we're only checking offsets here, not converting them to
          // variables, because doing so before calling the cb would require
          // saving and restoring those variables.
-        if (!!(trav.desc->type_flags & TypeFlags::NoReferencesToChildren)) {
+        if (!!(trav.desc->type_flags & TypeFlags::NoRefsToChildren)) {
             // Wait, never mind, don't scan under this.
             return cb(trav, loc);
         }
@@ -324,10 +324,10 @@ KeepLocationCache::~KeepLocationCache () {
     }
 }
 
-static PushLikelyReference* first_plr = null;
+static PushLikelyAnyRef* first_plr = null;
 
-PushLikelyReference::PushLikelyReference (
-    Reference r, MoveRef<SharedLocation> l
+PushLikelyAnyRef::PushLikelyAnyRef (
+    AnyRef r, MoveRef<SharedLocation> l
 ) noexcept :
     reference(r), location(*move(l)), next(first_plr)
 {
@@ -336,7 +336,7 @@ PushLikelyReference::PushLikelyReference (
 #endif
     first_plr = this;
 }
-PushLikelyReference::~PushLikelyReference () { first_plr = next; }
+PushLikelyAnyRef::~PushLikelyAnyRef () { first_plr = next; }
 
 bool scan_pointers (
     AnyPtr base_item, LocationRef base_loc,
@@ -346,8 +346,8 @@ bool scan_pointers (
 }
 
 bool scan_references (
-    const Reference& base_item, LocationRef base_loc,
-    CallbackRef<bool(const Reference&, LocationRef)> cb
+    const AnyRef& base_item, LocationRef base_loc,
+    CallbackRef<bool(const AnyRef&, LocationRef)> cb
 ) {
     return TraverseScan::start_references(base_item, base_loc, cb);
 }
@@ -361,7 +361,7 @@ bool scan_resource_pointers (
 }
 
 bool scan_resource_references (
-    ResourceRef res, CallbackRef<bool(const Reference&, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(const AnyRef&, LocationRef)> cb
 ) {
     auto& value = res->get_value();
     if (!value) return false;
@@ -385,7 +385,7 @@ bool scan_universe_pointers (
 }
 
 bool scan_universe_references (
-    CallbackRef<bool(const Reference&, LocationRef)> cb
+    CallbackRef<bool(const AnyRef&, LocationRef)> cb
 ) {
      // To allow serializing self-referential data structures that aren't inside
      // a Resource, first scan the currently-being-serialized item, but only if
@@ -408,7 +408,7 @@ bool scan_universe_references (
 SharedLocation find_pointer (AnyPtr item) {
     if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
-        if (Reference(item) == plr->reference) return plr->location;
+        if (AnyRef(item) == plr->reference) return plr->location;
     }
     if (get_location_cache()) {
         if (auto it = search_location_cache(item)) {
@@ -436,7 +436,7 @@ SharedLocation find_pointer (AnyPtr item) {
     }
 }
 
-SharedLocation find_reference (const Reference& item) {
+SharedLocation find_reference (const AnyRef& item) {
     if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (item == plr->reference) return plr->location;
@@ -459,8 +459,8 @@ SharedLocation find_reference (const Reference& item) {
                  // Now search under that host for the actual reference.
                 SharedLocation r;
                 scan_references(
-                    Reference(item.host), it->second,
-                    [&r, &item](const Reference& ref, LocationRef loc)
+                    AnyRef(item.host), it->second,
+                    [&r, &item](const AnyRef& ref, LocationRef loc)
                 {
                     if (ref == item) {
                         if (ref.readonly() && !item.readonly()) {
@@ -480,7 +480,7 @@ SharedLocation find_reference (const Reference& item) {
          // We don't have the location cache!  Time to do a global search.
         SharedLocation r;
         scan_universe_references(
-            [&r, &item](const Reference& ref, LocationRef loc)
+            [&r, &item](const AnyRef& ref, LocationRef loc)
         {
             if (ref == item) {
                 if (ref.readonly() && !item.readonly()) {
@@ -505,7 +505,7 @@ SharedLocation pointer_to_location (AnyPtr item) {
     ));
 }
 
-SharedLocation reference_to_location (const Reference& item) {
+SharedLocation reference_to_location (const AnyRef& item) {
     if (!item) return {};
     else if (SharedLocation r = find_reference(item)) {
         return r;

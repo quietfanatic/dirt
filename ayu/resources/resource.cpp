@@ -4,10 +4,10 @@
 #include "../../uni/io.h"
 #include "../data/parse.h"
 #include "../data/print.h"
+#include "../reflection/anyref.h"
 #include "../reflection/anyval.h"
 #include "../reflection/describe-standard.h"
 #include "../reflection/describe.h"
-#include "../reflection/reference.h"
 #include "../traversal/compound.h"
 #include "../traversal/from-tree.h"
 #include "../traversal/scan.h"
@@ -348,14 +348,14 @@ static void really_unload (ResourceData* data) {
 
 struct ResourceScanInfo {
     ResourceData* data;
-    UniqueArray<Reference> outgoing_refs;
+    UniqueArray<AnyRef> outgoing_refs;
 };
-using RefsToReses = std::unordered_map<Reference, ResourceData*>;
+using RefsToReses = std::unordered_map<AnyRef, ResourceData*>;
 
 static void reach_reference (
     const UniqueArray<ResourceScanInfo>& scan_info,
     const RefsToReses& refs_to_reses,
-    const Reference& item
+    const AnyRef& item
 ) {
     auto it = refs_to_reses.find(item);
     if (it == refs_to_reses.end()) {
@@ -385,7 +385,7 @@ void unload (Slice<ResourceRef> to_unload) {
         if (data->state != RS::Loaded) continue;
          // Assign integer ID for indexing
         data->node_id = scan_info.size();
-        scan_info.emplace_back_expect_capacity(data, UniqueArray<Reference>());
+        scan_info.emplace_back_expect_capacity(data, UniqueArray<AnyRef>());
          // Our root set for the reachability traversal is all resources that
          // have a reference count but were not explicitly requested to be
          // unloaded.
@@ -416,22 +416,22 @@ void unload (Slice<ResourceRef> to_unload) {
     }
      // Collect as much info as we can from one scan.  Unfortunately we can't
      // traverse the data graph directly, because finding out what Resource a
-     // Reference points to requires a full scan itself.  We don't have to cache
-     // as much data as reference_to_location though; we only need to keep track
-     // of the Location's root, not the whole Location itself.
-    auto refs_to_reses = std::unordered_map<Reference, ResourceData*>();
+     // AnyRef points to requires a full scan itself.  We don't have to cache as
+     // much data as reference_to_location though; we only need to keep track of
+     // the Location's root, not the whole Location itself.
+    auto refs_to_reses = std::unordered_map<AnyRef, ResourceData*>();
     for (auto& info : scan_info) {
          // TODO: Don't generate locations if we're throwing them away
         scan_resource_references(info.data,
-            [&refs_to_reses, &info](const Reference& item, LocationRef)
+            [&refs_to_reses, &info](const AnyRef& item, LocationRef)
         {
              // Don't need to enumerate references for resources in the root
              // set, because they start out reachable.
             if (!info.data->root) {
                 refs_to_reses.emplace(item, info.data);
             }
-            if (item.type() == Type::CppType<Reference>()) {
-                if (auto ref = item.get_as<Reference>()) {
+            if (item.type() == Type::CppType<AnyRef>()) {
+                if (auto ref = item.get_as<AnyRef>()) {
                     info.outgoing_refs.emplace_back(move(ref));
                 }
             }
@@ -442,9 +442,9 @@ void unload (Slice<ResourceRef> to_unload) {
     for (auto& g : universe().globals) {
         scan_references(
             g, {},
-            [&scan_info, refs_to_reses](const Reference& item, LocationRef)
+            [&scan_info, refs_to_reses](const AnyRef& item, LocationRef)
         {
-            if (item.type() == Type::CppType<Reference>()) {
+            if (item.type() == Type::CppType<AnyRef>()) {
                 reach_reference(scan_info, refs_to_reses, item);
             }
             return false;
@@ -487,18 +487,18 @@ void force_unload (ResourceRef res) noexcept {
 }
 
 struct Update {
-    Reference ref_ref;
-    Reference new_ref;
+    AnyRef ref_ref;
+    AnyRef new_ref;
 };
 
 NOINLINE static void reload_commit (MoveRef<UniqueArray<Update>> ups) {
     auto updates = *move(ups);
     updates.consume([](Update&& update){
         if (auto a = update.ref_ref.address()) {
-            reinterpret_cast<Reference&>(*a) = move(update.new_ref);
+            reinterpret_cast<AnyRef&>(*a) = move(update.new_ref);
         }
         else update.ref_ref.write([new_ref{&update.new_ref} ](Mu& v){
-            reinterpret_cast<Reference&>(v) = move(*new_ref);
+            reinterpret_cast<AnyRef&>(v) = move(*new_ref);
         });
     });
 }
@@ -559,11 +559,11 @@ void reload (Slice<ResourceRef> reses) {
          // If we're reloading everything, no need to do any scanning.
         if (others) {
              // First build mapping of old refs to locations
-            std::unordered_map<Reference, SharedLocation> old_refs;
+            std::unordered_map<AnyRef, SharedLocation> old_refs;
             for (auto& rov : rovs) {
                 scan_references(
                     rov.old_value.ptr(), SharedLocation(rov.res),
-                    [&old_refs](const Reference& ref, LocationRef loc) {
+                    [&old_refs](const AnyRef& ref, LocationRef loc) {
                         old_refs.emplace(ref, loc);
                         return false;
                     }
@@ -572,15 +572,15 @@ void reload (Slice<ResourceRef> reses) {
              // Then build set of ref-refs to update.
             UniqueArray<Break> breaks;
             auto check_ref =
-                [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc)
+                [&updates, &old_refs, &breaks](AnyRef ref_ref, LocationRef loc)
             {
                  // TODO: check for AnyPtr as well?
-                if (ref_ref.type() != Type::CppType<Reference>()) return false;
-                Reference ref = ref_ref.get_as<Reference>();
+                if (ref_ref.type() != Type::CppType<AnyRef>()) return false;
+                AnyRef ref = ref_ref.get_as<AnyRef>();
                 auto iter = old_refs.find(ref);
                 if (iter == old_refs.end()) return false;
                 try {
-                    Reference new_ref = reference_from_location(iter->second);
+                    AnyRef new_ref = reference_from_location(iter->second);
                     updates.emplace_back(move(ref_ref), move(new_ref));
                 }
                 catch (std::exception&) {
@@ -766,7 +766,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{
         item_from_string(&loc, cat('"', input->name().spec(), "#/bar+1\""));
     }, "Can read location from tree");
-    Reference ref;
+    AnyRef ref;
     doesnt_throw([&]{
         ref = reference_from_location(loc);
     }, "reference_from_location");
@@ -779,12 +779,12 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         loc = reference_to_location(ref);
     });
     is(item_to_tree(&loc), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "reference_to_location works");
-    doc->new_<Reference>(output["bar"][1]);
+    doc->new_<AnyRef>(output["bar"][1]);
     doesnt_throw([&]{ save(output); }, "save with reference");
     doc->new_<int32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
     is(tree_from_file(resource_filename(output->name())), tree_from_string(
-        "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _0:[ayu::Reference #/bar+1] _1:[int32* #/asdf+1] _next_id:2}]"
+        "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _0:[ayu::AnyRef #/bar+1] _1:[int32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct reference as location");
     throws_code<e_OpenFailed>([&]{
         load(badinput);

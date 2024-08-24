@@ -10,12 +10,13 @@ namespace ayu::in {
 
  // This tracks the decisions that were made during a serialization operation.
  // It has two purposes:
- //   1. Allow creating a Reference to the current item in case the current item
- //     is not addressable, without having to start over from the very beginning
- //     or duplicate work.  This is mainly to support swizzle and init ops.
+ //   1. Allow creating an AnyRef to the current item in case the current item
+ //      is not addressable, without having to start over from the very
+ //      beginning or duplicate work.  This is mainly to support swizzle and
+ //      init ops.
  //   2. Track the current location without any heap allocations, but allow
- //     getting an actual heap-allocated Location to the current item if needed
- //     for error reporting.
+ //      getting an actual heap-allocated Location to the current item if needed
+ //      for error reporting.
 enum class TraversalOp : uint8 {
     Start,
     Delegate,
@@ -47,9 +48,9 @@ struct Traversal {
      // can go from on to off, but never from off to on.
     bool children_addressable;
     TraversalOp op;
-    Reference to_reference () const noexcept;
-    Reference to_reference_parent_addressable () const noexcept;
-    Reference to_reference_chain () const noexcept;
+    AnyRef to_reference () const noexcept;
+    AnyRef to_reference_parent_addressable () const noexcept;
+    AnyRef to_reference_chain () const noexcept;
     SharedLocation to_location () const noexcept;
     SharedLocation to_location_chain () const noexcept;
     [[noreturn, gnu::cold]]
@@ -57,7 +58,7 @@ struct Traversal {
 };
 
 struct StartTraversal : Traversal {
-    const Reference* reference;
+    const AnyRef* reference;
     LocationRef location;
 };
 
@@ -97,7 +98,7 @@ struct CBTraversal : Base {
 
 template <class CB>
 static void trav_start (
-    const Reference& ref, LocationRef loc, bool only_addressable,
+    const AnyRef& ref, LocationRef loc, bool only_addressable,
     AccessMode mode, const CB& cb
 ) {
     expect(ref);
@@ -111,11 +112,11 @@ static void trav_start (
     child.op = TraversalOp::Start;
     child.reference = &ref;
     child.location = loc;
-     // A lot of Reference's methods branch on acr, and while those checks
-     // would normally be able to be merged, the indirect calls to the acr's
-     // virtual functions invalidate a lot of optimizations, so instead of
-     // working directly on the reference, we're going to pick it apart into
-     // host and acr.
+     // A lot of AnyRef's methods branch on acr, and while those checks would
+     // normally be able to be merged, the indirect calls to the acr's virtual
+     // functions invalidate a lot of optimizations, so instead of working
+     // directly on the reference, we're going to pick it apart into host and
+     // acr.
     if (!ref.acr) [[likely]] {
         child.desc = DescriptionPrivate::get(ref.host.type);
         child.address = ref.host.address;
@@ -190,7 +191,7 @@ catch (...) { parent.wrap_exception(); }
 template <class Child, class CB>
 void trav_reference (
     const Traversal& parent, Child& child,
-    const Reference& ref, AccessMode mode, const CB& cb
+    const AnyRef& ref, AccessMode mode, const CB& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ref.host.type.readonly();
@@ -272,7 +273,7 @@ void trav_attr (
 
 template <class CB>
 void trav_computed_attr (
-    const Traversal& parent, const Reference& ref, AttrFunc<Mu>* func,
+    const Traversal& parent, const AnyRef& ref, AttrFunc<Mu>* func,
     const AnyString& key, AccessMode mode, const CB& cb
 ) {
     CBTraversal<AttrFuncTraversal, CB> child;
@@ -295,7 +296,7 @@ void trav_elem (
 
 template <class CB>
 void trav_computed_elem (
-    const Traversal& parent, const Reference& ref, ElemFunc<Mu>* func,
+    const Traversal& parent, const AnyRef& ref, ElemFunc<Mu>* func,
     usize index, AccessMode mode, const CB& cb
 ) {
     CBTraversal<ElemFuncTraversal, CB> child;
@@ -321,7 +322,7 @@ void trav_contiguous_elem (
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
 inline
-Reference Traversal::to_reference () const noexcept {
+AnyRef Traversal::to_reference () const noexcept {
     if (addressable) {
         return AnyPtr(Type(desc, readonly), address);
     }
@@ -336,12 +337,12 @@ Reference Traversal::to_reference () const noexcept {
 }
 
 NOINLINE inline
-Reference Traversal::to_reference_parent_addressable () const noexcept {
+AnyRef Traversal::to_reference_parent_addressable () const noexcept {
     switch (op) {
         case TraversalOp::Delegate: case TraversalOp::Attr: case TraversalOp::Elem: {
             auto& self = static_cast<const AcrTraversal&>(*this);
             auto type = Type(parent->desc, parent->readonly);
-            return Reference(AnyPtr(type, parent->address), self.acr);
+            return AnyRef(AnyPtr(type, parent->address), self.acr);
         }
         case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
@@ -365,31 +366,31 @@ Reference Traversal::to_reference_parent_addressable () const noexcept {
 }
 
 NOINLINE inline
-Reference Traversal::to_reference_chain () const noexcept {
-    Reference parent_ref = parent->to_reference();
+AnyRef Traversal::to_reference_chain () const noexcept {
+    AnyRef parent_ref = parent->to_reference();
     switch (op) {
         case TraversalOp::Attr: case TraversalOp::Elem:
         case TraversalOp::Delegate: {
             auto& self = static_cast<const AcrTraversal&>(*this);
-            return Reference(parent_ref.host, new ChainAcr(
+            return AnyRef(parent_ref.host, new ChainAcr(
                 parent_ref.acr, self.acr
             ));
         }
         case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);
-            return Reference(parent_ref.host, new ChainAttrFuncAcr(
+            return AnyRef(parent_ref.host, new ChainAttrFuncAcr(
                 parent_ref.acr, self.func, *self.key
             ));
         }
         case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ElemFuncTraversal&>(*this);
-            return Reference(parent_ref.host, new ChainElemFuncAcr(
+            return AnyRef(parent_ref.host, new ChainElemFuncAcr(
                 parent_ref.acr, self.func, self.index
             ));
         }
         case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const DataFuncTraversal&>(*this);
-            return Reference(parent_ref.host, new ChainDataFuncAcr(
+            return AnyRef(parent_ref.host, new ChainDataFuncAcr(
                 parent_ref.acr, self.func, self.index
             ));
         }

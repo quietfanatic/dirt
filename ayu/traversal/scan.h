@@ -3,7 +3,7 @@
 
 #pragma once
 #include "../common.h"
-#include "../reflection/reference.h"
+#include "../reflection/anyref.h"
 #include "../reflection/type.h"
 #include "location.h"
 
@@ -16,17 +16,17 @@ namespace ayu {
  // Returns the empty Location if the pointer was not found or if a null pointer
  // was passed.
 SharedLocation find_pointer (AnyPtr);
- // Same as above, but find a Reference.  Equivalent to the above if the
- // Reference is addressable.  If the Reference is not addressable, this may
+ // Same as above, but find a AnyRef.  Equivalent to the above if the
+ // AnyRef is addressable.  If the AnyRef is not addressable, this may
  // fail since references with dynamically generated Accessors may not be
- // comparable.  Returns the empty Reference if the reference was not found or
+ // comparable.  Returns the empty AnyRef if the reference was not found or
  // if a null reference was passed.
-SharedLocation find_reference (const Reference&);
+SharedLocation find_reference (const AnyRef&);
 
- // These are the same as find_*, except they'll throw ReferenceNotFound
- // if the provided AnyPtr/Reference was not found (and is not null)
+ // These are the same as find_*, except they'll throw AnyRefNotFound
+ // if the provided AnyPtr/AnyRef was not found (and is not null)
 SharedLocation pointer_to_location (AnyPtr);
-SharedLocation reference_to_location (const Reference&);
+SharedLocation reference_to_location (const AnyRef&);
 
  // While this is alive, a cache mapping pointers to locations will be kept,
  // making find_pointer and find_reference faster.  Do not modify any program
@@ -38,14 +38,14 @@ struct KeepLocationCache {
 };
 
  // While this is alive, if find_pointer() or find_reference() is called with
- // thie Reference, skip the scanning process and return this location.
-struct PushLikelyReference {
-    PushLikelyReference (Reference, MoveRef<SharedLocation>) noexcept;
-    ~PushLikelyReference ();
+ // thie AnyRef, skip the scanning process and return this location.
+struct PushLikelyAnyRef {
+    PushLikelyAnyRef (AnyRef, MoveRef<SharedLocation>) noexcept;
+    ~PushLikelyAnyRef ();
 
-    Reference reference;
+    AnyRef reference;
     SharedLocation location;
-    PushLikelyReference* next;
+    PushLikelyAnyRef* next;
 };
 
 ///// Scanning operations
@@ -72,7 +72,7 @@ bool scan_pointers (
 
  // Scans all visible items under the given reference, whether or not they are
  // addressable.
- //   base_item: Reference to the item to start scanning at.
+ //   base_item: AnyRef to the item to start scanning at.
  //   base_loc: Location of the base item, or {} if you don't care.
  //   cb: Is called for each item with a reference to it and its location (based
  //     on base_loc).  The callback is called for parent items before their
@@ -82,8 +82,8 @@ bool scan_pointers (
  //     location.  If the callback returns true, the scan will be stopped.
  //   returns: true if the callback ever returned true.
 bool scan_references (
-    const Reference& base_item, LocationRef base_loc,
-    CallbackRef<bool(const Reference&, LocationRef)> cb
+    const AnyRef& base_item, LocationRef base_loc,
+    CallbackRef<bool(const AnyRef&, LocationRef)> cb
 );
 
  // Scan under a particular resource's data.  The location is automatically
@@ -93,21 +93,21 @@ bool scan_resource_pointers (
     ResourceRef res, CallbackRef<bool(AnyPtr, LocationRef)> cb
 );
 bool scan_resource_references (
-    ResourceRef res, CallbackRef<bool(const Reference&, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(const AnyRef&, LocationRef)> cb
 );
  // Scan all loaded resources.
 bool scan_universe_pointers (
     CallbackRef<bool(AnyPtr, LocationRef)> cb
 );
 bool scan_universe_references (
-    CallbackRef<bool(const Reference&, LocationRef)> cb
+    CallbackRef<bool(const AnyRef&, LocationRef)> cb
 );
 
  // This is true while there is an ongoing scan.  While this is true, you cannot
  // start a new scan.
 extern bool currently_scanning;
 
- // reference_to_location or pointer_to_location failed to find the Reference.
+ // reference_to_location or pointer_to_location failed to find the AnyRef.
 constexpr ErrorCode e_ReferenceNotFound = "ayu::e_ReferenceNotFound";
  // Tried to start a new scan while there's still a scan going.
 constexpr ErrorCode e_ScanWhileScanning = "ayu::e_ScanWhileScanning";

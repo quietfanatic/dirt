@@ -33,7 +33,7 @@ enum class DescFlags : uint8 {
 DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
 
 enum class TypeFlags : uint8 {
-    NoReferencesToChildren = 1 << 0
+    NoRefsToChildren = 1 << 0
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
 

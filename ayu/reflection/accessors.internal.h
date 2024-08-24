@@ -112,7 +112,7 @@ struct Accessor {
      // references to overflow the count it won't be deleted.  I doubt you'll
      // care.  (Usually refcounts are marked mutable, but that's illegal in
      // constexpr classes.)  Note also that the refcount starts at 1, so when
-     // constructing a Reference or a ChainAcr with a new Accessor*, don't call
+     // constructing an AnyRef or a ChainAcr with a new Accessor*, don't call
      // inc() on it.
     uint16 ref_count = 1;
     AcrFlags flags = {};
@@ -496,9 +496,8 @@ template <class To>
 struct VariableAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-     // This ACR cannot be addressable, because then Reference::chain and co.
-     //  may take the address of value but then release this ACR object,
-     //  invalidating value.
+     // This ACR cannot be addressable, because then chaining may take the
+     // address but then release this ACR object, invalidating the reference.
     static void _destroy (Accessor*) noexcept;
     static constexpr AcrVT _vt = {
         &AcrVT::const_type<To>, &_access, &AcrVT::default_address,
@@ -589,12 +588,12 @@ struct ConstantPtrAcr2 : ConstantPtrAcr0 {
     { }
 };
 
-/// reference_func
+/// anyref_func
 
  // This is a little awkward because we can't transfer the flags from the
- // calculated Reference's acr to this one.  We'll just have to hope we don't
+ // calculated AnyRef's acr to this one.  We'll just have to hope we don't
  // miss anything important.
-struct ReferenceFuncAcr1 : Accessor {
+struct AnyRefFuncAcr1 : Accessor {
     using Accessor::Accessor;
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
@@ -602,14 +601,14 @@ struct ReferenceFuncAcr1 : Accessor {
     static constexpr AcrVT _vt = {&_type, &_access, &_address};
 };
 template <class From>
-struct ReferenceFuncAcr2 : ReferenceFuncAcr1 {
+struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
     using AcrFromType = From;
-    using AcrToType = Reference;
-    Reference(* f )(From&);
-    explicit constexpr ReferenceFuncAcr2 (
-        Reference(* f )(From&), AcrFlags flags = {}
+    using AcrToType = AnyRef;
+    AnyRef(* f )(From&);
+    explicit constexpr AnyRefFuncAcr2 (
+        AnyRef(* f )(From&), AcrFlags flags = {}
     ) :
-        ReferenceFuncAcr1(&_vt, flags), f(f)
+        AnyRefFuncAcr1(&_vt, flags), f(f)
     { }
 };
 

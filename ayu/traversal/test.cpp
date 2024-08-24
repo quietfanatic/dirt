@@ -91,7 +91,7 @@ namespace ayu::test {
         int* p;
     };
     struct ChainRefTest {
-        Reference ref;
+        AnyRef ref;
          // Make this non-addressable to test chaining an elem func onto a
          // non-addressable reference.
         std::vector<int> target;
@@ -152,7 +152,7 @@ AYU_DESCRIBE(ayu::test::ElemsTest,
         }
     )),
     computed_elems([](ElemsTest& v, usize i){
-        return Reference(&v.xs.at(i));
+        return AnyRef(&v.xs.at(i));
     })
 )
 AYU_DESCRIBE(ayu::test::AttrsTest2,
@@ -172,7 +172,7 @@ AYU_DESCRIBE(ayu::test::AttrsTest2,
         }
     )),
     computed_attrs([](AttrsTest2& v, const AnyString& k){
-        return Reference(&v.xs.at(k));
+        return AnyRef(&v.xs.at(k));
     })
 )
 AYU_DESCRIBE(ayu::test::DelegateTest,
@@ -242,7 +242,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     using namespace tap;
     ok(get_description_for_name("ayu::test::MemberTest"), "Description was registered");
 
-    auto try_to_tree = [](Reference item, Str tree, Str name){
+    auto try_to_tree = [](AnyRef item, Str tree, Str name){
         try_is(
             [&item]{ return item_to_tree(item); },
             tree_from_string(tree),
@@ -349,7 +349,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     int answer = 0;
     doesnt_throw([&]{
         item_elem(&est, 5).read_as<int>([&](const int& v){ answer = v; });
-    }, "item_elem and Reference::read_as");
+    }, "item_elem and AnyRef::read_as");
     is(answer, 21, "item_elem gives correct answer");
     throws_code<e_External>(
         [&]{ item_elem(&est, 6); },
@@ -364,7 +364,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(est.xs.size(), 9u, "item_set_length grow");
     doesnt_throw([&]{
         item_elem(&est, 8).write_as<int>([](int& v){ v = 99; });
-    }, "item_elem and Reference::write_as");
+    }, "item_elem and AnyRef::write_as");
     is(est.xs.at(8), 99, "writing to elem works");
     try_to_tree(&est, "[1 3 6 10 15 0 0 0 99]", "item_to_tree with length and computed_elems");
     doesnt_throw([&]{
@@ -381,7 +381,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     answer = 0;
     doesnt_throw([&]{
         item_attr(&ast2, "b").read_as<int>([&](const int& v){ answer = v; });
-    }, "item_attr and Reference::read_as");
+    }, "item_attr and AnyRef::read_as");
     is(answer, 22, "item_attr gives correct answer");
     throws_code<e_External>([&]{
         item_attr(&ast2, "c");
@@ -392,7 +392,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(ast2.xs.at("c"), 0, "item_set_keys added key");
     doesnt_throw([&]{
         item_attr(&ast2, "d").write_as<int>([](int& v){ v = 999; });
-    }, "item_attr and Reference::write_as");
+    }, "item_attr and AnyRef::write_as");
     is(ast2.xs.at("d"), 999, "writing to attr works");
     try_to_tree(&ast2, "{c:0,d:999}", "item_to_tree with keys and computed_attrs");
     doesnt_throw([&]{
@@ -450,7 +450,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(irt.p, &irt.b, "Can deserialize item with internal refs");
 
     ChainRefTest crt = {null, {5, 4, 3}};
-    crt.ref = Reference(&crt)["target"][1];
+    crt.ref = AnyRef(&crt)["target"][1];
     try_is([&]{ return crt.ref.get_as<int>(); }, 4, "Can read from complex unaddressable ref");
     doesnt_throw([&]{ crt.ref.set_as<int>(6); }, "Can write to complex unaddressable ref");
     is(crt.target[1], 6);
@@ -458,7 +458,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     doesnt_throw([&]{
         item_from_string(&crt, "{ref:#/target+2 target:[0 2 9 6]}");
     });
-    is(crt.ref, Reference(&crt)["target"][2], "Can deserialize item with complex unaddressable ref");
+    is(crt.ref, AnyRef(&crt)["target"][2], "Can deserialize item with complex unaddressable ref");
     try_is([&]{ return crt.ref.get_as<int>(); }, 9, "Can read from complex unaddressable ref after deserializing");
     doesnt_throw([&]{ crt.ref.set_as<int>(7); }, "Can write to complex unaddressable ref after deserializing");
     is(crt.target[2], 7);

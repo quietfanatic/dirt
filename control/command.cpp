@@ -66,7 +66,7 @@ AYU_DESCRIBE(const Command*,
  // ways.
 ayu::Tree Statement_to_tree (const Statement& s) {
      // Serialize the args and stick the command name in front
-     // TODO: allow constructing readonly Reference from const AnyVal
+     // TODO: allow constructing readonly AnyRef from const AnyVal
     auto args_tree = ayu::item_to_tree(
         const_cast<ayu::AnyVal&>(s.args).ptr()
     );

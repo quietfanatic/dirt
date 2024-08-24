@@ -14,7 +14,7 @@ static uint64 diagnostic_serialization = 0;
 struct TraverseToTree {
      // NOINLINE this because it generates a lot of code with the trav_start
     NOINLINE static
-    Tree start (const Reference& item, LocationRef loc) {
+    Tree start (const AnyRef& item, LocationRef loc) {
         plog("to_tree start");
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         KeepLocationCache klc;
@@ -344,7 +344,7 @@ struct TraverseToTree {
 
 } using namespace in;
 
-Tree item_to_tree (const Reference& item, LocationRef loc) {
+Tree item_to_tree (const AnyRef& item, LocationRef loc) {
     return TraverseToTree::start(item, loc);
 }
 

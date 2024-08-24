@@ -1,7 +1,7 @@
 // Represents a dynamically typed object with value semantics.  This is always
 // allocated on the heap.  Can only represent types known to ayu.  Can be moved
 // but not copied.  There is an empty AnyVal which has no type and no value, but
-// unlike Reference, there is no "null" AnyVal which has type and no value.  If
+// unlike AnyRef, there is no "null" AnyVal which has type and no value.  If
 // there is a type there is a value, and vice versa.
 //
 // AnyVals can either be statically const (e.g. const AnyVal&) or dynamically

@@ -7,7 +7,7 @@
 #include "../common.h"
 #include "../data/print.h"
 #include "../data/tree.h"
-#include "../reflection/reference.h"
+#include "../reflection/anyref.h"
 #include "location.h"
 
 namespace ayu {
@@ -25,12 +25,13 @@ namespace ayu {
  //   4. delegate()
  // If none of the above are applicable, a CannotToTree exception will be
  // thrown.
-Tree item_to_tree (const Reference&, LocationRef loc = {});
+Tree item_to_tree (const AnyRef&, LocationRef loc = {});
  // Slight optimization for pointers (the usual case)
 template <class T>
 Tree item_to_tree (T* item, LocationRef loc = {}) {
-    Reference ref = item;
+    AnyRef ref = item;
     Tree r = item_to_tree(ref, loc);
+     // This is the optimization
     expect(!ref.acr);
     return r;
 }

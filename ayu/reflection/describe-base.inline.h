@@ -334,10 +334,10 @@ auto _AYU_DescribeBase<T>::variable (
 }
 
 template <class T>
-constexpr auto _AYU_DescribeBase<T>::reference_func (
-    Reference(* f )(T&), in::AcrFlags flags
+constexpr auto _AYU_DescribeBase<T>::anyref_func (
+    AnyRef(* f )(T&), in::AcrFlags flags
 ) {
-    return in::ReferenceFuncAcr2<T>(f, flags);
+    return in::AnyRefFuncAcr2<T>(f, flags);
 }
 
 template <class T>

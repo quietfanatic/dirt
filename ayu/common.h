@@ -39,8 +39,8 @@ struct Type;
  // reflection/anyptr.h
 struct AnyPtr;
 
- // reflection/reference.h
-struct Reference;
+ // reflection/anyref.h
+struct AnyRef;
 
  // reflection/anyval.h
 struct AnyVal;
@@ -71,8 +71,8 @@ struct Mu;
 
 ///// UTILITY
 
-void dump_refs (Slice<Reference>);
- // Primarily for debugging.  Prints item_to_string(Reference(&v)) to stderr
+void dump_refs (Slice<AnyRef>);
+ // Primarily for debugging.  Prints item_to_string(AnyRef(&v)) to stderr
 template <class... Args>
 void dump (const Args&... v) {
     dump_refs({&v...});

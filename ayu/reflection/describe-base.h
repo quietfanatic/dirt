@@ -40,7 +40,7 @@
  //
  // The list of descriptors passed to AYU_DESCRIBE may be empty, in which case
  // the type cannot be serialized or deserialized, but it can still be used with
- // Reference and AnyVal, etc.
+ // AnyRef and AnyVal, etc.
 
 #pragma once
 
@@ -49,8 +49,8 @@
 #include "../common.h"
 #include "../data/tree.h"
 #include "accessors.internal.h"
+#include "anyref.h"
 #include "descriptors.internal.h"
-#include "reference.h"
 
 namespace ayu {
 
@@ -158,9 +158,13 @@ struct _AYU_DescribeBase {
      // do not delete/free it.  It will be deallocated automatically.
     static constexpr auto destroy (void(* f )(T*));
 
-     // Specify flags for this type specifically.  Currently, the only flag
-     // supported is no_references_to_children, which forbids other items from
-     // referencing child items of this item.
+     // Specify flags for this type specifically.  Currently there's only one
+     // supported flag:
+     //   - no_refs_to_children: Forbid other items from referencing child items
+     //     of this type.  This allows the reference-to-location system to skip
+     //     scanning this item.
+     // supported is no_refs_to_children, which forbids other items from
+     // referencing child items of this item.  This
     static constexpr auto flags (in::TypeFlags);
 
     ///// DESCRIPTORS FOR ENUM-LIKE TYPES
@@ -317,31 +321,30 @@ struct _AYU_DescribeBase {
     template <class Acr>
     static constexpr auto keys (const Acr& accessor);
      // Provide a way to read or write arbitrary attributes.  The function is
-     // expected to return an ayu::Reference corresponding to the attribute with
-     // the given key.  You can create that Reference any way you like, such as
-     // by using a pointer to the child item, or by using a pointer to the
-     // parent item plus an accessor (see ACCESSORS).  If the parent item has no
-     // attribute with the given key, you should return an empty or null
-     // Reference.
+     // expected to return an ayu::AnyRef corresponding to the attribute with
+     // the given key.  You can create that AnyRef any way you like, such as by
+     // using a pointer to the child item, or by using a pointer to the parent
+     // item plus an accessor (see ACCESSORS).  If the parent item has no
+     // attribute with the given key, you should return an empty or null AnyRef.
      //
      // This may be called with a key that was not in the output of the `keys`
-     // accessor.  If that happens, you should return an empty Reference (or
+     // accessor.  If that happens, you should return an empty AnyRef (or
      // autovivify if you want).
      //
-     // Be careful not to return a Reference to a temporary and then use that
-     // Reference past the temporary's lifetime.  For AYU serialization
-     // functions, the Reference will only be used while the serialization
-     // function is running, or while a KeepLocationCache object is active.
-     // But if you keep the Reference yourself by doing, say,
-     //     ayu::Reference ref = ayu::Reference(&object)["foo"];
+     // Be careful not to return a AnyRef to a temporary and then use that
+     // AnyRef past the temporary's lifetime.  For AYU serialization functions,
+     // the AnyRef will only be used while the serialization function is
+     // running, or while a KeepLocationCache object is active.  But if you keep
+     // the AnyRef yourself by doing, say,
+     //     ayu::AnyRef ref = ayu::AnyRef(&object)["foo"];
      // then it's as if you had written something like
      //     Foo& foo = object.get_ref_to_foo();
-     // and it's your responsibility not to keep the Reference around longer
-     // than the referred item's lifetime.
+     // and it's your responsibility not to keep the AnyRef around longer than
+     // the referred item's lifetime.
      //
      // If computed_attrs() is present, keys() must also be present, and attrs()
      // must not be present.
-    static constexpr auto computed_attrs (Reference(* f )(T&, const AnyString&));
+    static constexpr auto computed_attrs (AnyRef(* f )(T&, const AnyString&));
 
     ///// DESCRIPTORS FOR ARRAY-LIKE TYPES
 
@@ -405,18 +408,18 @@ struct _AYU_DescribeBase {
      // be present, and elems() must not be present.
     static constexpr auto length (const Acr& accessor);
      // Use this to provide a way to read and write elements at arbitrary
-     // indexes.  The return value must be an ayu::Reference, which can be
-     // created any way you like, including by using an accessor.
+     // indexes.  The return value must be an ayu::AnyRef, which can be created
+     // any way you like, including by using an accessor.
      //
      // This might be called with an out-of-bounds index.  If that happens, you
-     // should return an empty or null Reference.
+     // should return an empty or null AnyRef.
      //
-     // Make sure not to return a Reference to a temporary and then keep that
-     // Reference beyond the temporary's lifetime.  See also computed_attrs.
+     // Make sure not to return a AnyRef to a temporary and then keep that
+     // AnyRef beyond the temporary's lifetime.  See also computed_attrs.
      //
      // If computed_elems() is present, length() must also be present, and
      // elems() and contiguous_elems() must not be present.
-    static constexpr auto computed_elems (Reference(* f )(T&, usize));
+    static constexpr auto computed_elems (AnyRef(* f )(T&, usize));
      // Use this for objects that have elements of identical laid out
      // sequentially in memory.  The provided function must return an AnyPtr to
      // the 0th element, and each subsequent element must be sizeof(Element)
@@ -490,7 +493,7 @@ struct _AYU_DescribeBase {
      //     unaddressable, even if they look like they should be addressable.
      //     You shouldn't need to use this unless the parent has
      //     pass_through_addressable, or for some reason you're returning
-     //     References to items with unstable addresses in computed_attrs or
+     //     AnyRefs to items with unstable addresses in computed_attrs or
      //     computed_elems.
 
      // This accessor gives access to a non-static data member of a class by
@@ -537,7 +540,7 @@ struct _AYU_DescribeBase {
      // functions, the address will only be used while the serialization
      // function is still running or while a KeepLocationCache object is active,
      // but if you take the address yourself using, say,
-     //     Foo* ptr = Reference(&object)["foo"];
+     //     Foo* ptr = AnyRef(&object)["foo"];
      // and the AYU_DESCRIPTION of object's type has an attr "foo" with a
      // ref_func, then it's as if you said something like
      //     Foo* ptr = &object.get_foo_ref();
@@ -627,7 +630,7 @@ struct _AYU_DescribeBase {
      // can only be used inside an computed_attrs or computed_elems.  It is not
      // addressable.  There is no corresponding variable_pointer accessor
      // because if you're in an computed_attrs or computed_elems, you can just
-     // convert the pointer directly to an ayu::Reference instead of using an
+     // convert the pointer directly to an ayu::AnyRef instead of using an
      // accessor.
      //
      // This is intended to be used for proxy types along with
@@ -638,21 +641,21 @@ struct _AYU_DescribeBase {
         M&& v, in::AcrFlags = {}
     );
      // An accessor that gives access to a child item by means of an
-     // ayu::Reference instead of a C++ reference.  This is the only accessor
+     // ayu::AnyRef instead of a C++ reference.  This is the only accessor
      // whose child type can vary depending on the parent item it's applied to.
      // Whether this accessor is addressable depends on whether the returned
-     // Reference is addressable, so make sure not to return an addressable
-     // Reference to a temporary and then use that Reference past the
+     // AnyRef is addressable, so make sure not to return an addressable
+     // AnyRef to a temporary and then use that AnyRef past the
      // temporary's lifespan, just like with computed_attrs and computed_elems.
      //
      // Unlike computed_attrs and computed_elems, you should not return an empty
-     // Reference from this function, or you may get null pointer derefs down
+     // AnyRef from this function, or you may get null pointer derefs down
      // the line.
      //
-     // If the returned Reference was made with an accessor that has different
+     // If the returned AnyRef was made with an accessor that has different
      // flags than this one, which flags are used is Unspecified Behavior.
-    static constexpr auto reference_func (
-        Reference(* f )(T&), in::AcrFlags = {}
+    static constexpr auto anyref_func (
+        AnyRef(* f )(T&), in::AcrFlags = {}
     );
 
     ///// METHOD ACCESSORS
@@ -726,13 +729,13 @@ struct _AYU_DescribeBase {
             flags
         );
     }
-     // reference_method.  I doubt you'll ever need this but here it is.
-    template <Reference (T3::* get )()>
-    static constexpr auto reference_method (
+     // anyref_method.  I doubt you'll ever need this but here it is.
+    template <AnyRef (T3::* get )()>
+    static constexpr auto anyref_method (
         in::AcrFlags flags = {}
     ) {
-        return reference_func(
-            [](const T& v) -> Reference { return (v.*get)(); }, flags
+        return anyref_func(
+            [](const T& v) -> AnyRef { return (v.*get)(); }, flags
         );
     }
      // And an overload for init() (a descriptor, not an accessor, but this
@@ -744,7 +747,7 @@ struct _AYU_DescribeBase {
 
     ///// FLAGS AND INTERNAL STUFF
 
-    static constexpr in::TypeFlags no_references_to_children = in::TypeFlags::NoReferencesToChildren;
+    static constexpr in::TypeFlags no_refs_to_children = in::TypeFlags::NoRefsToChildren;
     static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
