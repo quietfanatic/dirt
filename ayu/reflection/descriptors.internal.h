@@ -235,7 +235,7 @@ struct alignas(T) alignas(Tree) ValueDcrWithValue : ValueDcr<T> {
 };
 
 template <class T>
-struct ValueDcrWithPointer : ValueDcr<T> {
+struct ValueDcrWithPtr : ValueDcr<T> {
     const T* value;
 };
 
@@ -432,7 +432,7 @@ struct ComputedElemsDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
-using DataFunc = Pointer(T&);
+using DataFunc = AnyPtr(T&);
 template <class T>
 struct ContiguousElemsDcr : AttachedDescriptor<T> {
     DataFunc<T>* f;

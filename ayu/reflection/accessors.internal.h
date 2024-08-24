@@ -569,7 +569,7 @@ void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {
 
 /// constant_pointer
 
-struct ConstantPointerAcr0 : AccessorWithType {
+struct ConstantPtrAcr0 : AccessorWithType {
     using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
      // Should be okay addressing this.
@@ -578,12 +578,12 @@ struct ConstantPointerAcr0 : AccessorWithType {
 };
 
 template <class From, class To>
-struct ConstantPointerAcr2 : ConstantPointerAcr0 {
+struct ConstantPtrAcr2 : ConstantPtrAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
     const To* pointer;
-    explicit constexpr ConstantPointerAcr2 (const To* p, AcrFlags flags = {}) :
-        ConstantPointerAcr0(
+    explicit constexpr ConstantPtrAcr2 (const To* p, AcrFlags flags = {}) :
+        ConstantPtrAcr0(
             &_vt, get_indirect_description<To>(), flags | AcrFlags::Readonly
         ), pointer(p)
     { }

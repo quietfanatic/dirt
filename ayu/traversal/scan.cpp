@@ -1,7 +1,7 @@
 #include "scan.h"
 
+#include "../reflection/anyptr.h"
 #include "../reflection/descriptors.private.h"
-#include "../reflection/pointer.h"
 #include "../reflection/reference.h"
 #include "../resources/universe.private.h"
 #include "compound.h"
@@ -15,8 +15,8 @@ struct TraverseScan {
 
     static
     bool start_pointers (
-        Pointer base_item, LocationRef base_loc,
-        CallbackRef<bool(Pointer, LocationRef)> cb
+        AnyPtr base_item, LocationRef base_loc,
+        CallbackRef<bool(AnyPtr, LocationRef)> cb
     ) {
         if (currently_scanning) {
             raise(e_ScanWhileScanning,
@@ -32,7 +32,7 @@ struct TraverseScan {
                 [cb](const Traversal& trav, LocationRef loc)
             {
                 return trav.addressable &&
-                    cb(Pointer(trav.desc, trav.address), loc);
+                    cb(AnyPtr(trav.desc, trav.address), loc);
             });
         });
         currently_scanning = false;
@@ -267,16 +267,16 @@ struct TraverseScan {
     }
 };
 
- // Store a typed Pointer instead of a Mu* because items at the same address
+ // Store a typed AnyPtr instead of a Mu* because items at the same address
  // with different types are different items.
-static UniqueArray<Pair<Pointer, SharedLocation>> location_cache;
+static UniqueArray<Pair<AnyPtr, SharedLocation>> location_cache;
 static bool have_location_cache = false;
 static usize keep_location_cache_count = 0;
 bool get_location_cache () {
     if (!keep_location_cache_count) return false;
     if (!have_location_cache) {
         plog("Generate location cache begin");
-        scan_universe_pointers([](Pointer ptr, LocationRef loc){
+        scan_universe_pointers([](AnyPtr ptr, LocationRef loc){
              // We're deliberately ignoring the case where the same typed
              // pointer turns up twice in the data tree.  If this happens, we're
              // probably dealing with some sort of shared_ptr-like situation,
@@ -299,7 +299,7 @@ bool get_location_cache () {
     return true;
 }
 
-const Pair<Pointer, SharedLocation>* search_location_cache (Pointer item) {
+const Pair<AnyPtr, SharedLocation>* search_location_cache (AnyPtr item) {
     if (!have_location_cache) return null;
     auto bottom = location_cache.begin();
     auto top = location_cache.end();
@@ -339,8 +339,8 @@ PushLikelyReference::PushLikelyReference (
 PushLikelyReference::~PushLikelyReference () { first_plr = next; }
 
 bool scan_pointers (
-    Pointer base_item, LocationRef base_loc,
-    CallbackRef<bool(Pointer, LocationRef)> cb
+    AnyPtr base_item, LocationRef base_loc,
+    CallbackRef<bool(AnyPtr, LocationRef)> cb
 ) {
     return TraverseScan::start_pointers(base_item, base_loc, cb);
 }
@@ -353,7 +353,7 @@ bool scan_references (
 }
 
 bool scan_resource_pointers (
-    ResourceRef res, CallbackRef<bool(Pointer, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(AnyPtr, LocationRef)> cb
 ) {
     auto& value = res->get_value();
     if (!value) return false;
@@ -369,12 +369,12 @@ bool scan_resource_references (
 }
 
 bool scan_universe_pointers (
-    CallbackRef<bool(Pointer, LocationRef)> cb
+    CallbackRef<bool(AnyPtr, LocationRef)> cb
 ) {
     if (auto loc = current_base_location()) {
         if (auto ref = loc->reference()) {
             if (auto address = ref->address()) {
-               scan_pointers(Pointer(ref->type(), address), loc, cb);
+               scan_pointers(AnyPtr(ref->type(), address), loc, cb);
             }
         }
     }
@@ -405,7 +405,7 @@ bool scan_universe_references (
     return false;
 }
 
-SharedLocation find_pointer (Pointer item) {
+SharedLocation find_pointer (AnyPtr item) {
     if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (Reference(item) == plr->reference) return plr->location;
@@ -422,7 +422,7 @@ SharedLocation find_pointer (Pointer item) {
     }
     else {
         SharedLocation r;
-        scan_universe_pointers([&r, item](Pointer p, LocationRef loc){
+        scan_universe_pointers([&r, item](AnyPtr p, LocationRef loc){
             if (p == item) {
                  // If we get a non-readonly pointer to a readonly location,
                  // reject it, but also don't keep searching.
@@ -444,7 +444,7 @@ SharedLocation find_reference (const Reference& item) {
     if (get_location_cache()) {
         if (Mu* address = item.address()) {
              // Addressable! This will be fast.
-            auto ptr = Pointer(item.type(), address);
+            auto ptr = AnyPtr(item.type(), address);
             if (auto it = search_location_cache(ptr)) {
                 if (it->first.readonly() && !item.readonly()) {
                     [[unlikely]] return {};
@@ -495,7 +495,7 @@ SharedLocation find_reference (const Reference& item) {
     }
 }
 
-SharedLocation pointer_to_location (Pointer item) {
+SharedLocation pointer_to_location (AnyPtr item) {
     if (!item) return {};
     else if (SharedLocation r = find_pointer(item)) {
         return r;

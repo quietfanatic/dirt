@@ -12,8 +12,8 @@ namespace ayu {
  //
  // If you're registering a global pointer, make sure to pass a pointer to the
  // pointer, not the pointer itself!
-void global (const Pointer&);
+void global (const AnyPtr&);
 
-void unregister_global (const Pointer&);
+void unregister_global (const AnyPtr&);
 
 } // ayu

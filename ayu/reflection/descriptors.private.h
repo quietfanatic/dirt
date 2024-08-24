@@ -15,7 +15,7 @@ struct ValueDcrPrivate : ValueDcr<Mu> {
          // Can't static cast to ValueDcrWithValue<Mu> because it has an inline
          // member of incomplete type Mu.
         auto r = (Mu*)((char*)this + sizeof(ValueDcr<Mu>));
-        if (!!(name.flags & TreeFlags::ValueIsPointer)) {
+        if (!!(name.flags & TreeFlags::ValueIsPtr)) {
             r = *(Mu**)r;
         }
         return r;

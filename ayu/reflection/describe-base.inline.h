@@ -80,7 +80,7 @@ constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
         name = Tree(StaticString(n));
     }
     else name = Tree(n);
-    name.flags &= ~TreeFlags::ValueIsPointer;
+    name.flags &= ~TreeFlags::ValueIsPtr;
     return in::ValueDcrWithValue<T>{{{}, name}, move(v)};
 }
  // Forwarding references only work if the template parameter is immediately on
@@ -97,7 +97,7 @@ constexpr auto _AYU_DescribeBase<T>::value (const N& n, const T& v) {
         name = Tree(StaticString(n));
     }
     else name = Tree(n);
-    name.flags &= ~TreeFlags::ValueIsPointer;
+    name.flags &= ~TreeFlags::ValueIsPtr;
     return in::ValueDcrWithValue<T>{{{}, name}, v};
 }
 
@@ -112,8 +112,8 @@ constexpr auto _AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
         name = Tree(StaticString(n));
     }
     else name = Tree(n);
-    name.flags |= TreeFlags::ValueIsPointer;
-    return in::ValueDcrWithPointer<T>{{{}, name}, p};
+    name.flags |= TreeFlags::ValueIsPtr;
+    return in::ValueDcrWithPtr<T>{{{}, name}, p};
 }
 
 template <class T>
@@ -319,7 +319,7 @@ template <class M>
 constexpr auto _AYU_DescribeBase<T>::constant_ptr (
     const M* p, in::AcrFlags flags
 ) {
-    return in::ConstantPointerAcr2<T, M>(p, flags);
+    return in::ConstantPtrAcr2<T, M>(p, flags);
 }
 
  // This one is not constexpr, so it is only valid in computed_attrs,

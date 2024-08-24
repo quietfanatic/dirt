@@ -56,7 +56,7 @@ AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
         }
     )),
     contiguous_elems([](UniqueImagePixelsProxy& image){
-        return ayu::Pointer(image.pixels);
+        return ayu::AnyPtr(image.pixels);
     })
 )
 

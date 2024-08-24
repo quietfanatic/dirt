@@ -14,7 +14,7 @@ struct Universe {
      // The Str here must refer to the resource's name.spec().
     std::unordered_map<Str, ResourceRef> resources;
     std::unordered_map<AnyString, const ResourceScheme*> schemes;
-    UniqueArray<Pointer> globals;
+    UniqueArray<AnyPtr> globals;
     const ResourceScheme* require_scheme (const IRI& name) {
         Str scheme = name.scheme();
         auto iter = schemes.find(scheme);

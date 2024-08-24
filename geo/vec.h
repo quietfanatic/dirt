@@ -484,7 +484,7 @@ AYU_DESCRIBE_TEMPLATE(
     }(),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](geo::GVec<T, n>& v){
-        return ayu::Pointer(&v[0]);
+        return ayu::AnyPtr(&v[0]);
     })
 )
 

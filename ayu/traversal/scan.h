@@ -9,13 +9,13 @@
 
 namespace ayu {
 
- // Convert a Pointer to a Location.  This will be slow by itself, since it
+ // Convert an AnyPtr to a Location.  This will be slow by itself, since it
  // must scan all loaded resources.  If a KeepLocationCache object is alive, the
- // first call to find_pointer will build a map of Pointers to Locations,
+ // first call to find_pointer will build a map of AnyPtrs to Locations,
  // and subsequent calls to find_pointer will be as fast as a hash lookup.
  // Returns the empty Location if the pointer was not found or if a null pointer
  // was passed.
-SharedLocation find_pointer (Pointer);
+SharedLocation find_pointer (AnyPtr);
  // Same as above, but find a Reference.  Equivalent to the above if the
  // Reference is addressable.  If the Reference is not addressable, this may
  // fail since references with dynamically generated Accessors may not be
@@ -24,8 +24,8 @@ SharedLocation find_pointer (Pointer);
 SharedLocation find_reference (const Reference&);
 
  // These are the same as find_*, except they'll throw ReferenceNotFound
- // if the provided Pointer/Reference was not found (and is not null)
-SharedLocation pointer_to_location (Pointer);
+ // if the provided AnyPtr/Reference was not found (and is not null)
+SharedLocation pointer_to_location (AnyPtr);
 SharedLocation reference_to_location (const Reference&);
 
  // While this is alive, a cache mapping pointers to locations will be kept,
@@ -56,7 +56,7 @@ struct PushLikelyReference {
  // Scans all visible addressable items under the given address of the given
  // type.  Skips unaddressable items, and the children of unaddressable items
  // that don't have pass_through_addressable.
- //   base_item: Pointer to the item to start scanning at.
+ //   base_item: AnyPtr to the item to start scanning at.
  //   base_loc: Location of the base item, or {} if you don't care.
  //   cb: Is called for each addressable item with its pointer and location
  //     (based on base_loc).  The callback is called for parent items before
@@ -66,8 +66,8 @@ struct PushLikelyReference {
  //     location.  If the callback returns true, the scan will be stopped.
  //   returns: true if the callback ever returned true.
 bool scan_pointers (
-    Pointer base_item, LocationRef base_loc,
-    CallbackRef<bool(Pointer, LocationRef)> cb
+    AnyPtr base_item, LocationRef base_loc,
+    CallbackRef<bool(AnyPtr, LocationRef)> cb
 );
 
  // Scans all visible items under the given reference, whether or not they are
@@ -90,14 +90,14 @@ bool scan_references (
  // determined from the resource's name.  This silently does nothing and returns
  // false if the resource's state is RS::Unloaded.
 bool scan_resource_pointers (
-    ResourceRef res, CallbackRef<bool(Pointer, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(AnyPtr, LocationRef)> cb
 );
 bool scan_resource_references (
     ResourceRef res, CallbackRef<bool(const Reference&, LocationRef)> cb
 );
  // Scan all loaded resources.
 bool scan_universe_pointers (
-    CallbackRef<bool(Pointer, LocationRef)> cb
+    CallbackRef<bool(AnyPtr, LocationRef)> cb
 );
 bool scan_universe_references (
     CallbackRef<bool(const Reference&, LocationRef)> cb

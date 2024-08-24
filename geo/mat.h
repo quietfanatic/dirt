@@ -428,6 +428,6 @@ AYU_DESCRIBE_TEMPLATE(
      // Serialize columns individually so we get a 2-dimensional representation.
     desc::length(desc::template constant<uni::usize>(cols)),
     desc::contiguous_elems([](geo::GMat<T, cols, rows>& v){
-        return ayu::Pointer(&v[0]);
+        return ayu::AnyPtr(&v[0]);
     })
 )

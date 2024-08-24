@@ -57,12 +57,12 @@ Mu* ConstRefFuncAcr0::_address (const Accessor* acr, Mu& from) {
     return const_cast<Mu*>(&(self->f)(from));
 }
 
-void ConstantPointerAcr0::_access (
+void ConstantPtrAcr0::_access (
     const Accessor* acr, [[maybe_unused]] AccessMode mode,
     Mu&, CallbackRef<void(Mu&)> cb
 ) {
     expect(mode == AccessMode::Read);
-    auto self = static_cast<const ConstantPointerAcr2<Mu, Mu>*>(acr);
+    auto self = static_cast<const ConstantPtrAcr2<Mu, Mu>*>(acr);
     cb(*const_cast<Mu*>(self->pointer));
 }
 
@@ -232,7 +232,7 @@ void ChainDataFuncAcr::_access (
     auto self = static_cast<const ChainDataFuncAcr*>(acr);
     auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
     self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
-        Pointer data = self->f(w);
+        AnyPtr data = self->f(w);
         auto desc = DescriptionPrivate::get(data.type);
         cb(*(Mu*)(
             (char*)data.address + self->index * desc->cpp_size
@@ -241,7 +241,7 @@ void ChainDataFuncAcr::_access (
 }
 Mu* ChainDataFuncAcr::_address (const Accessor* acr, Mu& v) {
     auto self = static_cast<const ChainDataFuncAcr*>(acr);
-    Pointer data;
+    AnyPtr data;
     if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
         self->outer->access(AccessMode::Read, v, [&data, self](Mu& w){
             data = self->f(w);

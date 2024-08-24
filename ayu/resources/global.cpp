@@ -5,7 +5,7 @@
 namespace ayu {
 using namespace in;
 
-void global (const Pointer& ref) {
+void global (const AnyPtr& ref) {
     expect(ref);
 #ifndef NDEBUG
     for (auto& g : universe().globals) {
@@ -15,7 +15,7 @@ void global (const Pointer& ref) {
     universe().globals.push_back(ref);
 }
 
-void unregister_global (const Pointer& ref) {
+void unregister_global (const AnyPtr& ref) {
     auto& gs = universe().globals;
     for (auto& g : gs) {
         if (g == ref) {

@@ -233,7 +233,7 @@ catch (...) { parent.wrap_exception(); }
 template <class Child, class CB>
 void trav_pointer (
     const Traversal& parent, Child& child,
-    Pointer ptr, AccessMode, const CB& cb
+    AnyPtr ptr, AccessMode, const CB& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ptr.type.readonly();
@@ -307,7 +307,7 @@ void trav_computed_elem (
 
 template <class CB>
 void trav_contiguous_elem (
-    const Traversal& parent, Pointer ptr, DataFunc<Mu>* func,
+    const Traversal& parent, AnyPtr ptr, DataFunc<Mu>* func,
     usize index, AccessMode mode, const CB& cb
 ) {
      // Don't need to store the CB
@@ -323,7 +323,7 @@ void trav_contiguous_elem (
 inline
 Reference Traversal::to_reference () const noexcept {
     if (addressable) {
-        return Pointer(Type(desc, readonly), address);
+        return AnyPtr(Type(desc, readonly), address);
     }
     else if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
@@ -341,7 +341,7 @@ Reference Traversal::to_reference_parent_addressable () const noexcept {
         case TraversalOp::Delegate: case TraversalOp::Attr: case TraversalOp::Elem: {
             auto& self = static_cast<const AcrTraversal&>(*this);
             auto type = Type(parent->desc, parent->readonly);
-            return Reference(Pointer(type, parent->address), self.acr);
+            return Reference(AnyPtr(type, parent->address), self.acr);
         }
         case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const AttrFuncTraversal&>(*this);

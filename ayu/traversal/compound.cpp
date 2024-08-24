@@ -489,7 +489,7 @@ struct TraverseElem {
         if (index >= len) return;
         expect(trav.desc->contiguous_elems_offset);
         auto f = trav.desc->contiguous_elems()->f;
-        Pointer ptr = f(*trav.address);
+        AnyPtr ptr = f(*trav.address);
         auto child_desc = DescriptionPrivate::get(ptr.type);
         ptr.address = (Mu*)((char*)ptr.address + index * child_desc->cpp_size);
         trav_contiguous_elem(trav, ptr, f, index, AccessMode::Read,

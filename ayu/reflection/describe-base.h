@@ -418,7 +418,7 @@ struct _AYU_DescribeBase {
      // elems() and contiguous_elems() must not be present.
     static constexpr auto computed_elems (Reference(* f )(T&, usize));
      // Use this for objects that have elements of identical laid out
-     // sequentially in memory.  The provided function must return a pointer to
+     // sequentially in memory.  The provided function must return an AnyPtr to
      // the 0th element, and each subsequent element must be sizeof(Element)
      // bytes after the next one, for a total number of elements equal to
      // whatever is read from or written to the accessor passed to length().
@@ -438,7 +438,7 @@ struct _AYU_DescribeBase {
      //
      // If contiguous_elems() is present, length() must also be present, and
      // elems() and computed_elems() must not be present.
-    static constexpr auto contiguous_elems (Pointer(* f )(T&));
+    static constexpr auto contiguous_elems (AnyPtr(* f )(T&));
 
     ///// ACCESSORS
      // Accessors are internal types that are the output of the functions below.

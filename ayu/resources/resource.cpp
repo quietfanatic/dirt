@@ -574,7 +574,7 @@ void reload (Slice<ResourceRef> reses) {
             auto check_ref =
                 [&updates, &old_refs, &breaks](Reference ref_ref, LocationRef loc)
             {
-                 // TODO: check for Pointer as well?
+                 // TODO: check for AnyPtr as well?
                 if (ref_ref.type() != Type::CppType<Reference>()) return false;
                 Reference ref = ref_ref.get_as<Reference>();
                 auto iter = old_refs.find(ref);

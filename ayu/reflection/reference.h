@@ -45,27 +45,27 @@
 #include <type_traits>
 
 #include "accessors.internal.h"
-#include "pointer.h"
+#include "anyptr.h"
 
 namespace ayu {
 
 struct Reference {
-    Pointer host;
+    AnyPtr host;
     const in::Accessor* acr;
 
      // The empty value will cause null derefs if you do anything with it.
     constexpr Reference (Null n = null) : host(n), acr(n) { }
      // Construct from internal data.
-    constexpr Reference (Pointer h, const in::Accessor* a) : host(h), acr(a) { }
-     // Construct from a Pointer.
-    constexpr Reference (Pointer p) : host(p), acr(null) { }
-     // Construct from native pointer.  Explicit for Pointer* and Refernce*,
+    constexpr Reference (AnyPtr h, const in::Accessor* a) : host(h), acr(a) { }
+     // Construct from a AnyPtr.
+    constexpr Reference (AnyPtr p) : host(p), acr(null) { }
+     // Construct from native pointer.  Explicit for AnyPtr* and Refernce*,
      // because it's likely to be a mistake.
     template <class T> requires (
         !std::is_same_v<std::remove_cv_t<T>, void> &&
         !std::is_same_v<std::remove_cv_t<T>, Mu>
     ) explicit (
-        std::is_same_v<std::remove_cv_t<T>, Pointer> ||
+        std::is_same_v<std::remove_cv_t<T>, AnyPtr> ||
         std::is_same_v<std::remove_cv_t<T>, Reference>
     ) Reference (T* p) : host(p), acr(null) { }
      // Construct from unknown pointer and type
@@ -259,8 +259,8 @@ struct Reference {
     }
 
      // Cast to pointer
-    operator Pointer () const {
-        return Pointer(type(), require_address());
+    operator AnyPtr () const {
+        return AnyPtr(type(), require_address());
     }
 
     template <class T>
@@ -312,7 +312,7 @@ template <>
 struct std::hash<ayu::Reference> {
     std::size_t operator () (const ayu::Reference& r) const {
         return uni::hash_combine(
-            hash<ayu::Pointer>()(r.host),
+            hash<ayu::AnyPtr>()(r.host),
             r.acr ? hash<ayu::in::Accessor>()(*r.acr) : 0
         );
     }

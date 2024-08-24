@@ -44,9 +44,9 @@ enum class TreeFlags : uint16 {
      // which one takes priority is unspecified.
     PreferExpanded = 0x4,
      // For internal use only.  Ignore this.
-    ValueIsPointer = 0x8000,
+    ValueIsPtr = 0x8000,
 
-    ValidBits = PreferHex | PreferCompact | PreferExpanded | ValueIsPointer
+    ValidBits = PreferHex | PreferCompact | PreferExpanded | ValueIsPtr
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 

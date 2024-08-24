@@ -71,7 +71,7 @@ AYU_DESCRIBE_TEMPLATE(
         uni::expect(v);
          // For some reason, std::to_address returns a const pointer here, which
          // screws up deserialization (you can't deserialize a const item).
-        return ayu::Pointer(std::addressof(*v));
+        return ayu::AnyPtr(std::addressof(*v));
     })
 )
 
@@ -100,7 +100,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
     )),
     desc::contiguous_elems([](std::unique_ptr<T>& v){
-        return ayu::Pointer(std::to_address(v));
+        return ayu::AnyPtr(std::to_address(v));
     })
 )
 
@@ -117,7 +117,7 @@ AYU_DESCRIBE_TEMPLATE(
         uni::usize, &uni::UniqueArray<T>::size, &uni::UniqueArray<T>::resize
     >()),
     desc::contiguous_elems([](uni::UniqueArray<T>& v){
-        return ayu::Pointer(v.data());
+        return ayu::AnyPtr(v.data());
     })
 )
 AYU_DESCRIBE_TEMPLATE(
@@ -134,7 +134,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::contiguous_elems([](uni::AnyArray<T>& v){
          // Make sure to return mut_data() because data() is const/readonly.
          // This array should not become shared while this pointer is active.
-        return ayu::Pointer(v.mut_data());
+        return ayu::AnyPtr(v.mut_data());
     })
 )
 
@@ -151,7 +151,7 @@ AYU_DESCRIBE_TEMPLATE(
         uni::usize, &std::vector<T>::size, &std::vector<T>::resize
     >()),
     desc::contiguous_elems([](std::vector<T>& v){
-        return ayu::Pointer(v.data());
+        return ayu::AnyPtr(v.data());
     })
 )
 
@@ -313,7 +313,7 @@ AYU_DESCRIBE_TEMPLATE(
             });
         }
         else {
-            return desc::delegate(desc::template assignable<ayu::Pointer>());
+            return desc::delegate(desc::template assignable<ayu::AnyPtr>());
         }
     }()
 )
@@ -330,7 +330,7 @@ AYU_DESCRIBE_TEMPLATE(
     }),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](T(& v )[n]){
-        return ayu::Pointer(&v[0]);
+        return ayu::AnyPtr(&v[0]);
     })
 )
 
@@ -380,7 +380,7 @@ AYU_DESCRIBE_TEMPLATE(
      // Allow accessing individual elements like an array
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](char(& v )[n]){
-        return ayu::Pointer(&v[0]);
+        return ayu::AnyPtr(&v[0]);
     })
 )
 
@@ -396,7 +396,7 @@ AYU_DESCRIBE_TEMPLATE(
     }),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](std::array<T, n>& v){
-        return ayu::Pointer(v.data());
+        return ayu::AnyPtr(v.data());
     })
 )
 

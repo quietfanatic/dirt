@@ -14,7 +14,7 @@
 #include <type_traits>
 
 #include "../common.internal.h"
-#include "pointer.h"
+#include "anyptr.h"
 #include "type.h"
 
 namespace ayu {
@@ -75,9 +75,9 @@ struct AnyVal {
         return !!type;
     }
     constexpr bool empty () const { return !*this; }
-     // Get Pointer to the value
-    constexpr Pointer ptr () { return Pointer(type, data); }
-    constexpr Pointer readonly_ptr () const { return Pointer(type.add_readonly(), data); }
+     // Get AnyPtr to the value
+    constexpr AnyPtr ptr () { return AnyPtr(type, data); }
+    constexpr AnyPtr readonly_ptr () const { return AnyPtr(type.add_readonly(), data); }
      // Runtime casting
     Mu& as (Type t) {
         return *type.cast_to(t, data);

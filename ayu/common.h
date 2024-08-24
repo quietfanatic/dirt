@@ -36,8 +36,8 @@ struct LocationRef;
  // reflection/type.h
 struct Type;
 
- // reflection/pointer.h
-struct Pointer;
+ // reflection/anyptr.h
+struct AnyPtr;
 
  // reflection/reference.h
 struct Reference;
