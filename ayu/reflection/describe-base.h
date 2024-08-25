@@ -286,8 +286,8 @@ struct _AYU_DescribeBase {
      // the object, it will be deserialized from this Tree.
      //
      // Because you can't create dynamically-allocated storage at runtime, to
-     // make the default value an array or object, you need to declare an array
-     // at global scope and pass that in as a StaticArray<Tree> or
+     // make the default value a non-empty array or object, you need to declare
+     // an array at global scope and pass that in as a StaticArray<Tree> or
      // StaticArray<TreePair>.
     template <class Acr, class Default>
         requires (requires (const Default& def) { Tree(def); })

@@ -186,6 +186,10 @@ constexpr Acr constexpr_acr (Acr a) {
 
  // Merge _type virtual functions into one to improve branch target prediction.
 struct AccessorWithType : Accessor {
+     // TODO: This documentation is obsolete, I think we still need the double
+     // indirection, but for a different reason.  Might be worth
+     // re-investigating though.  See also: description.internal.h
+     //
      // This isn't a plain Type because Type::CppType may not work properly at
      // global init time, and it isn't a std::type_info* because we still need
      // to reference Type::CppType<To> to auto-instantiate template descriptions.
