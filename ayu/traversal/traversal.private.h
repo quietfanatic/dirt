@@ -93,16 +93,16 @@ struct DataFuncTraversal : Traversal {
 
 template <class Base, class CB>
 struct CBTraversal : Base {
-    const std::remove_reference_t<CB>* callback;
+    CB* callback;
 };
 
 template <class CB>
 static void trav_start (
     const AnyRef& ref, LocationRef loc, bool only_addressable,
-    AccessMode mode, const CB& cb
+    AccessMode mode, CB&& cb
 ) {
     expect(ref);
-    CBTraversal<StartTraversal, CB> child;
+    CBTraversal<StartTraversal, std::remove_reference_t<CB>> child;
     try {
 
     child.parent = null;
@@ -157,7 +157,7 @@ static void trav_start (
 template <class Child, class CB>
 void trav_acr (
     const Traversal& parent, Child& child,
-    const Accessor* acr, AccessMode mode, const CB& cb
+    const Accessor* acr, AccessMode mode, CB&& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
@@ -191,7 +191,7 @@ catch (...) { parent.wrap_exception(); }
 template <class Child, class CB>
 void trav_reference (
     const Traversal& parent, Child& child,
-    const AnyRef& ref, AccessMode mode, const CB& cb
+    const AnyRef& ref, AccessMode mode, CB&& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ref.host.type.readonly();
@@ -234,7 +234,7 @@ catch (...) { parent.wrap_exception(); }
 template <class Child, class CB>
 void trav_pointer (
     const Traversal& parent, Child& child,
-    AnyPtr ptr, AccessMode, const CB& cb
+    AnyPtr ptr, AccessMode, CB&& cb
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ptr.type.readonly();
@@ -250,9 +250,9 @@ catch (...) { parent.wrap_exception(); }
 
 template <class CB>
 void trav_delegate (
-    const Traversal& parent, const Accessor* acr, AccessMode mode, const CB& cb
+    const Traversal& parent, const Accessor* acr, AccessMode mode, CB&& cb
 ) {
-    CBTraversal<DelegateTraversal, CB> child;
+    CBTraversal<DelegateTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::Delegate;
     trav_acr(parent, child, acr, mode, cb);
 }
@@ -263,20 +263,20 @@ void trav_delegate (
 template <class CB>
 void trav_attr (
     const Traversal& parent, const Accessor* acr, const StaticString& key,
-    AccessMode mode, const CB& cb
+    AccessMode mode, CB&& cb
 ) {
-    CBTraversal<AttrTraversal, CB> child;
+    CBTraversal<AttrTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::Attr;
     child.key = &key;
-    trav_acr(parent, child, acr, mode, cb);
+    trav_acr(parent, child, acr, mode, std::forward<CB>(cb));
 }
 
 template <class CB>
 void trav_computed_attr (
     const Traversal& parent, const AnyRef& ref, AttrFunc<Mu>* func,
-    const AnyString& key, AccessMode mode, const CB& cb
+    const AnyString& key, AccessMode mode, CB&& cb
 ) {
-    CBTraversal<AttrFuncTraversal, CB> child;
+    CBTraversal<AttrFuncTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::ComputedAttr;
     child.func = func;
     child.key = &key;
@@ -286,9 +286,9 @@ void trav_computed_attr (
 template <class CB>
 void trav_elem (
     const Traversal& parent, const Accessor* acr, usize index,
-    AccessMode mode, const CB& cb
+    AccessMode mode, CB&& cb
 ) {
-    CBTraversal<ElemTraversal, CB> child;
+    CBTraversal<ElemTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::Elem;
     child.index = index;
     trav_acr(parent, child, acr, mode, cb);
@@ -297,9 +297,9 @@ void trav_elem (
 template <class CB>
 void trav_computed_elem (
     const Traversal& parent, const AnyRef& ref, ElemFunc<Mu>* func,
-    usize index, AccessMode mode, const CB& cb
+    usize index, AccessMode mode, CB&& cb
 ) {
-    CBTraversal<ElemFuncTraversal, CB> child;
+    CBTraversal<ElemFuncTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::ComputedElem;
     child.func = func;
     child.index = index;
@@ -309,7 +309,7 @@ void trav_computed_elem (
 template <class CB>
 void trav_contiguous_elem (
     const Traversal& parent, AnyPtr ptr, DataFunc<Mu>* func,
-    usize index, AccessMode mode, const CB& cb
+    usize index, AccessMode mode, CB&& cb
 ) {
      // Don't need to store the CB
     DataFuncTraversal child;
