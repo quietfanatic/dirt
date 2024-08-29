@@ -615,6 +615,8 @@ struct ArrayInterface {
      //         return args[i];  // BAD!  Use Str(args[i])
      //     });
      // I have not figured out how to prevent or detect this scenario yet.
+     //
+     // This tends to be the most optimizable way of doing a map operation.
     template <ArrayIotaFunctionFor<T> F> explicit
     ArrayInterface (usize s, F&& f) requires (
         ac::supports_owned

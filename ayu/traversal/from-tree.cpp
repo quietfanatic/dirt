@@ -18,7 +18,9 @@ struct SwizzleOp {
     SharedLocation loc;
 
     ALWAYS_INLINE
-    SwizzleOp (SwizzleFunc<Mu>* f, AnyRef&& i, const Tree& t, SharedLocation&& l) :
+    SwizzleOp (
+        SwizzleFunc<Mu>* f, AnyRef&& i, const Tree& t, SharedLocation&& l
+    ) noexcept :
         f(f), item(move(i)), tree(t), loc(move(l))
     { }
      // Allow optimized reallocation
@@ -34,8 +36,11 @@ struct InitOp {
     AnyRef item;
     SharedLocation loc;
 
+     // This being noexcept allows UniqueArray::emplace to be smaller
     ALWAYS_INLINE
-    InitOp (InitFunc<Mu>* f, double p, AnyRef&& i, SharedLocation&& l) :
+    InitOp (
+        InitFunc<Mu>* f, double p, AnyRef&& i, SharedLocation&& l
+    ) noexcept :
         f(f), priority(p), item(move(i)), loc(move(l))
     { }
      // Allow optimized reallocation
@@ -500,55 +505,70 @@ struct TraverseFromTree {
         trav_delegate<claim_attrs>(child, trav, acr, AccessMode::Write);
     }
 
-    static
+    NOINLINE static
     void set_keys (
         const FromTreeTraversal<>& trav, Slice<TreePair> object,
         const Accessor* keys_acr
     ) {
         if (!(keys_acr->flags & AcrFlags::Readonly)) {
-             // Writable keys, so write them.
-            auto keys = UniqueArray<AnyString>(Capacity(object.size()));
-            for (usize i = 0; i < object.size(); i++) {
-                keys.emplace_back_expect_capacity(object[i].first);
-            }
-            keys_acr->write(*trav.address, [&keys](Mu& v){
-                reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
-            });
-            expect(!keys.owned());
+            set_keys_write(trav, object, keys_acr);
         }
         else {
-             // Readonly keys?  Read them and check that they match.
-            AnyArray<AnyString> keys;
-            keys_acr->read(*trav.address, [&keys](Mu& v){
-                new (&keys) AnyArray<AnyString>(reinterpret_cast<AnyArray<AnyString>&>(v));
-            });
+            set_keys_readonly(trav, object, keys_acr);
+        }
+    }
+
+    NOINLINE static
+    void set_keys_write (
+        const FromTreeTraversal<>& trav, Slice<TreePair> object,
+        const Accessor* keys_acr
+    ) {
+         // Writable keys, so write them.
+        auto keys = UniqueArray<AnyString>(
+            object.size(), [&object](usize i){ return object[i].first; }
+        );
+        keys_acr->write(*trav.address, [&keys](Mu& v){
+            reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
+        });
+        expect(!keys.owned());
+    }
+
+    NOINLINE static
+    void set_keys_readonly (
+        const FromTreeTraversal<>& trav, Slice<TreePair> object,
+        const Accessor* keys_acr
+    ) {
+         // Readonly keys?  Read them and check that they match.
+        AnyArray<AnyString> keys;
+        keys_acr->read(*trav.address, [&keys](Mu& v){
+            new (&keys) AnyArray<AnyString>(reinterpret_cast<AnyArray<AnyString>&>(v));
+        });
 #ifndef NDEBUG
-             // Check returned keys for duplicates
-            for (usize i = 0; i < keys.size(); i++)
-            for (usize j = 0; j < i; j++) {
-                expect(keys[i] != keys[j]);
-            }
+         // Check returned keys for duplicates
+        for (usize i = 0; i < keys.size(); i++)
+        for (usize j = 0; j < i; j++) {
+            expect(keys[i] != keys[j]);
+        }
 #endif
-            if (keys.size() >= object.size()) {
-                for (auto& required : keys) {
-                    for (auto& given : object) {
-                        if (given.first == required) goto next_required;
-                    }
-                    raise_AttrMissing(trav.desc, required);
-                    next_required:;
-                }
-            }
-            else [[unlikely]] {
-                 // Too many keys given
+        if (keys.size() >= object.size()) {
+            for (auto& required : keys) {
                 for (auto& given : object) {
-                    for (auto& required : keys) {
-                        if (required == given.first) goto next_given;
-                    }
-                    raise_AttrRejected(trav.desc, given.first);
-                    next_given:;
+                    if (given.first == required) goto next_required;
                 }
-                never();
+                raise_AttrMissing(trav.desc, required);
+                next_required:;
             }
+        }
+        else [[unlikely]] {
+             // Too many keys given
+            for (auto& given : object) {
+                for (auto& required : keys) {
+                    if (required == given.first) goto next_given;
+                }
+                raise_AttrRejected(trav.desc, given.first);
+                next_given:;
+            }
+            never();
         }
     }
 

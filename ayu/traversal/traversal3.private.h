@@ -309,7 +309,7 @@ void trav_delegate (
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
-inline
+NOINLINE inline
 AnyRef Traversal3::to_reference () const noexcept {
     if (addressable) {
         return AnyPtr(Type(desc, readonly), address);
@@ -386,7 +386,7 @@ AnyRef Traversal3::to_reference_chain () const noexcept {
     }
 }
 
-inline
+NOINLINE inline
 SharedLocation Traversal3::to_location () const noexcept {
     if (op == Traversal3Op::Start) {
         auto& self = static_cast<const StartTraversal3&>(*this);
