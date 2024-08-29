@@ -3,119 +3,139 @@
 #include "../reflection/descriptors.private.h"
 #include "compound.h"
 #include "scan.h"
-#include "traversal2.private.h"
+#include "traversal3.private.h"
 
 namespace ayu {
 namespace in {
 
 static uint64 diagnostic_serialization = 0;
 
-struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
-    Tree* r;
+ // The subtypes in traversal3.private.h build the struct to the right (as is
+ // normal), so we'll build it to the left instead.
+struct ToTreeTraversalHead {
+    Tree* dest;
+};
+ // If you know the left side of a Traversal but not the right side, you should
+ // be able to static_cast to ToTreeTraversal<>.  This might technically be
+ // forbidden by the spec, but it should work, assuming nothing messes with the
+ // alignment.
+template <class T = Traversal3>
+struct ToTreeTraversal : ToTreeTraversalHead, T { };
 
-     // NOINLINE this because it generates a lot of code with the follow_start
+ // These are only in a struct so we don't have to predeclare functions
+struct TraverseToTree {
+
+     // NOINLINE this because it generates a lot of code with trav_start
     NOINLINE static
     Tree start (const AnyRef& item, LocationRef loc) {
         plog("to_tree start");
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         KeepLocationCache klc;
-        Tree r;
-        ToTreeTraversal child;
-        child.r = &r;
-        child.follow_start<&ToTreeTraversal::visit>(
-            item, loc, false, AccessMode::Read
+        Tree dest;
+        ToTreeTraversal<StartTraversal3> child;
+        child.dest = &dest;
+        trav_start<visit>(
+            child, item, loc, false, AccessMode::Read
         );
         plog("to_tree end");
-        return r;
+        return dest;
     }
 
 ///// PICK STRATEGY
 
-    NOINLINE
-    void visit () try {
-         // The majority of items are [[likely]] to be atomic.
-        if (auto to_tree = desc->to_tree()) [[likely]] {
-            use_to_tree(to_tree->f);
-        }
-        else if (auto values = desc->values()) {
-            use_values(values);
-        }
-        else no_value_match();
-    }
-     // Unfortunately this exception handler prevents tail calling from this
-     // function, but putting it anywhere else seems to perform worse.
-    catch (...) { if (!wrap_exception()) throw; }
-
-    NOINLINE
-    void no_value_match () {
-        if (desc->preference() == DescFlags::PreferObject) {
-            if (auto keys = desc->keys_acr()) {
-                return use_computed_attrs(keys);
+    NOINLINE static
+    void visit (const Traversal3& tr) {
+        auto& trav = static_cast<const ToTreeTraversal<>&>(tr);
+        try {
+             // The majority of items are [[likely]] to be atomic.
+            if (auto to_tree = trav.desc->to_tree()) [[likely]] {
+                use_to_tree(trav, to_tree->f);
             }
-            else if (auto attrs = desc->attrs()) {
-                return use_attrs(attrs);
+            else if (auto values = trav.desc->values()) {
+                use_values(trav, values);
+            }
+            else no_value_match(trav);
+        }
+         // Unfortunately this exception handler prevents tail calling from this
+         // function, but putting it anywhere else seems to perform worse.
+        catch (...) { if (!wrap_exception(trav)) throw; }
+    }
+
+    NOINLINE static
+    void no_value_match (const ToTreeTraversal<>& trav) {
+        if (trav.desc->preference() == DescFlags::PreferObject) {
+            if (auto keys = trav.desc->keys_acr()) {
+                return use_computed_attrs(trav, keys);
+            }
+            else if (auto attrs = trav.desc->attrs()) {
+                return use_attrs(trav, attrs);
             }
             else never();
         }
-        else if (desc->preference() == DescFlags::PreferArray) {
-            if (auto length = desc->length_acr()) {
-                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
-                    return use_contiguous_elems(length);
+        else if (trav.desc->preference() == DescFlags::PreferArray) {
+            if (auto length = trav.desc->length_acr()) {
+                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
+                    return use_contiguous_elems(trav, length);
                 }
                 else {
-                    return use_computed_elems(length);
+                    return use_computed_elems(trav, length);
                 }
             }
-            else if (auto elems = desc->elems()) {
-                return use_elems(elems);
+            else if (auto elems = trav.desc->elems()) {
+                return use_elems(trav, elems);
             }
             else never();
         }
-        else if (auto acr = desc->delegate_acr()) {
-            use_delegate(acr);
+        else if (auto acr = trav.desc->delegate_acr()) {
+            use_delegate(trav, acr);
         }
-        else fail();
+        else fail(trav);
     }
 
 ///// STRATEGIES
 
-    void use_to_tree (ToTreeFunc<Mu>* f) {
-        new (r) Tree(f(*address));
+    static
+    void use_to_tree (const ToTreeTraversal<>& trav, ToTreeFunc<Mu>* f) {
+        new (trav.dest) Tree(f(*trav.address));
     }
 
-    NOINLINE
-    void use_values (const ValuesDcrPrivate* values) {
+    NOINLINE static
+    void use_values (
+        const ToTreeTraversal<>& trav, const ValuesDcrPrivate* values
+    ) {
         for (uint i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
-            if (values->compare(*address, *value->get_value())) {
-                new (r) Tree(value->name);
+            if (values->compare(*trav.address, *value->get_value())) {
+                new (trav.dest) Tree(value->name);
                 return;
             }
         }
-        no_value_match();
+        no_value_match(trav);
     }
 
-    NOINLINE
-    void use_attrs (const AttrsDcrPrivate* attrs) {
+    NOINLINE static
+    void use_attrs (
+        const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
+    ) {
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
          // First just build the object as though none of the attrs are included
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (!!(attr->acr()->attr_flags & AttrFlags::Invisible)) continue;
 
-            ToTreeTraversal child;
+            ToTreeTraversal<AttrTraversal3> child;
 
-            child.r = &object.emplace_back_expect_capacity(
+            child.dest = &object.emplace_back_expect_capacity(
                 attr->key, Tree()
             ).second;
-            child.follow_attr<&ToTreeTraversal::visit>(
-                *this, attr->acr(), attr->key, AccessMode::Read
+            trav_attr<visit>(
+                child, trav, attr->acr(), attr->key, AccessMode::Read
             );
-            child.r->flags |= child.acr->tree_flags();
+            child.dest->flags |= child.acr->tree_flags();
         }
          // Then if there are included or collapsed attrs, rebuild the object
          // while flattening them.
-        if (!!(desc->flags & DescFlags::AttrsNeedRebuild)) {
+        if (!!(trav.desc->flags & DescFlags::AttrsNeedRebuild)) {
              // Determine length for preallocation
             usize len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -189,14 +209,16 @@ struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
             new (&object) UniqueArray<TreePair>(move(new_object));
         }
          // This will check for duplicates in debug mode.
-        new (r) Tree(move(object));
+        new (trav.dest) Tree(move(object));
     }
 
-    NOINLINE
-    void use_computed_attrs (const Accessor* keys_acr) {
+    NOINLINE static
+    void use_computed_attrs (
+        const ToTreeTraversal<>& trav, const Accessor* keys_acr
+    ) {
          // Get list of keys
         AnyArray<AnyString> keys;
-        keys_acr->read(*address, CallbackRef<void(Mu&)>(
+        keys_acr->read(*trav.address, CallbackRef<void(Mu&)>(
             keys, [](AnyArray<AnyString>& keys, Mu& v)
         {
             new (&keys) AnyArray<AnyString>(
@@ -205,35 +227,37 @@ struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
         }));
          // Now read value for each key
         auto object = UniqueArray<TreePair>(Capacity(keys.size()));
-        expect(desc->computed_attrs_offset);
-        auto f = desc->computed_attrs()->f;
+        expect(trav.desc->computed_attrs_offset);
+        auto f = trav.desc->computed_attrs()->f;
         for (auto& key : keys) {
-            auto ref = f(*address, key);
-            if (!ref) raise_AttrNotFound(desc, key);
+            auto ref = f(*trav.address, key);
+            if (!ref) raise_AttrNotFound(trav.desc, key);
 
-            ToTreeTraversal child;
-            child.r = &object.emplace_back_expect_capacity(key, Tree()).second;
-            child.follow_computed_attr<&ToTreeTraversal::visit>(
-                *this, ref, f, key, AccessMode::Read
+            ToTreeTraversal<ComputedAttrTraversal3> child;
+            child.dest = &object.emplace_back_expect_capacity(key, Tree()).second;
+            trav_computed_attr<visit>(
+                child, trav, ref, f, key, AccessMode::Read
             );
         }
-        new (r) Tree(move(object));
+        new (trav.dest) Tree(move(object));
     }
 
-    NOINLINE
-    void use_elems (const ElemsDcrPrivate* elems) {
+    NOINLINE static
+    void use_elems (
+        const ToTreeTraversal<>& trav, const ElemsDcrPrivate* elems
+    ) {
         auto len = elems->chop_flag(AttrFlags::Invisible);
         auto array = UniqueArray<Tree>(Capacity(len));
         for (uint i = 0; i < len; i++) {
             auto acr = elems->elem(i)->acr();
-            ToTreeTraversal child;
-            child.r = &array.emplace_back_expect_capacity(Tree());
-            child.follow_elem<&ToTreeTraversal::visit>(
-                *this, acr, i, AccessMode::Read
+            ToTreeTraversal<ElemTraversal3> child;
+            child.dest = &array.emplace_back_expect_capacity(Tree());
+            trav_elem<visit>(
+                child, trav, acr, i, AccessMode::Read
             );
-            child.r->flags |= child.acr->tree_flags();
+            child.dest->flags |= child.acr->tree_flags();
         }
-        new (r) Tree(move(array));
+        new (trav.dest) Tree(move(array));
     }
 
      // Deduplicate
@@ -241,92 +265,96 @@ struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
         len = reinterpret_cast<const usize&>(v);
     }
 
-    NOINLINE
-    void use_computed_elems (const Accessor* length_acr) {
+    NOINLINE static
+    void use_computed_elems (
+        const ToTreeTraversal<>& trav, const Accessor* length_acr
+    ) {
         usize len;
-        length_acr->read(*address,
+        length_acr->read(*trav.address,
             CallbackRef<void(Mu& v)>(len, &read_len)
         );
         auto array = UniqueArray<Tree>(Capacity(len));
-        expect(desc->computed_elems_offset);
-        auto f = desc->computed_elems()->f;
+        expect(trav.desc->computed_elems_offset);
+        auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < len; i++) {
-            auto ref = f(*address, i);
-            if (!ref) raise_ElemNotFound(desc, i);
-            ToTreeTraversal child;
-            child.r = &array.emplace_back_expect_capacity();
-            child.follow_computed_elem<&ToTreeTraversal::visit>(
-                *this, ref, f, i, AccessMode::Read
+            auto ref = f(*trav.address, i);
+            if (!ref) raise_ElemNotFound(trav.desc, i);
+            ToTreeTraversal<ComputedElemTraversal3> child;
+            child.dest = &array.emplace_back_expect_capacity();
+            trav_computed_elem<visit>(
+                child, trav, ref, f, i, AccessMode::Read
             );
         }
-        new (r) Tree(move(array));
+        new (trav.dest) Tree(move(array));
     }
 
-    NOINLINE
-    void use_contiguous_elems (const Accessor* length_acr) {
+    NOINLINE static
+    void use_contiguous_elems (
+        const ToTreeTraversal<>& trav, const Accessor* length_acr
+    ) {
         usize len;
-        length_acr->read(*address,
+        length_acr->read(*trav.address,
             CallbackRef<void(Mu& v)>(len, &read_len)
         );
         auto array = UniqueArray<Tree>(Capacity(len));
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't really needed for computed_elems.
         if (len) {
-            expect(desc->contiguous_elems_offset);
-            auto f = desc->contiguous_elems()->f;
-            auto ptr = f(*address);
+            expect(trav.desc->contiguous_elems_offset);
+            auto f = trav.desc->contiguous_elems()->f;
+            auto ptr = f(*trav.address);
              // TODO: move this below call
             auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < len; i++) {
-                ToTreeTraversal child;
-                child.r = &array.emplace_back_expect_capacity();
-                child.follow_contiguous_elem<&ToTreeTraversal::visit>(
-                    *this, ptr, f, i, AccessMode::Read
+                ToTreeTraversal<ContiguousElemTraversal3> child;
+                child.dest = &array.emplace_back_expect_capacity();
+                trav_contiguous_elem<visit>(
+                    child, trav, ptr, f, i, AccessMode::Read
                 );
                 ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
             }
         }
-        new (r) Tree(move(array));
+        new (trav.dest) Tree(move(array));
     }
 
-    NOINLINE
-    void use_delegate (const Accessor* acr) {
-        ToTreeTraversal child;
-        child.r = r;
-        child.follow_delegate<&ToTreeTraversal::visit>(*this, acr, AccessMode::Read);
-        child.r->flags |= child.acr->tree_flags();
+    NOINLINE static
+    void use_delegate (const ToTreeTraversal<>& trav, const Accessor* acr) {
+        ToTreeTraversal<DelegateTraversal3> child;
+        child.dest = trav.dest;
+        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        child.dest->flags |= child.acr->tree_flags();
     }
 
 ///// ERRORS
 
-    [[noreturn, gnu::cold]] NOINLINE
-    void fail () {
-        if (desc->values()) {
+    [[noreturn, gnu::cold]] NOINLINE static
+    void fail (const ToTreeTraversal<>& trav) {
+        if (trav.desc->values()) {
             raise(e_ToTreeValueNotFound, cat(
-                "No value for type ", Type(desc).name(),
+                "No value for type ", Type(trav.desc).name(),
                 " matches the item's value"
             ));
         }
         else raise(e_ToTreeNotSupported, cat(
-            "Item of type ", Type(desc).name(), " does not support to_tree"
+            "Item of type ", Type(trav.desc).name(), " does not support to_tree"
         ));
     }
 
      // NOINLINE this so its stack requirements don't get applied to visit()
-    [[gnu::cold]] NOINLINE
-    bool wrap_exception () {
+    [[gnu::cold]] NOINLINE static
+    bool wrap_exception (const ToTreeTraversal<>& trav) {
         if (diagnostic_serialization) {
-            new (r) Tree(std::current_exception());
+            new (trav.dest) Tree(std::current_exception());
             return true;
         }
         else return false;
     }
 
      // TODO: delet this
-    [[noreturn, gnu::cold]] NOINLINE
-    void raise_KeysTypeInvalid(Type keys_type) {
+    [[noreturn, gnu::cold]] NOINLINE static
+    void raise_KeysTypeInvalid(Type item_type, Type keys_type) {
         raise(e_KeysTypeInvalid, cat(
-            "Item of type ", Type(desc).name(),
+            "Item of type ", item_type.name(),
             " gave keys() type ", keys_type.name(),
             " which does not serialize to an array of strings"
         ));
@@ -336,7 +364,7 @@ struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
 } using namespace in;
 
 Tree item_to_tree (const AnyRef& item, LocationRef loc) {
-    return ToTreeTraversal::start(item, loc);
+    return TraverseToTree::start(item, loc);
 }
 
 DiagnosticSerialization::DiagnosticSerialization () {

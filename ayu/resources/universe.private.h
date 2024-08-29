@@ -12,6 +12,9 @@ namespace ayu::in {
 
 struct Universe {
      // The Str here must refer to the resource's name.spec().
+     // The memory leak detector flags the resources as leaked, because at
+     // program close, the unordered_map is destroyed without destroying the
+     // resources.  TODO to prevent this (possibly by leaking the map too).
     std::unordered_map<Str, ResourceRef> resources;
     std::unordered_map<AnyString, const ResourceScheme*> schemes;
     UniqueArray<AnyPtr> globals;
