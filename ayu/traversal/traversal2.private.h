@@ -89,11 +89,20 @@ struct Traversal2 {
     void wrap_exception () const;
 };
 
-template <class Self>
+template <class Self> // CRTP
 struct FollowingTraversal : Traversal2 {
-     // This static_cast actually be done until this class is complete, but by
-     // then it's too late :<
+     // This static_cast can't actually be done until this class is complete,
+     // but by then it's too late :<
     //static_assert(requires (Traversal2 t) { static_cast<Self&>(t); });
+
+     // All the lambdas in these functions were identical, so deduplicate them
+     // into this function.  It's only two instructions long but it's still
+     // better for branch prediction for it not to be duplicated.
+    template <void(Self::* visit )()>
+    static void set_address_and_visit (Self& self, Mu& v) {
+        self.address = &v;
+        (self.*visit)();
+    }
 
     template <void(Self::* visit )()>
     void follow_start (
@@ -136,13 +145,9 @@ struct FollowingTraversal : Traversal2 {
                 children_addressable =
                     !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
                 if (!only_addressable || children_addressable) {
-                     // TODO: merge identical lambdas
                     ref.access(mode, CallbackRef<void(Mu&)>(
-                        self, [](Self& self, Mu& v)
-                    {
-                        self.address = &v;
-                        (self.*visit)();
-                    }));
+                        self, &set_address_and_visit<visit>
+                    ));
                 }
             }
         }
@@ -171,11 +176,8 @@ struct FollowingTraversal : Traversal2 {
                 !!(acr->flags & AcrFlags::PassThroughAddressable);
             if (!only_addressable || children_addressable) {
                 acr->access(mode, *parent->address, CallbackRef<void(Mu&)>(
-                    self, [](decltype(self)& self, Mu& v)
-                {
-                    self.address = &v;
-                    (self.*visit)();
-                }));
+                    self, &set_address_and_visit<visit>
+                ));
             }
         }
     }
@@ -217,11 +219,8 @@ struct FollowingTraversal : Traversal2 {
                     !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
                 if (!only_addressable || children_addressable) {
                     ref.access(mode, CallbackRef<void(Mu&)>(
-                        self, [](Self& self, Mu& v)
-                    {
-                        self.address = &v;
-                        (self.*visit)();
-                    }));
+                        self, &set_address_and_visit<visit>
+                    ));
                 }
             }
         }

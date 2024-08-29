@@ -236,14 +236,16 @@ struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
         new (r) Tree(move(array));
     }
 
+     // Deduplicate
+    static void read_len (usize& len, Mu& v) {
+        len = reinterpret_cast<const usize&>(v);
+    }
+
     NOINLINE
     void use_computed_elems (const Accessor* length_acr) {
-         // TODO: merge the lambdas in this and use_contiguous_elems
         usize len;
         length_acr->read(*address,
-            CallbackRef<void(Mu& v)>(len, [](usize& len, Mu& v){
-                len = reinterpret_cast<const usize&>(v);
-            })
+            CallbackRef<void(Mu& v)>(len, &read_len)
         );
         auto array = UniqueArray<Tree>(Capacity(len));
         expect(desc->computed_elems_offset);
@@ -264,9 +266,7 @@ struct ToTreeTraversal : FollowingTraversal<ToTreeTraversal> {
     void use_contiguous_elems (const Accessor* length_acr) {
         usize len;
         length_acr->read(*address,
-            CallbackRef<void(Mu& v)>(len, [](usize& len, Mu& v){
-                len = reinterpret_cast<const usize&>(v);
-            })
+            CallbackRef<void(Mu& v)>(len, &read_len)
         );
         auto array = UniqueArray<Tree>(Capacity(len));
          // If len is 0, don't even bother calling the contiguous_elems
