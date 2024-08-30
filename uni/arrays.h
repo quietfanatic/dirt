@@ -977,31 +977,31 @@ struct ArrayInterface {
      // Take a reinterpreted view.  TODO: Should these return GenericStr for
      // string types?
     template <class T2> ALWAYS_INLINE constexpr
-    ArrayInterface<ac, T2>::SelfSlice const_reinterpret () const {
+    typename ArrayInterface<ac, T2>::SelfSlice const_reinterpret () const {
         static_assert(sizeof(T) == sizeof(T2),
             "Cannot reinterpret array elements of different sizes."
         );
-        return ArrayInterface<ac, T2>::SelfSlice(
+        return typename ArrayInterface<ac, T2>::SelfSlice(
             reinterpret_cast<const T2*>(const_data()), size()
         );
     }
     template <class T2> ALWAYS_INLINE constexpr
-    ArrayInterface<ac, T2>::SelfMutSlice mut_reinterpret () requires (
+    typename ArrayInterface<ac, T2>::SelfMutSlice mut_reinterpret () requires (
         ac::mut_default || ac::supports_owned
     ) {
         static_assert(sizeof(T) == sizeof(T2),
             "Cannot reinterpret array elements of different sizes."
         );
-        return ArrayInterface<ac, T2>::SelfMutSlice(
+        return typename ArrayInterface<ac, T2>::SelfMutSlice(
             reinterpret_cast<T2*>(mut_data()), size()
         );
     }
     template <class T2> ALWAYS_INLINE constexpr
-    ArrayInterface<ac, T2>::SelfSlice reinterpret () const {
+    typename ArrayInterface<ac, T2>::SelfSlice reinterpret () const {
         return const_reinterpret<T2>();
     }
     template <class T2> ALWAYS_INLINE constexpr
-    ArrayInterface<ac, T2>::SelfMutSlice reinterpret () requires (
+    typename ArrayInterface<ac, T2>::SelfMutSlice reinterpret () requires (
         ac::mut_default
     ) {
         return mut_reinterpret<T2>();
