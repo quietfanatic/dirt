@@ -22,7 +22,8 @@ struct ChainAttrFuncAcr : Accessor {
     AttrFunc<Mu>* f;
     AnyString key;
     ChainAttrFuncAcr (const Accessor* o, AttrFunc<Mu>* f, AnyString k) :
-        Accessor(&_vt, o->flags), outer(o), f(f), key(move(k))
+        Accessor(&_vt, o->flags | AcrFlags::Unaddressable),
+        outer(o), f(f), key(move(k))
     { outer->inc(); }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
@@ -36,7 +37,8 @@ struct ChainElemFuncAcr : Accessor {
     ElemFunc<Mu>* f;
     usize index;
     ChainElemFuncAcr (const Accessor* o, ElemFunc<Mu>* f, usize i) :
-        Accessor(&_vt, o->flags), outer(o), f(f), index(i)
+        Accessor(&_vt, o->flags | AcrFlags::Unaddressable),
+        outer(o), f(f), index(i)
     { outer->inc(); }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
@@ -50,7 +52,8 @@ struct ChainDataFuncAcr : Accessor {
     DataFunc<Mu>* f;
     usize index;
     ChainDataFuncAcr (const Accessor* o, DataFunc<Mu>* f, usize i) :
-        Accessor(&_vt, o->flags), outer(o), f(f), index(i)
+        Accessor(&_vt, o->flags | AcrFlags::Unaddressable),
+        outer(o), f(f), index(i)
     { outer->inc(); }
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);

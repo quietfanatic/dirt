@@ -85,7 +85,7 @@ Type AnyPtrFuncAcr1::_type (const Accessor* acr, Mu* from) {
     return expect(self->f(*from).type);
 }
 void AnyPtrFuncAcr1::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode, Mu& from, CallbackRef<void(Mu&)> cb
 ) {
     auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
     cb(*expect(self->f(from).address));
@@ -96,17 +96,29 @@ Mu* AnyPtrFuncAcr1::_address (const Accessor* acr, Mu& from) {
     return expect(ptr.address);
 }
 
+static
+AcrFlags chain_acr_flags (AcrFlags o, AcrFlags i) {
+    AcrFlags r = {};
+     // Readonly if either accessor is readonly
+    r |= (o | i) & AcrFlags::Readonly;
+     // Pass through addressable if both are PTA
+    r |= (o & i) & AcrFlags::PassThroughAddressable;
+    if (!!(o & AcrFlags::PassThroughAddressable)) {
+         // If outer is pta, unaddressable if inner is unaddressable
+        r |= i & AcrFlags::Unaddressable;
+    }
+    else {
+         // Otherwise if either is unaddressable
+        r |= (o & i) & AcrFlags::Unaddressable;
+    }
+    return r;
+}
+
 ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
-    Accessor(
-        &_vt,
-         // Readonly if either accessor is readonly
-        ((outer->flags & AcrFlags::Readonly) |
-         (inner->flags & AcrFlags::Readonly)) |
-         // Pass through addressable if both are PTA
-        ((outer->flags & AcrFlags::PassThroughAddressable) &
-         (inner->flags & AcrFlags::PassThroughAddressable))
-    ), outer(outer), inner(inner)
+    Accessor(&_vt, chain_acr_flags(outer->flags, inner->flags)),
+    outer(outer), inner(inner)
 { outer->inc(); inner->inc(); }
+
 Type ChainAcr::_type (const Accessor* acr, Mu* v) {
     auto self = static_cast<const ChainAcr*>(acr);
      // Most accessors ignore the parameter, so we can usually skip the
