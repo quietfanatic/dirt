@@ -6,10 +6,25 @@
 #include "../resources/universe.private.h"
 #include "compound.h"
 #include "location.h"
-#include "traversal.private.h"
+#include "traversal3.private.h"
 
 namespace ayu {
 namespace in {
+
+struct ScanContext;
+
+struct ScanTraversalHead {
+    ScanContext* context;
+    LocationRef loc;
+};
+
+template <class T = Traversal3>
+struct ScanTraversal : ScanTraversalHead, T { };
+
+struct ScanContext {
+    CallbackRef<bool(const ScanTraversal<>&)> cb;
+    bool done = false;
+};
 
 struct TraverseScan {
 
@@ -24,19 +39,20 @@ struct TraverseScan {
             );
         }
         currently_scanning = true;
-        bool r = false;
-        trav_start(base_item, base_loc, true, AccessMode::Read,
-            [&r, base_loc, cb](const Traversal& trav)
-        {
-            r = traverse(trav, base_loc,
-                [cb](const Traversal& trav, LocationRef loc)
-            {
-                return trav.addressable &&
-                    cb(AnyPtr(trav.desc, trav.address), loc);
-            });
-        });
+        ScanContext ctx {
+            CallbackRef<bool(const ScanTraversal<>&)>(
+                cb, [](auto& cb, const ScanTraversal<>& trav) -> bool {
+                    return trav.addressable &&
+                        cb(AnyPtr(trav.desc, trav.address), trav.loc);
+                }
+            )
+        };
+        ScanTraversal<StartTraversal3> child;
+        child.context = &ctx;
+        child.loc = base_loc;
+        trav_start<visit>(child, base_item, base_loc, true, AccessMode::Read);
         currently_scanning = false;
-        return r;
+        return ctx.done;
     }
 
     static
@@ -44,108 +60,104 @@ struct TraverseScan {
         const AnyRef& base_item, LocationRef base_loc,
         CallbackRef<bool(const AnyRef&, LocationRef)> cb
     ) {
-        if (currently_scanning) {
-            raise(e_ScanWhileScanning,
-                "Cannot start scan while there's already a scan running."
-            );
-        }
-        currently_scanning = true;
-        bool r = false;
-        trav_start(base_item, base_loc, false, AccessMode::Read,
-            [&r, base_loc, cb](const Traversal& trav)
-        {
-            r = traverse(trav, base_loc,
-                [cb](const Traversal& trav, LocationRef loc)
-            { return cb(trav.to_reference(), loc); });
-        });
+        ScanContext ctx {
+            CallbackRef<bool(const ScanTraversal<>&)>(
+                cb, [](auto& cb, const ScanTraversal<>& trav) -> bool{
+                    return cb(trav.to_reference(), trav.loc);
+                }
+            )
+        };
+        ScanTraversal<StartTraversal3> child;
+        child.context = &ctx;
+        child.loc = base_loc;
+        trav_start<visit>(child, base_item, base_loc, false, AccessMode::Read);
         currently_scanning = false;
-        return r;
+        return ctx.done;
+    }
+
+    static
+    bool scan_item (const ScanTraversal<>& trav) {
+        return trav.context->done = trav.context->cb(trav);
     }
 
     NOINLINE static
-    bool traverse (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-         // Although we always call cb(trav, loc) first, doing so requires
-         // saving and restoring all our arguments, which also prevents tail
-         // calls.  So we're doing it at the top of each execution function
-         // instead of at the top of this decision function.  The callback is
-         // expected to return true either rarely or never, so it's okay to
-         // delay checking its return a bit.
+    void visit (const Traversal3& tr) {
+        auto& trav = static_cast<const ScanTraversal<>&>(tr);
+         // Although we always call the callback first, doing so requires saving
+         // and restoring all our arguments, which also prevents tail calls.  So
+         // we're doing it at the top of each execution function instead of at
+         // the top of this decision function.  The callback is expected to
+         // return true either rarely or never, so it's okay to delay checking
+         // its return a bit.
          //
          // Also we're only checking offsets here, not converting them to
          // variables, because doing so before calling the cb would require
          // saving and restoring those variables.
+         //
+         // TODO: These might no longer be the case with the new traversal
+         // system.
         if (!!(trav.desc->type_flags & TypeFlags::NoRefsToChildren)) {
-            // Wait, never mind, don't scan under this.
-            return cb(trav, loc);
+             // Wait, never mind, don't scan under this.
+            scan_item(trav);
         }
-        if (trav.desc->preference() == DescFlags::PreferObject) {
+        else if (trav.desc->preference() == DescFlags::PreferObject) {
             if (trav.desc->keys_offset) {
-                return use_computed_attrs(trav, loc, cb);
+                use_computed_attrs(trav);
             }
-            else {
-                return use_attrs(trav, loc, cb);
-            }
+            else use_attrs(trav);
         }
         else if (trav.desc->preference() == DescFlags::PreferArray) {
             if (trav.desc->length_offset) {
                 if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
-                    return use_contiguous_elems(trav, loc, cb);
+                    use_contiguous_elems(trav);
                 }
-                else {
-                    return use_computed_elems(trav, loc, cb);
-                }
+                else use_computed_elems(trav);
             }
-            else {
-                return use_elems(trav, loc, cb);
-            }
+            else use_elems(trav);
         }
         else if (trav.desc->delegate_offset) {
-            return use_delegate(trav, loc, cb);
+            return use_delegate(trav);
         }
          // Down here, we aren't using the arguments any more, so the compiler
          // doesn't need to save them and we can tail call the cb
-        else return cb(trav, loc);
+        else scan_item(trav);
     }
 
     NOINLINE static
-    bool use_attrs (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-        if (cb(trav, loc)) return true;
+    void use_attrs (const ScanTraversal<>& trav) {
+        if (scan_item(trav)) [[unlikely]] return;
         expect(trav.desc->attrs_offset);
         auto attrs = trav.desc->attrs();
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
              // Not discarding invisible attrs for scan purposes.
             auto acr = attr->acr();
-             // Behave as though all included attrs are included (collapse the
-             // location segment for the included attr).
-            auto child_loc = !!(acr->attr_flags & AttrFlags::Include)
-                ? SharedLocation(loc) : SharedLocation(loc, attr->key);
+            SharedLocation child_loc;
              // TODO: verify that the child item is object-like.
-            bool r = false; // init in case only_addressable skips cb
-            trav_attr(trav, acr, attr->key, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+            ScanTraversal<AttrTraversal3> child;
+            child.context = trav.context;
+            if (!!(acr->attr_flags & AttrFlags::Include)) {
+                 // Behave as though all included attrs are included (collapse
+                 // the location segment for the included attr).
+                child.loc = trav.loc;
+            }
+            else {
+                child_loc = SharedLocation(trav.loc, attr->key);
+                child.loc = child_loc;
+            }
+            trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
+            if (child.context->done) [[unlikely]] return;
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_computed_attrs (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-        if (cb(trav, loc)) return true;
+    void use_computed_attrs (const ScanTraversal<>& trav) {
+        if (scan_item(trav)) [[unlikely]] return;
         expect(trav.desc->keys_offset);
         auto keys_acr = trav.desc->keys_acr();
          // Get list of keys
         AnyArray<AnyString> keys;
+         // TODO: better
         keys_acr->read(*trav.address, [&keys](Mu& v){
             new (&keys) AnyArray<AnyString>(
                 reinterpret_cast<const AnyArray<AnyString>&>(v)
@@ -157,79 +169,49 @@ struct TraverseScan {
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
-            auto child_loc = SharedLocation(loc, key);
-            bool r = false;
-            trav_computed_attr(trav, ref, f, key, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+            auto child_loc = SharedLocation(trav.loc, key);
+            ScanTraversal<ComputedAttrTraversal3> child;
+            child.context = trav.context;
+            child.loc = child_loc;
+            trav_computed_attr<visit>(
+                child, trav, ref, f, key, AccessMode::Read
+            );
+            if (child.context->done) [[unlikely]] return;
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_elems (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-        if (cb(trav, loc)) return true;
+    void use_elems (const ScanTraversal<>& trav) {
+        if (scan_item(trav)) [[unlikely]] return;
         expect(trav.desc->elems_offset);
         auto elems = trav.desc->elems();
         for (uint i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
-             // It'd be weird to specify collapse_optional for non-computed
-             // elems, but it's valid.
-            auto child_loc = trav.collapse_optional
-                ? SharedLocation(loc) : SharedLocation(loc, i);
-             // TODO: verify that the child item is array-like.
-            bool r = false;
-            trav_elem(trav, acr, i, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
-        }
-        return false;
-    }
-
-    NOINLINE static
-    bool use_contiguous_elems (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-        if (cb(trav, loc)) return true;
-        expect(trav.desc->length_offset);
-        auto length_acr = trav.desc->length_acr();
-        usize len;
-        length_acr->read(*trav.address, [&len](Mu& v){
-            len = reinterpret_cast<usize&>(v);
-        });
-        if (len) {
-            expect(trav.desc->contiguous_elems_offset);
-            auto f = trav.desc->contiguous_elems()->f;
-            auto ptr = f(*trav.address);
-            auto child_desc = DescriptionPrivate::get(ptr.type);
-            for (usize i = 0; i < len; i++) {
-                auto child_loc = trav.collapse_optional
-                    ? SharedLocation(loc) : SharedLocation(loc, i);
-                bool r = false;
-                trav_contiguous_elem(trav, ptr, f, i, AccessMode::Read,
-                    [&r, child_loc, cb](const Traversal& child)
-                { r = traverse(child, child_loc, cb); });
-                if (r) return true;
-                ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
+            SharedLocation child_loc;
+            ScanTraversal<ElemTraversal3> child;
+            child.context = trav.context;
+            if (trav.collapse_optional) {
+                 // It'd be weird to specify collapse_optional when the child
+                 // item uses non-computed elems, but it's valid.  TODO: assert
+                 // that there aren't multiple elems?
+                child.loc = trav.loc;
             }
+            else {
+                child_loc = SharedLocation(trav.loc, i);
+                child.loc = child_loc;
+            }
+             // TODO: verify that the child item is array-like.
+            trav_elem<visit>(child, trav, acr, i, AccessMode::Read);
+            if (child.context->done) [[unlikely]] return;
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_computed_elems (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-        if (cb(trav, loc)) return true;
+    void use_computed_elems (const ScanTraversal<>& trav) {
+        if (scan_item(trav)) [[unlikely]] return;
         expect(trav.desc->length_offset);
+         // TODO: deduplicate
         auto length_acr = trav.desc->length_acr();
         usize len;
         length_acr->read(*trav.address, [&len](Mu& v){
@@ -240,30 +222,65 @@ struct TraverseScan {
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            SharedLocation child_loc = trav.collapse_optional
-                ? SharedLocation(loc) : SharedLocation(loc, i);
-            bool r = false;
-            trav_computed_elem(trav, ref, f, i, AccessMode::Read,
-                [&r, child_loc, cb](const Traversal& child)
-            { r = traverse(child, child_loc, cb); });
-            if (r) return true;
+            SharedLocation child_loc;
+            ScanTraversal<ComputedElemTraversal3> child;
+            child.context = trav.context;
+            if (trav.collapse_optional) {
+                child.loc = trav.loc;
+            }
+            else {
+                child_loc = SharedLocation(trav.loc, i);
+                child.loc = child_loc;
+            }
+            trav_computed_elem<visit>(
+                child, trav, ref, f, i, AccessMode::Read
+            );
+            if (child.context->done) [[unlikely]] return;
         }
-        return false;
     }
 
     NOINLINE static
-    bool use_delegate (
-        const Traversal& trav, LocationRef loc,
-        CallbackRef<bool(const Traversal&, LocationRef)> cb
-    ) {
-        if (cb(trav, loc)) return true;
+    void use_contiguous_elems (const ScanTraversal<>& trav) {
+        if (scan_item(trav)) [[unlikely]] return;
+        expect(trav.desc->length_offset);
+        auto length_acr = trav.desc->length_acr();
+        usize len;
+        length_acr->read(*trav.address, [&len](Mu& v){
+            len = reinterpret_cast<usize&>(v);
+        });
+        if (len) {
+            expect(trav.desc->contiguous_elems_offset);
+            auto f = trav.desc->contiguous_elems()->f;
+            auto ptr = f(*trav.address);
+            for (usize i = 0; i < len; i++) {
+                SharedLocation child_loc;
+                ScanTraversal<ContiguousElemTraversal3> child;
+                child.context = trav.context;
+                if (trav.collapse_optional) {
+                    child.loc = trav.loc;
+                }
+                else {
+                    child_loc = SharedLocation(trav.loc, i);
+                    child.loc = child_loc;
+                }
+                trav_contiguous_elem<visit>(
+                    child, trav, ptr, f, i, AccessMode::Read
+                );
+                if (child.context->done) [[unlikely]] return;
+                ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
+            }
+        }
+    }
+
+    NOINLINE static
+    void use_delegate (const ScanTraversal<>& trav) {
+        if (scan_item(trav)) [[unlikely]] return;
+        ScanTraversal<DelegateTraversal3> child;
+        child.context = trav.context;
+        child.loc = trav.loc;
         expect(trav.desc->delegate_offset);
         auto acr = trav.desc->delegate_acr();
-        bool r = false;
-        trav_delegate(trav, acr, AccessMode::Read,
-            [&r, loc, cb](const Traversal& child)
-        { r = traverse(child, loc, cb); });
-        return r;
+        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
     }
 };
 
