@@ -310,7 +310,7 @@ void trav_delegate (
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
-NOINLINE inline
+inline
 AnyRef Traversal::to_reference () const noexcept {
     if (addressable) {
         return AnyPtr(Type(desc, readonly), address);

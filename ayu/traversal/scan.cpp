@@ -77,18 +77,20 @@ struct TraverseScan {
 
     static
     bool scan_item (const ScanTraversal<>& trav) {
-        return trav.context->done = trav.context->cb(trav);
+        bool done = trav.context->cb(trav);
+        if (done) [[unlikely]] trav.context->done = done;
+        return done;
     }
 
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const ScanTraversal<>&>(tr);
          // Although we always call the callback first, doing so requires saving
-         // and restoring all our arguments, which also prevents tail calls.  So
-         // we're doing it at the top of each execution function instead of at
-         // the top of this decision function.  The callback is expected to
-         // return true either rarely or never, so it's okay to delay checking
-         // its return a bit.
+         // and restoring all our arguments, which might also prevent tail
+         // calls.  So we're doing it at the top of each execution function
+         // instead of at the top of this decision function.  The callback is
+         // expected to return true either rarely or never, so it's okay to
+         // delay checking its return a bit.
          //
          // Also we're only checking offsets here, not converting them to
          // variables, because doing so before calling the cb would require
@@ -153,16 +155,17 @@ struct TraverseScan {
     NOINLINE static
     void use_computed_attrs (const ScanTraversal<>& trav) {
         if (scan_item(trav)) [[unlikely]] return;
-        expect(trav.desc->keys_offset);
-        auto keys_acr = trav.desc->keys_acr();
          // Get list of keys
         AnyArray<AnyString> keys;
-         // TODO: better
-        keys_acr->read(*trav.address, [&keys](Mu& v){
+        expect(trav.desc->keys_offset);
+        auto keys_acr = trav.desc->keys_acr();
+        keys_acr->read(*trav.address, CallbackRef<void(Mu&)>(
+            keys, [](auto& keys, Mu& v)
+        {
             new (&keys) AnyArray<AnyString>(
                 reinterpret_cast<const AnyArray<AnyString>&>(v)
             );
-        });
+        }));
         expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
          // Now scan for each key
@@ -191,7 +194,7 @@ struct TraverseScan {
             SharedLocation child_loc;
             ScanTraversal<ElemTraversal> child;
             child.context = trav.context;
-            if (trav.collapse_optional) {
+            if (trav.collapse_optional) [[unlikely]] {
                  // It'd be weird to specify collapse_optional when the child
                  // item uses non-computed elems, but it's valid.  TODO: assert
                  // that there aren't multiple elems?
@@ -207,16 +210,21 @@ struct TraverseScan {
         }
     }
 
+    static
+    usize read_length (const ScanTraversal<>& trav) {
+        expect(trav.desc->length_offset);
+        auto length_acr = trav.desc->length_acr();
+        usize len;
+        length_acr->read(*trav.address, CallbackRef<void(Mu& v)>(
+            len, [](usize& len, Mu& v)
+        { len = reinterpret_cast<usize&>(v); }));
+        return len;
+    }
+
     NOINLINE static
     void use_computed_elems (const ScanTraversal<>& trav) {
         if (scan_item(trav)) [[unlikely]] return;
-        expect(trav.desc->length_offset);
-         // TODO: deduplicate
-        auto length_acr = trav.desc->length_acr();
-        usize len;
-        length_acr->read(*trav.address, [&len](Mu& v){
-            len = reinterpret_cast<usize&>(v);
-        });
+        usize len = read_length(trav);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < len; i++) {
@@ -242,33 +250,27 @@ struct TraverseScan {
     NOINLINE static
     void use_contiguous_elems (const ScanTraversal<>& trav) {
         if (scan_item(trav)) [[unlikely]] return;
-        expect(trav.desc->length_offset);
-        auto length_acr = trav.desc->length_acr();
-        usize len;
-        length_acr->read(*trav.address, [&len](Mu& v){
-            len = reinterpret_cast<usize&>(v);
-        });
-        if (len) {
-            expect(trav.desc->contiguous_elems_offset);
-            auto f = trav.desc->contiguous_elems()->f;
-            auto ptr = f(*trav.address);
-            for (usize i = 0; i < len; i++) {
-                SharedLocation child_loc;
-                ScanTraversal<ContiguousElemTraversal> child;
-                child.context = trav.context;
-                if (trav.collapse_optional) {
-                    child.loc = trav.loc;
-                }
-                else {
-                    child_loc = SharedLocation(trav.loc, i);
-                    child.loc = child_loc;
-                }
-                trav_contiguous_elem<visit>(
-                    child, trav, ptr, f, i, AccessMode::Read
-                );
-                if (child.context->done) [[unlikely]] return;
-                ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
+        usize len = read_length(trav);
+        if (!len) return;
+        expect(trav.desc->contiguous_elems_offset);
+        auto f = trav.desc->contiguous_elems()->f;
+        auto ptr = f(*trav.address);
+        for (usize i = 0; i < len; i++) {
+            SharedLocation child_loc;
+            ScanTraversal<ContiguousElemTraversal> child;
+            child.context = trav.context;
+            if (trav.collapse_optional) {
+                child.loc = trav.loc;
             }
+            else {
+                child_loc = SharedLocation(trav.loc, i);
+                child.loc = child_loc;
+            }
+            trav_contiguous_elem<visit>(
+                child, trav, ptr, f, i, AccessMode::Read
+            );
+            if (child.context->done) [[unlikely]] return;
+            ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
         }
     }
 
@@ -304,7 +306,9 @@ bool get_location_cache () {
             return false;
         });
         plog("Generate location cache sort");
-        std::sort(location_cache.begin(), location_cache.end(),
+         // Disable refcounting while sorting
+        auto uncounted = location_cache.reinterpret<Pair<AnyPtr, LocationRef>>();
+        std::sort(uncounted.begin(), uncounted.end(),
             [](const auto& a, const auto& b){ return a.first < b.first; }
         );
         have_location_cache = true;
