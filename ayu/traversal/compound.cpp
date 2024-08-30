@@ -1,7 +1,7 @@
 #include "compound.h"
 
 #include "../reflection/descriptors.private.h"
-#include "traversal3.private.h"
+#include "traversal.private.h"
 
 namespace ayu {
 namespace in {
@@ -12,7 +12,7 @@ struct GetKeysTraversalHead {
     UniqueArray<AnyString>* keys;
 };
 
-template <class T = Traversal3>
+template <class T = Traversal>
 struct GetKeysTraversal : GetKeysTraversalHead, T { };
 
 struct TraverseGetKeys {
@@ -21,7 +21,7 @@ struct TraverseGetKeys {
     UniqueArray<AnyString> start (const AnyRef& item, LocationRef loc) {
          // TODO: skip traversal if item is addressable and uses computed_attrs
         UniqueArray<AnyString> keys;
-        GetKeysTraversal<StartTraversal3> child;
+        GetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
         trav_start<visit>(child, item, loc, false, AccessMode::Read);
         return keys;
@@ -40,7 +40,7 @@ struct TraverseGetKeys {
     }
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetKeysTraversal<>&>(tr);
         if (auto acr = trav.desc->keys_acr()) {
             use_computed_attrs(trav, acr);
@@ -63,7 +63,7 @@ struct TraverseGetKeys {
             auto acr = attr->acr();
             if (!!(acr->attr_flags & AttrFlags::Invisible)) continue;
             if (!!(acr->attr_flags & AttrFlags::Include)) {
-                GetKeysTraversal<AttrTraversal3> child;
+                GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
                 trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
             }
@@ -89,7 +89,7 @@ struct TraverseGetKeys {
     void use_delegate (
         const GetKeysTraversal<>& trav, const Accessor* acr
     ) {
-        GetKeysTraversal<DelegateTraversal3> child;
+        GetKeysTraversal<DelegateTraversal> child;
         child.keys = trav.keys;
         trav_delegate<visit>(child, trav, acr, AccessMode::Read);
     }
@@ -112,7 +112,7 @@ struct SetKeysTraversalHead {
      // Not const because this is a consuming algorithm
     UniqueArray<AnyString>* keys;
 };
-template <class T = Traversal3>
+template <class T = Traversal>
 struct SetKeysTraversal : SetKeysTraversalHead, T { };
 
 struct TraverseSetKeys {
@@ -122,7 +122,7 @@ struct TraverseSetKeys {
         const AnyRef& item, AnyArray<AnyString> ks, LocationRef loc
     ) {
         UniqueArray<AnyString> keys = move(ks);
-        SetKeysTraversal<StartTraversal3> child;
+        SetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
         trav_start<visit_and_verify>(child, item, loc, false, AccessMode::Read);
     }
@@ -143,7 +143,7 @@ struct TraverseSetKeys {
     }
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const SetKeysTraversal<>&>(tr);
         if (auto acr = trav.desc->keys_acr()) {
             if (!(acr->flags & AcrFlags::Readonly)) {
@@ -163,7 +163,7 @@ struct TraverseSetKeys {
     }
 
     NOINLINE static
-    void visit_and_verify (const Traversal3& tr) {
+    void visit_and_verify (const Traversal& tr) {
         visit(tr);
         auto& trav = static_cast<const SetKeysTraversal<>&>(tr);
         if (*trav.keys) raise_AttrRejected(trav.desc, (*trav.keys)[0]);
@@ -200,7 +200,7 @@ struct TraverseSetKeys {
             if (!!(acr->attr_flags & AttrFlags::Include)) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed[i]) continue;
-                GetKeysTraversal<AttrTraversal3> child;
+                GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
                 trav_attr<visit>(
                     child, trav, acr, attr->key, AccessMode::Write
@@ -266,7 +266,7 @@ struct TraverseSetKeys {
     void use_delegate (
         const SetKeysTraversal<>& trav, const Accessor* acr
     ) {
-        SetKeysTraversal<DelegateTraversal3> child;
+        SetKeysTraversal<DelegateTraversal> child;
         child.keys = trav.keys;
         trav_delegate<visit>(child, trav, acr, AccessMode::Write);
     }
@@ -287,10 +287,10 @@ struct ReturnRefTraversalHead {
     AnyRef* r;
 };
 
-template <class T = Traversal3>
+template <class T = Traversal>
 struct ReturnRefTraversal : ReturnRefTraversalHead, T { };
 
-void return_ref (const Traversal3& tr) {
+void return_ref (const Traversal& tr) {
     auto& trav = static_cast<const ReturnRefTraversal<>&>(tr);
     expect(!trav.r->acr);
     *trav.r = trav.to_reference();
@@ -300,7 +300,7 @@ struct GetAttrTraversalHead {
     const AnyString* get_key;
 };
 
-template <class T = Traversal3>
+template <class T = Traversal>
 struct GetAttrTraversal : GetAttrTraversalHead, ReturnRefTraversal<T> { };
 
 struct TraverseAttr {
@@ -310,7 +310,7 @@ struct TraverseAttr {
     ) {
          // TODO: skip the traversal system if we're using computed attrs
         AnyRef r;
-        GetAttrTraversal<StartTraversal3> child;
+        GetAttrTraversal<StartTraversal> child;
         child.get_key = &key;
         child.r = &r;
         trav_start<visit>(child, item, loc, false, AccessMode::Read);
@@ -318,7 +318,7 @@ struct TraverseAttr {
     }
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetAttrTraversal<>&>(tr);
         if (trav.desc->keys_offset) {
             return use_computed_attrs(trav);
@@ -340,7 +340,7 @@ struct TraverseAttr {
         for (uint i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->key == *trav.get_key) {
-                ReturnRefTraversal<AttrTraversal3> child;
+                ReturnRefTraversal<AttrTraversal> child;
                 child.r = trav.r;
                 trav_attr<return_ref>(
                     child, trav, attr->acr(), attr->key, AccessMode::Read
@@ -353,7 +353,7 @@ struct TraverseAttr {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (!!(acr->attr_flags & AttrFlags::Include)) {
-                GetAttrTraversal<AttrTraversal3> child;
+                GetAttrTraversal<AttrTraversal> child;
                 child.get_key = trav.get_key;
                 child.r = trav.r;
                 trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
@@ -368,7 +368,7 @@ struct TraverseAttr {
         expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
         if (AnyRef ref = f(*trav.address, *trav.get_key)) {
-            ReturnRefTraversal<ComputedAttrTraversal3> child;
+            ReturnRefTraversal<ComputedAttrTraversal> child;
             child.r = trav.r;
             trav_computed_attr<return_ref>(
                 child, trav, move(ref), f, *trav.get_key, AccessMode::Read
@@ -380,7 +380,7 @@ struct TraverseAttr {
     void use_delegate (
         const GetAttrTraversal<>& trav, const Accessor* acr
     ) {
-        GetAttrTraversal<DelegateTraversal3> child;
+        GetAttrTraversal<DelegateTraversal> child;
         child.get_key = trav.get_key;
         child.r = trav.r;
         trav_delegate<visit>(child, trav, acr, AccessMode::Read);
@@ -522,7 +522,7 @@ struct GetElemTraversalHead {
     usize index;
 };
 
-template <class T = Traversal3>
+template <class T = Traversal>
 struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
 
  // TODO: Skip the traversal system for some cases
@@ -531,7 +531,7 @@ struct TraverseElem {
     NOINLINE static
     AnyRef start (const AnyRef& item, usize index, LocationRef loc) {
         AnyRef r;
-        GetElemTraversal<StartTraversal3> child;
+        GetElemTraversal<StartTraversal> child;
         child.index = index;
         child.r = &r;
         trav_start<visit>(child, item, loc, false, AccessMode::Read);
@@ -539,7 +539,7 @@ struct TraverseElem {
     }
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetElemTraversal<>&>(tr);
         if (auto length = trav.desc->length_acr()) {
             if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
@@ -564,7 +564,7 @@ struct TraverseElem {
     ) {
         if (trav.index > elems->n_elems) return;
         auto acr = elems->elem(trav.index)->acr();
-        ReturnRefTraversal<ElemTraversal3> child;
+        ReturnRefTraversal<ElemTraversal> child;
         child.r = trav.r;
         trav_elem<return_ref>(child, trav, acr, trav.index, AccessMode::Read);
     }
@@ -575,7 +575,7 @@ struct TraverseElem {
         auto f = trav.desc->computed_elems()->f;
         AnyRef ref = f(*trav.address, trav.index);
         if (!ref) return;
-        ReturnRefTraversal<ComputedElemTraversal3> child;
+        ReturnRefTraversal<ComputedElemTraversal> child;
         child.r = trav.r;
         trav_computed_elem<return_ref>(
             child, trav, ref, f, trav.index, AccessMode::Read
@@ -601,7 +601,7 @@ struct TraverseElem {
         ptr.address = (Mu*)(
             (char*)ptr.address + trav.index * ptr.type.cpp_size()
         );
-        ReturnRefTraversal<ContiguousElemTraversal3> child;
+        ReturnRefTraversal<ContiguousElemTraversal> child;
         child.r = trav.r;
         trav_contiguous_elem<return_ref>(
             child, trav, ptr, f, trav.index, AccessMode::Read
@@ -612,7 +612,7 @@ struct TraverseElem {
     void use_delegate (
         const GetElemTraversal<>& trav, const Accessor* acr
     ) {
-        GetElemTraversal<DelegateTraversal3> child;
+        GetElemTraversal<DelegateTraversal> child;
         child.index = trav.index;
         child.r = trav.r;
         trav_delegate<visit>(child, trav, acr, AccessMode::Read);

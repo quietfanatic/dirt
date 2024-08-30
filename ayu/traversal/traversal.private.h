@@ -29,6 +29,7 @@ enum class TraversalOp : uint8 {
 struct Traversal {
     const Traversal* parent;
     const DescriptionPrivate* desc;
+    TraversalOp op;
      // This address is not guaranteed to be permanently valid unless
      // addressable is set.
     Mu* address;
@@ -47,7 +48,7 @@ struct Traversal {
      // Set if parent->children_addressable and pass_through_addressable.  This
      // can go from on to off, but never from off to on.
     bool children_addressable;
-    TraversalOp op;
+
     AnyRef to_reference () const noexcept;
     AnyRef to_reference_parent_addressable () const noexcept;
     AnyRef to_reference_chain () const noexcept;
@@ -66,6 +67,10 @@ struct AcrTraversal : Traversal {
     const Accessor* acr;
 };
 
+struct RefTraversal : Traversal { };
+
+struct PtrTraversal : Traversal { };
+
 struct DelegateTraversal : AcrTraversal { };
 
 struct AttrTraversal : AcrTraversal {
@@ -76,34 +81,40 @@ struct ElemTraversal : AcrTraversal {
     usize index;
 };
 
-struct AttrFuncTraversal : Traversal {
+struct ComputedAttrTraversal : RefTraversal {
     AttrFunc<Mu>* func;
     const AnyString* key;
 };
 
-struct ElemFuncTraversal : Traversal {
+struct ComputedElemTraversal : RefTraversal {
     ElemFunc<Mu>* func;
     usize index;
 };
 
-struct DataFuncTraversal : Traversal {
+struct ContiguousElemTraversal : PtrTraversal {
     DataFunc<Mu>* func;
     usize index;
 };
 
-template <class Base, class CB>
-struct CBTraversal : Base {
-    CB* callback;
-};
+using VisitFunc = void(const Traversal&);
 
-template <class CB>
-static void trav_start (
-    const AnyRef& ref, LocationRef loc, bool only_addressable,
-    AccessMode mode, CB&& cb
-) {
+ // All the lambdas in these functions were identical, so deduplicate them into
+ // this function.  It's only two instructions long but it's still better for
+ // branch prediction for it not to be duplicated.
+template <VisitFunc& visit>
+void set_address_and_visit (Traversal& child, Mu& v) {
+    child.address = &v;
+    visit(child);
+}
+
+ // These should always be inlined, because they have a lot of parameters, and
+ // their callers are prepared to allocate a lot of stack for them.
+template <VisitFunc& visit> ALWAYS_INLINE
+void trav_start (
+    StartTraversal& child,
+    const AnyRef& ref, LocationRef loc, bool only_addressable, AccessMode mode
+) try {
     expect(ref);
-    CBTraversal<StartTraversal, std::remove_reference_t<CB>> child;
-    try {
 
     child.parent = null;
     child.readonly = ref.host.type.readonly();
@@ -122,7 +133,7 @@ static void trav_start (
         child.address = ref.host.address;
         child.addressable = true;
         child.children_addressable = true;
-        cb(child);
+        visit(child);
     }
     else {
         child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
@@ -131,33 +142,25 @@ static void trav_start (
         if (child.address) {
             child.addressable = true;
             child.children_addressable = true;
-            cb(child);
+            visit(child);
         }
         else {
             child.addressable = false;
             child.children_addressable =
                 !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
             if (!child.only_addressable || child.children_addressable) {
-                 // Optimize callback storage by using the stack object we
-                 // already have as a closure, instead of making a new one.
-                child.callback = &cb;
                 ref.access(mode, CallbackRef<void(Mu&)>(
-                    child, [](CBTraversal<StartTraversal, CB>& child, Mu& v)
-                {
-                    child.address = &v;
-                    (*child.callback)(child);
-                }));
+                    static_cast<Traversal&>(child), &set_address_and_visit<visit>
+                ));
             }
         }
     }
+} catch (...) { child.wrap_exception(); }
 
-    } catch (...) { child.wrap_exception(); }
-}
-
-template <class Child, class CB>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_acr (
-    const Traversal& parent, Child& child,
-    const Accessor* acr, AccessMode mode, CB&& cb
+    AcrTraversal& child, const Traversal& parent,
+    const Accessor* acr, AccessMode mode
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
@@ -169,29 +172,25 @@ void trav_acr (
     if (child.address) [[likely]] {
         child.addressable = parent.children_addressable;
         child.children_addressable = parent.children_addressable;
-        cb(child);
+        visit(child);
     }
     else {
         child.addressable = false;
         child.children_addressable = parent.children_addressable &
             !!(acr->flags & AcrFlags::PassThroughAddressable);
         if (!child.only_addressable || child.children_addressable) {
-            child.callback = &cb;
             acr->access(mode, *parent.address, CallbackRef<void(Mu&)>(
-                child, [](Child& child, Mu& v)
-            {
-                child.address = &v;
-                (*child.callback)(child);
-            }));
+                static_cast<Traversal&>(child), &set_address_and_visit<visit>
+            ));
         }
     }
 }
-catch (...) { parent.wrap_exception(); }
+catch (...) { child.wrap_exception(); }
 
-template <class Child, class CB>
-void trav_reference (
-    const Traversal& parent, Child& child,
-    const AnyRef& ref, AccessMode mode, CB&& cb
+template <VisitFunc& visit> ALWAYS_INLINE
+void trav_ref (
+    RefTraversal& child, const Traversal& parent,
+    const AnyRef& ref, AccessMode mode
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ref.host.type.readonly();
@@ -202,7 +201,7 @@ void trav_reference (
         child.address = ref.host.address;
         child.addressable = parent.children_addressable;
         child.children_addressable = parent.children_addressable;
-        cb(child);
+        visit(child);
     }
     else {
         child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
@@ -211,30 +210,26 @@ void trav_reference (
         if (child.address) {
             child.addressable = parent.children_addressable;
             child.children_addressable = parent.children_addressable;
-            cb(child);
+            visit(child);
         }
         else {
             child.addressable = false;
             child.children_addressable = parent.children_addressable &
                 !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
             if (!child.only_addressable || child.children_addressable) {
-                child.callback = &cb;
                 ref.access(mode, CallbackRef<void(Mu&)>(
-                    child, [](Child& child, Mu& v)
-                {
-                    child.address = &v;
-                    (*child.callback)(child);
-                }));
+                    static_cast<Traversal&>(child), &set_address_and_visit<visit>
+                ));
             }
         }
     }
 }
-catch (...) { parent.wrap_exception(); }
+catch (...) { child.wrap_exception(); }
 
-template <class Child, class CB>
-void trav_pointer (
-    const Traversal& parent, Child& child,
-    AnyPtr ptr, AccessMode, CB&& cb
+template <VisitFunc& visit> ALWAYS_INLINE
+void trav_ptr (
+    PtrTraversal& child, const Traversal& parent,
+    AnyPtr ptr, AccessMode
 ) try {
     child.parent = &parent;
     child.readonly = parent.readonly | ptr.type.readonly();
@@ -244,84 +239,78 @@ void trav_pointer (
     child.address = ptr.address;
     child.addressable = parent.children_addressable;
     child.children_addressable = parent.children_addressable;
-    cb(child);
+    visit(child);
 }
-catch (...) { parent.wrap_exception(); }
+catch (...) { child.wrap_exception(); }
 
-template <class CB>
-void trav_delegate (
-    const Traversal& parent, const Accessor* acr, AccessMode mode, CB&& cb
+template <VisitFunc& visit> ALWAYS_INLINE
+void trav_attr (
+    AttrTraversal& child, const Traversal& parent,
+    const Accessor* acr, const StaticString& key, AccessMode mode
 ) {
-    CBTraversal<DelegateTraversal, std::remove_reference_t<CB>> child;
-    child.op = TraversalOp::Delegate;
-    trav_acr(parent, child, acr, mode, cb);
+    child.op = TraversalOp::Attr;
+    child.key = &key;
+    trav_acr<visit>(child, parent, acr, mode);
 }
 
  // key is a reference instead of a pointer so that a temporary can be
  // passed in.  The pointer will be released when this function returns, so
  // no worry about a dangling pointer to a temporary.
-template <class CB>
-void trav_attr (
-    const Traversal& parent, const Accessor* acr, const StaticString& key,
-    AccessMode mode, CB&& cb
-) {
-    CBTraversal<AttrTraversal, std::remove_reference_t<CB>> child;
-    child.op = TraversalOp::Attr;
-    child.key = &key;
-    trav_acr(parent, child, acr, mode, std::forward<CB>(cb));
-}
-
-template <class CB>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_attr (
-    const Traversal& parent, const AnyRef& ref, AttrFunc<Mu>* func,
-    const AnyString& key, AccessMode mode, CB&& cb
+    ComputedAttrTraversal& child, const Traversal& parent,
+    const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessMode mode
 ) {
-    CBTraversal<AttrFuncTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::ComputedAttr;
     child.func = func;
     child.key = &key;
-    trav_reference(parent, child, ref, mode, cb);
+    trav_ref<visit>(child, parent, ref, mode);
 }
 
-template <class CB>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_elem (
-    const Traversal& parent, const Accessor* acr, usize index,
-    AccessMode mode, CB&& cb
+    ElemTraversal& child, const Traversal& parent,
+    const Accessor* acr, usize index, AccessMode mode
 ) {
-    CBTraversal<ElemTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::Elem;
     child.index = index;
-    trav_acr(parent, child, acr, mode, cb);
+    trav_acr<visit>(child, parent, acr, mode);
 }
 
-template <class CB>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_elem (
-    const Traversal& parent, const AnyRef& ref, ElemFunc<Mu>* func,
-    usize index, AccessMode mode, CB&& cb
+    ComputedElemTraversal& child, const Traversal& parent,
+    const AnyRef& ref, ElemFunc<Mu>* func, usize index, AccessMode mode
 ) {
-    CBTraversal<ElemFuncTraversal, std::remove_reference_t<CB>> child;
     child.op = TraversalOp::ComputedElem;
     child.func = func;
     child.index = index;
-    trav_reference(parent, child, ref, mode, cb);
+    trav_ref<visit>(child, parent, ref, mode);
 }
 
-template <class CB>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_contiguous_elem (
-    const Traversal& parent, AnyPtr ptr, DataFunc<Mu>* func,
-    usize index, AccessMode mode, CB&& cb
+    ContiguousElemTraversal& child, const Traversal& parent,
+    AnyPtr ptr, DataFunc<Mu>* func, usize index, AccessMode mode
 ) {
-     // Don't need to store the CB
-    DataFuncTraversal child;
     child.op = TraversalOp::ContiguousElem;
     child.func = func;
     child.index = index;
-    trav_pointer(parent, child, ptr, mode, cb);
+    trav_ptr<visit>(child, parent, ptr, mode);
+}
+
+template <VisitFunc& visit> ALWAYS_INLINE
+void trav_delegate (
+    DelegateTraversal& child, const Traversal& parent,
+    const Accessor* acr, AccessMode mode
+) {
+    child.op = TraversalOp::Delegate;
+    trav_acr<visit>(child, parent, acr, mode);
 }
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
-inline
+NOINLINE inline
 AnyRef Traversal::to_reference () const noexcept {
     if (addressable) {
         return AnyPtr(Type(desc, readonly), address);
@@ -345,15 +334,15 @@ AnyRef Traversal::to_reference_parent_addressable () const noexcept {
             return AnyRef(AnyPtr(type, parent->address), self.acr);
         }
         case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const AttrFuncTraversal&>(*this);
+            auto& self = static_cast<const ComputedAttrTraversal&>(*this);
             return self.func(*parent->address, *self.key);
         }
         case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ElemFuncTraversal&>(*this);
+            auto& self = static_cast<const ComputedElemTraversal&>(*this);
             return self.func(*parent->address, self.index);
         }
         case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const DataFuncTraversal&>(*this);
+            auto& self = static_cast<const ContiguousElemTraversal&>(*this);
             auto data = self.func(*parent->address);
             auto desc = DescriptionPrivate::get(data.type);
             data.address = (Mu*)(
@@ -377,19 +366,19 @@ AnyRef Traversal::to_reference_chain () const noexcept {
             ));
         }
         case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const AttrFuncTraversal&>(*this);
+            auto& self = static_cast<const ComputedAttrTraversal&>(*this);
             return AnyRef(parent_ref.host, new ChainAttrFuncAcr(
                 parent_ref.acr, self.func, *self.key
             ));
         }
         case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ElemFuncTraversal&>(*this);
+            auto& self = static_cast<const ComputedElemTraversal&>(*this);
             return AnyRef(parent_ref.host, new ChainElemFuncAcr(
                 parent_ref.acr, self.func, self.index
             ));
         }
         case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const DataFuncTraversal&>(*this);
+            auto& self = static_cast<const ContiguousElemTraversal&>(*this);
             return AnyRef(parent_ref.host, new ChainDataFuncAcr(
                 parent_ref.acr, self.func, self.index
             ));
@@ -398,7 +387,7 @@ AnyRef Traversal::to_reference_chain () const noexcept {
     }
 }
 
-inline
+NOINLINE inline
 SharedLocation Traversal::to_location () const noexcept {
     if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
@@ -419,19 +408,21 @@ SharedLocation Traversal::to_location_chain () const noexcept {
             return SharedLocation(move(parent_loc), *self.key);
         }
         case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const AttrFuncTraversal&>(*this);
+            auto& self = static_cast<const ComputedAttrTraversal&>(*this);
             return SharedLocation(move(parent_loc), *self.key);
         }
+         // These three branches can technically be merged, hopefully the
+         // compiler does so.
         case TraversalOp::Elem: {
             auto& self = static_cast<const ElemTraversal&>(*this);
             return SharedLocation(move(parent_loc), self.index);
         }
         case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ElemFuncTraversal&>(*this);
+            auto& self = static_cast<const ComputedElemTraversal&>(*this);
             return SharedLocation(move(parent_loc), self.index);
         }
         case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const DataFuncTraversal&>(*this);
+            auto& self = static_cast<const ContiguousElemTraversal&>(*this);
             return SharedLocation(move(parent_loc), self.index);
         }
         default: never();

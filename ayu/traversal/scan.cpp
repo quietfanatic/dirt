@@ -6,7 +6,7 @@
 #include "../resources/universe.private.h"
 #include "compound.h"
 #include "location.h"
-#include "traversal3.private.h"
+#include "traversal.private.h"
 
 namespace ayu {
 namespace in {
@@ -18,7 +18,7 @@ struct ScanTraversalHead {
     LocationRef loc;
 };
 
-template <class T = Traversal3>
+template <class T = Traversal>
 struct ScanTraversal : ScanTraversalHead, T { };
 
 struct ScanContext {
@@ -47,7 +47,7 @@ struct TraverseScan {
                 }
             )
         };
-        ScanTraversal<StartTraversal3> child;
+        ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.loc = base_loc;
         trav_start<visit>(child, base_item, base_loc, true, AccessMode::Read);
@@ -67,7 +67,7 @@ struct TraverseScan {
                 }
             )
         };
-        ScanTraversal<StartTraversal3> child;
+        ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.loc = base_loc;
         trav_start<visit>(child, base_item, base_loc, false, AccessMode::Read);
@@ -81,7 +81,7 @@ struct TraverseScan {
     }
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const ScanTraversal<>&>(tr);
          // Although we always call the callback first, doing so requires saving
          // and restoring all our arguments, which also prevents tail calls.  So
@@ -134,7 +134,7 @@ struct TraverseScan {
             auto acr = attr->acr();
             SharedLocation child_loc;
              // TODO: verify that the child item is object-like.
-            ScanTraversal<AttrTraversal3> child;
+            ScanTraversal<AttrTraversal> child;
             child.context = trav.context;
             if (!!(acr->attr_flags & AttrFlags::Include)) {
                  // Behave as though all included attrs are included (collapse
@@ -170,7 +170,7 @@ struct TraverseScan {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
             auto child_loc = SharedLocation(trav.loc, key);
-            ScanTraversal<ComputedAttrTraversal3> child;
+            ScanTraversal<ComputedAttrTraversal> child;
             child.context = trav.context;
             child.loc = child_loc;
             trav_computed_attr<visit>(
@@ -189,7 +189,7 @@ struct TraverseScan {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
             SharedLocation child_loc;
-            ScanTraversal<ElemTraversal3> child;
+            ScanTraversal<ElemTraversal> child;
             child.context = trav.context;
             if (trav.collapse_optional) {
                  // It'd be weird to specify collapse_optional when the child
@@ -223,7 +223,7 @@ struct TraverseScan {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             SharedLocation child_loc;
-            ScanTraversal<ComputedElemTraversal3> child;
+            ScanTraversal<ComputedElemTraversal> child;
             child.context = trav.context;
             if (trav.collapse_optional) {
                 child.loc = trav.loc;
@@ -254,7 +254,7 @@ struct TraverseScan {
             auto ptr = f(*trav.address);
             for (usize i = 0; i < len; i++) {
                 SharedLocation child_loc;
-                ScanTraversal<ContiguousElemTraversal3> child;
+                ScanTraversal<ContiguousElemTraversal> child;
                 child.context = trav.context;
                 if (trav.collapse_optional) {
                     child.loc = trav.loc;
@@ -275,7 +275,7 @@ struct TraverseScan {
     NOINLINE static
     void use_delegate (const ScanTraversal<>& trav) {
         if (scan_item(trav)) [[unlikely]] return;
-        ScanTraversal<DelegateTraversal3> child;
+        ScanTraversal<DelegateTraversal> child;
         child.context = trav.context;
         child.loc = trav.loc;
         expect(trav.desc->delegate_offset);

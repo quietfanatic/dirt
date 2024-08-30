@@ -3,14 +3,14 @@
 #include "../reflection/descriptors.private.h"
 #include "compound.h"
 #include "scan.h"
-#include "traversal3.private.h"
+#include "traversal.private.h"
 
 namespace ayu {
 namespace in {
 
 static uint64 diagnostic_serialization = 0;
 
- // The subtypes in traversal3.private.h build the struct to the right (as is
+ // The subtypes in traversal.private.h build the struct to the right (as is
  // normal), so we'll build it to the left instead.
 struct ToTreeTraversalHead {
     Tree* dest;
@@ -19,7 +19,7 @@ struct ToTreeTraversalHead {
  // be able to static_cast to ToTreeTraversal<>.  This might technically be
  // forbidden by the spec, but it should work, assuming nothing messes with the
  // alignment.
-template <class T = Traversal3>
+template <class T = Traversal>
 struct ToTreeTraversal : ToTreeTraversalHead, T { };
 
  // These are only in a struct so we don't have to predeclare functions
@@ -32,7 +32,7 @@ struct TraverseToTree {
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         KeepLocationCache klc;
         Tree dest;
-        ToTreeTraversal<StartTraversal3> child;
+        ToTreeTraversal<StartTraversal> child;
         child.dest = &dest;
         trav_start<visit>(
             child, item, loc, false, AccessMode::Read
@@ -44,7 +44,7 @@ struct TraverseToTree {
 ///// PICK STRATEGY
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const ToTreeTraversal<>&>(tr);
         try {
              // The majority of items are [[likely]] to be atomic.
@@ -123,7 +123,7 @@ struct TraverseToTree {
             auto attr = attrs->attr(i);
             if (!!(attr->acr()->attr_flags & AttrFlags::Invisible)) continue;
 
-            ToTreeTraversal<AttrTraversal3> child;
+            ToTreeTraversal<AttrTraversal> child;
 
             child.dest = &object.emplace_back_expect_capacity(
                 attr->key, Tree()
@@ -233,7 +233,7 @@ struct TraverseToTree {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
 
-            ToTreeTraversal<ComputedAttrTraversal3> child;
+            ToTreeTraversal<ComputedAttrTraversal> child;
             child.dest = &object.emplace_back_expect_capacity(key, Tree()).second;
             trav_computed_attr<visit>(
                 child, trav, ref, f, key, AccessMode::Read
@@ -250,7 +250,7 @@ struct TraverseToTree {
         auto array = UniqueArray<Tree>(Capacity(len));
         for (uint i = 0; i < len; i++) {
             auto acr = elems->elem(i)->acr();
-            ToTreeTraversal<ElemTraversal3> child;
+            ToTreeTraversal<ElemTraversal> child;
             child.dest = &array.emplace_back_expect_capacity(Tree());
             trav_elem<visit>(
                 child, trav, acr, i, AccessMode::Read
@@ -279,7 +279,7 @@ struct TraverseToTree {
         for (usize i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            ToTreeTraversal<ComputedElemTraversal3> child;
+            ToTreeTraversal<ComputedElemTraversal> child;
             child.dest = &array.emplace_back_expect_capacity();
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Read
@@ -306,7 +306,7 @@ struct TraverseToTree {
              // TODO: move this below call
             auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < len; i++) {
-                ToTreeTraversal<ContiguousElemTraversal3> child;
+                ToTreeTraversal<ContiguousElemTraversal> child;
                 child.dest = &array.emplace_back_expect_capacity();
                 trav_contiguous_elem<visit>(
                     child, trav, ptr, f, i, AccessMode::Read
@@ -319,7 +319,7 @@ struct TraverseToTree {
 
     NOINLINE static
     void use_delegate (const ToTreeTraversal<>& trav, const Accessor* acr) {
-        ToTreeTraversal<DelegateTraversal3> child;
+        ToTreeTraversal<DelegateTraversal> child;
         child.dest = trav.dest;
         trav_delegate<visit>(child, trav, acr, AccessMode::Read);
         child.dest->flags |= child.acr->tree_flags();

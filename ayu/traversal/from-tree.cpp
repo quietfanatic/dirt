@@ -4,7 +4,7 @@
 #include "../reflection/descriptors.private.h"
 #include "../resources/resource.h"
 #include "compound.h"  // for error codes
-#include "traversal3.private.h"
+#include "traversal.private.h"
 
 namespace ayu {
 namespace in {
@@ -73,9 +73,9 @@ struct FromTreeTraversalHead {
 struct ClaimAttrsTraversalHead {
     uint32* next_list;
 };
-template <class T = Traversal3>
+template <class T = Traversal>
 struct FromTreeTraversal : FromTreeTraversalHead, T { };
-template <class T = Traversal3>
+template <class T = Traversal>
 struct ClaimAttrsTraversal :
     ClaimAttrsTraversalHead, FromTreeTraversal<T>
 { };
@@ -123,7 +123,7 @@ struct TraverseFromTree {
         const AnyRef& item, const Tree& tree, LocationRef loc
     ) {
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
-        FromTreeTraversal<StartTraversal3> child;
+        FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
         trav_start<visit>(child, item, loc, false, AccessMode::Write);
     }
@@ -174,7 +174,7 @@ struct TraverseFromTree {
 ///// PICK STRATEGY
 
     NOINLINE static
-    void visit (const Traversal3& tr) {
+    void visit (const Traversal& tr) {
         auto& trav = static_cast<const FromTreeTraversal<>&>(tr);
         if (trav.readonly) {
             raise(e_General, "Tried to do from_tree operation on a readonly reference?");
@@ -382,7 +382,7 @@ struct TraverseFromTree {
     }
 
     NOINLINE static
-    void claim_attrs (const Traversal3& tr) {
+    void claim_attrs (const Traversal& tr) {
         auto& trav = static_cast<const ClaimAttrsTraversal<>&>(tr);
         if (auto keys = trav.desc->keys_acr()) {
             claim_attrs_use_computed_attrs(trav, trav.next_list, keys);
@@ -416,7 +416,7 @@ struct TraverseFromTree {
                 if (key == attr->key) {
                     if (!(flags & AttrFlags::Ignored)) {
                         Tree singleton;
-                        FromTreeTraversal<AttrTraversal3> child;
+                        FromTreeTraversal<AttrTraversal> child;
                         if (!!(flags & AttrFlags::CollapseOptional)) {
                             child.tree = &(singleton = Tree::array(value));
                         }
@@ -433,7 +433,7 @@ struct TraverseFromTree {
              // No match, try including, optional, collapsing
             if (!!(flags & AttrFlags::Include)) {
                  // Included.  Recurse with the same tree.
-                ClaimAttrsTraversal<AttrTraversal3> child;
+                ClaimAttrsTraversal<AttrTraversal> child;
                 child.next_list = next_list;
                 child.tree = trav.tree;
                 trav_attr<claim_attrs>(
@@ -444,7 +444,7 @@ struct TraverseFromTree {
                  // Leave the attribute in its default-constructed state.
             }
             else {
-                FromTreeTraversal<AttrTraversal3> child;
+                FromTreeTraversal<AttrTraversal> child;
                 if (!!(flags & AttrFlags::CollapseOptional)) {
                      // If the attribute was not provided and has
                      // collapse_optional set, deserialize the item with an
@@ -496,7 +496,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, uint32* next_list,
         const Accessor* acr
     ) {
-        ClaimAttrsTraversal<DelegateTraversal3> child;
+        ClaimAttrsTraversal<DelegateTraversal> child;
         child.next_list = next_list;
         child.tree = trav.tree;
         trav_delegate<claim_attrs>(child, trav, acr, AccessMode::Write);
@@ -580,7 +580,7 @@ struct TraverseFromTree {
         auto& [key, value] = pair;
         AnyRef ref = f(*trav.address, key);
         if (!ref) raise_AttrNotFound(trav.desc, key);
-        FromTreeTraversal<ComputedAttrTraversal3> child;
+        FromTreeTraversal<ComputedAttrTraversal> child;
         child.tree = &value;
         trav_computed_attr<visit>(child, trav, ref, f, key, AccessMode::Write);
     }
@@ -601,7 +601,7 @@ struct TraverseFromTree {
         for (usize i = 0; i < array.size(); i++) {
             auto acr = elems->elem(i)->acr();
             if (!!(acr->attr_flags & AttrFlags::Ignored)) continue;
-            FromTreeTraversal<ElemTraversal3> child;
+            FromTreeTraversal<ElemTraversal> child;
             child.tree = &array[i];
             trav_elem<visit>(child, trav, acr, i, AccessMode::Write);
         }
@@ -646,7 +646,7 @@ struct TraverseFromTree {
         for (usize i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            FromTreeTraversal<ComputedElemTraversal3> child;
+            FromTreeTraversal<ComputedElemTraversal> child;
             child.tree = &array[i];
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Write
@@ -667,7 +667,7 @@ struct TraverseFromTree {
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
             for (usize i = 0; i < array.size(); i++) {
-                FromTreeTraversal<ContiguousElemTraversal3> child;
+                FromTreeTraversal<ContiguousElemTraversal> child;
                 child.tree = &array[i];
                 trav_contiguous_elem<visit>(
                     child, trav, ptr, f, i, AccessMode::Write
@@ -715,7 +715,7 @@ struct TraverseFromTree {
     void use_delegate (
         const FromTreeTraversal<>& trav, const Accessor* acr
     ) {
-        FromTreeTraversal<DelegateTraversal3> child;
+        FromTreeTraversal<DelegateTraversal> child;
         child.tree = trav.tree;
         trav_delegate<visit>(child, trav, acr, AccessMode::Write);
         finish_item(trav);
