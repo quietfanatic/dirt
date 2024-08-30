@@ -107,7 +107,9 @@ void set_address_and_visit (Traversal3& child, Mu& v) {
     visit(child);
 }
 
-template <VisitFunc& visit>
+ // These should always be inlined, because they have a lot of parameters, and
+ // their callers are prepared to allocate a lot of stack for them.
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
     StartTraversal3& child,
     const AnyRef& ref, LocationRef loc, bool only_addressable, AccessMode mode
@@ -155,7 +157,7 @@ void trav_start (
     }
 } catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_acr (
     AcrTraversal3& child, const Traversal3& parent,
     const Accessor* acr, AccessMode mode
@@ -183,10 +185,9 @@ void trav_acr (
         }
     }
 }
- // TODO: catch on child?
-catch (...) { parent.wrap_exception(); }
+catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ref (
     RefTraversal3& child, const Traversal3& parent,
     const AnyRef& ref, AccessMode mode
@@ -223,9 +224,9 @@ void trav_ref (
         }
     }
 }
-catch (...) { parent.wrap_exception(); }
+catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ptr (
     PtrTraversal3& child, const Traversal3& parent,
     AnyPtr ptr, AccessMode
@@ -240,9 +241,9 @@ void trav_ptr (
     child.children_addressable = parent.children_addressable;
     visit(child);
 }
-catch (...) { parent.wrap_exception(); }
+catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_attr (
     AttrTraversal3& child, const Traversal3& parent,
     const Accessor* acr, const StaticString& key, AccessMode mode
@@ -255,7 +256,7 @@ void trav_attr (
  // key is a reference instead of a pointer so that a temporary can be
  // passed in.  The pointer will be released when this function returns, so
  // no worry about a dangling pointer to a temporary.
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_attr (
     ComputedAttrTraversal3& child, const Traversal3& parent,
     const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessMode mode
@@ -266,7 +267,7 @@ void trav_computed_attr (
     trav_ref<visit>(child, parent, ref, mode);
 }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_elem (
     ElemTraversal3& child, const Traversal3& parent,
     const Accessor* acr, usize index, AccessMode mode
@@ -276,7 +277,7 @@ void trav_elem (
     trav_acr<visit>(child, parent, acr, mode);
 }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_elem (
     ComputedElemTraversal3& child, const Traversal3& parent,
     const AnyRef& ref, ElemFunc<Mu>* func, usize index, AccessMode mode
@@ -287,7 +288,7 @@ void trav_computed_elem (
     trav_ref<visit>(child, parent, ref, mode);
 }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_contiguous_elem (
     ContiguousElemTraversal3& child, const Traversal3& parent,
     AnyPtr ptr, DataFunc<Mu>* func, usize index, AccessMode mode
@@ -298,7 +299,7 @@ void trav_contiguous_elem (
     trav_ptr<visit>(child, parent, ptr, mode);
 }
 
-template <VisitFunc& visit>
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_delegate (
     DelegateTraversal3& child, const Traversal3& parent,
     const Accessor* acr, AccessMode mode

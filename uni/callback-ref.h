@@ -78,7 +78,7 @@ struct CallbackRef<Ret(Args...)> {
  // Complains about casting function taking reference to function taking void*.
  // These are compatible in every ABI I'm aware of.
 #pragma GCC diagnostic ignored "-Wcast-function-type"
-     // If your're only capturing a single thing, this will be more efficient
+     // If you're only capturing a single thing, this will be more efficient
      // than using a lambda (which may use more stack space).
      //
      // The C&& is a forwarding reference, so the context can be a const C&, a

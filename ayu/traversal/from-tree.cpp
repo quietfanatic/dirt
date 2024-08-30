@@ -443,26 +443,23 @@ struct TraverseFromTree {
             else if (!!(flags & (AttrFlags::Optional|AttrFlags::Ignored))) {
                  // Leave the attribute in its default-constructed state.
             }
-             // TODO: merge these branches
-            else if (!!(flags & AttrFlags::CollapseOptional)) {
-                 // If the attribute was not provided and has collapse_optional
-                 // set, deserialize the item with an empty array.
-                static constexpr auto value = Tree::array();
+            else {
                 FromTreeTraversal<AttrTraversal3> child;
-                child.tree = &value;
+                if (!!(flags & AttrFlags::CollapseOptional)) {
+                     // If the attribute was not provided and has
+                     // collapse_optional set, deserialize the item with an
+                     // empty array.
+                    static constexpr auto empty = Tree::array();
+                    child.tree = &empty;
+                }
+                else if (const Tree* def = attr->default_value()) {
+                    child.tree = def;
+                }
+                else raise_AttrMissing(trav.desc, attr->key);
                 trav_attr<visit>(
                     child, trav, attr->acr(), attr->key, AccessMode::Write
                 );
             }
-            else if (const Tree* def = attr->default_value()) {
-                FromTreeTraversal<AttrTraversal3> child;
-                child.tree = def;
-                trav_attr<visit>(
-                    child, trav, attr->acr(), attr->key, AccessMode::Write
-                );
-            }
-             // Nope, there's nothing more we can do.
-            else raise_AttrMissing(trav.desc, attr->key);
             next_attr:;
         }
          // The claim_* stack doesn't call finish_item so call it here.
@@ -480,13 +477,13 @@ struct TraverseFromTree {
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
         expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
-        expect(trav.tree->form == Form::Object);
         uint32* prev_next; uint32 i;
         for (
             prev_next = &next_list[-1], i = *prev_next;
             i != uint32(-1);
             prev_next = &next_list[i], i = *prev_next
         ) {
+            expect(trav.tree->form == Form::Object);
             write_computed_attr(trav, trav.tree->data.as_object_ptr[i], f);
         }
          // Consume entire list
@@ -527,9 +524,11 @@ struct TraverseFromTree {
         auto keys = UniqueArray<AnyString>(
             object.size(), [&object](usize i){ return object[i].first; }
         );
-        keys_acr->write(*trav.address, [&keys](Mu& v){
+        keys_acr->write(*trav.address,
+            CallbackRef<void(Mu&)>(move(keys), [](auto&& keys, Mu& v)
+        {
             reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
-        });
+        }));
         expect(!keys.owned());
     }
 
@@ -540,9 +539,11 @@ struct TraverseFromTree {
     ) {
          // Readonly keys?  Read them and check that they match.
         AnyArray<AnyString> keys;
-        keys_acr->read(*trav.address, [&keys](Mu& v){
+        keys_acr->read(*trav.address,
+            CallbackRef<void(Mu&)>(keys, [](auto& keys, Mu& v)
+        {
             new (&keys) AnyArray<AnyString>(reinterpret_cast<AnyArray<AnyString>&>(v));
-        });
+        }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
         for (usize i = 0; i < keys.size(); i++)
@@ -607,27 +608,39 @@ struct TraverseFromTree {
         finish_item(trav);
     }
 
+    static
+    void write_length (
+        const FromTreeTraversal<>& trav,
+        const Accessor* length_acr, Slice<Tree> array
+    ) {
+        if (!(length_acr->flags & AcrFlags::Readonly)) {
+            length_acr->write(*trav.address,
+                CallbackRef<void(Mu&)>(array, [](auto& array, Mu& v)
+            {
+                reinterpret_cast<usize&>(v) = array.size();
+            }));
+        }
+        else {
+             // For readonly length, read it and check that it's the same.
+            usize len;
+            length_acr->read(*trav.address,
+                CallbackRef<void(Mu&)>(len, [](usize& len, Mu& v)
+            {
+                len = reinterpret_cast<usize&>(v);
+            }));
+            if (array.size() != len) {
+                raise_LengthRejected(trav.desc, len, len, trav.tree->meta >> 1);
+            }
+        }
+    }
+
     NOINLINE static
     void use_computed_elems (
         const FromTreeTraversal<>& trav, const Accessor* length_acr
     ) {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
-        if (!(length_acr->flags & AcrFlags::Readonly)) {
-            length_acr->write(*trav.address, [len{array.size()}](Mu& v){
-                reinterpret_cast<usize&>(v) = len;
-            });
-        }
-        else {
-             // For readonly length, read it and check that it's the same.
-            usize len;
-            length_acr->read(*trav.address, [&len](Mu& v){
-                len = reinterpret_cast<usize&>(v);
-            });
-            if (array.size() != len) {
-                raise_LengthRejected(trav.desc, len, len, trav.tree->meta >> 1);
-            }
-        }
+        write_length(trav, length_acr, array);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < array.size(); i++) {
@@ -646,37 +659,20 @@ struct TraverseFromTree {
     void use_contiguous_elems (
         const FromTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-         // TODO: deduplicate setting length
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
-        if (!(length_acr->flags & AcrFlags::Readonly)) {
-            length_acr->write(*trav.address, [len{array.size()}](Mu& v){
-                reinterpret_cast<usize&>(v) = len;
-            });
-        }
-        else {
-             // For readonly length, read it and check that it's the same.
-            usize len;
-            length_acr->read(*trav.address, [&len](Mu& v){
-                len = reinterpret_cast<usize&>(v);
-            });
-            if (array.size() != len) {
-                raise_LengthRejected(trav.desc, len, len, trav.tree->meta >> 1);
-            }
-        }
+        write_length(trav, length_acr, array);
         if (array) {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
-             // TODO: move down
-            auto child_desc = DescriptionPrivate::get(ptr.type);
             for (usize i = 0; i < array.size(); i++) {
                 FromTreeTraversal<ContiguousElemTraversal3> child;
                 child.tree = &array[i];
                 trav_contiguous_elem<visit>(
                     child, trav, ptr, f, i, AccessMode::Write
                 );
-                ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
+                ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
             }
         }
         finish_item(trav);

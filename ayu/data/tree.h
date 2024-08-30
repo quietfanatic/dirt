@@ -180,7 +180,7 @@ static_assert(sizeof(Tree) == sizeof(TreeRef));
  //  - Unlike float and double, Tree(NAN) == Tree(NAN).
  //  - Like float and double, -0.0 == +0.0.
  //  - Objects are equal if they have all the same attributes, but the
- //  attributes don't have to be in the same order.
+ //    attributes don't have to be in the same order.
 bool operator == (const Tree& a, const Tree& b) noexcept;
 
  // Tried to get something out of a tree that was the wrong form.
