@@ -339,6 +339,12 @@ constexpr auto _AYU_DescribeBase<T>::anyref_func (
 ) {
     return in::AnyRefFuncAcr2<T>(f, flags);
 }
+template <class T>
+constexpr auto _AYU_DescribeBase<T>::anyptr_func (
+    AnyPtr(* f )(T&), in::AcrFlags flags
+) {
+    return in::AnyPtrFuncAcr2<T>(f, flags);
+}
 
 template <class T>
 template <class... Dcrs>

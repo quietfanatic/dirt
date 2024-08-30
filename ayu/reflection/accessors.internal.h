@@ -24,7 +24,7 @@ enum class AcrFlags : uint8 {
     Readonly = 0x20,
      // Children considered addressable even if this item is not addressable.
     PassThroughAddressable = 0x40,
-     // Consider this ACR unaddressable even if it normally would be.
+     // This ACR is unaddressable, either naturally or artificially
     Unaddressable = 0x80,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AcrFlags)
@@ -86,7 +86,6 @@ struct Accessor;
  // of RTTI information for each class, and when those classes are template
  // instantiations it results in massive code size bloating.
 struct AcrVT {
-    static Mu* default_address (const Accessor*, Mu&) { return null; }
     static void default_destroy (Accessor*) noexcept { }
     template <class T>
     static Type const_type (const Accessor*, Mu*) {
@@ -97,7 +96,7 @@ struct AcrVT {
     Type(* type )(const Accessor*, Mu*) = null;
     void(* access )(const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>)
         = null;
-    Mu*(* address )(const Accessor*, Mu&) = &default_address;
+    Mu*(* address )(const Accessor*, Mu&) = null;
     Mu*(* inverse_address )(const Accessor*, Mu&) = null;
      // Plays role of virtual ~Accessor();
     void(* destroy_this )(Accessor*) noexcept = &default_destroy;
@@ -319,7 +318,9 @@ struct RefFuncsAcr2 : RefFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt, flags), getter(g), setter(s)
+        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt,
+            flags | AcrFlags::Unaddressable
+        ), getter(g), setter(s)
     { }
 };
 template <class To>
@@ -359,7 +360,9 @@ struct ValueFuncAcr2 : ValueFuncAcr1<To> {
     using AcrToType = To;
     To(* f )(const From&);
     explicit constexpr ValueFuncAcr2 (To(* f )(const From&), AcrFlags flags = {}) :
-        ValueFuncAcr1<To>(&ValueFuncAcr1<To>::_vt, flags | AcrFlags::Readonly),
+        ValueFuncAcr1<To>(&ValueFuncAcr1<To>::_vt,
+            flags | AcrFlags::Readonly | AcrFlags::Unaddressable
+        ),
         f(f)
     { }
 };
@@ -391,7 +394,9 @@ struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
         void(* s )(From&, To),
         AcrFlags flags = {}
     ) :
-        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt, flags),
+        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt,
+            flags | AcrFlags::Unaddressable
+        ),
         getter(g), setter(s)
     { }
 };
@@ -444,7 +449,9 @@ struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt, flags),
+        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt,
+            flags | AcrFlags::Unaddressable
+        ),
         getter(g), setter(s)
     { }
 };
@@ -478,7 +485,7 @@ struct AssignableAcr2 : Accessor {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr AssignableAcr2 (AcrFlags flags = {}) :
-        Accessor(&_vt, flags)
+        Accessor(&_vt, flags | AcrFlags::Unaddressable)
     { }
     static void _access (
         const Accessor*, AccessMode mode, Mu& from_mu, CallbackRef<void(Mu&)> cb_mu
@@ -504,8 +511,7 @@ struct VariableAcr1 : Accessor {
      // address but then release this ACR object, invalidating the reference.
     static void _destroy (Accessor*) noexcept;
     static constexpr AcrVT _vt = {
-        &AcrVT::const_type<To>, &_access, &AcrVT::default_address,
-        null, &_destroy
+        &AcrVT::const_type<To>, &_access, null, null, &_destroy
     };
 };
 template <class From, class To>
@@ -515,7 +521,10 @@ struct VariableAcr2 : VariableAcr1<To> {
     mutable To value;
      // This ACR cannot be constexpr.
     explicit VariableAcr2 (To&& v, AcrFlags flags = {}) :
-        VariableAcr1<To>(&VariableAcr1<To>::_vt, flags), value(move(v))
+        VariableAcr1<To>(&VariableAcr1<To>::_vt,
+            flags | AcrFlags::Unaddressable
+        ),
+        value(move(v))
     { }
 };
 template <class To>
@@ -539,8 +548,7 @@ struct ConstantAcr1 : Accessor {
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
     static void _destroy (Accessor*) noexcept;
     static constexpr AcrVT _vt = {
-        &AcrVT::const_type<To>, &_access, &AcrVT::default_address,
-        null, &_destroy
+        &AcrVT::const_type<To>, &_access, null, null, &_destroy
     };
 };
 template <class From, class To>
@@ -549,7 +557,9 @@ struct ConstantAcr2 : ConstantAcr1<To> {
     using AcrToType = To;
     const To value;
     explicit constexpr ConstantAcr2 (const To& v, AcrFlags flags = {}) :
-        ConstantAcr1<To>(&ConstantAcr1<To>::_vt, flags | AcrFlags::Readonly),
+        ConstantAcr1<To>(&ConstantAcr1<To>::_vt,
+            flags | AcrFlags::Readonly | AcrFlags::Unaddressable
+        ),
         value(v)
     { }
 };
@@ -601,8 +611,7 @@ struct AnyRefFuncAcr1 : Accessor {
     using Accessor::Accessor;
     static Type _type (const Accessor*, Mu*);
     static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static Mu* _address (const Accessor*, Mu&);
-    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+    static constexpr AcrVT _vt = {&_type, &_access};
 };
 template <class From>
 struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
@@ -612,7 +621,28 @@ struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
     explicit constexpr AnyRefFuncAcr2 (
         AnyRef(* f )(From&), AcrFlags flags = {}
     ) :
-        AnyRefFuncAcr1(&_vt, flags), f(f)
+        AnyRefFuncAcr1(&_vt, flags | AcrFlags::Unaddressable), f(f)
+    { }
+};
+
+/// anyptr_func
+
+struct AnyPtrFuncAcr1 : Accessor {
+    using Accessor::Accessor;
+    static Type _type (const Accessor*, Mu*);
+    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
+    static Mu* _address (const Accessor*, Mu&);
+    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+};
+template <class From>
+struct AnyPtrFuncAcr2 : AnyPtrFuncAcr1 {
+    using AcrFromType = From;
+    using AcrToType = AnyPtr;
+    AnyPtr(* f )(From&);
+    explicit constexpr AnyPtrFuncAcr2 (
+        AnyPtr(* f )(From&), AcrFlags flags = {}
+    ) :
+        AnyPtrFuncAcr1(&_vt, flags), f(f)
     { }
 };
 

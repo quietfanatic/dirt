@@ -138,8 +138,8 @@ void trav_start (
     else {
         child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
         child.desc = DescriptionPrivate::get(ref.acr->type(ref.host.address));
-        child.address = ref.acr->address(*ref.host.address);
-        if (child.address) {
+        if (!(ref.acr->flags & AcrFlags::Unaddressable)) {
+            child.address = ref.acr->address(*ref.host.address);
             child.addressable = true;
             child.children_addressable = true;
             visit(child);
@@ -168,8 +168,8 @@ void trav_acr (
     child.collapse_optional = !!(acr->attr_flags & AttrFlags::CollapseOptional);
     child.acr = acr;
     child.desc = DescriptionPrivate::get(acr->type(parent.address));
-    child.address = acr->address(*parent.address);
-    if (child.address) [[likely]] {
+    if (!(acr->flags & AcrFlags::Unaddressable)) [[likely]] {
+        child.address = acr->address(*parent.address);
         child.addressable = parent.children_addressable;
         child.children_addressable = parent.children_addressable;
         visit(child);
@@ -206,8 +206,8 @@ void trav_ref (
     else {
         child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
         child.desc = DescriptionPrivate::get(ref.acr->type(ref.host.address));
-        child.address = ref.acr->address(*ref.host.address);
-        if (child.address) {
+        if (!(ref.acr->flags & AcrFlags::Unaddressable)) {
+            child.address = ref.acr->address(*ref.host.address);
             child.addressable = parent.children_addressable;
             child.children_addressable = parent.children_addressable;
             visit(child);

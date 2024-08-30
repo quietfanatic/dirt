@@ -640,13 +640,13 @@ struct _AYU_DescribeBase {
     static auto variable (
         M&& v, in::AcrFlags = {}
     );
-     // An accessor that gives access to a child item by means of an
-     // ayu::AnyRef instead of a C++ reference.  This is the only accessor
+     // An accessor that gives access to a child item by means of an ayu::AnyRef
+     // instead of a C++ reference.  This and anyptr_func are the only accessors
      // whose child type can vary depending on the parent item it's applied to.
-     // Whether this accessor is addressable depends on whether the returned
-     // AnyRef is addressable, so make sure not to return an addressable
-     // AnyRef to a temporary and then use that AnyRef past the
-     // temporary's lifespan, just like with computed_attrs and computed_elems.
+     //
+     // This accessor is considered unaddressable, even if the returned anyref
+     // is addressable.  Use anyptr_func to give access to an arbitrarily-typed
+     // addressable item.
      //
      // Unlike computed_attrs and computed_elems, you should not return an empty
      // AnyRef from this function, or you may get null pointer derefs down
@@ -656,6 +656,12 @@ struct _AYU_DescribeBase {
      // flags than this one, which flags are used is Unspecified Behavior.
     static constexpr auto anyref_func (
         AnyRef(* f )(T&), in::AcrFlags = {}
+    );
+     // An accessor that gives access to a child item through an ayu::AnyPtr.
+     // Like anyref_func but it's addressable.  Don't return empty or null from
+     // this.
+    static constexpr auto anyptr_func (
+        AnyPtr(* f )(T&), in::AcrFlags = {}
     );
 
     ///// METHOD ACCESSORS

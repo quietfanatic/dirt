@@ -119,6 +119,10 @@ struct AnyRef {
         if (readonly()) raise_WriteReadonly();
     }
 
+    constexpr bool addressable () const {
+        return !acr || !(acr->flags & in::AcrFlags::Unaddressable);
+    }
+
      // Returns null if this reference is not addressable.
     constexpr Mu* address () const {
         return acr ? acr->address(*host.address) : host.address;

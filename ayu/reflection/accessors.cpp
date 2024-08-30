@@ -69,7 +69,7 @@ void ConstantPtrAcr0::_access (
 Type AnyRefFuncAcr1::_type (const Accessor* acr, Mu* from) {
     if (!from) return Type();
     auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
-    return self->f(*from).type();
+    return expect(self->f(*from).type());
 }
 void AnyRefFuncAcr1::_access (
     const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
@@ -78,11 +78,22 @@ void AnyRefFuncAcr1::_access (
      // This will null deref if f returns an empty AnyRef
     self->f(from).access(mode, cb);
 }
-Mu* AnyRefFuncAcr1::_address (const Accessor* acr, Mu& from) {
-    auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
-    auto ref = self->f(from);
-    expect(ref.type());
-    return expect(ref.address());
+
+Type AnyPtrFuncAcr1::_type (const Accessor* acr, Mu* from) {
+    if (!from) return Type();
+    auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
+    return expect(self->f(*from).type);
+}
+void AnyPtrFuncAcr1::_access (
+    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+) {
+    auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
+    cb(*expect(self->f(from).address));
+}
+Mu* AnyPtrFuncAcr1::_address (const Accessor* acr, Mu& from) {
+    auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
+    auto ptr = self->f(from);
+    return expect(ptr.address);
 }
 
 ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :

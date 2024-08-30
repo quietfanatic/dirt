@@ -224,9 +224,9 @@ AYU_DESCRIBE(ayu::in::DocumentItemRef,
                 t.default_construct(data);
             }
         )),
-        elem(anyref_func([](DocumentItemRef& v){
+        elem(anyptr_func([](DocumentItemRef& v){
             if (!v.header) raise(e_DocumentItemNotFound, v.name);
-            return AnyRef(v.header->type, v.header->data());
+            return AnyPtr(v.header->type, v.header->data());
         }))
     )
 )
