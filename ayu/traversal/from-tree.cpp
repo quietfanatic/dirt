@@ -140,9 +140,9 @@ struct TraverseFromTree {
         ctx.swizzle_ops.consume([](SwizzleOp&& op){
             PushBaseLocation pbl (op.loc);
             try {
-                op.item.access(AccessMode::Modify, [&op](Mu& v){
-                    op.f(v, op.tree);
-                });
+                op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
+                    op.f(*v.address, op.tree);
+                }));
             }
             catch (...) {
                 rethrow_with_travloc(op.loc);
@@ -160,7 +160,9 @@ struct TraverseFromTree {
         ctx.init_ops.consume([](InitOp&& op){
             PushBaseLocation pbl (op.loc);
             try {
-                op.item.access(AccessMode::Modify, *op.f);
+                op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
+                    op.f(*v.address);
+                }));
             }
             catch (...) {
                 rethrow_with_travloc(op.loc);
@@ -525,9 +527,10 @@ struct TraverseFromTree {
             object.size(), [&object](usize i){ return object[i].first; }
         );
         keys_acr->write(*trav.address,
-            CallbackRef<void(Mu&)>(move(keys), [](auto&& keys, Mu& v)
+            AccessCB(move(keys), [](auto&& keys, AnyPtr v, bool)
         {
-            reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
+            require_writeable_keys(v.type);
+            reinterpret_cast<AnyArray<AnyString>&>(*v.address) = move(keys);
         }));
         expect(!keys.owned());
     }
@@ -540,9 +543,12 @@ struct TraverseFromTree {
          // Readonly keys?  Read them and check that they match.
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            CallbackRef<void(Mu&)>(keys, [](auto& keys, Mu& v)
+            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
-            new (&keys) AnyArray<AnyString>(reinterpret_cast<AnyArray<AnyString>&>(v));
+            require_readable_keys(v.type);
+            new (&keys) AnyArray<AnyString>(
+                reinterpret_cast<AnyArray<AnyString>&>(*v.address)
+            );
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
@@ -615,18 +621,20 @@ struct TraverseFromTree {
     ) {
         if (!(length_acr->flags & AcrFlags::Readonly)) {
             length_acr->write(*trav.address,
-                CallbackRef<void(Mu&)>(array, [](auto& array, Mu& v)
+                AccessCB(array, [](auto& array, AnyPtr v, bool)
             {
-                reinterpret_cast<usize&>(v) = array.size();
+                require_writeable_length(v.type);
+                reinterpret_cast<usize&>(*v.address) = array.size();
             }));
         }
         else {
              // For readonly length, read it and check that it's the same.
             usize len;
             length_acr->read(*trav.address,
-                CallbackRef<void(Mu&)>(len, [](usize& len, Mu& v)
+                AccessCB(len, [](usize& len, AnyPtr v, bool)
             {
-                len = reinterpret_cast<usize&>(v);
+                require_readable_length(v.type);
+                len = reinterpret_cast<usize&>(*v.address);
             }));
             if (array.size() != len) {
                 raise_LengthRejected(trav.desc, len, len, trav.tree->meta >> 1);

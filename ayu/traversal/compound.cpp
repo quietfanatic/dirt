@@ -76,10 +76,11 @@ struct TraverseGetKeys {
         const GetKeysTraversal<>& trav, const Accessor* keys_acr
     ) {
         keys_acr->read(*trav.address,
-            CallbackRef<void(Mu&)>(*trav.keys, [](auto& keys, Mu& v)
+            AccessCB(*trav.keys, [](auto& keys, AnyPtr v, bool)
         {
-            auto& item_keys = reinterpret_cast<const AnyArray<AnyString>&>(v);
-            for (auto& key : item_keys) {
+            require_readable_keys(v.type);
+            auto& ks = reinterpret_cast<const AnyArray<AnyString>&>(*v.address);
+            for (auto& key : ks) {
                 collect(keys, AnyString(key));
             }
         }));
@@ -214,10 +215,12 @@ struct TraverseSetKeys {
         const SetKeysTraversal<>& trav, const Accessor* keys_acr
     ) {
         keys_acr->write(*trav.address,
-            CallbackRef<void(Mu&)>(move(*trav.keys), [](auto&& keys, Mu& v){
-                reinterpret_cast<AnyArray<AnyString>&>(v) = move(keys);
-            })
-        );
+            AccessCB(move(*trav.keys), [](auto&& keys, AnyPtr v, bool)
+        {
+            require_writeable_keys(v.type);
+            auto& ks = reinterpret_cast<AnyArray<AnyString>&>(*v.address);
+            ks = move(keys);
+        }));
     }
 
     NOINLINE static
@@ -229,9 +232,11 @@ struct TraverseSetKeys {
          // about this codepath to work any harder on it.
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            CallbackRef<void(Mu&)>(keys, [](auto& keys, Mu& v)
+            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
-            new (&keys) AnyArray<AnyString>(reinterpret_cast<AnyArray<AnyString>&>(v));
+            require_readable_keys(v.type);
+            auto& ks = reinterpret_cast<AnyArray<AnyString>&>(*v.address);
+            new (&keys) AnyArray<AnyString>(ks);
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
@@ -412,40 +417,27 @@ namespace in {
 struct TraverseGetLength {
     static
     usize start (const AnyRef& item, LocationRef loc) try {
-        if (auto addr = item.address()) {
-            return traverse(*addr, item.type());
-        }
-        else {
-            usize len;
-            item.read([&len, type{item.type()}](Mu& v){
-                len = traverse(v, type);
-            });
-            return len;
-        }
+        usize len;
+        item.read(AccessCB(len, &visit));
+        return len;
     } catch (...) { rethrow_with_travloc(loc); }
 
-    NOINLINE static
-    usize traverse (Mu& item, Type type) {
-        auto desc = DescriptionPrivate::get(type);
+    static
+    void visit (usize& len, AnyPtr item, bool) {
+        auto desc = DescriptionPrivate::get(item.type);
         if (auto acr = desc->length_acr()) {
-            usize len;
-            acr->read(item, [&len](Mu& v){
-                len = reinterpret_cast<const usize&>(v);
-            });
-            return len;
+            acr->read(*item.address, AccessCB(len, [](usize& len, AnyPtr l, bool){
+                require_readable_length(l.type);
+                len = reinterpret_cast<const usize&>(*l.address);
+            }));
         }
         else if (auto elems = desc->elems()) {
-            return elems->chop_flag(AttrFlags::Invisible);
+            len = elems->chop_flag(AttrFlags::Invisible);
         }
         else if (auto acr = desc->delegate_acr()) {
-            usize len;
-            Type child_type = acr->type(&item);
-            acr->read(item, [&len, child_type](Mu& v){
-                len = traverse(v, child_type);
-            });
-            return len;
+            acr->read(*item.address, AccessCB(len, &visit));
         }
-        else raise_ElemsNotSupported(type);
+        else raise_ElemsNotSupported(item.type);
     }
 };
 
@@ -462,49 +454,46 @@ namespace in {
 struct TraverseSetLength {
     static
     void start (const AnyRef& item, usize len, LocationRef loc) try {
-        if (auto addr = item.address()) {
-            traverse(*addr, item.type(), len);
-        }
-        else {
-            item.read([type{item.type()}, len](Mu& v){
-                traverse(v, type, len);
-            });
-        }
+        item.read(AccessCB(len, &visit));
     } catch (...) { rethrow_with_travloc(loc); }
 
     NOINLINE static
-    void traverse (Mu& item, Type type, usize len) {
-        auto desc = DescriptionPrivate::get(type);
+    void visit (usize& len, AnyPtr item, bool) {
+        auto desc = DescriptionPrivate::get(item.type);
         if (auto acr = desc->length_acr()) {
             if (!(acr->flags & AcrFlags::Readonly)) {
-                acr->write(item, [len](Mu& v){
-                    reinterpret_cast<usize&>(v) = len;
-                });
+                acr->write(*item.address,
+                    AccessCB(len, [](usize& len, AnyPtr l, bool)
+                {
+                    require_writeable_length(l.type);
+                    reinterpret_cast<usize&>(*l.address) = len;
+                }));
             }
             else {
                  // For readonly length, just check that the provided length matches
                 usize expected;
-                acr->read(item, [&expected](Mu& v){
-                    expected = reinterpret_cast<const usize&>(v);
-                });
+                acr->read(*item.address,
+                    AccessCB(expected, [](usize& ex, AnyPtr l, bool)
+                {
+                    require_readable_length(l.type);
+                    ex = reinterpret_cast<const usize&>(l);
+                }));
                 if (len != expected) {
-                    raise_LengthRejected(type, expected, expected, len);
+                    raise_LengthRejected(item.type, expected, expected, len);
                 }
             }
         }
         else if (auto elems = desc->elems()) {
             usize min = elems->chop_flag(AttrFlags::Optional);
             if (len < min || len > elems->n_elems) {
-                raise_LengthRejected(type, min, elems->n_elems, len);
+                raise_LengthRejected(item.type, min, elems->n_elems, len);
             }
         }
         else if (auto acr = desc->delegate_acr()) {
-            Type child_type = acr->type(&item);
-            acr->modify(item, [child_type, len](Mu& v){
-                traverse(v, child_type, len);
-            });
+             // TODO: enforce nonreadonly
+            acr->modify(*item.address, AccessCB(len, &visit));
         }
-        else raise_ElemsNotSupported(type);
+        else raise_ElemsNotSupported(item.type);
     }
 };
 
@@ -590,8 +579,9 @@ struct TraverseElem {
          // ironically slower than computed_elems.
         usize len;
         length_acr->read(*trav.address,
-            CallbackRef<void(Mu& v)>(len, [](usize& len, Mu& v){
-                len = reinterpret_cast<const usize&>(v);
+            AccessCB(len, [](usize& len, AnyPtr v, bool){
+                require_readable_length(v.type);
+                len = reinterpret_cast<const usize&>(*v.address);
             })
         );
         if (trav.index >= len) return;
@@ -638,10 +628,17 @@ AnyRef item_elem (const AnyRef& item, usize index, LocationRef loc) {
 
 ///// ERRORS
 
+void raise_KeysTypeInvalid (Type, Type got_type) {
+    raise(e_KeysTypeInvalid, cat(
+        "Item has keys accessor of wrong type; expected AnyArray<AnyString> but got ",
+        got_type.name()
+    ));
+}
+
 void raise_AttrsNotSupported (Type item_type) {
     raise(e_AttrsNotSupported, cat(
         "Item of type ", item_type.name(),
-        " does not support behaving like an ", "object."
+        " does not support behaving like an ", "object"
     ));
 }
 
@@ -660,7 +657,14 @@ void raise_AttrRejected (Type item_type, const AnyString& key) {
 void raise_ElemsNotSupported (Type item_type) {
     raise(e_ElemsNotSupported, cat(
         "Item of type ", item_type.name(),
-        " does not support behaving like an ", "array."
+        " does not support behaving like an ", "array"
+    ));
+}
+
+void raise_LengthTypeInvalid (Type, Type got_type) {
+    raise(e_LengthTypeInvalid, cat(
+        "Item has length accessor of wrong type; expected usize but got ",
+        got_type.name()
     ));
 }
 

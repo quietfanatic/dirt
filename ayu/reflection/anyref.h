@@ -104,8 +104,11 @@ struct AnyRef {
     constexpr ~AnyRef () { if (acr) acr->dec(); }
 
     explicit constexpr operator bool () const { return !!host; }
+
      // Get type of referred-to item
-    constexpr Type type () const { return acr ? acr->type(host.address) : host.type; }
+    constexpr Type type () const {
+        return address().type;
+    }
 
      // Writing through this reference throws if this is true
     constexpr bool readonly () const {
@@ -123,9 +126,9 @@ struct AnyRef {
         return !acr || !(acr->flags & in::AcrFlags::Unaddressable);
     }
 
-     // Returns null if this reference is not addressable.
-    constexpr Mu* address () const {
-        return acr ? acr->address(*host.address) : host.address;
+     // Returns typed null if this reference is not addressable.
+    constexpr AnyPtr address () const {
+        return acr ? acr->address(*host.address) : host;
     }
      // Can throw CannotCoerce, even if the result is null.
     constexpr Mu* address_as (Type t) const {
@@ -134,7 +137,7 @@ struct AnyRef {
             require(t == host.type || t.remove_readonly() == host.type);
             return host.address;
         }
-        else return type().cast_to(t, address());
+        else return address().upcast_to(t).address;
     }
     template <class T>
     T* address_as () const {
@@ -145,7 +148,7 @@ struct AnyRef {
     }
 
     [[noreturn]] void raise_Unaddressable () const;
-    constexpr Mu* require_address () const {
+    constexpr AnyPtr require_address () const {
         if (!*this) return null;
         if (auto a = address()) return a;
         else raise_Unaddressable();
@@ -157,114 +160,67 @@ struct AnyRef {
             require(t == host.type || t.remove_readonly() == host.type);
             return host.address;
         }
-        else return type().cast_to(t, require_address());
+        else return require_address().upcast_to(t).address;
     }
     template <class T>
     T* require_address_as () const {
         return (T*)require_address_as(Type::CppType<T>());
     }
 
-     // Read with callback
-    void read (CallbackRef<void(Mu&)> cb) const {
+     // Callback passed to access functions.  The first parameter is a pointer
+     // (with type info) to the item, and the second parameter is true if the
+     // item is addressable.
+    using AccessCB = CallbackRef<void(AnyPtr, bool)>;
+
+     // Read the item.  You must not modify it.
+    void read (AccessCB cb) const {
         access(in::AccessMode::Read, cb);
     }
-     // Cast and read with callback
-    void read_as (Type t, CallbackRef<void(Mu&)> cb) const {
-        read([this, t, cb](Mu& v){
-            Mu& tv = *type().cast_to(t, &v);
-            cb(tv);
-        });
-    }
-    template <class T>
-    void read_as (CallbackRef<void(T&)> cb) const {
-        read_as(Type::CppType<T>(), cb.template reinterpret<void(Mu&)>());
-    }
-     // Write with callback
-    void write (CallbackRef<void(Mu&)> cb) const {
+     // Write the item.  The thing behind the AnyPtr passed to the callback may
+     // be the item itself, or it may be a default-constructed clone which will
+     // then be copied to the item.
+    void write (AccessCB cb) const {
+        require_writeable();
         access(in::AccessMode::Write, cb);
     }
-     // Cast and write with callback
-    void write_as (Type t, CallbackRef<void(Mu&)> cb) const {
-        write([this, t, cb](Mu& v){
-            Mu& tv = *type().cast_to(t, &v);
-            cb(tv);
-        });
-    }
-    template <class T>
-        requires (!std::is_const_v<T>)
-    void write_as (CallbackRef<void(T&)> cb) const {
-        write_as(Type::CppType<T>(), cb.template reinterpret<void(Mu&)>());
-    }
-     // Modify in-place with callback
-    void modify (CallbackRef<void(Mu&)> cb) const {
+     // Modify the item.  The item may be modified in-place or it may do a
+     // read-modify-write opreration.
+    void modify (AccessCB cb) const {
+        require_writeable();
         access(in::AccessMode::Modify, cb);
     }
-     // Cast and modify in-place with callback
-    void modify_as (Type t, CallbackRef<void(Mu&)> cb) const {
-        write([this, t, cb](Mu& v){
-            Mu& tv = *type().cast_to(t, &v);
-            cb(tv);
-        });
-    }
-    template <class T>
-        requires (!std::is_const_v<T>)
-    void modify_as (CallbackRef<void(T&)> cb) const {
-        modify_as(Type::CppType<T>(), cb.template reinterpret<void(Mu&)>());
-    }
 
-     // Copying getter.  Preferentially uses address if it's available.
+     // Copying getter.
     template <class T>
     T get_as () const {
-        if (Mu* a = address()) {
-            return *reinterpret_cast<T*>(
-                type().cast_to(Type::CppType<T>(), a)
-            );
-        }
-        else {
-            T r;
-            read_as<T>([&r](const T& v){
-                r = v;
-            });
-            return r;
-        }
+         // TODO: detect value_func(s) and avoid a copy
+        T r;
+        read(AccessCB(r, [](T& r, AnyPtr v, bool){
+            r = *v.upcast_to<T>();
+        }));
+        return r;
     }
-     // Assign to the referenced item with rvalue ref.  Preferentially uses
-     // address if it's available.
+
+     // Assign to the referenced item with rvalue ref.
     template <class T>
         requires (!std::is_const_v<T>)
     void set_as (T&& new_v) {
-        if (Mu* a = address()) {
-            require_writeable();
-            *reinterpret_cast<T*>(
-                type().cast_to(Type::CppType<T>(), a)
-            ) = move(new_v);
-        }
-        else {
-            write_as<T>([&new_v](T& v){
-                v = move(new_v);
-            });
-        }
+        write(AccessCB(move(new_v), [](T&& new_v, AnyPtr v, bool){
+            *v.upcast_to<T>() = move(new_v);
+        }));
     }
      // Assign to the referenced item with lvalue ref.
     template <class T>
         requires (!std::is_const_v<T>)
     void set_as (const T& new_v) {
-        if (Mu* a = address()) {
-            require_writeable();
-            *reinterpret_cast<T*>(
-                type().cast_to(Type::CppType<T>(), a)
-            ) = new_v;
-        }
-        else {
-            write_as<T>([&new_v](T& v){
-                v = new_v;
-            });
-        }
+        write(AccessCB(new_v, [](const T& new_v, AnyPtr v, bool){
+            *v.upcast_to<T>() = new_v;
+        }));
     }
 
      // Cast to pointer
-    operator AnyPtr () const {
-        return AnyPtr(type(), require_address());
+    constexpr operator AnyPtr () const {
+        return require_address();
     }
 
     template <class T>
@@ -273,18 +229,16 @@ struct AnyRef {
     }
 
      // Kinda internal, TODO move to internal namespace
-    void access (in::AccessMode mode, CallbackRef<void(Mu&)> cb) const {
+    void access (in::AccessMode mode, AccessCB cb) const {
         if (mode != in::AccessMode::Read) require_writeable();
         if (acr) {
             acr->access(mode, *host.address, cb);
         }
-        else {
-            cb(*host.address);
-        }
+        else cb(host, true);
     }
 
      // Syntax sugar.  These are just wrappers around item_attr and item_elem,
-     // but they're extern so that we don't pull to many dependencies into this
+     // but they're extern so that we don't pull too many dependencies into this
      // header.
     AnyRef operator [] (const AnyString& key);
     AnyRef operator [] (usize index);

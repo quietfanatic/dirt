@@ -118,6 +118,10 @@ struct Type {
      //
      // Finally, casting from non-readonly to readonly types is allowed, but not
      // vice versa.
+     //
+     // Previous versions of this library also had downcast_to (and cast_to,
+     // which tries upcast then downcast) but it was dragging down refactoring
+     // and I didn't end up actually using it.
     Mu* try_upcast_to (Type, Mu*) const;
     template <class T>
     T* try_upcast_to (Mu* p) const {
@@ -127,43 +131,6 @@ struct Type {
     template <class T>
     T* upcast_to (Mu* p) const {
         return (T*)upcast_to(Type::CppType<T>(), p);
-    }
-
-     // Cast from base class to derived class.  See upcast_to for more details.
-     //
-     // One difference from upcast_to is that while upcast_to can follow any
-     // accessors with the "address" operation, downcast_to can only follow
-     // accessors with the "inverse_address" operation, namely base<>() and
-     // member().
-     //
-     // As with C++'s static_cast, this cannot check that the pointed-to data
-     // really is the derived class, and if it isn't, incorrect execution
-     // may occur.
-     //
-     // Unlike upcast, downcast may cast from readonly to non-readonly.  As with
-     // C++'s const_cast, modifying the pointed-to data may cause undefined
-     // behavior.
-    Mu* try_downcast_to (Type, Mu*) const;
-    template <class T>
-    T* try_downcast_to (Mu* p) const {
-        return (T*)try_downcast_to(Type::CppType<T>(), p);
-    }
-    Mu* downcast_to (Type, Mu*) const;
-    template <class T>
-    T* downcast_to (Mu* p) const {
-        return (T*)downcast_to(Type::CppType<T>(), p);
-    }
-
-     // Try upcast, then downcast.
-    Mu* try_cast_to (Type, Mu*) const;
-    template <class T>
-    T* try_cast_to (Mu* p) const {
-        return (T*)try_cast_to(Type::CppType<T>(), p);
-    }
-    Mu* cast_to (Type, Mu*) const;
-    template <class T>
-    T* cast_to (Mu* p) const {
-        return (T*)cast_to(Type::CppType<T>(), p);
     }
 
      // Internal

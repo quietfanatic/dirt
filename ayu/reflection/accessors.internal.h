@@ -7,6 +7,7 @@
 
 #include "../common.h"
 #include "../data/tree.h"
+#include "anyptr.h"
 #include "type.h"
 
 namespace ayu::in {
@@ -24,7 +25,7 @@ enum class AcrFlags : uint8 {
     Readonly = 0x20,
      // Children considered addressable even if this item is not addressable.
     PassThroughAddressable = 0x40,
-     // This ACR is unaddressable, either naturally or artificially
+     // Consider this item unaddressable even if it normally would be
     Unaddressable = 0x80,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AcrFlags)
@@ -66,38 +67,31 @@ DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
  // methods and storing the same pointer three times in the VT compiles larger
  // than this.
 enum class AccessMode {
-     // Provides a const ref containing the value of the object.  It may refer
-     // to the object itself or to a temporary that will go out of scope when
-     // read() returns.
+     // Requests an AnyPtr to either the original item or a copy that will go
+     // out of scope after the callback.  The AnyPtr will only be readonly if
+     // the item's type is const.  You should not write to this; writes to the
+     // AnyPtr may or may not be written to the item
     Read,
-     // Provides a ref to which a new value can be written.  It may refer to the
-     // object itself, or it may be a reference to a default-constructed
-     // temporary.  Neglecting to write to the reference in the callback may
-     // clear the object.
+     // Requests an AnyPtr to either the original item or a default-constructed
+     // value which will be written back to the item after the callback.
+     // Neglecting to write to the AnyPtr in the callback may clear the object.
     Write,
-     // Provides a ref containing the value of the object, to which a new value
-     // can be written.  May be implemented as a read followed by a write.
+     // Requests an AnyPtr to either the original item or a copy which will be
+     // written back after the callback.  May be implemented by a
+     // read-modify-write sequence.
     Modify
 };
 
-struct Accessor;
+ // This is the callback passed to access operations.
+using AccessCB = CallbackRef<void(AnyPtr, bool)>;
 
  // Rolling our own vtables.  Using C++'s builtin vtable system pulls in a lot
  // of RTTI information for each class, and when those classes are template
  // instantiations it results in massive code size bloating.
+struct Accessor;
 struct AcrVT {
     static void default_destroy (Accessor*) noexcept { }
-    template <class T>
-    static Type const_type (const Accessor*, Mu*) {
-        return Type::CppType<T>();
-    }
-     // TODO: merge type and address methods because they're nearly always
-     // called together.
-    Type(* type )(const Accessor*, Mu*) = null;
-    void(* access )(const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>)
-        = null;
-    Mu*(* address )(const Accessor*, Mu&) = null;
-    Mu*(* inverse_address )(const Accessor*, Mu&) = null;
+    void(* access )(const Accessor*, AccessMode, Mu&, AccessCB);
      // Plays role of virtual ~Accessor();
     void(* destroy_this )(Accessor*) noexcept = &default_destroy;
 };
@@ -127,31 +121,34 @@ struct Accessor {
         return TreeFlags(flags & AcrFlags::AllTreeFlags);
     }
 
-    Type type (Mu* from) const { return vt->type(this, from); }
-    void access (AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb) const {
+    void access (AccessMode mode, Mu& from, AccessCB cb) const {
         expect(mode == AccessMode::Read ||
                mode == AccessMode::Write ||
                mode == AccessMode::Modify
         );
-        expect(mode == AccessMode::Read || !(flags & AcrFlags::Readonly));
+        if (mode != AccessMode::Read) {
+            expect(!(flags & AcrFlags::Readonly));
+        }
         vt->access(this, mode, from, cb);
     }
-    void read (Mu& from, CallbackRef<void(Mu&)> cb) const {
+    void read (Mu& from, AccessCB cb) const {
         access(AccessMode::Read, from, cb);
     }
-    void write (Mu& from, CallbackRef<void(Mu&)> cb) const {
+    void write (Mu& from, AccessCB cb) const {
         access(AccessMode::Write, from, cb);
     }
-    void modify (Mu& from, CallbackRef<void(Mu&)> cb) const {
+    void modify (Mu& from, AccessCB cb) const {
         access(AccessMode::Modify, from, cb);
     }
-    Mu* address (Mu& from) const {
-        if (!!(flags & AcrFlags::Unaddressable)) return null;
-        return vt->address(this, from);
-    }
-    Mu* inverse_address (Mu& to) const {
-        if (!!(flags & AcrFlags::Unaddressable)) return null;
-        return vt->inverse_address(this, to);
+    AnyPtr address (Mu& from) const {
+        AnyPtr r;
+        access(AccessMode::Read, from,
+            AccessCB(r, [](AnyPtr& r, AnyPtr v, bool addr){
+                if (!addr) v.address = null;
+                r = v;
+            })
+        );
+        return r;
     }
 
     void inc () const {
@@ -184,6 +181,7 @@ constexpr Acr constexpr_acr (Acr a) {
 }
 
  // Merge _type virtual functions into one to improve branch target prediction.
+ // TODO: we don't have _type any more, do we need this?
 struct AccessorWithType : Accessor {
      // TODO: This documentation is obsolete, I think we still need the double
      // indirection, but for a different reason.  Might be worth
@@ -201,7 +199,6 @@ struct AccessorWithType : Accessor {
      // require a different vtable for each To type, so it would likely use more
      // space.  TODO: actually test this
     const Description* const* desc;
-    static Type _type (const Accessor*, Mu*);
     explicit constexpr AccessorWithType (
         const AcrVT* vt, const Description* const* d, AcrFlags f = {}
     ) : Accessor(vt, f), desc(d)
@@ -218,34 +215,21 @@ struct BaseAcr2 : Accessor {
     using AcrToType = To;
     explicit constexpr BaseAcr2 (AcrFlags flags = {}) : Accessor(&_vt, flags) { }
     static void _access (
-        const Accessor*, AccessMode, Mu& from, CallbackRef<void(Mu&)> cb
+        const Accessor* acr, AccessMode, Mu& from, AccessCB cb
     ) {
+         // reinterpret then implicit upcast
         To& to = reinterpret_cast<From&>(from);
-        cb(reinterpret_cast<Mu&>(to));
+        cb(AnyPtr(&to), !(acr->flags & AcrFlags::Unaddressable));
     }
-    static Mu* _address (const Accessor*, Mu& from) {
-        To& to = reinterpret_cast<From&>(from);
-        return &reinterpret_cast<Mu&>(to);
-    }
-    static Mu* _inverse_address (const Accessor*, Mu& to) {
-        From& from = static_cast<From&>(reinterpret_cast<To&>(to));
-        return &reinterpret_cast<Mu&>(from);
-    }
-    static constexpr AcrVT _vt = {
-        &AcrVT::const_type<To>, &_access, &_address, &_inverse_address
-    };
+    static constexpr AcrVT _vt = {&_access};
 };
 
 /// member
 
 struct MemberAcr0 : AccessorWithType {
     using AccessorWithType::AccessorWithType;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static Mu* _address (const Accessor*, Mu&);
-    static Mu* _inverse_address (const Accessor*, Mu&);
-    static constexpr AcrVT _vt = {
-        &_type, &_access, &_address, &_inverse_address
-    };
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct MemberAcr2 : MemberAcr0 {
@@ -263,9 +247,8 @@ struct RefFuncAcr0 : AccessorWithType {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
     using AccessorWithType::AccessorWithType;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static Mu* _address (const Accessor*, Mu&);
-    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct RefFuncAcr2 : RefFuncAcr0 {
@@ -283,9 +266,8 @@ struct ConstRefFuncAcr0 : AccessorWithType {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
     using AccessorWithType::AccessorWithType;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static Mu* _address (const Accessor*, Mu&);
-    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
@@ -304,8 +286,8 @@ struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
 template <class To>
 struct RefFuncsAcr1 : Accessor {
     using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static constexpr AcrVT _vt = {&AcrVT::const_type<To>, &_access};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct RefFuncsAcr2 : RefFuncsAcr1<To> {
@@ -318,30 +300,29 @@ struct RefFuncsAcr2 : RefFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt,
-            flags | AcrFlags::Unaddressable
-        ), getter(g), setter(s)
+        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt, flags), getter(g), setter(s)
     { }
 };
 template <class To>
 void RefFuncsAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const RefFuncsAcr2<Mu, To>*>(acr);
     switch (mode) {
         case AccessMode::Read: {
-            return cb.reinterpret<void(const To&)>()(self->getter(from));
-        }
+            To tmp = self->getter(from);
+            cb(AnyPtr(&tmp), false);
+        } return;
         case AccessMode::Write: {
             To tmp;
-            cb.reinterpret<void(To&)>()(tmp);
-            return self->setter(from, tmp);
-        }
+            cb(AnyPtr(&tmp), false);
+            self->setter(from, tmp);
+        } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb.reinterpret<void(To&)>()(tmp);
-            return self->setter(from, tmp);
-        }
+            cb(AnyPtr(&tmp), false);
+            self->setter(from, tmp);
+        } return;
         default: never();
     }
 }
@@ -350,8 +331,8 @@ void RefFuncsAcr1<To>::_access (
 
 template <class To>
 struct ValueFuncAcr1 : Accessor {
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static constexpr AcrVT _vt = {&AcrVT::const_type<To>, &_access};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
     using Accessor::Accessor;
 };
 template <class From, class To>
@@ -360,19 +341,18 @@ struct ValueFuncAcr2 : ValueFuncAcr1<To> {
     using AcrToType = To;
     To(* f )(const From&);
     explicit constexpr ValueFuncAcr2 (To(* f )(const From&), AcrFlags flags = {}) :
-        ValueFuncAcr1<To>(&ValueFuncAcr1<To>::_vt,
-            flags | AcrFlags::Readonly | AcrFlags::Unaddressable
-        ),
+        ValueFuncAcr1<To>(&ValueFuncAcr1<To>::_vt, flags | AcrFlags::Readonly),
         f(f)
     { }
 };
 template <class To>
 void ValueFuncAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ValueFuncAcr2<Mu, To>*>(acr);
-    cb.reinterpret<void(const To&)>()(self->f(from));
+    const To tmp = self->f(from);
+    cb(AnyPtr(&tmp), false);
 }
 
 /// value_funcs
@@ -380,8 +360,8 @@ void ValueFuncAcr1<To>::_access (
 template <class To>
 struct ValueFuncsAcr1 : Accessor {
     using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static constexpr AcrVT _vt = {&AcrVT::const_type<To>, &_access};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
@@ -394,39 +374,36 @@ struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
         void(* s )(From&, To),
         AcrFlags flags = {}
     ) :
-        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt,
-            flags | AcrFlags::Unaddressable
-        ),
+        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt, flags),
         getter(g), setter(s)
     { }
 };
 template <class To>
 void ValueFuncsAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const ValueFuncsAcr2<Mu, To>*>(acr);
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb.reinterpret<void(const To&)>()(tmp);
-            return;
-        }
+            cb(AnyPtr(&tmp), false);
+        } return;
         case AccessMode::Write: {
             To tmp;
-            cb.reinterpret<void(To&)>()(tmp);
-            return self->setter(from, move(tmp));
-        }
+            cb(AnyPtr(&tmp), false);
+            self->setter(from, tmp);
+        } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb.reinterpret<void(To&)>()(tmp);
-            return self->setter(from, move(tmp));
-        }
+            cb(AnyPtr(&tmp), false);
+            self->setter(from, move(tmp));
+        } return;
         default: never();
     }
      // Feels like this should compile smaller but it doesn't, probably because
      // mode has to be saved through the function calls.
     //To tmp = mode != AccessMode::Write ? self->getter(from) : To();
-    //cb.reinterpret<void(To&)>()(tmp);
+    //cb(AnyPtr(&tmp), false);
     //if (mode != AccessMode::Read) self->setter(from, move(tmp));
 }
 
@@ -435,8 +412,8 @@ void ValueFuncsAcr1<To>::_access (
 template <class To>
 struct MixedFuncsAcr1 : Accessor {
     using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static constexpr AcrVT _vt = {&AcrVT::const_type<To>, &_access};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
@@ -449,31 +426,30 @@ struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt,
-            flags | AcrFlags::Unaddressable
-        ),
+        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt, flags),
         getter(g), setter(s)
     { }
 };
 template <class To>
 void MixedFuncsAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const MixedFuncsAcr2<Mu, To>*>(acr);
     switch (mode) {
         case AccessMode::Read: {
-            return cb.reinterpret<void(const To&)>()(self->getter(from));
-        }
+            To tmp = self->getter(from);
+            cb(AnyPtr(&tmp), false);
+        } return;
         case AccessMode::Write: {
             To tmp;
-            cb.reinterpret<void(To&)>()(tmp);
-            return self->setter(from, move(tmp));
-        }
+            cb(AnyPtr(&tmp), false);
+            self->setter(from, tmp);
+        } return;
         case AccessMode::Modify: {
-            To tmp = (self->getter)(from);
-            cb.reinterpret<void(To&)>()(tmp);
-            return self->setter(from, move(tmp));
-        }
+            To tmp = self->getter(from);
+            cb(AnyPtr(&tmp), false);
+            self->setter(from, tmp);
+        } return;
         default: never();
     }
 }
@@ -485,20 +461,19 @@ struct AssignableAcr2 : Accessor {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr AssignableAcr2 (AcrFlags flags = {}) :
-        Accessor(&_vt, flags | AcrFlags::Unaddressable)
+        Accessor(&_vt, flags)
     { }
     static void _access (
-        const Accessor*, AccessMode mode, Mu& from_mu, CallbackRef<void(Mu&)> cb_mu
+        const Accessor*, AccessMode mode, Mu& from_mu, AccessCB cb
     ) {
         From& from = reinterpret_cast<From&>(from_mu);
-        auto cb = cb_mu.reinterpret<void(To&)>();
         To tmp;
         if (mode != AccessMode::Write) tmp = from;
-        cb(tmp);
+        cb(AnyPtr(&tmp), false);
         if (mode != AccessMode::Read) from = tmp;
         return;
     }
-    static constexpr AcrVT _vt = {&AcrVT::const_type<To>, &_access};
+    static constexpr AcrVT _vt = {&_access};
 };
 
 /// variable
@@ -506,13 +481,9 @@ struct AssignableAcr2 : Accessor {
 template <class To>
 struct VariableAcr1 : Accessor {
     using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-     // This ACR cannot be addressable, because then chaining may take the
-     // address but then release this ACR object, invalidating the reference.
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
     static void _destroy (Accessor*) noexcept;
-    static constexpr AcrVT _vt = {
-        &AcrVT::const_type<To>, &_access, null, null, &_destroy
-    };
+    static constexpr AcrVT _vt = {&_access, &_destroy};
 };
 template <class From, class To>
 struct VariableAcr2 : VariableAcr1<To> {
@@ -521,18 +492,17 @@ struct VariableAcr2 : VariableAcr1<To> {
     mutable To value;
      // This ACR cannot be constexpr.
     explicit VariableAcr2 (To&& v, AcrFlags flags = {}) :
-        VariableAcr1<To>(&VariableAcr1<To>::_vt,
-            flags | AcrFlags::Unaddressable
-        ),
-        value(move(v))
+        VariableAcr1<To>(&VariableAcr1<To>::_vt, flags), value(move(v))
     { }
 };
 template <class To>
 void VariableAcr1<To>::_access (
-    const Accessor* acr, AccessMode, Mu&, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode, Mu&, AccessCB cb
 ) {
     auto self = static_cast<const VariableAcr2<Mu, To>*>(acr);
-    cb(reinterpret_cast<Mu&>(self->value));
+     // This ACR cannot be addressable, because then chaining may take the
+     // address but then release this ACR object, invalidating the reference.
+    cb(AnyPtr(&self->value), false);
 }
 template <class To>
 void VariableAcr1<To>::_destroy (Accessor* acr) noexcept {
@@ -545,11 +515,9 @@ void VariableAcr1<To>::_destroy (Accessor* acr) noexcept {
 template <class To>
 struct ConstantAcr1 : Accessor {
     using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
     static void _destroy (Accessor*) noexcept;
-    static constexpr AcrVT _vt = {
-        &AcrVT::const_type<To>, &_access, null, null, &_destroy
-    };
+    static constexpr AcrVT _vt = {&_access, &_destroy};
 };
 template <class From, class To>
 struct ConstantAcr2 : ConstantAcr1<To> {
@@ -557,22 +525,17 @@ struct ConstantAcr2 : ConstantAcr1<To> {
     using AcrToType = To;
     const To value;
     explicit constexpr ConstantAcr2 (const To& v, AcrFlags flags = {}) :
-        ConstantAcr1<To>(&ConstantAcr1<To>::_vt,
-            flags | AcrFlags::Readonly | AcrFlags::Unaddressable
-        ),
+        ConstantAcr1<To>(&ConstantAcr1<To>::_vt, flags | AcrFlags::Readonly),
         value(v)
     { }
 };
 template <class To>
 void ConstantAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu&, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu&, AccessCB cb
 ) {
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstantAcr2<Mu, To>*>(acr);
-     // Do reinterpret_cast then const_cast, because doing it in the other order
-     // with std::nullptr_t causes "Error: reinterpret_cast casts away
-     // qualifiers".  I guess std::nullptr_t is always const?
-    cb(const_cast<Mu&>(reinterpret_cast<const Mu&>(self->value)));
+    cb(&self->value, false);
 }
 template <class To>
 void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {
@@ -584,10 +547,8 @@ void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {
 
 struct ConstantPtrAcr0 : AccessorWithType {
     using AccessorWithType::AccessorWithType;
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-     // Should be okay addressing this.
-    static Mu* _address (const Accessor*, Mu&);
-    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 
 template <class From, class To>
@@ -609,9 +570,8 @@ struct ConstantPtrAcr2 : ConstantPtrAcr0 {
  // miss anything important.
 struct AnyRefFuncAcr1 : Accessor {
     using Accessor::Accessor;
-    static Type _type (const Accessor*, Mu*);
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static constexpr AcrVT _vt = {&_type, &_access};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From>
 struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
@@ -621,7 +581,7 @@ struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
     explicit constexpr AnyRefFuncAcr2 (
         AnyRef(* f )(From&), AcrFlags flags = {}
     ) :
-        AnyRefFuncAcr1(&_vt, flags | AcrFlags::Unaddressable), f(f)
+        AnyRefFuncAcr1(&_vt, flags), f(f)
     { }
 };
 
@@ -629,10 +589,8 @@ struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
 
 struct AnyPtrFuncAcr1 : Accessor {
     using Accessor::Accessor;
-    static Type _type (const Accessor*, Mu*);
-    static void _access (const Accessor*, AccessMode, Mu&, CallbackRef<void(Mu&)>);
-    static Mu* _address (const Accessor*, Mu&);
-    static constexpr AcrVT _vt = {&_type, &_access, &_address};
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From>
 struct AnyPtrFuncAcr2 : AnyPtrFuncAcr1 {

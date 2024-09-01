@@ -28,26 +28,30 @@ enum class TraversalOp : uint8 {
 };
 struct Traversal {
     const Traversal* parent;
-    const DescriptionPrivate* desc;
     TraversalOp op;
-     // This address is not guaranteed to be permanently valid unless
-     // addressable is set.
-    Mu* address;
-     // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
-     // track of it here.
-    bool readonly;
      // Only traverse addressable items.  If an unaddressable and
      // non-pass-through item is encountered, the traversal's callback will not
-     // be called.
+     // be called.  This remains constant throughout the whole traversal.
     bool only_addressable;
-     // Attr has collapse_optional flag set
+     // Attr has collapse_optional flag set.  This is independent for each item.
     bool collapse_optional;
      // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.
+     // Before access, = parent.children_addressable.
+     // After access, &= item addressable
     bool addressable;
      // Set if parent->children_addressable and pass_through_addressable.  This
      // can go from on to off, but never from off to on.
+     // Before access, = acr pass through addressable (false if no acr)
+     // After access, |= child.addressable
     bool children_addressable;
+     // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
+     // track of it here.  This can go from off to on, but never from on to off.
+    bool readonly;
+    const DescriptionPrivate* desc;
+     // This address is not guaranteed to be permanently valid unless
+     // addressable is set.
+    Mu* address;
 
     AnyRef to_reference () const noexcept;
     AnyRef to_reference_parent_addressable () const noexcept;
@@ -99,11 +103,17 @@ struct ContiguousElemTraversal : PtrTraversal {
 using VisitFunc = void(const Traversal&);
 
  // All the lambdas in these functions were identical, so deduplicate them into
- // this function.  It's only two instructions long but it's still better for
- // branch prediction for it not to be duplicated.
+ // this function.
 template <VisitFunc& visit>
-void set_address_and_visit (Traversal& child, Mu& v) {
-    child.address = &v;
+void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
+    child.addressable &= addr;
+    child.children_addressable |= child.addressable;
+    if (child.only_addressable) {
+        if (!child.children_addressable) return;
+    }
+    child.readonly |= v.type.readonly();
+    child.desc = DescriptionPrivate::get(v.type);
+    child.address = v.address;
     visit(child);
 }
 
@@ -117,44 +127,19 @@ void trav_start (
     expect(ref);
 
     child.parent = null;
-    child.readonly = ref.host.type.readonly();
-    child.only_addressable = only_addressable;
-    child.collapse_optional = false;
     child.op = TraversalOp::Start;
+    child.only_addressable = only_addressable;
+    child.readonly = ref.host.type.readonly();
+    child.collapse_optional = false; // Can't collapse top-level item
+    child.addressable = true;
+    child.children_addressable = ref.acr &&
+        !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
     child.reference = &ref;
     child.location = loc;
-     // A lot of AnyRef's methods branch on acr, and while those checks would
-     // normally be able to be merged, the indirect calls to the acr's virtual
-     // functions invalidate a lot of optimizations, so instead of working
-     // directly on the reference, we're going to pick it apart into host and
-     // acr.
-    if (!ref.acr) [[likely]] {
-        child.desc = DescriptionPrivate::get(ref.host.type);
-        child.address = ref.host.address;
-        child.addressable = true;
-        child.children_addressable = true;
-        visit(child);
-    }
-    else {
-        child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
-        child.desc = DescriptionPrivate::get(ref.acr->type(ref.host.address));
-        if (!(ref.acr->flags & AcrFlags::Unaddressable)) {
-            child.address = ref.acr->address(*ref.host.address);
-            child.addressable = true;
-            child.children_addressable = true;
-            visit(child);
-        }
-        else {
-            child.addressable = false;
-            child.children_addressable =
-                !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
-            if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, CallbackRef<void(Mu&)>(
-                    static_cast<Traversal&>(child), &set_address_and_visit<visit>
-                ));
-            }
-        }
-    }
+    ref.access(mode, AccessCB(
+        static_cast<Traversal&>(child),
+        &visit_after_access<visit>
+    ));
 } catch (...) { child.wrap_exception(); }
 
 template <VisitFunc& visit> ALWAYS_INLINE
@@ -162,28 +147,18 @@ void trav_acr (
     AcrTraversal& child, const Traversal& parent,
     const Accessor* acr, AccessMode mode
 ) try {
+    child.acr = acr;
     child.parent = &parent;
-    child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
     child.only_addressable = parent.only_addressable;
     child.collapse_optional = !!(acr->attr_flags & AttrFlags::CollapseOptional);
-    child.acr = acr;
-    child.desc = DescriptionPrivate::get(acr->type(parent.address));
-    if (!(acr->flags & AcrFlags::Unaddressable)) [[likely]] {
-        child.address = acr->address(*parent.address);
-        child.addressable = parent.children_addressable;
-        child.children_addressable = parent.children_addressable;
-        visit(child);
-    }
-    else {
-        child.addressable = false;
-        child.children_addressable = parent.children_addressable &
-            !!(acr->flags & AcrFlags::PassThroughAddressable);
-        if (!child.only_addressable || child.children_addressable) {
-            acr->access(mode, *parent.address, CallbackRef<void(Mu&)>(
-                static_cast<Traversal&>(child), &set_address_and_visit<visit>
-            ));
-        }
-    }
+    child.addressable = parent.children_addressable;
+    child.children_addressable =
+        !!(acr->flags & AcrFlags::PassThroughAddressable);
+    child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
+    acr->access(mode, *parent.address, AccessCB(
+        static_cast<Traversal&>(child),
+        &visit_after_access<visit>
+    ));
 }
 catch (...) { child.wrap_exception(); }
 
@@ -193,36 +168,16 @@ void trav_ref (
     const AnyRef& ref, AccessMode mode
 ) try {
     child.parent = &parent;
-    child.readonly = parent.readonly | ref.host.type.readonly();
     child.only_addressable = parent.only_addressable;
     child.collapse_optional = false;
-    if (!ref.acr) [[likely]] {
-        child.desc = DescriptionPrivate::get(ref.host.type);
-        child.address = ref.host.address;
-        child.addressable = parent.children_addressable;
-        child.children_addressable = parent.children_addressable;
-        visit(child);
-    }
-    else {
-        child.readonly |= !!(ref.acr->flags & AcrFlags::Readonly);
-        child.desc = DescriptionPrivate::get(ref.acr->type(ref.host.address));
-        if (!(ref.acr->flags & AcrFlags::Unaddressable)) {
-            child.address = ref.acr->address(*ref.host.address);
-            child.addressable = parent.children_addressable;
-            child.children_addressable = parent.children_addressable;
-            visit(child);
-        }
-        else {
-            child.addressable = false;
-            child.children_addressable = parent.children_addressable &
-                !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
-            if (!child.only_addressable || child.children_addressable) {
-                ref.access(mode, CallbackRef<void(Mu&)>(
-                    static_cast<Traversal&>(child), &set_address_and_visit<visit>
-                ));
-            }
-        }
-    }
+    child.addressable = parent.children_addressable;
+    child.children_addressable = ref.acr &&
+        !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
+    child.readonly = parent.readonly | ref.host.type.readonly();
+    ref.access(mode, AccessCB(
+        static_cast<Traversal&>(child),
+        &visit_after_access<visit>
+    ));
 }
 catch (...) { child.wrap_exception(); }
 
@@ -232,13 +187,13 @@ void trav_ptr (
     AnyPtr ptr, AccessMode
 ) try {
     child.parent = &parent;
-    child.readonly = parent.readonly | ptr.type.readonly();
     child.only_addressable = parent.only_addressable;
     child.collapse_optional = false;
-    child.desc = DescriptionPrivate::get(ptr.type);
-    child.address = ptr.address;
     child.addressable = parent.children_addressable;
     child.children_addressable = parent.children_addressable;
+    child.readonly = parent.readonly | ptr.type.readonly();
+    child.desc = DescriptionPrivate::get(ptr.type);
+    child.address = ptr.address;
     visit(child);
 }
 catch (...) { child.wrap_exception(); }

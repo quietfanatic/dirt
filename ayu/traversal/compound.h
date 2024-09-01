@@ -56,15 +56,15 @@ AnyRef item_elem (
     const AnyRef&, usize, LocationRef loc = {}
 );
 
+ // The keys() descriptor of an item produced a type other than
+ // AnyArray<AnyString>.
+constexpr ErrorCode e_KeysTypeInvalid = "ayu::e_KeysTypeInvalid";
  // The set_keys operation (which is also part of the item_from_tree process)
  // failed because a key that the item required was not given.
 constexpr ErrorCode e_AttrMissing = "ayu::e_AttrMissing";
  // The set_keys operation (which is also part of the item_from_tree process)
  // failed because a key was given that the item did not accept.
 constexpr ErrorCode e_AttrRejected = "ayu::e_AttrRejected";
- // The keys() descriptor of an item produced a type that didn't serialize to an
- // array of strings.
-constexpr ErrorCode e_KeysTypeInvalid = "ayu::e_KeysTypeInvalid";
  // Called item_attr on an item but it didn't have the requested attr.  This
  // can happen in item_to_tree or item_from_tree if an item's keys() descriptor
  // produces or accepts a key that its attr_func() descriptor then rejects.
@@ -74,6 +74,8 @@ constexpr ErrorCode e_AttrNotFound = "ayu::e_AttrNotFound";
  // (when given an object tree for the item).
 constexpr ErrorCode e_AttrsNotSupported = "ayu::e_AttrsNotSupported";
 
+ // An item's length accessor returned a type other than usize
+constexpr ErrorCode e_LengthTypeInvalid = "ayu::e_LengthTypeRejected";
  // The set_length operation (which is also part of the item_from_tree process)
  // failed because the provided length was not accepted by the item.
 constexpr ErrorCode e_LengthRejected = "ayu::e_LengthRejected";
@@ -97,12 +99,37 @@ void raise_LengthRejected (Type item_type, usize min, usize max, usize got);
 
  // These are less likely to be useful, but they're here in case you want them.
 [[noreturn, gnu::cold]]
-void raise_AttrNotFound (Type, const AnyString&);
+void raise_KeysTypeInvalid (Type item_type, Type got_type);
 [[noreturn, gnu::cold]]
-void raise_ElemNotFound (Type, usize);
+void raise_AttrNotFound (Type, const AnyString&);
 [[noreturn, gnu::cold]]
 void raise_AttrsNotSupported (Type);
 [[noreturn, gnu::cold]]
+void raise_LengthTypeInvalid (Type item_type, Type got_type);
+[[noreturn, gnu::cold]]
+void raise_ElemNotFound (Type, usize);
+[[noreturn, gnu::cold]]
 void raise_ElemsNotSupported (Type);
+
+inline void require_readable_keys (Type t) {
+    if (t.remove_readonly() != Type::CppType<AnyArray<AnyString>>()) {
+        raise_LengthTypeInvalid(Type(), t);
+    }
+}
+inline void require_writeable_keys (Type t) {
+    if (t != Type::CppType<AnyArray<AnyString>>()) {
+        raise_LengthTypeInvalid(Type(), t);
+    }
+}
+inline void require_readable_length (Type t) {
+    if (t.remove_readonly() != Type::CppType<usize>()) {
+        raise_LengthTypeInvalid(Type(), t);
+    }
+}
+inline void require_writeable_length (Type t) {
+    if (t != Type::CppType<usize>()) {
+        raise_LengthTypeInvalid(Type(), t);
+    }
+}
 
 } // namespace ayu

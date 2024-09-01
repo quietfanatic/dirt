@@ -77,8 +77,8 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     auto desc = DescriptionPrivate::get(*this);
 
     if (auto delegate = desc->delegate_acr())
-    if (Mu* a = delegate->address(*p))
-    if (Mu* b = delegate->type(p).try_upcast_to(to, a))
+    if (AnyPtr a = delegate->address(*p))
+    if (Mu* b = a.type.try_upcast_to(to, a.address))
         return b;
 
     if (!desc->keys_acr())
@@ -86,8 +86,8 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
         if (!!(acr->attr_flags & AttrFlags::Include))
-        if (Mu* a = acr->address(*p))
-        if (Mu* b = acr->type(p).try_upcast_to(to, a))
+        if (AnyPtr a = acr->address(*p))
+        if (Mu* b = a.type.try_upcast_to(to, a.address))
             return b;
     }
 
@@ -96,8 +96,8 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
         if (!!(acr->attr_flags & AttrFlags::Include))
-        if (Mu* a = acr->address(*p))
-        if (Mu* b = acr->type(p).try_upcast_to(to, a))
+        if (AnyPtr a = acr->address(*p))
+        if (Mu* b = a.type.try_upcast_to(to, a.address))
             return b;
     }
     return null;
@@ -105,61 +105,6 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
 Mu* Type::upcast_to (Type to, Mu* p) const {
     if (!p) return null;
     if (Mu* r = try_upcast_to(to, p)) return r;
-    else raise_TypeCantCast(*this, to);
-}
-
-Mu* Type::try_downcast_to (Type to, Mu* p) const {
-    if (!to || !p) return null;
-     // Downcasting is unsafe anyway, so allow downcasting from readonly to
-     // non-readonly.
-    if (this->remove_readonly() == to.remove_readonly()) return p;
-    auto desc = DescriptionPrivate::get(to);
-
-     // It's okay to pass null to ->type() because the only accessor that
-     // actually checks it doesn't have an inverse_address.
-    if (auto delegate = desc->delegate_acr())
-    if (delegate->vt->inverse_address)
-    if (Mu* a = try_downcast_to(delegate->type(null), p))
-    if (Mu* b = delegate->inverse_address(*a))
-        return b;
-
-    if (!desc->keys_acr())
-    if (auto attrs = desc->attrs())
-    for (size_t i = 0; i < attrs->n_attrs; i++) {
-        auto acr = attrs->attr(i)->acr();
-        if (!!(acr->attr_flags & AttrFlags::Include))
-        if (acr->vt->inverse_address)
-        if (Mu* a = try_downcast_to(acr->type(null), p))
-        if (Mu* b = acr->inverse_address(*a))
-            return b;
-    }
-
-    if (!desc->length_acr())
-    if (auto elems = desc->elems())
-    for (size_t i = 0; i < elems->n_elems; i++) {
-        auto acr = elems->elem(i)->acr();
-        if (!!(acr->attr_flags & AttrFlags::Include))
-        if (acr->vt->inverse_address)
-        if (Mu* a = try_downcast_to(acr->type(null), p))
-        if (Mu* b = acr->inverse_address(*a))
-            return b;
-    }
-    return null;
-}
-Mu* Type::downcast_to (Type to, Mu* p) const {
-    if (!p) return p;
-    if (Mu* r = try_downcast_to(to, p)) return r;
-    else raise_TypeCantCast(*this, to);
-}
-
-Mu* Type::try_cast_to (Type to, Mu* p) const {
-    if (!p) return p;
-    if (Mu* r = try_upcast_to(to, p)) return r;
-    else return try_downcast_to(to, p);
-}
-Mu* Type::cast_to (Type to, Mu* p) const {
-    if (!p) return p;
-    if (Mu* r = try_cast_to(to, p)) return r;
     else raise_TypeCantCast(*this, to);
 }
 

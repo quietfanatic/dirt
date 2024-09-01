@@ -159,11 +159,12 @@ struct TraverseScan {
         AnyArray<AnyString> keys;
         expect(trav.desc->keys_offset);
         auto keys_acr = trav.desc->keys_acr();
-        keys_acr->read(*trav.address, CallbackRef<void(Mu&)>(
-            keys, [](auto& keys, Mu& v)
+        keys_acr->read(*trav.address,
+            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
+            require_readable_keys(v.type);
             new (&keys) AnyArray<AnyString>(
-                reinterpret_cast<const AnyArray<AnyString>&>(v)
+                reinterpret_cast<const AnyArray<AnyString>&>(*v.address)
             );
         }));
         expect(trav.desc->computed_attrs_offset);
@@ -215,9 +216,12 @@ struct TraverseScan {
         expect(trav.desc->length_offset);
         auto length_acr = trav.desc->length_acr();
         usize len;
-        length_acr->read(*trav.address, CallbackRef<void(Mu& v)>(
-            len, [](usize& len, Mu& v)
-        { len = reinterpret_cast<usize&>(v); }));
+        length_acr->read(*trav.address,
+            AccessCB(len, [](usize& len, AnyPtr v, bool)
+        {
+            require_readable_length(v.type);
+            len = reinterpret_cast<usize&>(*v.address);
+        }));
         return len;
     }
 
@@ -395,7 +399,7 @@ bool scan_universe_pointers (
     if (auto loc = current_base_location()) {
         if (auto ref = loc->reference()) {
             if (auto address = ref->address()) {
-               scan_pointers(AnyPtr(ref->type(), address), loc, cb);
+               scan_pointers(address, loc, cb);
             }
         }
     }
@@ -463,9 +467,8 @@ SharedLocation find_reference (const AnyRef& item) {
         if (item == plr->reference) return plr->location;
     }
     if (get_location_cache()) {
-        if (Mu* address = item.address()) {
+        if (AnyPtr ptr = item.address()) {
              // Addressable! This will be fast.
-            auto ptr = AnyPtr(item.type(), address);
             if (auto it = search_location_cache(ptr)) {
                 if (it->first.readonly() && !item.readonly()) {
                     [[unlikely]] return {};

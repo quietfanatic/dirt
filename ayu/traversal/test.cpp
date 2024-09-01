@@ -348,8 +348,8 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(item_get_length(&est), 6u, "item_get_length");
     int answer = 0;
     doesnt_throw([&]{
-        item_elem(&est, 5).read_as<int>([&](const int& v){ answer = v; });
-    }, "item_elem and AnyRef::read_as");
+        answer = item_elem(&est, 5).get_as<int>();
+    }, "item_elem and AnyRef::get_as");
     is(answer, 21, "item_elem gives correct answer");
     throws_code<e_External>(
         [&]{ item_elem(&est, 6); },
@@ -363,8 +363,8 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     item_set_length(&est, 9);
     is(est.xs.size(), 9u, "item_set_length grow");
     doesnt_throw([&]{
-        item_elem(&est, 8).write_as<int>([](int& v){ v = 99; });
-    }, "item_elem and AnyRef::write_as");
+        item_elem(&est, 8).set_as<int>(99);
+    }, "item_elem and AnyRef::set_as");
     is(est.xs.at(8), 99, "writing to elem works");
     try_to_tree(&est, "[1 3 6 10 15 0 0 0 99]", "item_to_tree with length and computed_elems");
     doesnt_throw([&]{
@@ -380,8 +380,8 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     );
     answer = 0;
     doesnt_throw([&]{
-        item_attr(&ast2, "b").read_as<int>([&](const int& v){ answer = v; });
-    }, "item_attr and AnyRef::read_as");
+        answer = item_attr(&ast2, "b").get_as<int>();
+    }, "item_attr and AnyRef::get_as");
     is(answer, 22, "item_attr gives correct answer");
     throws_code<e_External>([&]{
         item_attr(&ast2, "c");
@@ -391,8 +391,8 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(ast2.xs.find("a"), ast2.xs.end(), "item_set_keys removed key");
     is(ast2.xs.at("c"), 0, "item_set_keys added key");
     doesnt_throw([&]{
-        item_attr(&ast2, "d").write_as<int>([](int& v){ v = 999; });
-    }, "item_attr and AnyRef::write_as");
+        item_attr(&ast2, "d").set_as<int>(999);
+    }, "item_attr and AnyRef::set_as");
     is(ast2.xs.at("d"), 999, "writing to attr works");
     try_to_tree(&ast2, "{c:0,d:999}", "item_to_tree with keys and computed_attrs");
     doesnt_throw([&]{

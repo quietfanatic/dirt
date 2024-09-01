@@ -6,94 +6,61 @@
 
 namespace ayu::in {
 
-Type AccessorWithType::_type (const Accessor* acr, Mu*) {
-    auto self = static_cast<const AccessorWithType*>(acr);
-    return *self->desc;
-}
-
 void MemberAcr0::_access (
-    const Accessor* acr, AccessMode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const MemberAcr2<Mu, Mu>*>(acr);
-    cb(from.*(self->mp));
-}
-Mu* MemberAcr0::_address (const Accessor* acr, Mu& from) {
-    auto self = static_cast<const MemberAcr2<Mu, Mu>*>(acr);
-    return &(from.*(self->mp));
-}
-Mu* MemberAcr0::_inverse_address (const Accessor* acr, Mu& to) {
-    auto self = static_cast<const MemberAcr2<Mu, Mu>*>(acr);
-     // Figure out how much the pointer-to-member changes the address, and
-     // subtract that amount instead of adding it.
-     // I'm sure this breaks all sorts of rules but it works (crossed fingers).
-    char* to_address = reinterpret_cast<char*>(&to);
-    isize offset = reinterpret_cast<char*>(&(to.*(self->mp))) - to_address;
-    return reinterpret_cast<Mu*>(to_address - offset);
+    AnyPtr ptr (*self->desc, &(from.*(self->mp)));
+    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
 void RefFuncAcr0::_access (
-    const Accessor* acr, AccessMode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const RefFuncAcr2<Mu, Mu>*>(acr);
-    cb((self->f)(from));
-}
-Mu* RefFuncAcr0::_address (const Accessor* acr, Mu& from) {
-     // It's the programmer's responsibility to know whether they're
-     // allowed to do this or not.
-    auto self = static_cast<const RefFuncAcr2<Mu, Mu>*>(acr);
-    return &(self->f)(from);
+    AnyPtr ptr (*self->desc, &self->f(from));
+    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
 void ConstRefFuncAcr0::_access (
     const Accessor* acr, [[maybe_unused]] AccessMode mode,
-    Mu& from, CallbackRef<void(Mu&)> cb
+    Mu& from, AccessCB cb
 ) {
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstRefFuncAcr2<Mu, Mu>*>(acr);
-    cb(const_cast<Mu&>((self->f)(from)));
-}
-Mu* ConstRefFuncAcr0::_address (const Accessor* acr, Mu& from) {
-    auto self = static_cast<const ConstRefFuncAcr2<Mu, Mu>*>(acr);
-    return const_cast<Mu*>(&(self->f)(from));
+    AnyPtr ptr (
+        Type(*self->desc).add_readonly(),
+        const_cast<Mu*>(&self->f(from))
+    );
+    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
 void ConstantPtrAcr0::_access (
     const Accessor* acr, [[maybe_unused]] AccessMode mode,
-    Mu&, CallbackRef<void(Mu&)> cb
+    Mu&, AccessCB cb
 ) {
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstantPtrAcr2<Mu, Mu>*>(acr);
-    cb(*const_cast<Mu*>(self->pointer));
+    AnyPtr ptr (
+        Type(*self->desc).add_readonly(),
+        const_cast<Mu*>(self->pointer)
+    );
+    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
-Type AnyRefFuncAcr1::_type (const Accessor* acr, Mu* from) {
-    if (!from) return Type();
-    auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
-    return expect(self->f(*from).type());
-}
 void AnyRefFuncAcr1::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
-     // This will null deref if f returns an empty AnyRef
+     // Just pass on the call
     self->f(from).access(mode, cb);
 }
 
-Type AnyPtrFuncAcr1::_type (const Accessor* acr, Mu* from) {
-    if (!from) return Type();
-    auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
-    return expect(self->f(*from).type);
-}
 void AnyPtrFuncAcr1::_access (
-    const Accessor* acr, AccessMode, Mu& from, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
-    cb(*expect(self->f(from).address));
-}
-Mu* AnyPtrFuncAcr1::_address (const Accessor* acr, Mu& from) {
-    auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
-    auto ptr = self->f(from);
-    return expect(ptr.address);
+    cb(self->f(from), !(self->flags & AcrFlags::Unaddressable));
 }
 
 static
@@ -119,82 +86,66 @@ ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
     outer(outer), inner(inner)
 { outer->inc(); inner->inc(); }
 
-Type ChainAcr::_type (const Accessor* acr, Mu* v) {
-    auto self = static_cast<const ChainAcr*>(acr);
-     // Most accessors ignore the parameter, so we can usually skip the
-     // read operation on a.
-    Type r = self->inner->type(null);
-    if (!r) {
-        if (!v) return Type();
-        self->outer->read(*v, [&r, self](Mu& w){
-            r = self->inner->type(&w);
-        });
-    }
-    return r;
-}
 void ChainAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
 ) {
-    auto self = static_cast<const ChainAcr*>(acr);
-;    // Have to use modify instead of write for the first mode, or other
+    struct Frame {
+        const ChainAcr* self;
+        AccessMode mode;
+        AccessCB cb;
+        bool o_addr;
+    };
+    Frame frame {static_cast<const ChainAcr*>(acr), mode, cb, false};
+     // Have to use modify instead of write for the first mode, or other
      // parts of the item will get clobbered.  Hope this isn't necessary
      // very often.
     auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
-    return self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
-        self->inner->access(mode, w, cb);
-    });
-}
-Mu* ChainAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const ChainAcr*>(acr);
-    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
-        Mu* r = null;
-        self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
-            r = self->inner->address(w);
-        });
-        return r;
-    }
-    else if (auto addr = self->outer->address(v)) {
-         // We shouldn't get to this codepath but here it is anyway
-        return self->inner->address(*addr);
-    }
-    else return null;
+    return frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+            frame.o_addr = o_addr;
+            frame.self->inner->access(frame.mode, *w.address,
+                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
+                     // We need to wrap the cb twice, so that we can return the
+                     // correct addressable bool.  Hopefully most of these are
+                     // tail calls...
+                    bool addr = frame.o_addr & i_addr
+                              & !(frame.self->flags & AcrFlags::Unaddressable);
+                    frame.cb(x, addr);
+                })
+            );
+        })
+    );
 }
 void ChainAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const ChainAcr*>(acr);
     self->inner->dec(); self->outer->dec();
 }
 
-Type ChainAttrFuncAcr::_type (const Accessor* acr, Mu* v) {
-    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
-    if (!v) return Type();
-    Type r;
-    self->outer->read(*v, [&r, self](Mu& w){
-        r = self->f(w, self->key).type();
-    });
-    return r;
-}
 void ChainAttrFuncAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
 ) {
-    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
+    struct Frame {
+        const ChainAttrFuncAcr* self;
+        AccessMode mode;
+        AccessCB cb;
+        bool o_addr;
+    };
+    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), mode, cb, false};
     auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
-    self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
-        self->f(w, self->key).access(mode, cb);
-    });
-}
-Mu* ChainAttrFuncAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
-    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
-        Mu* r = null;
-        self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
-            r = self->f(w, self->key).address();
-        });
-        return r;
-    }
-    else if (auto addr = self->outer->address(v)) {
-        return self->f(*addr, self->key).address();
-    }
-    else return null;
+    frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+            frame.o_addr = o_addr;
+            frame.self->f(*w.address, frame.self->key).access(frame.mode,
+                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
+                    bool addr = frame.o_addr & i_addr
+                              & !(frame.self->flags & AcrFlags::Unaddressable);
+                    frame.cb(x, addr);
+                })
+            );
+        })
+    );
 }
 void ChainAttrFuncAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const ChainAttrFuncAcr*>(acr);
@@ -202,37 +153,30 @@ void ChainAttrFuncAcr::_destroy (Accessor* acr) noexcept {
     self->~ChainAttrFuncAcr();
 }
 
-Type ChainElemFuncAcr::_type (const Accessor* acr, Mu* v) {
-    auto self = static_cast<const ChainElemFuncAcr*>(acr);
-    if (!v) return Type();
-    Type r;
-    self->outer->read(*v, [&r, self](Mu& w){
-        r = self->f(w, self->index).type();
-    });
-    return r;
-}
 void ChainElemFuncAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
 ) {
-    auto self = static_cast<const ChainElemFuncAcr*>(acr);
+    struct Frame {
+        const ChainElemFuncAcr* self;
+        AccessMode mode;
+        AccessCB cb;
+        bool o_addr;
+    };
+    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), mode, cb, false};
     auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
-    self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
-        self->f(w, self->index).access(mode, cb);
-    });
-}
-Mu* ChainElemFuncAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const ChainElemFuncAcr*>(acr);
-    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
-        Mu* r = null;
-        self->outer->access(AccessMode::Read, v, [&r, self](Mu& w){
-            r = self->f(w, self->index).address();
-        });
-        return r;
-    }
-    else if (auto addr = self->outer->address(v)) {
-        return self->f(*addr, self->index).address();
-    }
-    else return null;
+    frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+            frame.o_addr = o_addr;
+            frame.self->f(*w.address, frame.self->index).access(frame.mode,
+                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
+                    bool addr = frame.o_addr & i_addr
+                              & !(frame.self->flags & AcrFlags::Unaddressable);
+                    frame.cb(x, addr);
+                })
+            );
+        })
+    );
 }
 void ChainElemFuncAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const ChainElemFuncAcr*>(acr);
@@ -240,42 +184,39 @@ void ChainElemFuncAcr::_destroy (Accessor* acr) noexcept {
     self->~ChainElemFuncAcr();
 }
 
-Type ChainDataFuncAcr::_type (const Accessor* acr, Mu* v) {
-    auto self = static_cast<const ChainDataFuncAcr*>(acr);
-    if (!v) return Type();
-    Type r;
-    self->outer->read(*v, [&r, self](Mu& w){
-        r = self->f(w).type;
-    });
-    return r;
-}
 void ChainDataFuncAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, CallbackRef<void(Mu&)> cb
+    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
 ) {
-    auto self = static_cast<const ChainDataFuncAcr*>(acr);
+    struct Frame {
+        const ChainDataFuncAcr* self;
+#ifndef NDEBUG
+        AccessMode mode;
+#endif
+        AccessCB cb;
+    };
+#ifndef NDEBUG
+    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), mode, cb};
+#else
+    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb};
+#endif
     auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
-    self->outer->access(outer_mode, v, [self, mode, cb](Mu& w){
-        AnyPtr data = self->f(w);
-        auto desc = DescriptionPrivate::get(data.type);
-        cb(*(Mu*)(
-            (char*)data.address + self->index * desc->cpp_size
-        ));
-    });
-}
-Mu* ChainDataFuncAcr::_address (const Accessor* acr, Mu& v) {
-    auto self = static_cast<const ChainDataFuncAcr*>(acr);
-    AnyPtr data;
-    if (!!(self->outer->flags & AcrFlags::PassThroughAddressable)) {
-        self->outer->access(AccessMode::Read, v, [&data, self](Mu& w){
-            data = self->f(w);
-        });
-    }
-    else if (auto addr = self->outer->address(v)) {
-        data = self->f(*addr);
-    }
-    else return null;
-    auto desc = DescriptionPrivate::get(data.type);
-    return (Mu*)((char*)data.address + self->index * desc->cpp_size);
+    frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+             // We should already have done bounds checking.  Unfortunately we
+             // can't reverify it in debug mode because we've lost the info
+             // necessary to get the length.
+#ifndef NDEBUG
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+#endif
+            AnyPtr x = frame.self->f(*w.address);
+            x.address = (Mu*)(
+                (char*)x.address + frame.self->index * x.type.cpp_size()
+            );
+            bool addr = o_addr
+                      & !(frame.self->flags & AcrFlags::Unaddressable);
+            frame.cb(x, addr);
+        })
+    );
 }
 void ChainDataFuncAcr::_destroy (Accessor* acr) noexcept {
     auto self = static_cast<const ChainDataFuncAcr*>(acr);
@@ -389,52 +330,70 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     using namespace tap;
     SubThing thing2 {7, 8, 9};
 
-    BaseAcr2<SubThing, Thing>{}.read(reinterpret_cast<Mu&>(thing2), [&](Mu& thing){
-        is(reinterpret_cast<const Thing&>(thing).b, 8, "BaseAcr::read");
-    });
-    BaseAcr2<SubThing, Thing>{}.write(reinterpret_cast<Mu&>(thing2), [&](Mu& thing){
-        auto& th = reinterpret_cast<Thing&>(thing);
-        th.a = 77;
-        th.b = 88;
-    });
+    BaseAcr2<SubThing, Thing>{}.read(reinterpret_cast<Mu&>(thing2),
+        [&](AnyPtr thing, bool){
+            is(thing.type, Type::CppType<Thing>());
+            is(reinterpret_cast<Thing&>(*thing.address).b, 8, "BaseAcr::read");
+        }
+    );
+    BaseAcr2<SubThing, Thing>{}.write(reinterpret_cast<Mu&>(thing2),
+        [&](AnyPtr thing, bool){
+            is(thing.type, Type::CppType<Thing>());
+            auto& th = reinterpret_cast<Thing&>(*thing.address);
+            th.a = 77;
+            th.b = 88;
+        }
+    );
     is(thing2.b, 88, "BaseAcr::write");
 
     auto test_addressable = [&](Str type, auto acr){
         Thing t {1, 2};
         is(
             acr.address(reinterpret_cast<Mu&>(t)),
-            reinterpret_cast<Mu*>(&t.b),
+            AnyPtr(&t.b),
             cat(type, "::address").c_str()
         );
-        acr.read(reinterpret_cast<Mu&>(t), [&](Mu& v){
-            is(reinterpret_cast<const int&>(v), 2, cat(type, "::read").c_str());
-        });
-        acr.write(reinterpret_cast<Mu&>(t), [&](Mu& v){
-            reinterpret_cast<int&>(v) = 4;
-        });
+        acr.read(reinterpret_cast<Mu&>(t),
+            [&](AnyPtr v, bool){
+                is(*v.upcast_to<const int>(), 2, cat(type, "::read").c_str());
+            }
+        );
+        acr.write(reinterpret_cast<Mu&>(t),
+            [&](AnyPtr v, bool){
+                *v.upcast_to<int>() = 4;
+            }
+        );
         is(t.b, 4, cat(type, "::write").c_str());
-        acr.modify(reinterpret_cast<Mu&>(t), [&](Mu& v){
-            reinterpret_cast<int&>(v) += 5;
-        });
+        acr.modify(reinterpret_cast<Mu&>(t),
+            [&](AnyPtr v, bool){
+                *v.upcast_to<int>() += 5;
+            }
+        );
         is(t.b, 9, cat(type, "::modify").c_str());
     };
     auto test_unaddressable = [&](Str type, auto acr){
         Thing t {1, 2};
         is(
-            acr.address(reinterpret_cast<Mu&>(t)),
+            acr.address(reinterpret_cast<Mu&>(t)).address,
             null,
             cat(type, "::address return null").c_str()
         );
-        acr.read(reinterpret_cast<Mu&>(t), [&](Mu& v){
-            is(reinterpret_cast<const int&>(v), 2, cat(type, "::read").c_str());
-        });
-        acr.write(reinterpret_cast<Mu&>(t), [&](Mu& v){
-            reinterpret_cast<int&>(v) = 4;
-        });
+        acr.read(reinterpret_cast<Mu&>(t),
+            [&](AnyPtr v, bool){
+                is(*v.upcast_to<const int>(), 2, cat(type, "::read").c_str());
+            }
+        );
+        acr.write(reinterpret_cast<Mu&>(t),
+            [&](AnyPtr v, bool){
+                *v.upcast_to<int>() = 4;
+            }
+        );
         is(t.b, 4, cat(type, "::write").c_str());
-        acr.modify(reinterpret_cast<Mu&>(t), [&](Mu& v){
-            reinterpret_cast<int&>(v) += 5;
-        });
+        acr.modify(reinterpret_cast<Mu&>(t),
+            [&](AnyPtr v, bool){
+                *v.upcast_to<int>() += 5;
+            }
+        );
         is(t.b, 9, cat(type, "::modify").c_str());
     };
 

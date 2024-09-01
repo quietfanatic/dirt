@@ -17,6 +17,8 @@ struct AnyPtr {
     constexpr AnyPtr (Null n = null) : address(n) { }
     constexpr AnyPtr (Type t, Mu* a) : address(a), type(t) { }
 
+     // Coercion from pointer is explicit for AnyPtr* and AnyRef* to avoid
+     // mistakes.  Watch out for when you're working with template parameters!
     template <class T> requires (
         !std::is_same_v<std::remove_cv_t<T>, void> &&
         !std::is_same_v<std::remove_cv_t<T>, Mu>
@@ -55,36 +57,10 @@ struct AnyPtr {
         return type.upcast_to<T>(address);
     }
 
-    AnyPtr try_downcast_to (Type t) const {
-        return AnyPtr(t, type.try_downcast_to(t, address));
-    }
     template <class T>
-    T* try_downcast_to () const {
-        return type.try_downcast_to<T>(address);
-    }
-
-    AnyPtr downcast_to (Type t) const {
-        return AnyPtr(t, type.downcast_to(t, address));
-    }
-    template <class T>
-    T* downcast_to () const {
-        return type.downcast_to<T>(address);
-    }
-
-    AnyPtr try_cast_to (Type t) const {
-        return AnyPtr(t, type.try_cast_to(t, address));
-    }
-    template <class T>
-    T* try_cast_to () const {
-        return type.try_cast_to<T>(address);
-    }
-
-    AnyPtr cast_to (Type t) const {
-        return AnyPtr(t, type.cast_to(t, address));
-    }
-    template <class T>
-    T* cast_to () const {
-        return type.cast_to<T>(address);
+    T* expect_exact () const {
+        expect(type == Type::CppType<T>());
+        return reinterpret_cast<T*>(address);
     }
 
     template <class T>

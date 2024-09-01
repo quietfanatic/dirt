@@ -218,11 +218,12 @@ struct TraverseToTree {
     ) {
          // Get list of keys
         AnyArray<AnyString> keys;
-        keys_acr->read(*trav.address, CallbackRef<void(Mu&)>(
-            keys, [](AnyArray<AnyString>& keys, Mu& v)
+        keys_acr->read(*trav.address,
+            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
+            require_readable_keys(v.type);
             new (&keys) AnyArray<AnyString>(
-                reinterpret_cast<const AnyArray<AnyString>&>(v)
+                reinterpret_cast<const AnyArray<AnyString>&>(*v.address)
             );
         }));
          // Now read value for each key
@@ -260,19 +261,24 @@ struct TraverseToTree {
         new (trav.dest) Tree(move(array));
     }
 
-     // Deduplicate
-    static void read_len (usize& len, Mu& v) {
-        len = reinterpret_cast<const usize&>(v);
+    static usize read_length (
+        const ToTreeTraversal<>& trav, const Accessor* length_acr
+    ) {
+        usize len;
+        length_acr->read(*trav.address,
+            AccessCB(len, [](usize& len, AnyPtr v, bool)
+        {
+            require_readable_length(v.type);
+            len = reinterpret_cast<const usize&>(*v.address);
+        }));
+        return len;
     }
 
     NOINLINE static
     void use_computed_elems (
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        usize len;
-        length_acr->read(*trav.address,
-            CallbackRef<void(Mu& v)>(len, &read_len)
-        );
+        usize len = read_length(trav, length_acr);
         auto array = UniqueArray<Tree>(Capacity(len));
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
@@ -292,13 +298,10 @@ struct TraverseToTree {
     void use_contiguous_elems (
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        usize len;
-        length_acr->read(*trav.address,
-            CallbackRef<void(Mu& v)>(len, &read_len)
-        );
+        usize len = read_length(trav, length_acr);
         auto array = UniqueArray<Tree>(Capacity(len));
          // If len is 0, don't even bother calling the contiguous_elems
-         // function.  This shortcut isn't really needed for computed_elems.
+         // function.  This shortcut isn't needed for computed_elems.
         if (len) {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
@@ -348,16 +351,6 @@ struct TraverseToTree {
             return true;
         }
         else return false;
-    }
-
-     // TODO: delet this
-    [[noreturn, gnu::cold]] NOINLINE static
-    void raise_KeysTypeInvalid(Type item_type, Type keys_type) {
-        raise(e_KeysTypeInvalid, cat(
-            "Item of type ", item_type.name(),
-            " gave keys() type ", keys_type.name(),
-            " which does not serialize to an array of strings"
-        ));
     }
 };
 

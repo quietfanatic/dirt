@@ -494,12 +494,12 @@ struct Update {
 NOINLINE static void reload_commit (MoveRef<UniqueArray<Update>> ups) {
     auto updates = *move(ups);
     updates.consume([](Update&& update){
-        if (auto a = update.ref_ref.address()) {
-            reinterpret_cast<AnyRef&>(*a) = move(update.new_ref);
-        }
-        else update.ref_ref.write([new_ref{&update.new_ref} ](Mu& v){
-            reinterpret_cast<AnyRef&>(v) = move(*new_ref);
-        });
+        update.ref_ref.write(
+            AccessCB(move(update), [](Update&& update, AnyPtr v, bool){
+                expect(v.type == Type::CppType<AnyRef>());
+                reinterpret_cast<AnyRef&>(*v.address) = move(update.new_ref);
+            })
+        );
     });
 }
 
