@@ -1,5 +1,6 @@
 #include "compound.h"
 
+#include "../reflection/describe-standard.h"
 #include "../reflection/descriptors.private.h"
 #include "traversal.private.h"
 
@@ -692,3 +693,7 @@ void raise_ElemNotFound (Type item_type, usize index) {
 }
 
 } using namespace ayu;
+
+ // Force instantiation of the keys type
+AYU_DESCRIBE_INSTANTIATE(AnyArray<AnyString>)
+

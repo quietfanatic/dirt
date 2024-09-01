@@ -437,10 +437,10 @@ AYU_DESCRIBE_TEMPLATE_BEGIN(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
     __VA_ARGS__ \
 AYU_DESCRIBE_TEMPLATE_END(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
 
- // Force instantiation without screwing with the address sanitizer
- // Use -Wno-unused-value
+ // Force instantiation.  I can't believe it took me this long to learn that
+ // there is an official way to do this.
 #define AYU_DESCRIBE_INSTANTIATE(T) \
-static_assert((&ayu_desc::_AYU_Describe<T>::_ayu_description, 1));
+template const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description;
 
 #define AYU_FRIEND_DESCRIBE(T) \
     friend struct ::ayu_desc::_AYU_Describe<T>;
