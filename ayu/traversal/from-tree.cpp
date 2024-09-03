@@ -504,7 +504,7 @@ struct TraverseFromTree {
         trav_delegate<claim_attrs>(child, trav, acr, AccessMode::Write);
     }
 
-    NOINLINE static
+    static
     void set_keys (
         const FromTreeTraversal<>& trav, Slice<TreePair> object,
         const Accessor* keys_acr
@@ -757,7 +757,10 @@ struct TraverseFromTree {
             for (i = init_ops.size(); i > 0; --i) {
                 if (init->priority <= init_ops[i-1].priority) break;
             }
-            init_ops.emplace(i,
+            if (i == init_ops.size()) init_ops.emplace_back(
+                init->f, init->priority, trav.to_reference(), trav.to_location()
+            );
+            else init_ops.emplace(i,
                 init->f, init->priority, trav.to_reference(), trav.to_location()
             );
         }

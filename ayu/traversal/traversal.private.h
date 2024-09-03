@@ -104,7 +104,7 @@ using VisitFunc = void(const Traversal&);
 
  // All the lambdas in these functions were identical, so deduplicate them into
  // this function.
-template <VisitFunc& visit>
+template <VisitFunc& visit> NOINLINE
 void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
     child.addressable &= addr;
     child.children_addressable |= child.addressable;
@@ -265,7 +265,7 @@ void trav_delegate (
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
-inline
+NOINLINE inline
 AnyRef Traversal::to_reference () const noexcept {
     if (addressable) {
         return AnyPtr(Type(desc, readonly), address);

@@ -216,26 +216,29 @@ struct TraverseToTree {
     void use_computed_attrs (
         const ToTreeTraversal<>& trav, const Accessor* keys_acr
     ) {
-         // Get list of keys
-        AnyArray<AnyString> keys;
+         // Populate keys
+        UniqueArray<TreePair> object;
         keys_acr->read(*trav.address,
-            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
+            AccessCB(object, [](auto& object, AnyPtr v, bool)
         {
             require_readable_keys(v.type);
-            new (&keys) AnyArray<AnyString>(
-                reinterpret_cast<const AnyArray<AnyString>&>(*v.address)
-            );
+            auto& keys = reinterpret_cast<
+                const AnyArray<AnyString>&
+            >(*v.address);
+            expect(!object);
+            object = UniqueArray<TreePair>(keys.size(), [&](usize i){
+                return TreePair{keys[i], Tree()};
+            });
         }));
-         // Now read value for each key
-        auto object = UniqueArray<TreePair>(Capacity(keys.size()));
+         // Populate values
         expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
-        for (auto& key : keys) {
+        for (auto& [key, value] : object) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
 
             ToTreeTraversal<ComputedAttrTraversal> child;
-            child.dest = &object.emplace_back_expect_capacity(key, Tree()).second;
+            child.dest = &value;
             trav_computed_attr<visit>(
                 child, trav, ref, f, key, AccessMode::Read
             );
@@ -279,14 +282,14 @@ struct TraverseToTree {
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
         usize len = read_length(trav, length_acr);
-        auto array = UniqueArray<Tree>(Capacity(len));
+        auto array = UniqueArray<Tree>(len);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        for (usize i = 0; i < len; i++) {
+        for (usize i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             ToTreeTraversal<ComputedElemTraversal> child;
-            child.dest = &array.emplace_back_expect_capacity();
+            child.dest = &array[i];
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Read
             );
@@ -299,22 +302,20 @@ struct TraverseToTree {
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
         usize len = read_length(trav, length_acr);
-        auto array = UniqueArray<Tree>(Capacity(len));
+        auto array = UniqueArray<Tree>(len);
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't needed for computed_elems.
-        if (len) {
+        if (array) {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
-             // TODO: move this below call
-            auto child_desc = DescriptionPrivate::get(ptr.type);
-            for (usize i = 0; i < len; i++) {
+            for (usize i = 0; i < array.size(); i++) {
                 ToTreeTraversal<ContiguousElemTraversal> child;
-                child.dest = &array.emplace_back_expect_capacity();
+                child.dest = &array[i];
                 trav_contiguous_elem<visit>(
                     child, trav, ptr, f, i, AccessMode::Read
                 );
-                ptr.address = (Mu*)((char*)ptr.address + child_desc->cpp_size);
+                ptr.address = (Mu*)((char*)child.address + child.desc->cpp_size);
             }
         }
         new (trav.dest) Tree(move(array));

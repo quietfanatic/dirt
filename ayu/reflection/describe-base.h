@@ -429,7 +429,7 @@ struct _AYU_DescribeBase {
      // If the length is 0, this may or may not be called.  You're allowed to
      // return null if the length is 0, but must not return null otherwise.
      //
-     // The returned pointer must not be invalidated by:
+     // The memory range must not be invalidated by:
      //   - Reading or writing any items that would come after this one in a
      //     serialization operation, including child elems of this item and
      //     sibling items that are ordered after this one.

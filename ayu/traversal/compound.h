@@ -113,12 +113,12 @@ void raise_ElemsNotSupported (Type);
 
 inline void require_readable_keys (Type t) {
     if (t.remove_readonly() != Type::CppType<AnyArray<AnyString>>()) {
-        raise_LengthTypeInvalid(Type(), t);
+        raise_KeysTypeInvalid(Type(), t);
     }
 }
 inline void require_writeable_keys (Type t) {
     if (t != Type::CppType<AnyArray<AnyString>>()) {
-        raise_LengthTypeInvalid(Type(), t);
+        raise_KeysTypeInvalid(Type(), t);
     }
 }
 inline void require_readable_length (Type t) {

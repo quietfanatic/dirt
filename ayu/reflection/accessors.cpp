@@ -91,15 +91,15 @@ void ChainAcr::_access (
 ) {
     struct Frame {
         const ChainAcr* self;
-        AccessMode mode;
         AccessCB cb;
+        AccessMode mode;
         bool o_addr;
     };
-    Frame frame {static_cast<const ChainAcr*>(acr), mode, cb, false};
+    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode, false};
      // Have to use modify instead of write for the first mode, or other
      // parts of the item will get clobbered.  Hope this isn't necessary
      // very often.
-    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    auto outer_mode = write_to_modify(mode);
     return frame.self->outer->access(outer_mode, v,
         AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
             expect(!w.readonly() || frame.mode == AccessMode::Read);
@@ -107,8 +107,9 @@ void ChainAcr::_access (
             frame.self->inner->access(frame.mode, *w.address,
                 AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
                      // We need to wrap the cb twice, so that we can return the
-                     // correct addressable bool.  Hopefully most of these are
-                     // tail calls...
+                     // correct addressable bool, for a total of five nested
+                     // indirect calls.  Fortunately, many of them can be tail
+                     // calls, and there are no branches in these functions.
                     bool addr = frame.o_addr & i_addr
                               & !(frame.self->flags & AcrFlags::Unaddressable);
                     frame.cb(x, addr);
@@ -127,12 +128,12 @@ void ChainAttrFuncAcr::_access (
 ) {
     struct Frame {
         const ChainAttrFuncAcr* self;
-        AccessMode mode;
         AccessCB cb;
+        AccessMode mode;
         bool o_addr;
     };
-    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), mode, cb, false};
-    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode, false};
+    auto outer_mode = write_to_modify(mode);
     frame.self->outer->access(outer_mode, v,
         AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
             expect(!w.readonly() || frame.mode == AccessMode::Read);
@@ -158,12 +159,12 @@ void ChainElemFuncAcr::_access (
 ) {
     struct Frame {
         const ChainElemFuncAcr* self;
-        AccessMode mode;
         AccessCB cb;
+        AccessMode mode;
         bool o_addr;
     };
-    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), mode, cb, false};
-    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode, false};
+    auto outer_mode = write_to_modify(mode);
     frame.self->outer->access(outer_mode, v,
         AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
             expect(!w.readonly() || frame.mode == AccessMode::Read);
@@ -189,17 +190,17 @@ void ChainDataFuncAcr::_access (
 ) {
     struct Frame {
         const ChainDataFuncAcr* self;
+        AccessCB cb;
 #ifndef NDEBUG
         AccessMode mode;
 #endif
-        AccessCB cb;
     };
 #ifndef NDEBUG
-    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), mode, cb};
+    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
 #else
     Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb};
 #endif
-    auto outer_mode = mode == AccessMode::Write ? AccessMode::Modify : mode;
+    auto outer_mode = write_to_modify(mode);
     frame.self->outer->access(outer_mode, v,
         AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
              // We should already have done bounds checking.  Unfortunately we

@@ -22,7 +22,7 @@ template <class T = Traversal>
 struct ScanTraversal : ScanTraversalHead, T { };
 
 struct ScanContext {
-    CallbackRef<bool(const ScanTraversal<>&)> cb;
+    CallbackRef<void(const ScanTraversal<>&)> cb;
     bool done = false;
 };
 
@@ -40,10 +40,12 @@ struct TraverseScan {
         }
         currently_scanning = true;
         ScanContext ctx {
-            CallbackRef<bool(const ScanTraversal<>&)>(
-                cb, [](auto& cb, const ScanTraversal<>& trav) -> bool {
-                    return trav.addressable &&
+            CallbackRef<void(const ScanTraversal<>&)>(
+                cb, [](auto& cb, const ScanTraversal<>& trav) {
+                    bool done = trav.addressable &&
                         cb(AnyPtr(trav.desc, trav.address), trav.loc);
+                    if (done) [[unlikely]] trav.context->done = true;
+                    else after_cb(trav);
                 }
             )
         };
@@ -61,9 +63,11 @@ struct TraverseScan {
         CallbackRef<bool(const AnyRef&, LocationRef)> cb
     ) {
         ScanContext ctx {
-            CallbackRef<bool(const ScanTraversal<>&)>(
-                cb, [](auto& cb, const ScanTraversal<>& trav) -> bool{
-                    return cb(trav.to_reference(), trav.loc);
+            CallbackRef<void(const ScanTraversal<>&)>(
+                cb, [](auto& cb, const ScanTraversal<>& trav) {
+                    bool done = cb(trav.to_reference(), trav.loc);
+                    if (done) [[unlikely]] trav.context->done = true;
+                    else after_cb(trav);
                 }
             )
         };
@@ -75,34 +79,18 @@ struct TraverseScan {
         return ctx.done;
     }
 
-    static
-    bool scan_item (const ScanTraversal<>& trav) {
-        bool done = trav.context->cb(trav);
-        if (done) [[unlikely]] trav.context->done = done;
-        return done;
-    }
-
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const ScanTraversal<>&>(tr);
-         // Although we always call the callback first, doing so requires saving
-         // and restoring all our arguments, which might also prevent tail
-         // calls.  So we're doing it at the top of each execution function
-         // instead of at the top of this decision function.  The callback is
-         // expected to return true either rarely or never, so it's okay to
-         // delay checking its return a bit.
-         //
-         // Also we're only checking offsets here, not converting them to
-         // variables, because doing so before calling the cb would require
-         // saving and restoring those variables.
-         //
-         // TODO: These might no longer be the case with the new traversal
-         // system.
+        trav.context->cb(trav);
+    }
+
+    NOINLINE static
+    void after_cb (const ScanTraversal<>& trav) {
         if (!!(trav.desc->type_flags & TypeFlags::NoRefsToChildren)) {
-             // Wait, never mind, don't scan under this.
-            scan_item(trav);
+            return;
         }
-        else if (trav.desc->preference() == DescFlags::PreferObject) {
+        if (trav.desc->preference() == DescFlags::PreferObject) {
             if (trav.desc->keys_offset) {
                 use_computed_attrs(trav);
             }
@@ -120,14 +108,10 @@ struct TraverseScan {
         else if (trav.desc->delegate_offset) {
             return use_delegate(trav);
         }
-         // Down here, we aren't using the arguments any more, so the compiler
-         // doesn't need to save them and we can tail call the cb
-        else scan_item(trav);
     }
 
     NOINLINE static
     void use_attrs (const ScanTraversal<>& trav) {
-        if (scan_item(trav)) [[unlikely]] return;
         expect(trav.desc->attrs_offset);
         auto attrs = trav.desc->attrs();
         for (uint i = 0; i < attrs->n_attrs; i++) {
@@ -148,13 +132,13 @@ struct TraverseScan {
                 child.loc = child_loc;
             }
             trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
+            child_loc = {};
             if (child.context->done) [[unlikely]] return;
         }
     }
 
     NOINLINE static
     void use_computed_attrs (const ScanTraversal<>& trav) {
-        if (scan_item(trav)) [[unlikely]] return;
          // Get list of keys
         AnyArray<AnyString> keys;
         expect(trav.desc->keys_offset);
@@ -186,7 +170,6 @@ struct TraverseScan {
 
     NOINLINE static
     void use_elems (const ScanTraversal<>& trav) {
-        if (scan_item(trav)) [[unlikely]] return;
         expect(trav.desc->elems_offset);
         auto elems = trav.desc->elems();
         for (uint i = 0; i < elems->n_elems; i++) {
@@ -227,7 +210,6 @@ struct TraverseScan {
 
     NOINLINE static
     void use_computed_elems (const ScanTraversal<>& trav) {
-        if (scan_item(trav)) [[unlikely]] return;
         usize len = read_length(trav);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
@@ -247,13 +229,13 @@ struct TraverseScan {
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Read
             );
+            child_loc = {};
             if (child.context->done) [[unlikely]] return;
         }
     }
 
     NOINLINE static
     void use_contiguous_elems (const ScanTraversal<>& trav) {
-        if (scan_item(trav)) [[unlikely]] return;
         usize len = read_length(trav);
         if (!len) return;
         expect(trav.desc->contiguous_elems_offset);
@@ -273,6 +255,7 @@ struct TraverseScan {
             trav_contiguous_elem<visit>(
                 child, trav, ptr, f, i, AccessMode::Read
             );
+            child_loc = {};
             if (child.context->done) [[unlikely]] return;
             ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
         }
@@ -280,7 +263,6 @@ struct TraverseScan {
 
     NOINLINE static
     void use_delegate (const ScanTraversal<>& trav) {
-        if (scan_item(trav)) [[unlikely]] return;
         ScanTraversal<DelegateTraversal> child;
         child.context = trav.context;
         child.loc = trav.loc;
@@ -295,20 +277,37 @@ struct TraverseScan {
 static UniqueArray<Pair<AnyPtr, SharedLocation>> location_cache;
 static bool have_location_cache = false;
 static usize keep_location_cache_count = 0;
+
+NOINLINE // Noinline the slow path to make the callback leaner
+bool realloc_cache (auto& cache, AnyPtr ptr, LocationRef loc) {
+    cache.reserve_plenty(cache.size() + 1);
+    expect(loc);
+    cache.emplace_back_expect_capacity(ptr, loc);
+    return false;
+}
+
 bool get_location_cache () {
     if (!keep_location_cache_count) return false;
     if (!have_location_cache) {
         plog("Generate location cache begin");
-        scan_universe_pointers([](AnyPtr ptr, LocationRef loc){
+        location_cache.reserve(256);
+        scan_universe_pointers(CallbackRef<bool(AnyPtr, LocationRef)>(
+            location_cache, [](auto& cache, AnyPtr ptr, LocationRef loc)
+        {
              // We're deliberately ignoring the case where the same typed
              // pointer turns up twice in the data tree.  If this happens, we're
              // probably dealing with some sort of shared_ptr-like situation,
              // and in that case it shouldn't matter which location gets cached.
              // It could theoretically be a problem if the pointers differ in
              // readonlyness, but that should probably never happen.
-            location_cache.emplace_back(ptr, loc);
-            return false;
-        });
+            expect(cache.owned());
+            if (cache.size() < cache.capacity()) {
+                expect(loc);
+                cache.emplace_back_expect_capacity(ptr, loc);
+                return false;
+            }
+            else return realloc_cache(cache, ptr, loc);
+        }));
         plog("Generate location cache sort");
          // Disable refcounting while sorting
         auto uncounted = location_cache.reinterpret<Pair<AnyPtr, LocationRef>>();

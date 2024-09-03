@@ -15,19 +15,19 @@
 // contain a raw pointer to a parent object and a possibly-refcounted pointer to
 // an accessor, so they are cheap to copy, but not threadsafe.
 //
-// AnyRefs can be read from with read_as<> which takes a callback or get_as<>
+// AnyRefs can be read from with read() which takes a callback or get_as<>()
 // which returns the referenced value after copying it with operator=.
 //
-// AnyRefs can be written with write_as<> which takes a callback or set_as<>
-// which assigns the referenced value with operator=.  write_as<> may or may not
-// clear the item's value before passing a reference to the callback, so if you
-// want to keep the item's original value, use modify_as<>.  Some AnyRefs are
-// readonly, and trying to write to them will throw WriteReadonly.
+// AnyRefs can be written with write() which takes a callback or set_as<>()
+// which assigns the referenced value with operator=.  write() may or may not
+// clear the item's value before calling the callback, so if you want to keep
+// the item's original value, use modify().  Some AnyRefs are readonly, and
+// trying to write to them will throw WriteReadonly.
 //
 // A AnyRef can be implicitly cast to a raw C++ pointer if the item it points
 // to is addressable (i.e. the internal accessor supports the address
 // operation).  A readonly AnyRef can only be cast to a const pointer.  A raw
-// C++ pointer can be implicitly cast to a AnyRef if the pointed-to type is
+// C++ pointer can be implicitly cast to an AnyRef if the pointed-to type is
 // known to AYU.
 //
 // There is an empty AnyRef, which has no type and no value.  There are also
@@ -130,7 +130,7 @@ struct AnyRef {
     constexpr AnyPtr address () const {
         return acr ? acr->address(*host.address) : host;
     }
-     // Can throw CannotCoerce, even if the result is null.
+     // Can throw TypeCantCast, even if the result is null.
     constexpr Mu* address_as (Type t) const {
         if (std::is_constant_evaluated()) {
             expect(!acr);
