@@ -56,8 +56,8 @@ struct Document {
         delete_(Type::CppType<T>(), (Mu*)p);
     }
 
-    AnyPtr find_with_name (Str);
-    AnyPtr find_with_id (usize);
+    AnyPtr find_with_name (Str) const;
+    AnyPtr find_with_id (usize) const;
 
     void* allocate (Type) noexcept;
     void* allocate_named (Type, AnyString);

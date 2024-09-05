@@ -57,6 +57,9 @@ struct alignas(std::max_align_t) DocumentItemHeader : DocumentLinks {
 struct DocumentData {
     DocumentLinks items;
     usize next_id = 0;
+     // Lookups are likely to be in order, so start searching where the last
+     // search ended.
+    DocumentLinks* last_lookup = &items;
     ~DocumentData () {
         while (items.next != &items) {
             auto header = static_cast<DocumentItemHeader*>(items.next);
@@ -72,26 +75,32 @@ struct DocumentData {
 Document::Document () noexcept : data(new DocumentData) { }
 Document::~Document () { delete data; }
 
-AnyPtr Document::find_with_name (Str name) {
+AnyPtr Document::find_with_name (Str name) const {
     usize id = parse_numbered_name(name);
     if (id != usize(-1)) return find_with_id(id);
-     // Find item if it exists
-    for (auto link = data->items.next; link != &data->items; link = link->next) {
-        auto h = static_cast<DocumentItemHeader*>(link);
-        if (h->id == usize(-1) && h->name == name) {
-            return AnyPtr(h->type, h->data());
+    for (auto link = data->last_lookup->next;; link = link->next) {
+        if (link != &data->items) {
+            auto h = static_cast<DocumentItemHeader*>(link);
+            if (h->id == usize(-1) && h->name == name) {
+                data->last_lookup = link;
+                return AnyPtr(h->type, h->data());
+            }
         }
+        if (link == data->last_lookup) break;
     }
     return null;
 }
-AnyPtr Document::find_with_id (usize id) {
+AnyPtr Document::find_with_id (usize id) const {
     expect(id != usize(-1));
-     // Find item if it exists
-    for (auto link = data->items.next; link != &data->items; link = link->next) {
-        auto h = static_cast<DocumentItemHeader*>(link);
-        if (h->id == id) {
-            return AnyPtr(h->type, h->data());
+    for (auto link = data->last_lookup->next;; link = link->next) {
+        if (link != &data->items) {
+            auto h = static_cast<DocumentItemHeader*>(link);
+            if (h->id == id) {
+                data->last_lookup = link;
+                return AnyPtr(h->type, h->data());
+            }
         }
+        if (link == data->last_lookup) break;
     }
     return null;
 }
@@ -150,6 +159,7 @@ void Document::delete_ (Type t, Mu* p) noexcept {
     expect(header->type == t);
     if (header->type) header->type.destroy(p);
     header->~DocumentItemHeader();
+    if (data->last_lookup == header) data->last_lookup = &data->items;
     free(header);
 }
 
@@ -162,6 +172,7 @@ void Document::delete_named (Str name) {
 void Document::deallocate (void* p) noexcept {
     auto header = (DocumentItemHeader*)p - 1;
     header->~DocumentItemHeader();
+    if (data->last_lookup == header) data->last_lookup = &data->items;
     free(header);
 }
 
