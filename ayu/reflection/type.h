@@ -83,7 +83,7 @@ struct Type {
         return get_description()->cpp_align;
     }
      // Construct an instance of this type in-place.  The target must have at
-     // least the required size and alignment.  May throw CannotDefaultConstruct 
+     // least the required size and alignment.  May throw CannotDefaultConstruct
      // or CannotDestroy.
     void default_construct (void* target) const;
      // Destory an instance of this type in-place.  The memory will not be

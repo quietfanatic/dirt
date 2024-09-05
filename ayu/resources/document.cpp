@@ -67,31 +67,34 @@ struct DocumentData {
     }
 };
 
-struct DocumentItemRef {
-    DocumentData* document;
-    AnyString name;
-    usize id;
-    DocumentItemHeader* header;
-    DocumentItemRef (DocumentData* doc, const AnyString& name_) :
-        document(doc), name(name_), id(parse_numbered_name(name_))
-    {
-         // Find item if it exists
-        for (auto link = doc->items.next; link != &doc->items; link = link->next) {
-            auto h = static_cast<DocumentItemHeader*>(link);
-            if (id != usize(-1) ? h->id == id : h->name == name) {
-                header = h;
-                return;
-            }
-        }
-         // Doesn't exist, we'll autovivify later.
-        header = null;
-    }
-};
-
 } using namespace in;
 
 Document::Document () noexcept : data(new DocumentData) { }
 Document::~Document () { delete data; }
+
+AnyPtr Document::find_with_name (Str name) {
+    usize id = parse_numbered_name(name);
+    if (id != usize(-1)) return find_with_id(id);
+     // Find item if it exists
+    for (auto link = data->items.next; link != &data->items; link = link->next) {
+        auto h = static_cast<DocumentItemHeader*>(link);
+        if (h->id == usize(-1) && h->name == name) {
+            return AnyPtr(h->type, h->data());
+        }
+    }
+    return null;
+}
+AnyPtr Document::find_with_id (usize id) {
+    expect(id != usize(-1));
+     // Find item if it exists
+    for (auto link = data->items.next; link != &data->items; link = link->next) {
+        auto h = static_cast<DocumentItemHeader*>(link);
+        if (h->id == id) {
+            return AnyPtr(h->type, h->data());
+        }
+    }
+    return null;
+}
 
 void* Document::allocate (Type t) noexcept {
     auto id = data->next_id++;
@@ -110,17 +113,19 @@ void* Document::allocate_named (Type t, AnyString name) {
             cat("Names starting with _ are reserved: ", name)
         );
     }
-    auto ref = DocumentItemRef(data, name);
-    if (ref.header) {
-        raise(e_DocumentItemNameDuplicate, move(name));
-    }
 
     if (id == usize(-1)) {
+        if (find_with_name(name)) {
+            raise(e_DocumentItemNameDuplicate, move(name));
+        }
         auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
         auto header = new (p) DocumentItemHeader(&data->items, t, move(name));
         return header+1;
     }
     else { // Actually a numbered item
+        if (find_with_id(id)) {
+            raise(e_DocumentItemNameDuplicate, move(name));
+        }
         if (id > data->next_id + 10000) {
             raise(e_General, "Unreasonable growth of _next_id");
         }
@@ -149,16 +154,9 @@ void Document::delete_ (Type t, Mu* p) noexcept {
 }
 
 void Document::delete_named (Str name) {
-    auto ref = DocumentItemRef(data, name);
-    if (ref.header) {
-        if (ref.header->type) {
-            ref.header->type.destroy(ref.header->data());
-        }
-        ref.header->~DocumentItemHeader();
-        free(ref.header);
-        return;
-    }
-    else raise(e_DocumentItemNotFound, name);
+    AnyPtr p = find_with_name(name);
+    if (!p) raise(e_DocumentItemNotFound, name);
+    delete_(p.type, p.address);
 }
 
 void Document::deallocate (void* p) noexcept {
@@ -170,8 +168,22 @@ void Document::deallocate (void* p) noexcept {
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::Document,
+    before_from_tree([](Document& v, const Tree& t){
+         // Each of these checked cases should reliably cause an error later
+        if (t.form != Form::Object) return;
+        auto o = Slice<TreePair>(t);
+        v = {};
+        for (auto& [key, value] : o) {
+            if (value.form != Form::Array) continue;
+            auto a = Slice<Tree>(value);
+            if (a.size() != 2 || a[0].form != Form::String) continue;
+            Type t = Type(Str(a[0]));
+            void* p = v.allocate_named(t, key);
+            t.default_construct(p);
+        }
+    }),
     keys(mixed_funcs<AnyArray<AnyString>>(
-        [](const ayu::Document& v){
+        [](const Document& v){
             UniqueArray<AnyString> r;
             for (auto link = v.data->items.next; link != &v.data->items; link = link->next) {
                 auto header = static_cast<DocumentItemHeader*>(link);
@@ -183,50 +195,37 @@ AYU_DESCRIBE(ayu::Document,
             r.emplace_back("_next_id");
             return AnyArray(r);
         },
-        [](ayu::Document& v, const AnyArray<AnyString>&){
-             // Setting keys clears the document, but it doesn't actually create
-             // the document items.  They aren't created until the type is set
-             // on a DocumentItemRef.
-            v.data->~DocumentData();
-            new (v.data) DocumentData;
+        [](Document&, const AnyArray<AnyString>&){
+             // Noop.  TODO: do some validation?
         }
     )),
-    computed_attrs([](ayu::Document& v, const AnyString& k){
+    computed_attrs([](Document& v, const AnyString& k){
         if (k == "_next_id") {
             return AnyRef(&v.data->next_id);
         }
         else {
-            auto ref = DocumentItemRef(v.data, k);
-            return AnyRef(
-                v, variable(move(ref), pass_through_addressable)
-            );
+            AnyPtr p = v.find_with_name(k);
+            if (!p) return AnyRef();
+            return AnyRef((DocumentItemHeader*)p.address - 1);
         }
     })
 )
 
-AYU_DESCRIBE(ayu::in::DocumentItemRef,
+AYU_DESCRIBE(ayu::in::DocumentItemHeader,
     elems(
         elem(value_funcs<Type>(
-            [](const DocumentItemRef& v){
-                if (v.header) return v.header->type;
-                else return Type();
+            [](const DocumentItemHeader& v){
+                return v.type;
             },
-            [](DocumentItemRef& v, Type t){
+            [](DocumentItemHeader& v, Type t){
                 if (!t) raise(e_General, "Document item cannot have no type");
-                auto& doc = reinterpret_cast<Document&>(v.document);
-                if (v.header) [[unlikely]] {
-                     // Item exists?  We'll have to clobber it.  This will
-                     // change its order in the document.
-                    doc.delete_(v.header->type, v.header->data());
-                }
-                void* data = doc.allocate_named(t, v.name);
-                v.header = (DocumentItemHeader*)data - 1;
-                t.default_construct(data);
+                if (t != v.type) raise(e_General,
+                    "Cannot set a document item's type outside of a from_tree operation."
+                );
             }
         )),
-        elem(anyptr_func([](DocumentItemRef& v){
-            if (!v.header) raise(e_DocumentItemNotFound, v.name);
-            return AnyPtr(v.header->type, v.header->data());
+        elem(anyptr_func([](DocumentItemHeader& v){
+            return AnyPtr(v.type, v.data());
         }))
     )
 )

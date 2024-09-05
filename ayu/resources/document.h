@@ -7,14 +7,14 @@ namespace ayu {
 
 // This is a type storing dynamic values with optional names, intended to be the
 // top-level item of a file.  Has fast insertion of newly-created unnamed items
-// (usually one allocation including the new item).
+// (usually a single allocation).  Lookup by name is linear.
 //
 // Keys starting with _ are reserved.
 struct Document {
     in::DocumentData* data;
 
     Document () noexcept;
-     // Deletes all items
+     // Destroying the Document deletes all items
     ~Document ();
     Document (const Document&) = delete;
     Document (Document&& o) : data(o.data) { o.data = null; }
@@ -55,6 +55,9 @@ struct Document {
     void delete_ (T* p) {
         delete_(Type::CppType<T>(), (Mu*)p);
     }
+
+    AnyPtr find_with_name (Str);
+    AnyPtr find_with_id (usize);
 
     void* allocate (Type) noexcept;
     void* allocate_named (Type, AnyString);
