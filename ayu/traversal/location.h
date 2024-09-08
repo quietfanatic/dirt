@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "../../uni/slab.h"
 #include "../common.internal.h"
 #include "../reflection/anyref.h"
 
@@ -51,6 +52,12 @@ struct Location : in::RefCounted {
      // AnyRef) and returns it.
     LocationRef root () const noexcept;
 
+    static void* operator new (usize s) {
+        return uni::slab::allocate(s);
+    }
+    static void operator delete (void* p, usize s) {
+        uni::slab::deallocate(p, s);
+    }
     protected:
     Location (LocationForm f) : form(f) { }
 };
