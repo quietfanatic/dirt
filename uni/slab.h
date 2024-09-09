@@ -1,24 +1,38 @@
- // Super simple small-size singlethreaded slab allocator.  Very experimental
- // and untested.  Features:
- //  - Realtime allocation and deallocation (constant time worst case)
- //  - Pretty fast best-case performance (much faster than malloc/free anyway)
- //  - Very good best-case overhead (6.25%)
- //  - Low fragmentation for most use cases (unconfirmed)
- //  - Bad but bounded worst-case fragmentation
- //  - Absolutely no thread safety
- //  - Supports sizes of 8, 16, 24, 32, 40, 48, 56
- //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit, untested)
- //  - Requires size for deallocation (can't implement free())
- //  - Returned pointers have 16-byte alignment if the object size is divisible
- //    by 16, otherwise they have 8-byte alignment
+ // Super simple small-size singlethreaded slab allocator.
+ //
+ // Features:
+ //  - Realtime-safe (O(1) worst case*)
+ //  - Good best-case overhead (6.25%, no size stored)
+ //  - Small code size (500 bytes of optimized x64)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_SLAB_PROFILE defined
- //  - Small code size (less than 500 bytes of optimized x64)
+ // Unconfirmed, but believed to be the case:
+ //  - Very fast (much faster than malloc/free at least)
+ //  - Low fragmentation for most use cases
+ // Caveats:
+ //  - Only for allocations of 56 bytes or less
+ //  - Absolutely no thread safety
+ //  - Bad but bounded worst-case fragmentation
+ //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit, untested)
+ //  - Requires size for deallocation (can't replace free())
+ //  - Very experimental and untested on anything but GCC on Linux
+ //
+ // Returned pointers have 16-byte alignment if the allocation size is divisible
+ // by 16, otherwise they have 8-byte alignment.
  //
  // You can achieve worst-case fragmentation by allocating a large amount of
  // same-sized objects, randomly deallocating 80~90% of them (depending on the
  // size), and then never allocating more objects of that size again.  In this
  // case, memory usage can approach 256 bytes per object.
+ //
+ // Allocation never returns null or throws an exception.  The only error
+ // condition is when the entire memory pool runs out, in which case the program
+ // will be terminated.
+ //
+ // (* The first allocation will reserve the entire pool's virtual address
+ // space, and allocations that increase the total pool size may trigger
+ // on-demand paging of physical memory, which may or may not be realtime-safe
+ // depending on the kernel.)
 
 #pragma once
 #include <cstdlib>
