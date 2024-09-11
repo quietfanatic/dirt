@@ -3,6 +3,7 @@
 
 #pragma once
 #include "common.h"
+#include "lilac.h"
 
 namespace uni {
 inline namespace buffers {
@@ -93,7 +94,7 @@ inline namespace buffers {
              // to make sure we don't overflow usize.
             uint64 bytes = sizeof(SharableBufferHeader) + (uint64)cap * sizeof(T);
             require(bytes <= usize(-1));
-            auto header = (SharableBufferHeader*)std::malloc(bytes);
+            auto header = (SharableBufferHeader*)lilac::allocate(bytes);
             const_cast<uint32&>(header->capacity) = cap;
             header->ref_count = 1;
             return (T*)(header + 1);
@@ -101,7 +102,10 @@ inline namespace buffers {
 
         [[gnu::nonnull(1)]] ALWAYS_INLINE static
         void deallocate (T* buf) {
-            std::free((SharableBufferHeader*)buf - 1);
+            auto head = header(buf);
+            lilac::deallocate(head,
+                sizeof(SharableBufferHeader) + head->capacity * sizeof(T)
+            );
         }
     };
 }

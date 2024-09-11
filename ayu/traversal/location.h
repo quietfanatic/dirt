@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include "../../uni/slab.h"
+#include "../../uni/lilac.h"
 #include "../common.internal.h"
 #include "../reflection/anyref.h"
 
@@ -53,10 +53,10 @@ struct Location : in::RefCounted {
     LocationRef root () const noexcept;
 
     static void* operator new (usize s) {
-        return uni::slab::allocate(s);
+        return lilac::allocate(s);
     }
     static void operator delete (void* p, usize s) {
-        uni::slab::deallocate(p, s);
+        lilac::deallocate(p, s);
     }
     protected:
     Location (LocationForm f) : form(f) { }

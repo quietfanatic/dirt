@@ -1551,7 +1551,8 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_owned_unique(do_erase(impl, offset, count), size() - count);
+             // Don't set_owned_unique because do_erase can return null
+            set_owned(do_erase(impl, offset, count), size() - count);
         }
     }
     ALWAYS_INLINE
@@ -1560,7 +1561,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_owned_unique(do_erase(impl, pos - impl.data, count), size() - count);
+            set_owned(do_erase(impl, pos - impl.data, count), size() - count);
         }
     }
     ALWAYS_INLINE
@@ -1570,7 +1571,7 @@ struct ArrayInterface {
             make_unique();
         }
         else {
-            set_owned_unique(do_erase(impl, b - impl.data, e - b), size() - (e - b));
+            set_owned(do_erase(impl, b - impl.data, e - b), size() - (e - b));
         }
     }
 
@@ -1671,7 +1672,7 @@ struct ArrayInterface {
         expect(s <= max_size_);
         if constexpr (ac::is_Any) {
              // If data is null, clear the owned bit
-            impl.sizex2_with_owned = s << 1 | !!d;
+            impl.sizex2_with_owned = (s << 1) | !!d;
         }
         else impl.size = s;
         impl.data = d;
@@ -2038,7 +2039,7 @@ struct ArrayInterface {
         return dat;
     }
 
-    [[gnu::returns_nonnull]] static
+    static
     T* do_erase (Impl impl, usize offset, usize count) {
         if constexpr (
             ac::is_Unique &&
@@ -2052,7 +2053,7 @@ struct ArrayInterface {
         else return do_erase_noinline(impl, offset, count);
     }
 
-    [[gnu::returns_nonnull]] static
+    static
     T* do_erase_inline (Impl impl, usize offset, usize count) {
         Self& self = reinterpret_cast<Self&>(impl);
         usize old_size = self.size();
@@ -2084,6 +2085,10 @@ struct ArrayInterface {
             catch (...) { never(); }
             return self.impl.data;
         }
+        else if (old_size - count == 0) {
+            --self.header().ref_count;
+            return null;
+        }
         else if constexpr (std::is_copy_constructible_v<T>) {
              // Not unique, so copy instead of moving
             T* dat = SharableBuffer<T>::allocate(old_size - count);
@@ -2113,7 +2118,7 @@ struct ArrayInterface {
         else never();
     }
 
-    [[gnu::returns_nonnull]] NOINLINE static
+    NOINLINE static
     T* do_erase_noinline (Impl impl, usize offset, usize count)
         noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
