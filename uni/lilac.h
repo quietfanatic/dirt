@@ -4,15 +4,15 @@
  // Features:
  //  - Realtime-safe (O(1) worst case*)
  //  - Good best-case overhead (0.4%)
- //  - Small code size (less than 1k of optimized x64)
+ //  - Small code size (less than 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
  // Unconfirmed, but believed to be the case:
  //  - Very fast (much faster than malloc/free at least)
  //  - Low fragmentation for most use cases
  //  - Low cache pressure: usually only touches 3~5 data cache lines (including
- //    object being de/allocated) and 3~5 code cache lines.
- //  - Is written in C++ but could easily be ported to C
+ //    object being de/allocated) and 3~5 code cache lines (de/alloc pair)
+ //  - Is written in C++ but could be ported to C straightforwardly
  // Caveats:
  //  - Absolutely no thread safety
  //  - Requires size for deallocation (can't replace malloc/free)
@@ -20,21 +20,26 @@
  //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit)
  //  - Only 8-byte alignment is guaranteed
  //  - Bad but bounded (and unlikely?) worst-case fragmentation
+ //  - Cannot give memory back to the OS (but most allocators can't anyway)
  //  - Very experimental and untested with anything but GCC on Linux x64
  //
  // Allocation never returns null or throws an exception.  The only error
  // condition is when the entire memory pool runs out, in which case the program
  // will be terminated.
  //
+ // Lilac works by separating the pool into pages, with each page holding packed
+ // slots of a particular size class.  Each page has its own free list, and the
+ // pages themselves are put in a free list when they're no longer needed.
+ //
  // You can achieve worst-case fragmentation by allocating a large amount of
  // same-sized objects, deallocating all but one per page, and then never
- // allocating more objects of that size again.  In this case, memory usage can
- // approach up to one page (4k by default) per object.
+ // allocating more objects of that size class again.  In this case, memory
+ // usage can approach up to one page (4k by default) per object.
  //
  // There's also a slight performance hitch when allocating and deallocating a
  // single object over and over again if that allocation happens to reserve a
  // new page.  This always happens with the first object of any given size
- // class.  It'll probably still be faster than malloc/free though.
+ // class.  It'll probably still beat the pants off any multithreaded allocator.
  //
  // (* The first allocation will reserve the entire pool's virtual address
  // space, and allocations that increase the total pool size may trigger
@@ -50,7 +55,7 @@ namespace uni::lilac {
 ///// CUSTOMIZATION
 
  // Page size.  Making this higher improves performance and best-case overhead,
- // but makes worst-case fragmentation and potentially cache performance worse.
+ // but makes fragmentation worse.
 static constexpr usize page_size = 4096;
 
  // Maximum size of the pool in bytes.  I can't call std::aligned_alloc with
@@ -71,30 +76,37 @@ void dump_profile ();
 
 namespace in {
 
-static constexpr usize min_allocation_size = 8;
-static constexpr usize max_allocation_size = 408;
+static constexpr usize min_allocation_size = 16;
+static constexpr usize max_allocation_size = 680;
 static constexpr usize n_size_classes = 12;
- // These size classes are optimized for 4096 (4080) byte pages.
+ // These size classes are optimized for 4096 (4080) byte pages, and also for
+ // use with SharableBuffer and ArrayInterface, which like to have sizes of
+ // 8+2^n*m (e.g. 136 = 8 + 128).
+ //
  // Having 12 size classes allows the global data structure to fit into a single
- // 64 byte cache line, and going up to 408 makes these tables fit into one line
- // as well.
+ // 64 byte cache line, and as long as the value stays under 408, accessing
+ // these tables will also stay in one cache line.
 struct alignas(64) Tables {
     uint8 class_to_words [12];
-    uint8 class_from_words [52];
+    uint8 class_from_words [86];
 };
 constexpr Tables tables = {
     {
-        8>>3, 16>>3, 24>>3, 32>>3, 40>>3, 56>>3, 72>>3,
-        104>>3, 136>>3, 200>>3, 272>>3, 408>>3,
+        16>>3, 24>>3, 32>>3, 40>>3, 56>>3, 72>>3,
+        104>>3, 136>>3, 200>>3, 272>>3, 408>>3, 680>>3
     }, {
      //   0   8  16  24  32  40  48  56  64  72  80  88  96 104 112 120
-         0,  0,  1,  2,  3,  4,  5,  5,  6,  6,  7,  7,  7,  7,  8,  8,
+         0,  0,  0,  1,  2,  3,  4,  4,  5,  5,  6,  6,  6,  6,  7,  7,
      // 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248
-         8,  8,  9,  9,  9,  9,  9,  9,  9,  9, 10, 10, 10, 10, 10, 10,
+         7,  7,  8,  8,  8,  8,  8,  8,  8,  8,  9,  9,  9,  9,  9,  9,
      // 256 264 272 280 288 296 304 312 320 328 336 344 352 360 368 376
-        10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
-     // 384 392 400 408
-        11, 11, 11, 11
+         9,  9,  9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+     // 384 392 400 408 416 424 432 440 448 456 464 472 480 488 496 504
+        10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+     // 512 520 528 536 544 552 560 568 576 584 592 600 608 616 624 632
+        11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+     // 640 648 656 664 672 680
+        11, 11, 11, 11, 11, 11
     }
 };
 static constexpr usize page_overhead = 16;

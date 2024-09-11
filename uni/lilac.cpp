@@ -102,6 +102,7 @@ ALWAYS_INLINE static
 bool page_valid (Page*, uint32, uint32) { return true; }
 #endif
 
+NOINLINE
 void* internal_allocate (uint32 sc, uint32 slot_size) {
     expect(sc < n_size_classes);
     Page* page;
@@ -185,6 +186,7 @@ void* internal_allocate (uint32 sc, uint32 slot_size) {
     return r;
 }
 
+NOINLINE
 void internal_deallocate (void* p, uint32 sc, uint32 slot_size) {
     expect(sc < n_size_classes);
      // Check that we own this pointer
@@ -254,7 +256,7 @@ void dump_profile () {
     for (uint32 i = 0; i < in::n_size_classes; i++) {
         auto& p = in::profiles[i];
         std::fprintf(stderr, "%2u %3u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
-            i, in::tables.class_to_words(i) << 3,
+            i, in::tables.class_to_words[i] << 3,
             p.pages_picked, p.pages_emptied, p.pages_current, p.pages_most,
             p.slots_allocated, p.slots_deallocated, p.slots_current, p.slots_most
         );
