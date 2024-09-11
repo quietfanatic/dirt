@@ -31,19 +31,10 @@ inline namespace buffers {
 
          // Round up a requested size a little to avoid excessive reallocations
         static constexpr usize capacity_for_size (usize size) {
-             // Working with malloc on glibc x64, it seems that malloc gives
-             // sizes 24, 40, 56, 88, 104, ...
-             // In other words, 8 + 16n.  And our header size just so happens to
-             // be 8 bytes.  Nice!  However, malloc provide storage aligned to
-             // 16-byte boundaries, so by inserting an 8-byte header we lose
-             // this alignment.  It may be worth investigating if there's a
-             // solution to this problem.
-
              // Give up on rounding up non-power-of-two sizes.
-            usize mask = sizeof(T) == 1 ? 15
-                       : sizeof(T) == 2 ? 7
-                       : sizeof(T) == 4 ? 3
-                       : sizeof(T) == 8 ? 1
+            usize mask = sizeof(T) == 1 ? 7
+                       : sizeof(T) == 2 ? 3
+                       : sizeof(T) == 4 ? 1
                        : 0;
             usize cap = (size + mask) & ~mask;
             if (cap > max_capacity) [[unlikely]] {
