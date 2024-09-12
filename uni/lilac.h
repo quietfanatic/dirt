@@ -4,14 +4,15 @@
  // Features:
  //  - Realtime-safe (O(1) worst case*)
  //  - Good best-case overhead (0.4%)
- //  - Small code size (less than 1k compiled code and data)
+ //  - Small code size (about 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
  // Unconfirmed, but believed to be the case:
  //  - Very fast (much faster than malloc/free at least)
  //  - Low fragmentation for most use cases
- //  - Low cache pressure: usually only touches 3~5 data cache lines (including
- //    object being de/allocated) and 3~5 code cache lines (de/alloc pair)
+ //  - Low cache pressure: if the size is known at compile time, usually only
+ //    touches 3~5 data cache lines (including object being de/allocated) and 3~5
+ //    code cache lines (de/alloc pair)
  //  - Is written in C++ but could be ported to C straightforwardly
  // Caveats:
  //  - Absolutely no thread safety
@@ -26,8 +27,8 @@
  //  - Very experimental and untested with anything but GCC on Linux x64
  //
  // Allocation never returns null or throws an exception.  The only error
- // condition is when the entire memory pool runs out, in which case the program
- // will be terminated.
+ // conditions are when the entire memory pool runs out, or the initial pool
+ // could not be allocated in which cases the program will be terminated.
  //
  // You can achieve worst-case fragmentation by allocating a large amount of
  // same-sized objects, deallocating all but one per page, and then never
@@ -73,17 +74,20 @@ static constexpr usize pool_size =
 
 ///// SIZE CLASSES
 
- // These size classes are optimized for 4096 (4080) byte pages, and also for
- // use with SharableBuffer and ArrayInterface, which like to have sizes of
- // 8+2^n*m (e.g. 136 = 8 + 128).
 static constexpr usize n_size_classes = 16;
 struct alignas(64) Tables {
+     // These size classes are optimized for 4096 (4080 usable) byte pages, and
+     // also for use with SharableBuffer and ArrayInterface, which like to have
+     // sizes of 8+2^n.
     uint8 class_sizes_d8 [n_size_classes] = {
         16>>3, 24>>3, 32>>3, 40>>3, 56>>3, 72>>3, 104>>3, 136>>3,
         200>>3, 272>>3, 408>>3, 576>>3, 680>>3, 816>>3, 1016>>3, 1360>>3
     };
-     // Fit these tables into two cache lines
-    uint8 small_classes_by_8 [112] = {
+     // These tables will occupy three cache lines.  We could squeeze them into
+     // two or one, by using a 4-bit encoding or chopping off the end, but it
+     // would cost more code than it would save data.  Fixed-size allocations
+     // will consult these tables at compile time.
+    uint8 classes_by_8 [171] = {
      //   0   8  16  24  32  40  48  56  64  72  80  88  96 104 112 120
          0,  0,  0,  1,  2,  3,  4,  4,  5,  5,  6,  6,  6,  6,  7,  7,
      // 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248
@@ -98,6 +102,14 @@ struct alignas(64) Tables {
         12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
      // 768 776 784 792 800 808 816 824 832 840 848 856 864 872 880 888
         13, 13, 13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+     // 896 904 912 920 928 936 944 952 960 968 976 984 9921000 008 016
+        14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+     //1024 032 040 048 056 064 072 080 088 096 104 112 120 128 136 144
+        15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+     //1152 160 168 176 184 192 200 208 216 224 232 240 248 256 264 272
+        15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+     //1280 288 296 304 312 320 328 336 344 352 360
+        15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15
     };
 };
 constexpr Tables tables;
@@ -122,8 +134,8 @@ void deallocate_large (void*, usize size);
  // the table lookups.
 [[nodiscard, gnu::malloc, gnu::returns_nonnull]] inline
 void* allocate (usize size) {
-    if (size <= 888) {
-        int32 sc = in::tables.small_classes_by_8[(size + 7) >> 3];
+    if (size <= 1360) {
+        uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
         uint32 slot_size = in::tables.class_sizes_d8[sc] << 3;
         return in::allocate_small(sc, slot_size);
     }
@@ -131,8 +143,8 @@ void* allocate (usize size) {
 }
 [[gnu::nonnull(1)]] inline
 void deallocate (void* p, usize size) {
-    if (size <= 888) {
-        int32 sc = in::tables.small_classes_by_8[(size + 7) >> 3];
+    if (size <= 1360) {
+        uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
         uint32 slot_size = in::tables.class_sizes_d8[sc] << 3;
         in::deallocate_small(p, sc, slot_size);
     }

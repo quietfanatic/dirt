@@ -197,21 +197,13 @@ void* allocate_small (uint32 sc, uint32 slot_size) {
 }
 
 void* allocate_large (usize size) {
-    if (size <= 1016) {
-        return allocate_small(14, 1016);
-    }
-    else if (size <= 1360) {
-        return allocate_small(15, 1360);
-    }
-    else {
 #ifdef UNI_LILAC_PROFILE
-        oversize_allocated += 1;
-        oversize_current += 1;
-        if (oversize_most < oversize_current)
-            oversize_most = oversize_current;
+    oversize_allocated += 1;
+    oversize_current += 1;
+    if (oversize_most < oversize_current)
+        oversize_most = oversize_current;
 #endif
-        return std::malloc(size);
-    }
+    return std::malloc(size);
 }
 
 NOINLINE
@@ -276,20 +268,12 @@ void deallocate_small (void* p, uint32 sc, uint32 slot_size) {
     }
 }
 
-void deallocate_large (void* p, usize size) {
-    if (size <= 1016) {
-        deallocate_small(p, 14, 1016);
-    }
-    else if (size <= 1360) {
-        deallocate_small(p, 15, 1360);
-    }
-    else {
+void deallocate_large (void* p, usize) {
 #ifdef UNI_LILAC_PROFILE
-        oversize_deallocated += 1;
-        oversize_current -= 1;
+    oversize_deallocated += 1;
+    oversize_current -= 1;
 #endif
-        std::free(p);
-    }
+    std::free(p);
 }
 
 } // in
@@ -301,7 +285,7 @@ void dump_profile () {
     for (uint32 i = 0; i < in::n_size_classes; i++) {
         auto& p = in::profiles[i];
         std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
-            i, in::tables.class_sizes[i],
+            i, in::tables.class_sizes_d8[i] << 3,
             p.pages_picked, p.pages_emptied,
             p.pages_current, p.pages_most,
             p.slots_allocated, p.slots_deallocated,
