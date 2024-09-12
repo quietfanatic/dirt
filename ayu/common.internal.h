@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+//#define AYU_PROFILE
 #ifdef AYU_PROFILE
 #include <cstdio>
 #include <ctime> // Will be using POSIX functions though

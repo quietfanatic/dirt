@@ -1,12 +1,18 @@
 #include "lilac.h"
 
+#include <cstdlib>
 #include "assertions.h"
+
+//#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
 #include <cstdio>
 #endif
 
 namespace uni::lilac {
 namespace in {
+
+static constexpr usize page_overhead = 16;
+static constexpr usize page_usable_size = page_size - page_overhead;
 
 struct alignas(page_size) Page {
      // Note: this must be at offset 0 for an optimization
@@ -18,7 +24,7 @@ struct alignas(page_size) Page {
 };
 static_assert(sizeof(Page) == page_size);
 
- // Try to fit this in one cache line
+ // Try to fit this in one cache line (the larger size classes will go over)
 struct alignas(64) Global {
     Page* base = null;
     uint32 first_free_page = 0;
@@ -39,11 +45,15 @@ struct Profile {
     uint32 slots_most = 0;
 };
 static Profile profiles [n_size_classes];
+static usize oversize_allocated = 0;
+static usize oversize_deallocated = 0;
+static usize oversize_current = 0;
+static usize oversize_most = 0;
 #endif
 
- // Noinline this and pass the argument along, so that internal_allocate can
- // tail call this.  This keeps internal_allocate from having to save cat on the
- // stack during the call to std::aligned_alloc.
+ // Noinline this and pass the argument along, so that allocate_small can tail
+ // call this.  This keeps allocate_small from having to save cat on the stack
+ // during the call to std::aligned_alloc.
 [[gnu::cold]] NOINLINE static
 void* init_pool (uint32 sc, uint32 slot_size) {
      // Probably wasting nearly an entire page's worth of space for alignment.
@@ -51,10 +61,10 @@ void* init_pool (uint32 sc, uint32 slot_size) {
     void* pool = std::aligned_alloc(page_size, pool_size);
     global.base = (Page*)pool - 1;
     global.first_untouched_page = 1;
-     // This is what internal_allocate would do if we called back to it, and
-     // it's actually a fairly small amount of compiled code, so just inline it
-     // here, instead of jumping back to internal_allocate and polluting the
-     // branch prediction tables.
+     // This is what allocate_small would do if we called back to it, and it's
+     // actually a fairly small amount of compiled code, so just inline it here,
+     // instead of jumping back to allocate_small and polluting the branch
+     // prediction tables.
     Page* page = global.base + global.first_untouched_page;
     global.first_partial_pages[sc] = global.first_untouched_page;
     global.first_untouched_page += 1;
@@ -103,7 +113,7 @@ bool page_valid (Page*, uint32, uint32) { return true; }
 #endif
 
 NOINLINE
-void* internal_allocate (uint32 sc, uint32 slot_size) {
+void* allocate_small (uint32 sc, uint32 slot_size) {
     expect(sc < n_size_classes);
     Page* page;
     if (!global.first_partial_pages[sc]) [[unlikely]] {
@@ -186,8 +196,26 @@ void* internal_allocate (uint32 sc, uint32 slot_size) {
     return r;
 }
 
+void* allocate_large (usize size) {
+    if (size <= 1016) {
+        return allocate_small(14, 1016);
+    }
+    else if (size <= 1360) {
+        return allocate_small(15, 1360);
+    }
+    else {
+#ifdef UNI_LILAC_PROFILE
+        oversize_allocated += 1;
+        oversize_current += 1;
+        if (oversize_most < oversize_current)
+            oversize_most = oversize_current;
+#endif
+        return std::malloc(size);
+    }
+}
+
 NOINLINE
-void internal_deallocate (void* p, uint32 sc, uint32 slot_size) {
+void deallocate_small (void* p, uint32 sc, uint32 slot_size) {
     expect(sc < n_size_classes);
      // Check that we own this pointer
      // This expect causes optimized build to load &global too early
@@ -248,21 +276,44 @@ void internal_deallocate (void* p, uint32 sc, uint32 slot_size) {
     }
 }
 
+void deallocate_large (void* p, usize size) {
+    if (size <= 1016) {
+        deallocate_small(p, 14, 1016);
+    }
+    else if (size <= 1360) {
+        deallocate_small(p, 15, 1360);
+    }
+    else {
+#ifdef UNI_LILAC_PROFILE
+        oversize_deallocated += 1;
+        oversize_current -= 1;
+#endif
+        std::free(p);
+    }
+}
+
 } // in
 
 void dump_profile () {
 #ifdef UNI_LILAC_PROFILE
-    std::fprintf(stderr, "\ncl siz page+ page- page= page> slot+ slot- slot= slot>\n");
+    std::fprintf(stderr,
+        "\ncl size page+ page- page= page> slot+ slot- slot= slot>\n");
     for (uint32 i = 0; i < in::n_size_classes; i++) {
         auto& p = in::profiles[i];
-        std::fprintf(stderr, "%2u %3u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
-            i, in::tables.class_to_words[i] << 3,
-            p.pages_picked, p.pages_emptied, p.pages_current, p.pages_most,
-            p.slots_allocated, p.slots_deallocated, p.slots_current, p.slots_most
+        std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
+            i, in::tables.class_sizes[i],
+            p.pages_picked, p.pages_emptied,
+            p.pages_current, p.pages_most,
+            p.slots_allocated, p.slots_deallocated,
+            p.slots_current, p.slots_most
         );
     }
-    std::fprintf(stderr, "most pool used: %zu\n",
-        (in::global.first_untouched_page - 1) * page_size
+    std::fprintf(stderr, "over+ %zu over- %zu over= %zu over> %zu\n",
+        in::oversize_allocated, in::oversize_deallocated,
+        in::oversize_current, in::oversize_most
+    );
+    std::fprintf(stderr, "most pool used (no oversize): %zu\n",
+        (in::global.first_untouched_page - 1) * in::page_size
     );
 #endif
 }
