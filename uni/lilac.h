@@ -63,7 +63,7 @@ namespace in {
 
  // Page size.  Making this higher improves performance and best-case overhead,
  // but makes fragmentation worse.
-static constexpr usize page_size = 4096;
+static constexpr uint32 page_size = 4096;
 
  // Maximum size of the pool in bytes.  I can't call std::aligned_alloc with
  // more than 16GB on my machine.  You probably want your program to crash
@@ -74,7 +74,7 @@ static constexpr usize pool_size =
 
 ///// SIZE CLASSES
 
-static constexpr usize n_size_classes = 16;
+static constexpr uint32 n_size_classes = 16;
 struct alignas(64) Tables {
      // These size classes are optimized for 4096 (4080 usable) byte pages, and
      // also for use with SharableBuffer and ArrayInterface, which like to have
@@ -132,7 +132,10 @@ void deallocate_large (void*, usize size);
  // Encourage inlining small size calculation, because for small allocations the
  // size is likely to be known at compile-time, which lets the optimizer skip
  // the table lookups.
-[[nodiscard, gnu::malloc, gnu::returns_nonnull]] inline
+[[
+    nodiscard, gnu::malloc, gnu::returns_nonnull,
+    gnu::alloc_size(1), gnu::assume_aligned(8)
+]] inline
 void* allocate (usize size) {
     if (size <= 1360) {
         uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
