@@ -3,7 +3,7 @@
  //
  // Features:
  //  - Realtime-safe (O(1) worst case*)
- //  - Good best-case overhead (0.4%)
+ //  - Good best-case overhead (0.4%, sizes not stored)
  //  - Small code size (less than 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
@@ -17,7 +17,7 @@
  // Caveats:
  //  - Singlethreaded only
  //  - Requires size for deallocation (can't replace malloc/free)
- //  - Only handles up to 1360-byte allocations (relays larger to malloc)
+ //  - Only allocates up to 1360 bytes (relays larger requests to malloc)
  //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit).  All the
  //    virtual address space is reserved at once, so it won't play well with
  //    other libraries that reserve huge address spaces on 32-bit systems.
@@ -28,8 +28,8 @@
  //
  // Allocation never returns null or throws an exception.  The only error
  // conditions are:
- //  - when the entire memory pool runs out, or
- //  - if the pool could not be reserved on the first allocation
+ //  - if the pool could not be reserved on the first allocation, or
+ //  - when the entire memory pool runs out
  // in which cases the program will be terminated.
  //
  // Like other paging allocators, you can achieve worst-case fragmentation by
@@ -123,16 +123,27 @@ constexpr Tables tables;
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(2), gnu::assume_aligned(8)
 ]]
-void* allocate_small (uint32 sc, uint32 slot_size);
+void* allocate_small (uint32& first_partial, uint32 slot_size);
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]]
 void* allocate_large (usize size);
 [[gnu::nonnull(1)]]
-void deallocate_small (void*, uint32 sc, uint32 slot_size);
+void deallocate_small (void*, uint32& first_partial, uint32 slot_size);
 [[gnu::nonnull(1)]]
 void deallocate_large (void*, usize size);
+
+ // Make the data structures visible so the lookup of first_partial_pages can be
+ // done at compile-time.
+struct Page;
+struct alignas(64) Global {
+    Page* base = null;
+    uint32 first_free_page = 0;
+    uint32 first_untouched_page = -1;
+    uint32 first_partial_pages [n_size_classes] = {};
+};
+inline Global global;
 
 } // in
 
@@ -149,7 +160,7 @@ void* allocate (usize size) {
     if (size <= 1360) {
         uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
         uint32 slot_size = in::tables.class_sizes_d8[sc] << 3;
-        return in::allocate_small(sc, slot_size);
+        return in::allocate_small(in::global.first_partial_pages[sc], slot_size);
     }
     else return in::allocate_large(size);
 }
@@ -158,7 +169,7 @@ void deallocate (void* p, usize size) {
     if (size <= 1360) {
         uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
         uint32 slot_size = in::tables.class_sizes_d8[sc] << 3;
-        in::deallocate_small(p, sc, slot_size);
+        in::deallocate_small(p, in::global.first_partial_pages[sc], slot_size);
     }
     else in::deallocate_large(p, size);
 }
