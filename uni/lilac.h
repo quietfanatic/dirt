@@ -4,18 +4,18 @@
  // Features:
  //  - Realtime-safe (O(1) worst case*)
  //  - Good best-case overhead (0.4%)
- //  - Small code size (about 1k compiled code and data)
+ //  - Small code size (less than 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
  // Unconfirmed, but believed to be the case:
  //  - Very fast (much faster than malloc/free at least)
  //  - Low fragmentation for most use cases
  //  - Low cache pressure: if the size is known at compile time, usually only
- //    touches 3~5 data cache lines (including object being de/allocated) and 3~5
+ //    touches 3~4 data cache lines (including object being de/allocated) and 3~5
  //    code cache lines (de/alloc pair)
  //  - Is written in C++ but could be ported to C straightforwardly
  // Caveats:
- //  - Absolutely no thread safety
+ //  - Singlethreaded only
  //  - Requires size for deallocation (can't replace malloc/free)
  //  - Only handles up to 1360-byte allocations (relays larger to malloc)
  //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit).  All the
@@ -27,13 +27,16 @@
  //  - Very experimental and untested with anything but GCC on Linux x64
  //
  // Allocation never returns null or throws an exception.  The only error
- // conditions are when the entire memory pool runs out, or the initial pool
- // could not be allocated in which cases the program will be terminated.
+ // conditions are:
+ //  - when the entire memory pool runs out, or
+ //  - if the pool could not be reserved on the first allocation
+ // in which cases the program will be terminated.
  //
- // You can achieve worst-case fragmentation by allocating a large amount of
- // same-sized objects, deallocating all but one per page, and then never
- // allocating more objects of that size class again.  In this case, memory
- // usage can approach up to one page (4k by default) per object.
+ // Like other paging allocators, you can achieve worst-case fragmentation by
+ // allocating a large amount of same-sized objects, deallocating all but one
+ // per page, and then never allocating more objects of that size class again.
+ // In this case, memory usage can approach up to one page (4k by default) per
+ // object.
  //
  // There's also a slight performance hitch when allocating and deallocating a
  // single object over and over again if that allocation happens to be the first
@@ -116,9 +119,15 @@ constexpr Tables tables;
 
 ///// INTERNAL
 
-[[nodiscard, gnu::malloc, gnu::returns_nonnull]]
+[[
+    nodiscard, gnu::malloc, gnu::returns_nonnull,
+    gnu::alloc_size(2), gnu::assume_aligned(8)
+]]
 void* allocate_small (uint32 sc, uint32 slot_size);
-[[nodiscard, gnu::malloc, gnu::returns_nonnull]]
+[[
+    nodiscard, gnu::malloc, gnu::returns_nonnull,
+    gnu::alloc_size(1), gnu::assume_aligned(8)
+]]
 void* allocate_large (usize size);
 [[gnu::nonnull(1)]]
 void deallocate_small (void*, uint32 sc, uint32 slot_size);

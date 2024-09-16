@@ -27,7 +27,6 @@ struct alignas(page_size) Page {
 };
 static_assert(sizeof(Page) == page_size);
 
- // Try to fit this in one cache line (the larger size classes will go over)
 struct alignas(64) Global {
     Page* base = null;
     uint32 first_free_page = 0;
@@ -168,18 +167,9 @@ void* allocate_small (uint32 sc, uint32 slot_size) {
 #endif
         return (char*)page + page_overhead;
     }
+
     Page* page = global.base + global.first_partial_pages[sc];
     expect(page_valid(page, sc, slot_size));
-    if (page->bytes_used + slot_size * 2 > page_size) [[unlikely]] {
-         // Page is full!  Take it out of the partial list.
-         // With a large page size, this is likely to occupy 3 entries in the
-         // same cache set.  Oh well.
-        uint32 next = page->next_page;
-        uint32 prev = page->prev_page;
-        if (next) global.base[next].prev_page = prev;
-        if (prev) global.base[prev].next_page = next;
-        else global.first_partial_pages[sc] = next;
-    }
 #ifdef UNI_LILAC_PROFILE
     profiles[sc].slots_allocated += 1;
     profiles[sc].slots_current += 1;
@@ -187,28 +177,25 @@ void* allocate_small (uint32 sc, uint32 slot_size) {
         profiles[sc].slots_most = profiles[sc].slots_current;
 //    decisions.push_back(page->first_free_slot);
 #endif
-     // Branched version.  At this point in the function, it compiles to a
-     // single forward branch, with small resulting code, but it's not clear how
-     // predictable this is.  It seems to go through periods of relative
-     // predictability and unpredictability.  A two-bit counter predictor
-     // guesses this correctly ~90% of the time.  A more complex predictor may
-     // or may not do better than that.
+
+     // Branched version.  Ideally this compiles to a single forward branch,
+     // with small resulting code, but it's not clear how predictable this is.
+     // It seems to go through periods of relative predictability and
+     // unpredictability.  A two-bit counter predictor guesses this correctly
+     // ~90% of the time.  A more complex predictor may or may not do better
+     // than that.
+//    void* r = (char*)page + page->bytes_used;
 //    page->bytes_used += slot_size;
 //    if (page->first_free_slot) {
-//        void* r = (char*)page + page->first_free_slot;
+//        r = (char*)page + page->first_free_slot;
 //        page->first_free_slot = *(uint32*)r;
-//        return r;
-//    }
-//    else {
-//        return (char*)page + (page->bytes_used - slot_size);
 //    }
      // Branchless version.  That said, after much perturbation I finally got
      // the cmov to optimize not-so-terribly-badly.  Although it's still not
      // quite optimal (GCC does the cmov with 64-bit size unnecessarily), this
      // now barely beats the branched version in code size (insts and bytes).
      //
-     // Do this add before the cmov to avoid an extra register copy (because
-     // this can end slot_size and the cmov can end bytes_used).
+     // Do this add before the cmov to avoid an extra register copy.
     uint32 new_bu = page->bytes_used + slot_size;
     uint32 slot = page->first_free_slot;
     if (!slot) slot = page->bytes_used;
@@ -218,6 +205,17 @@ void* allocate_small (uint32 sc, uint32 slot_size) {
     page->bytes_used = new_bu;
      // If first_free_slot is 0, this will write it to itself
     page->first_free_slot = *(uint32*)((char*)page + page->first_free_slot);
+     // Do potentially-cache-missing memory accesses before this branch
+    if (new_bu + slot_size > page_size) [[unlikely]] {
+         // Page is full!  Take it out of the partial list.
+         // With a large page size, this is likely to occupy 3 entries in the
+         // same cache set.  Oh well.
+        uint32 next = page->next_page;
+        uint32 prev = page->prev_page;
+        if (next) global.base[next].prev_page = prev;
+        if (prev) global.base[prev].next_page = next;
+        else global.first_partial_pages[sc] = next;
+    }
     return (char*)page + slot;
 }
 
