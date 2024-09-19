@@ -16,7 +16,7 @@ static constexpr uint32 page_overhead = 16;
 static constexpr uint32 page_usable_size = page_size - page_overhead;
 
 struct alignas(page_size) Page {
-     // Note: this must be at offset 0 for an optimization
+     // Note: this must be at offset 0 for a weird optimization
     uint32 first_free_slot;
     uint32 bytes_used;  // Includes overhead
      // 1-based index instead of a raw pointer.  Using raw pointers is slightly
@@ -271,9 +271,9 @@ void deallocate_small (void* p, uint32& first_partial, uint32 slot_size) {
     }
     else if (page->bytes_used + slot_size * 2 > page_size) [[unlikely]] {
          // Page went from full to partial, so put it on the partial list
-        uint32 here = page - global.base;
         page->next_page = first_partial;
         page->prev_page = 0;
+        uint32 here = page - global.base;
         if (page->next_page) {
             global.base[page->next_page].prev_page = here;
         }
