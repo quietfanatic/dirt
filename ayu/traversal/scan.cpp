@@ -329,9 +329,22 @@ const Pair<AnyPtr, SharedLocation>* search_location_cache (AnyPtr item) {
     auto top = location_cache.end();
     while (top != bottom) {
         auto mid = bottom + (top - bottom) / 2;
-        if (mid->first == item) return mid;
-        if (mid->first < item) bottom = mid;
-        else top = mid;
+         // Slightly awkward reorganization to make it easier for the compiler
+         // to use conditional moves.  Normally it's kinda hard to get the
+         // compiler to use cmoves, but it seems pretty eager here, possibly
+         // because it can tell it's a binary search.
+        auto& a = mid->first;
+        int res;
+        if (a.address == item.address) {
+            res = a.type.remove_readonly().data
+                - item.type.remove_readonly().data;
+            if (res == 0) return mid;
+        }
+        else {
+            res = (usize)a.address - (usize)item.address;
+        }
+         // Did you know you can use ?: on lvalues?
+        (res < 0 ? bottom : top) = mid;
     }
     return null;
 }

@@ -11,6 +11,8 @@
 namespace ayu {
 
 struct AnyPtr {
+     // Usually putting metadata before data is faster but for some reason it
+     // appears to work better this way
     Mu* address;
     Type type;
 
