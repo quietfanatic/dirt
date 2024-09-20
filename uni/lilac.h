@@ -11,8 +11,8 @@
  //  - Very fast (much faster than malloc/free at least)
  //  - Low fragmentation for most use cases
  //  - Low cache pressure: if the size is known at compile time, usually only
- //    touches 3~4 data cache lines (including object being de/allocated) and 3~5
- //    code cache lines (de/alloc pair)
+ //    touches 3~4 data cache lines (including object being de/allocated) and
+ //    3~4 code cache lines (de/alloc pair).
  //  - Is written in C++ but could be ported to C straightforwardly
  // Caveats:
  //  - Singlethreaded only
@@ -35,7 +35,7 @@
  // Like other paging allocators, you can achieve worst-case fragmentation by
  // allocating a large amount of same-sized objects, deallocating all but one
  // per page, and then never allocating more objects of that size class again.
- // In this case, memory usage can approach up to one page (4k by default) per
+ // In this case, memory usage can approach up to one page (8k by default) per
  // object.
  //
  // There's also a slight performance hitch when allocating and deallocating a
@@ -66,7 +66,7 @@ namespace in {
 
  // Page size.  Making this higher improves performance and best-case overhead,
  // but makes fragmentation worse.
-static constexpr uint32 page_size = 4096;
+static constexpr uint32 page_size = 8192;
 
  // Maximum size of the pool in bytes.  I can't call std::aligned_alloc with
  // more than 16GB on my machine.  You probably want your program to crash
@@ -79,12 +79,12 @@ static constexpr usize pool_size =
 
 static constexpr uint32 n_size_classes = 16;
 struct alignas(64) Tables {
-     // These size classes are optimized for 4096 (4080 usable) byte pages, and
+     // These size classes are optimized for 8192 (8160 usable) byte pages, and
      // also for use with SharableBuffer and ArrayInterface, which like to have
      // sizes of 8+2^n.
     uint8 class_sizes_d8 [n_size_classes] = {
         16>>3, 24>>3, 32>>3, 40>>3, 56>>3, 72>>3, 104>>3, 136>>3,
-        200>>3, 272>>3, 408>>3, 576>>3, 680>>3, 816>>3, 1016>>3, 1360>>3
+        200>>3, 272>>3, 408>>3, 544>>3, 680>>3, 816>>3, 1160>>3, 1360>>3
     };
      // These tables will occupy three cache lines.  We could squeeze them into
      // two or one, by using a 4-bit encoding or chopping off the end, but it
@@ -100,7 +100,7 @@ struct alignas(64) Tables {
      // 384 392 400 408 416 424 432 440 448 456 464 472 480 488 496 504
         10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
      // 512 520 528 536 544 552 560 568 576 584 592 600 608 616 624 632
-        11, 11, 11, 11, 11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12,
+        11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
      // 640 648 656 664 672 680 688 696 704 712 720 728 736 744 752 760
         12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
      // 768 776 784 792 800 808 816 824 832 840 848 856 864 872 880 888
@@ -108,9 +108,9 @@ struct alignas(64) Tables {
      // 896 904 912 920 928 936 944 952 960 968 976 984 9921000 008 016
         14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
      //1024 032 040 048 056 064 072 080 088 096 104 112 120 128 136 144
-        15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+        14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
      //1152 160 168 176 184 192 200 208 216 224 232 240 248 256 264 272
-        15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+        14, 14, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
      //1280 288 296 304 312 320 328 336 344 352 360
         15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15
     };
@@ -119,29 +119,31 @@ constexpr Tables tables;
 
 ///// INTERNAL
 
+struct Page;
+
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(2), gnu::assume_aligned(8)
 ]]
-void* allocate_small (uint32& first_partial, uint32 slot_size);
+void* allocate_small (Page*& first_partial, uint32 slot_size);
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]]
 void* allocate_large (usize size);
 [[gnu::nonnull(1)]]
-void deallocate_small (void*, uint32& first_partial, uint32 slot_size);
+void deallocate_small (void*, Page*& first_partial, uint32 slot_size);
 [[gnu::nonnull(1)]]
 void deallocate_large (void*, usize size);
 
  // Make the data structures visible so the lookup of first_partial_pages can be
  // done at compile-time.
-struct Page;
 struct alignas(64) Global {
+    Page* first_partial_pages [n_size_classes] = {};
+     // Put less-frequently-used things on the end
+    Page* first_free_page = null;
+    Page* first_untouched_page = null;
     Page* base = null;
-    uint32 first_free_page = 0;
-    uint32 first_untouched_page = -1;
-    uint32 first_partial_pages [n_size_classes] = {};
 };
 inline Global global;
 

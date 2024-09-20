@@ -12,7 +12,7 @@
 namespace uni::lilac {
 namespace in {
 
-static constexpr uint32 page_overhead = 16;
+static constexpr uint32 page_overhead = 32;
 static constexpr uint32 page_usable_size = page_size - page_overhead;
 
 struct alignas(page_size) Page {
@@ -21,8 +21,9 @@ struct alignas(page_size) Page {
     uint32 bytes_used;  // Includes overhead
      // 1-based index instead of a raw pointer.  Using raw pointers is slightly
      // fewer instructions, but uses more overhead and global data.
-    uint32 next_page;
-    uint32 prev_page;
+    uint32 unused [2];
+    Page* next_page;
+    Page* prev_page;
     char data [page_usable_size];
 };
 static_assert(sizeof(Page) == page_size);
@@ -52,23 +53,23 @@ static uint64 oversize_most = 0;
  // I don't know whether it's appropriate to put [[gnu::cold]] on a function
  // that's always called exactly once.
 NOINLINE static
-void* init_pool (uint32& first_partial, uint32 slot_size) {
+void* init_pool (Page*& first_partial, uint32 slot_size) {
      // Probably wasting nearly an entire page's worth of space for alignment.
      // Oh well.
     void* pool = std::aligned_alloc(page_size, pool_size);
     global.base = (Page*)pool - 1;
-    global.first_untouched_page = 1;
+    global.first_untouched_page = global.base + 1;
      // This is what allocate_small would do if we called back to it, and it's
      // actually a fairly small amount of compiled code, so just inline it here,
      // instead of jumping back to allocate_small and polluting the branch
      // prediction tables.
-    Page* page = global.base + global.first_untouched_page;
+    Page* page = global.first_untouched_page;
     first_partial = global.first_untouched_page;
     global.first_untouched_page += 1;
     page->first_free_slot = 0;
     page->bytes_used = page_overhead + slot_size;
-    page->next_page = 0;
-    page->prev_page = 0;
+    page->next_page = null;
+    page->prev_page = null;
      // Still need to twiddle the profile tables
 #ifdef UNI_LILAC_PROFILE
     uint32 sc = &first_partial - global.first_partial_pages;
@@ -100,10 +101,8 @@ bool page_valid (Page* page, uint32 slot_size) {
         & (page->bytes_used >= page_overhead)
         & (page->bytes_used <= page_size)
         & ((page->bytes_used - page_overhead) % slot_size == 0)
-        & (page->next_page <= pool_size / page_size)
-        & (page->next_page != (page - global.base))
-        & (page->prev_page <= pool_size / page_size)
-        & (page->prev_page != (page - global.base));
+        & (page->next_page != page)
+        & (page->prev_page != page);
 }
 #else
 ALWAYS_INLINE static
@@ -112,29 +111,26 @@ bool page_valid (Page*, uint32) { return true; }
 
 
 NOINLINE
-void* allocate_small (uint32& first_partial, uint32 slot_size) {
+void* allocate_small (Page*& first_partial, uint32 slot_size) {
     if (!first_partial) [[unlikely]] {
          // We need a new page
         Page* page;
         if (global.first_free_page) {
              // Use previously freed page
-            page = global.base + global.first_free_page;
+            page = global.first_free_page;
             first_partial = global.first_free_page;
             global.first_free_page = page->next_page;
         }
         else {
-             // > instead of >= because pages start at 1
-            if (global.first_untouched_page > pool_size / page_size)
-                [[unlikely]]
-            {
-                if (!global.base) {
-                     // We haven't actually initialized yet
-                    return init_pool(first_partial, slot_size);
-                }
-                else [[unlikely]] out_of_memory();
+            if (!global.first_untouched_page) {
+                 // We haven't actually initialized yet
+                return init_pool(first_partial, slot_size);
             }
+            if (usize(global.first_untouched_page - global.base)
+              > pool_size / page_size
+            ) [[unlikely]] out_of_memory();
              // Get fresh page
-            page = global.base + global.first_untouched_page;
+            page = global.first_untouched_page;
             first_partial = global.first_untouched_page;
             global.first_untouched_page += 1;
         }
@@ -145,8 +141,8 @@ void* allocate_small (uint32& first_partial, uint32 slot_size) {
          // static data.
         page->first_free_slot = 0;
         page->bytes_used = page_overhead + slot_size;
-        page->next_page = 0;
-        page->prev_page = 0;
+        page->next_page = null;
+        page->prev_page = null;
 #ifdef UNI_LILAC_PROFILE
         uint32 sc = &first_partial - global.first_partial_pages;
         profiles[sc].pages_picked += 1;
@@ -161,7 +157,7 @@ void* allocate_small (uint32& first_partial, uint32 slot_size) {
         return (char*)page + page_overhead;
     }
 
-    Page* page = global.base + first_partial;
+    Page* page = first_partial;
     expect(page_valid(page, slot_size));
 #ifdef UNI_LILAC_PROFILE
     uint32 sc = &first_partial - global.first_partial_pages;
@@ -204,10 +200,10 @@ void* allocate_small (uint32& first_partial, uint32 slot_size) {
          // Page is full!  Take it out of the partial list.
          // With a large page size, this is likely to occupy 3 entries in the
          // same cache set.  Oh well.
-        uint32 next = page->next_page;
-        uint32 prev = page->prev_page;
-        if (next) global.base[next].prev_page = prev;
-        if (prev) global.base[prev].next_page = next;
+        Page* next = page->next_page;
+        Page* prev = page->prev_page;
+        if (next) next->prev_page = prev;
+        if (prev) prev->next_page = next;
         else first_partial = next;
     }
     return (char*)page + slot;
@@ -224,12 +220,12 @@ void* allocate_large (usize size) {
 }
 
 NOINLINE
-void deallocate_small (void* p, uint32& first_partial, uint32 slot_size) {
+void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
      // Check that we own this pointer
      // This expect causes optimized build to load &global too early
 #ifndef NDEBUG
     expect((char*)p > (char*)(global.base + 1)
-        && (char*)p < (char*)(global.base + global.first_untouched_page)
+        && (char*)p < (char*)global.first_untouched_page
     );
 #endif
     Page* page = (Page*)((usize)p & ~usize(page_size - 1));
@@ -255,14 +251,14 @@ void deallocate_small (void* p, uint32& first_partial, uint32 slot_size) {
      // it ends up using more instructions even in the likely case.
     if (page->bytes_used == page_overhead) [[unlikely]] {
          // Page is empty, take it out of the partial list
-        uint32 next = page->next_page;
-        uint32 prev = page->prev_page;
-        if (next) global.base[next].prev_page = prev;
-        if (prev) global.base[prev].next_page = next;
+        Page* next = page->next_page;
+        Page* prev = page->prev_page;
+        if (next) next->prev_page = prev;
+        if (prev) prev->next_page = next;
         else first_partial = next;
          // And add it to the empty list.
         page->next_page = global.first_free_page;
-        global.first_free_page = page - global.base;
+        global.first_free_page = page;
 #ifdef UNI_LILAC_PROFILE
         uint32 sc = &first_partial - global.first_partial_pages;
         profiles[sc].pages_emptied += 1;
@@ -272,12 +268,11 @@ void deallocate_small (void* p, uint32& first_partial, uint32 slot_size) {
     else if (page->bytes_used + slot_size * 2 > page_size) [[unlikely]] {
          // Page went from full to partial, so put it on the partial list
         page->next_page = first_partial;
-        page->prev_page = 0;
-        uint32 here = page - global.base;
+        page->prev_page = null;
         if (page->next_page) {
-            global.base[page->next_page].prev_page = here;
+            page->next_page->prev_page = page;
         }
-        first_partial = here;
+        first_partial = page;
     }
 }
 
