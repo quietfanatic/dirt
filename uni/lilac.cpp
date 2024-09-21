@@ -122,7 +122,7 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) {
             global.first_free_page = page->next_page;
         }
         else {
-            if (!global.first_untouched_page) {
+            if (!global.first_untouched_page) [[unlikely]] {
                  // We haven't actually initialized yet
                 return init_pool(first_partial, slot_size);
             }
@@ -202,9 +202,10 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) {
          // same cache set.  Oh well.
         Page* next = page->next_page;
         Page* prev = page->prev_page;
-        if (next) next->prev_page = prev;
-        if (prev) prev->next_page = next;
-        else first_partial = next;
+        Page* prev_target = next ? next : page;
+        prev_target->prev_page = prev;
+        Page** next_target = prev ? &prev->next_page : &first_partial;
+        *next_target = next;
     }
     return (char*)page + slot;
 }
@@ -253,9 +254,10 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
          // Page is empty, take it out of the partial list
         Page* next = page->next_page;
         Page* prev = page->prev_page;
-        if (next) next->prev_page = prev;
-        if (prev) prev->next_page = next;
-        else first_partial = next;
+        Page* prev_target = next ? next : page;
+        prev_target->prev_page = prev;
+        Page** next_target = prev ? &prev->next_page : &first_partial;
+        *next_target = next;
          // And add it to the empty list.
         page->next_page = global.first_free_page;
         global.first_free_page = page;
@@ -267,11 +269,11 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
     }
     else if (page->bytes_used + slot_size * 2 > page_size) [[unlikely]] {
          // Page went from full to partial, so put it on the partial list
-        page->next_page = first_partial;
+        Page* first = first_partial;
+        Page* target = first ? first : page;
+        target->prev_page = page;
+        page->next_page = first;
         page->prev_page = null;
-        if (page->next_page) {
-            page->next_page->prev_page = page;
-        }
         first_partial = page;
     }
 }
