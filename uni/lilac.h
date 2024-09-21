@@ -64,33 +64,37 @@ namespace in {
 
 ///// CUSTOMIZATION
 
- // Page size.  Making this higher improves performance and best-case overhead,
- // but makes fragmentation worse.
-static constexpr uint32 page_size = 8192;
-
  // Maximum size of the pool in bytes.  I can't call std::aligned_alloc with
  // more than 16GB on my machine.  You probably want your program to crash
  // before it consumes 16GB anyway.
 static constexpr usize pool_size =
-    sizeof(void*) >= 8 ? 16ULL*1024*1024*1024 - page_size * 2
-                       : 1*1024*1024*1024 - page_size * 2;
+    sizeof(void*) >= 8 ? 16ULL*1024*1024*1024 - 16384
+                       : 1*1024*1024*1024 - 16384;
 
 ///// SIZE CLASSES
 
-static constexpr uint32 n_size_classes = 16;
+ // Page size.  Making this higher improves performance and best-case overhead,
+ // but makes fragmentation worse.  You will need to adjust the size tables if
+ // you change this.
+static constexpr uint32 page_size = 8192;
+static constexpr uint32 page_overhead = 32;
+static constexpr uint32 page_usable_size = page_size - page_overhead;
+
+static constexpr uint32 n_size_classes = 18;
+static constexpr uint32 largest_small = 11;
 struct alignas(64) Tables {
      // These size classes are optimized for 8192 (8160 usable) byte pages, and
      // also for use with SharableBuffer and ArrayInterface, which like to have
      // sizes of 8+2^n.
-    uint8 class_sizes_d8 [n_size_classes] = {
-        16>>3, 24>>3, 32>>3, 40>>3, 56>>3, 72>>3, 104>>3, 136>>3,
-        200>>3, 272>>3, 408>>3, 544>>3, 680>>3, 816>>3, 1160>>3, 1360>>3
+    uint16 class_sizes [n_size_classes] = {
+     //  0   1   2   3   4   5   6
+        16, 24, 32, 40, 56, 72, 104,
+     //  7    8    9   10   11   12
+        136, 200, 272, 408, 544, 680,
+     // 13    14    15    16    17
+        904, 1160, 1360, 1632, 2040
     };
-     // These tables will occupy three cache lines.  We could squeeze them into
-     // two or one, by using a 4-bit encoding or chopping off the end, but it
-     // would cost more code than it would save data.  Fixed-size allocations
-     // will consult these tables at compile time.
-    uint8 classes_by_8 [171] = {
+    uint8 small_classes_by_8 [69] = {
      //   0   8  16  24  32  40  48  56  64  72  80  88  96 104 112 120
          0,  0,  0,  1,  2,  3,  4,  4,  5,  5,  6,  6,  6,  6,  7,  7,
      // 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248
@@ -99,23 +103,30 @@ struct alignas(64) Tables {
          9,  9,  9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
      // 384 392 400 408 416 424 432 440 448 456 464 472 480 488 496 504
         10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
-     // 512 520 528 536 544 552 560 568 576 584 592 600 608 616 624 632
-        11, 11, 11, 11, 11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
-     // 640 648 656 664 672 680 688 696 704 712 720 728 736 744 752 760
-        12, 12, 12, 12, 12, 12, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-     // 768 776 784 792 800 808 816 824 832 840 848 856 864 872 880 888
-        13, 13, 13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14,
-     // 896 904 912 920 928 936 944 952 960 968 976 984 9921000 008 016
-        14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
-     //1024 032 040 048 056 064 072 080 088 096 104 112 120 128 136 144
-        14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
-     //1152 160 168 176 184 192 200 208 216 224 232 240 248 256 264 272
-        14, 14, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
-     //1280 288 296 304 312 320 328 336 344 352 360
-        15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15
+     // 512 520 528 536 544
+        11, 11, 11, 11, 11
+    };
+    uint8 medium_classes_by_div [12] = {
+     //  4   5   6   7   8   9  10  11  12  13  14  15
+        17, 16, 15, 14, 14, 13, 13, 13, 12, 12, 12, 12
     };
 };
 constexpr Tables tables;
+
+ALWAYS_INLINE constexpr
+int32 get_size_class (usize size) {
+    if (size <= in::tables.class_sizes[in::largest_small]) {
+        return in::tables.small_classes_by_8[
+            uint32(size + 7) >> 3
+        ];
+    }
+    else if (size <= in::tables.class_sizes[n_size_classes-1]) {
+        return in::tables.medium_classes_by_div[
+            page_usable_size / uint32(size) - 4
+        ];
+    }
+    else return -1;
+}
 
 ///// INTERNAL
 
@@ -152,26 +163,29 @@ inline Global global;
 
 ///// INLINES
 
- // Encourage inlining small size calculation, because for small allocations the
- // size is likely to be known at compile-time, which lets the optimizer skip
- // the table lookups.
+ // Make these available at compile time (and not NOINLINE) so that the compiler
+ // can do all the table lookups at compile time.  Ideally, the compiler will
+ // not inline this if the size isn't known at compile time, and fortunately it
+ // seems like it does if LTO is enabled.
+
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]] inline
 void* allocate (usize size) {
-    if (size <= 1360) {
-        uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
-        uint32 slot_size = in::tables.class_sizes_d8[sc] << 3;
+    int32 sc = in::get_size_class(size);
+    if (sc >= 0) {
+        uint32 slot_size = in::tables.class_sizes[sc];
         return in::allocate_small(in::global.first_partial_pages[sc], slot_size);
     }
     else return in::allocate_large(size);
 }
+
 [[gnu::nonnull(1)]] inline
 void deallocate (void* p, usize size) {
-    if (size <= 1360) {
-        uint32 sc = in::tables.classes_by_8[uint32(size + 7) >> 3];
-        uint32 slot_size = in::tables.class_sizes_d8[sc] << 3;
+    int32 sc = in::get_size_class(size);
+    if (sc >= 0) {
+        uint32 slot_size = in::tables.class_sizes[sc];
         in::deallocate_small(p, in::global.first_partial_pages[sc], slot_size);
     }
     else in::deallocate_large(p, size);

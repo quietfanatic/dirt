@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include "assertions.h"
 
-//#define UNI_LILAC_PROFILE
+#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
 #include <cstdio>
 #include <vector>
@@ -11,9 +11,6 @@
 
 namespace uni::lilac {
 namespace in {
-
-static constexpr uint32 page_overhead = 32;
-static constexpr uint32 page_usable_size = page_size - page_overhead;
 
 struct alignas(page_size) Page {
      // Note: this must be at offset 0 for a weird optimization
@@ -108,7 +105,6 @@ bool page_valid (Page* page, uint32 slot_size) {
 ALWAYS_INLINE static
 bool page_valid (Page*, uint32) { return true; }
 #endif
-
 
 NOINLINE
 void* allocate_small (Page*& first_partial, uint32 slot_size) {
@@ -295,7 +291,7 @@ void dump_profile () {
     for (uint32 i = 0; i < in::n_size_classes; i++) {
         auto& p = in::profiles[i];
         std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
-            i, in::tables.class_sizes_d8[i] << 3,
+            i, in::tables.class_sizes[i],
             p.pages_picked, p.pages_emptied,
             p.pages_current, p.pages_most,
             p.slots_allocated, p.slots_deallocated,
@@ -306,8 +302,8 @@ void dump_profile () {
         in::oversize_allocated, in::oversize_deallocated,
         in::oversize_current, in::oversize_most
     );
-    std::fprintf(stderr, "most pool used (no oversize): %u\n",
-        (in::global.first_untouched_page - 1) * in::page_size
+    std::fprintf(stderr, "most pool used (no oversize): %zu\n",
+        (in::global.first_untouched_page - in::global.pool) * in::page_size
     );
 //    uint8 counter = 1;
 //    uint32 sum = 0;
