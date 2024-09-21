@@ -143,7 +143,8 @@ struct alignas(64) Global {
      // Put less-frequently-used things on the end
     Page* first_free_page = null;
     Page* first_untouched_page = null;
-    Page* base = null;
+    Page* pool = null;
+    Page* pool_end = null; // We have extra room, may as well cache this
 };
 inline Global global;
 

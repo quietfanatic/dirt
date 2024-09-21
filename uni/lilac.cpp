@@ -56,9 +56,9 @@ NOINLINE static
 void* init_pool (Page*& first_partial, uint32 slot_size) {
      // Probably wasting nearly an entire page's worth of space for alignment.
      // Oh well.
-    void* pool = std::aligned_alloc(page_size, pool_size);
-    global.base = (Page*)pool - 1;
-    global.first_untouched_page = global.base + 1;
+    global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
+    global.pool_end = global.pool + pool_size / page_size;
+    global.first_untouched_page = global.pool;
      // This is what allocate_small would do if we called back to it, and it's
      // actually a fairly small amount of compiled code, so just inline it here,
      // instead of jumping back to allocate_small and polluting the branch
@@ -122,13 +122,13 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) {
             global.first_free_page = page->next_page;
         }
         else {
-            if (!global.first_untouched_page) [[unlikely]] {
-                 // We haven't actually initialized yet
-                return init_pool(first_partial, slot_size);
+            if (global.first_untouched_page >= global.pool_end) [[unlikely]] {
+                if (!global.first_untouched_page) {
+                     // We haven't actually initialized yet
+                    return init_pool(first_partial, slot_size);
+                }
+                else [[unlikely]] out_of_memory();
             }
-            if (usize(global.first_untouched_page - global.base)
-              > pool_size / page_size
-            ) [[unlikely]] out_of_memory();
              // Get fresh page
             page = global.first_untouched_page;
             first_partial = global.first_untouched_page;
@@ -225,7 +225,7 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
      // Check that we own this pointer
      // This expect causes optimized build to load &global too early
 #ifndef NDEBUG
-    expect((char*)p > (char*)(global.base + 1)
+    expect((char*)p > (char*)global.pool
         && (char*)p < (char*)global.first_untouched_page
     );
 #endif
