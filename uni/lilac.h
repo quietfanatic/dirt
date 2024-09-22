@@ -60,6 +60,10 @@ void* allocate (usize);
  // Deallocate previously allocated memory.
 void deallocate (void*, usize);
 
+ // Deallocate a block whose size you don't know.  May be slower than if the
+ // size is known.
+void deallocate_unknown_size (void*);
+
  // This has the exact same behavior as allocate(), but is faster if the size is
  // known at compile-time (and probably slower if it isn't).
 void* allocate_fixed_size (usize);
@@ -186,14 +190,10 @@ void* allocate (usize size) {
     else [[unlikely]] return in::allocate_large(size);
 }
 
-[[gnu::nonnull(1)]] NOINLINE inline
-void deallocate (void* p, usize size) {
-    int32 sc = in::get_size_class(size);
-    if (sc >= 0) {
-        uint32 slot_size = in::tables.class_sizes[sc];
-        in::deallocate_small(p, in::global.first_partial_pages[sc], slot_size);
-    }
-    else [[unlikely]] in::deallocate_large(p, size);
+[[gnu::nonnull(1)]] ALWAYS_INLINE
+void deallocate (void* p, usize) {
+     // Reading the size class from the page is faster than calculating it
+    deallocate_unknown_size(p);
 }
 
 [[

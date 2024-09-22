@@ -16,7 +16,8 @@ struct alignas(page_size) Page {
      // Note: this must be at offset 0 for a weird optimization
     uint32 first_free_slot;
     uint32 bytes_used;  // Includes overhead
-    uint32 unused [2];
+    uint32 size_class;
+    uint32 slot_size;
     Page* next_page;
     Page* prev_page;
     char data [page_usable_size];
@@ -63,6 +64,8 @@ void* init_pool (Page*& first_partial, uint32 slot_size) {
     global.first_untouched_page += 1;
     page->first_free_slot = 0;
     page->bytes_used = page_overhead + slot_size;
+    page->size_class = &first_partial - global.first_partial_pages;
+    page->slot_size = slot_size;
     page->next_page = null;
     page->prev_page = null;
      // Still need to twiddle the profile tables
@@ -96,6 +99,7 @@ bool page_valid (Page* page, uint32 slot_size) {
         & (page->bytes_used >= page_overhead)
         & (page->bytes_used <= page_size)
         & ((page->bytes_used - page_overhead) % slot_size == 0)
+        & (page->slot_size == slot_size)
         & (page->next_page != page)
         & (page->prev_page != page);
 }
@@ -135,6 +139,8 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) {
          // static data.
         page->first_free_slot = 0;
         page->bytes_used = page_overhead + slot_size;
+        page->size_class = &first_partial - global.first_partial_pages;
+        page->slot_size = slot_size;
         page->next_page = null;
         page->prev_page = null;
 #ifdef UNI_LILAC_PROFILE
@@ -280,16 +286,28 @@ void deallocate_large (void* p, usize) {
     std::free(p);
 }
 
-} // in
+} using namespace in;
+
+NOINLINE
+void deallocate_unknown_size (void* p) {
+    if ((char*)p >= (char*)global.pool
+     && (char*)p < (char*)global.pool_end
+    ) {
+        Page* page = (Page*)((usize)p & ~usize(page_size - 1));
+        Page*& fp = global.first_partial_pages[page->size_class];
+        deallocate_small(p, fp, page->slot_size);
+    }
+    else [[unlikely]] deallocate_large(p, 0);
+}
 
 void dump_profile () {
 #ifdef UNI_LILAC_PROFILE
     std::fprintf(stderr,
         "\ncl size page+ page- page= page> slot+ slot- slot= slot>\n");
-    for (uint32 i = 0; i < in::n_size_classes; i++) {
-        auto& p = in::profiles[i];
+    for (uint32 i = 0; i < n_size_classes; i++) {
+        auto& p = profiles[i];
         std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
-            i, in::tables.class_sizes[i],
+            i, tables.class_sizes[i],
             p.pages_picked, p.pages_emptied,
             p.pages_current, p.pages_most,
             p.slots_allocated, p.slots_deallocated,
@@ -297,22 +315,22 @@ void dump_profile () {
         );
     }
     std::fprintf(stderr, "over+ %zu over- %zu over= %zu over> %zu\n",
-        in::oversize_allocated, in::oversize_deallocated,
-        in::oversize_current, in::oversize_most
+        oversize_allocated, oversize_deallocated,
+        oversize_current, oversize_most
     );
     std::fprintf(stderr, "most pool used (no oversize): %zu\n",
-        (in::global.first_untouched_page - in::global.pool) * in::page_size
+        (global.first_untouched_page - global.pool) * page_size
     );
 //    uint8 counter = 1;
 //    uint32 sum = 0;
-//    for (auto b : in::decisions) {
+//    for (auto b : decisions) {
 //        sum += (b!=(counter > 1));
 //        std::fputc(b!=(counter > 1)?'1':'0', stderr);
 //        if (b && counter < 3) counter++;
 //        else if (!b && counter > 0) counter--;
 //    }
 //    std::fputc('\n', stderr);
-//    std::fprintf(stderr, "%u/%zu\n", sum, in::decisions.size());
+//    std::fprintf(stderr, "%u/%zu\n", sum, decisions.size());
 #endif
 }
 
