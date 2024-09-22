@@ -3,8 +3,8 @@
  //
  // Features:
  //  - Realtime-safe (O(1) worst case*)
- //  - Good best-case overhead (0.4%, sizes not stored)
- //  - Small code size (about 1k compiled code and data)
+ //  - Good best-case overhead (0.4%)
+ //  - Small code size (1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
  // Unconfirmed, but believed to be the case:
@@ -12,12 +12,11 @@
  //  - Low fragmentation for most use cases
  //  - Low cache pressure: if the size is known at compile time, usually only
  //    touches 3~4 data cache lines (including object being de/allocated) and
- //    3~4 code cache lines (de/alloc pair).
+ //    2~4 code cache lines (de/alloc pair).
  //  - Is written in C++ but could be ported to C straightforwardly
  // Caveats:
  //  - Singlethreaded only
- //  - Requires size for deallocation (can't replace malloc/free)
- //  - Only allocates up to 1360 bytes (relays larger requests to malloc)
+ //  - Only allocates up to 2040 bytes (relays larger requests to malloc)
  //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit).  All the
  //    virtual address space is reserved at once, so it won't play well with
  //    other libraries that reserve huge address spaces on 32-bit systems.
@@ -60,8 +59,8 @@ void* allocate (usize);
  // Deallocate previously allocated memory.
 void deallocate (void*, usize);
 
- // Deallocate a block whose size you don't know.  May be slower than if the
- // size is known.
+ // Deallocate a block whose size you don't know.  May or may not be slower than
+ // if the size is known.
 void deallocate_unknown_size (void*);
 
  // This has the exact same behavior as allocate(), but is faster if the size is
