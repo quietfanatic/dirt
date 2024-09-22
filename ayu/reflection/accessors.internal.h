@@ -5,6 +5,7 @@
 
 #include <typeinfo>
 
+#include "../../uni/lilac.h"
 #include "../common.h"
 #include "../data/tree.h"
 #include "anyptr.h"
@@ -173,6 +174,14 @@ struct Accessor {
     }
     void dec () const {
         if (ref_count) [[unlikely]] do_dec();
+    }
+    static void* operator new (usize s) {
+        return lilac::allocate_fixed_size(s);
+    }
+     // We might be deleting from a base class when we don't know the derived
+     // class, so use unsized delete.
+    static void operator delete (void* p) {
+        lilac::deallocate_unknown_size(p);
     }
 };
 
