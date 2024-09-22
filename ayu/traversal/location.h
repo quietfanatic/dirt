@@ -53,10 +53,10 @@ struct Location : in::RefCounted {
     LocationRef root () const noexcept;
 
     static void* operator new (usize s) {
-        return lilac::allocate(s);
+        return lilac::allocate_fixed_size(s);
     }
     static void operator delete (void* p, usize s) {
-        lilac::deallocate(p, s);
+        lilac::deallocate_fixed_size(p, s);
     }
     protected:
     Location (LocationForm f) : form(f) { }

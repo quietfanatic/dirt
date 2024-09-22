@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include "assertions.h"
 
-#define UNI_LILAC_PROFILE
+//#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
 #include <cstdio>
 #include <vector>
@@ -16,8 +16,6 @@ struct alignas(page_size) Page {
      // Note: this must be at offset 0 for a weird optimization
     uint32 first_free_slot;
     uint32 bytes_used;  // Includes overhead
-     // 1-based index instead of a raw pointer.  Using raw pointers is slightly
-     // fewer instructions, but uses more overhead and global data.
     uint32 unused [2];
     Page* next_page;
     Page* prev_page;

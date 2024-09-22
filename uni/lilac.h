@@ -4,7 +4,7 @@
  // Features:
  //  - Realtime-safe (O(1) worst case*)
  //  - Good best-case overhead (0.4%, sizes not stored)
- //  - Small code size (less than 1k compiled code and data)
+ //  - Small code size (about 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
  // Unconfirmed, but believed to be the case:
@@ -55,8 +55,18 @@ namespace uni::lilac {
 
 ///// API
 
+ // Allocate some memory.
 void* allocate (usize);
+ // Deallocate previously allocated memory.
 void deallocate (void*, usize);
+
+ // This has the exact same behavior as allocate(), but is faster if the size is
+ // known at compile-time (and probably slower if it isn't).
+void* allocate_fixed_size (usize);
+ // Same as above but with deallocation.  You are allowed to mix-and-match
+ // fixed_size and non-fixed_size allocation and deallocation functions.
+void deallocate_fixed_size (void*, usize);
+
  // Dump some stats to stderr, but only if compiled with UNI_LILAC_PROFILE
 void dump_profile ();
 
@@ -115,17 +125,17 @@ constexpr Tables tables;
 
 ALWAYS_INLINE constexpr
 int32 get_size_class (usize size) {
-    if (size <= in::tables.class_sizes[in::largest_small]) {
-        return in::tables.small_classes_by_8[
+    if (size <= tables.class_sizes[largest_small]) [[likely]] {
+        return tables.small_classes_by_8[
             uint32(size + 7) >> 3
         ];
     }
-    else if (size <= in::tables.class_sizes[n_size_classes-1]) {
-        return in::tables.medium_classes_by_div[
+    else if (size <= tables.class_sizes[n_size_classes-1]) {
+        return tables.medium_classes_by_div[
             page_usable_size / uint32(size) - 4
         ];
     }
-    else return -1;
+    else [[unlikely]] return -1;
 }
 
 ///// INTERNAL
@@ -163,32 +173,50 @@ inline Global global;
 
 ///// INLINES
 
- // Make these available at compile time (and not NOINLINE) so that the compiler
- // can do all the table lookups at compile time.  Ideally, the compiler will
- // not inline this if the size isn't known at compile time, and fortunately it
- // seems like it does if LTO is enabled.
-
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
-]] inline
+]] NOINLINE inline
 void* allocate (usize size) {
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
         uint32 slot_size = in::tables.class_sizes[sc];
         return in::allocate_small(in::global.first_partial_pages[sc], slot_size);
     }
-    else return in::allocate_large(size);
+    else [[unlikely]] return in::allocate_large(size);
 }
 
-[[gnu::nonnull(1)]] inline
+[[gnu::nonnull(1)]] NOINLINE inline
 void deallocate (void* p, usize size) {
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
         uint32 slot_size = in::tables.class_sizes[sc];
         in::deallocate_small(p, in::global.first_partial_pages[sc], slot_size);
     }
-    else in::deallocate_large(p, size);
+    else [[unlikely]] in::deallocate_large(p, size);
+}
+
+[[
+    nodiscard, gnu::malloc, gnu::returns_nonnull,
+    gnu::alloc_size(1), gnu::assume_aligned(8)
+]] ALWAYS_INLINE
+void* allocate_fixed_size (usize size) {
+    int32 sc = in::get_size_class(size);
+    if (sc >= 0) {
+        uint32 slot_size = in::tables.class_sizes[sc];
+        return in::allocate_small(in::global.first_partial_pages[sc], slot_size);
+    }
+    else [[unlikely]] return in::allocate_large(size);
+}
+
+[[gnu::nonnull(1)]] ALWAYS_INLINE
+void deallocate_fixed_size (void* p, usize size) {
+    int32 sc = in::get_size_class(size);
+    if (sc >= 0) {
+        uint32 slot_size = in::tables.class_sizes[sc];
+        in::deallocate_small(p, in::global.first_partial_pages[sc], slot_size);
+    }
+    else [[unlikely]] in::deallocate_large(p, size);
 }
 
 } // uni::lilac
