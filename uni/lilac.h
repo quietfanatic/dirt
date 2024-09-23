@@ -164,7 +164,6 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept;
 void* allocate_large (usize size) noexcept;
 [[gnu::nonnull(1)]]
 void deallocate_small (void*, Page*& first_partial, uint32 slot_size) noexcept;
-[[gnu::nonnull(1)]]
 void deallocate_large (void*, usize size) noexcept;
 
  // Make the data structures visible so the lookup of first_partial_pages can be

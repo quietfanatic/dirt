@@ -35,6 +35,8 @@ struct Profile {
     uint32 slots_most = 0;
 };
 static Profile profiles [n_size_classes];
+static usize slot_bytes_current = 0;
+static usize slot_bytes_most = 0;
 static uint64 oversize_allocated = 0;
 static uint64 oversize_deallocated = 0;
 static uint64 oversize_current = 0;
@@ -85,6 +87,9 @@ void* init_pool (Page*& first_partial, uint32 slot_size) noexcept {
     profiles[sc].slots_current += 1;
     if (profiles[sc].slots_most < profiles[sc].slots_current)
         profiles[sc].slots_most = profiles[sc].slots_current;
+    slot_bytes_current += slot_size;
+    if (slot_bytes_most < slot_bytes_current)
+        slot_bytes_most = slot_bytes_current;
 #endif
     return (char*)page + page_overhead;
 }
@@ -156,6 +161,9 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
         profiles[sc].slots_current += 1;
         if (profiles[sc].slots_most < profiles[sc].slots_current)
             profiles[sc].slots_most = profiles[sc].slots_current;
+        slot_bytes_current += slot_size;
+        if (slot_bytes_most < slot_bytes_current)
+            slot_bytes_most = slot_bytes_current;
 #endif
         return (char*)page + page_overhead;
     }
@@ -168,6 +176,9 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
     profiles[sc].slots_current += 1;
     if (profiles[sc].slots_most < profiles[sc].slots_current)
         profiles[sc].slots_most = profiles[sc].slots_current;
+    slot_bytes_current += slot_size;
+    if (slot_bytes_most < slot_bytes_current)
+        slot_bytes_most = slot_bytes_current;
 //    decisions.push_back(page->first_free_slot);
 #endif
 
@@ -255,6 +266,7 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept
     uint32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].slots_deallocated += 1;
     profiles[sc].slots_current -= 1;
+    slot_bytes_current -= slot_size;
 #endif
      // It's possible to do a math trick to merge these branches into one, but
      // it ends up using more instructions even in the likely case.
@@ -330,7 +342,8 @@ void dump_profile () noexcept {
         oversize_allocated, oversize_deallocated,
         oversize_current, oversize_most
     );
-    std::fprintf(stderr, "most pool used (no oversize): %zu\n",
+    std::fprintf(stderr, "most slot bytes %zu\nmost page bytes %zu\n",
+        slot_bytes_most,
         (global.first_untouched_page - global.pool) * page_size
     );
 //    uint8 counter = 1;
