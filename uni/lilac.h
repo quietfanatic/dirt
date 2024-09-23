@@ -31,6 +31,11 @@
  //  - when the entire memory pool runs out
  // in which cases the program will be terminated.
  //
+ // You can override the global operator new and operator delete by linking
+ // lilac-global-override.cpp into the program.  Only do this is your entire
+ // program is singlethreaded, or at least never allocates memory on another
+ // thread.
+ //
  // Like other paging allocators, you can achieve worst-case fragmentation by
  // allocating a large amount of same-sized objects, deallocating all but one
  // per page, and then never allocating more objects of that size class again.
