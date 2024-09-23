@@ -50,26 +50,13 @@ void out_of_memory () { require(false); std::abort(); }
 [[noreturn]] static
 void malloc_failed () { require(false); std::abort(); }
 
- // Noinline this and pass the argument along, so that allocate_small can tail
- // call this.  This keeps allocate_small from having to save cat on the stack
- // during the call to std::aligned_alloc.
- // I don't know whether it's appropriate to put [[gnu::cold]] on a function
- // that's always called exactly once.
 NOINLINE static
-void* init_pool (Page*& first_partial, uint32 slot_size) noexcept {
-     // Probably wasting nearly an entire page's worth of space for alignment.
-     // Oh well.
-    global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
-    if (!global.pool) malloc_failed();
-    global.pool_end = global.pool + pool_size / page_size;
-    global.first_untouched_page = global.pool;
-     // This is what allocate_small would do if we called back to it, and it's
-     // actually a fairly small amount of compiled code, so just inline it here,
-     // instead of jumping back to allocate_small and polluting the branch
-     // prediction tables.
-    Page* page = global.first_untouched_page;
-    first_partial = global.first_untouched_page;
-    global.first_untouched_page += 1;
+void* init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
+     // Might as well shortcut the first allocation here, skipping the full
+     // check later (we can't go from empty to full in one allocation).  This
+     // also avoids writing a non-zero constant to these fields, which would
+     // cause the compiler to load a 16-byte vector constant from static data.
+    first_partial = page;
     page->first_free_slot = 0;
     page->bytes_used = page_overhead + slot_size;
     page->size_class = &first_partial - global.first_partial_pages;
@@ -92,6 +79,24 @@ void* init_pool (Page*& first_partial, uint32 slot_size) noexcept {
         slot_bytes_most = slot_bytes_current;
 #endif
     return (char*)page + page_overhead;
+}
+
+ // Noinline this and pass the argument along, so that allocate_small can tail
+ // call this.  This keeps allocate_small from having to save cat on the stack
+ // during the call to std::aligned_alloc.
+ // I don't know whether it's appropriate to put [[gnu::cold]] on a function
+ // that's always called exactly once.
+NOINLINE static
+void* init_pool (Page*& first_partial, uint32 slot_size) noexcept {
+     // Probably wasting nearly an entire page's worth of space for alignment.
+     // Oh well.
+    global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
+    if (!global.pool) malloc_failed();
+    global.pool_end = global.pool + pool_size / page_size;
+    global.first_untouched_page = global.pool;
+    Page* page = global.first_untouched_page;
+    global.first_untouched_page += 1;
+    return init_page(first_partial, slot_size, page);
 }
 
  // This complex of an expect() bogs down the optimizer
@@ -120,12 +125,11 @@ NOINLINE
 void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
     if (!first_partial) [[unlikely]] {
          // We need a new page
-        Page* page;
         if (global.first_free_page) {
              // Use previously freed page
-            page = global.first_free_page;
-            first_partial = global.first_free_page;
+            Page* page = global.first_free_page;
             global.first_free_page = page->next_page;
+            return init_page(first_partial, slot_size, page);
         }
         else {
             if (global.first_untouched_page >= global.pool_end) [[unlikely]] {
@@ -136,36 +140,10 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
                 else [[unlikely]] out_of_memory();
             }
              // Get fresh page
-            page = global.first_untouched_page;
-            first_partial = global.first_untouched_page;
+            Page* page = global.first_untouched_page;
             global.first_untouched_page += 1;
+            return init_page(first_partial, slot_size, page);
         }
-         // Might as well shortcut the first allocation here, skipping the full
-         // check later (we can't go from empty to full in one allocation).
-         // This also avoids writing a non-zero constant to these fields, which
-         // would cause the compiler to load a 16-byte vector constant from
-         // static data.
-        page->first_free_slot = 0;
-        page->bytes_used = page_overhead + slot_size;
-        page->size_class = &first_partial - global.first_partial_pages;
-        page->slot_size = slot_size;
-        page->next_page = null;
-        page->prev_page = null;
-#ifdef UNI_LILAC_PROFILE
-        uint32 sc = &first_partial - global.first_partial_pages;
-        profiles[sc].pages_picked += 1;
-        profiles[sc].pages_current += 1;
-        if (profiles[sc].pages_most < profiles[sc].pages_current)
-            profiles[sc].pages_most = profiles[sc].pages_current;
-        profiles[sc].slots_allocated += 1;
-        profiles[sc].slots_current += 1;
-        if (profiles[sc].slots_most < profiles[sc].slots_current)
-            profiles[sc].slots_most = profiles[sc].slots_current;
-        slot_bytes_current += slot_size;
-        if (slot_bytes_most < slot_bytes_current)
-            slot_bytes_most = slot_bytes_current;
-#endif
-        return (char*)page + page_overhead;
     }
 
     Page* page = first_partial;
