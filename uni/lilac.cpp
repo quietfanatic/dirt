@@ -54,7 +54,7 @@ void malloc_failed () { require(false); std::abort(); }
  // I don't know whether it's appropriate to put [[gnu::cold]] on a function
  // that's always called exactly once.
 NOINLINE static
-void* init_pool (Page*& first_partial, uint32 slot_size) {
+void* init_pool (Page*& first_partial, uint32 slot_size) noexcept {
      // Probably wasting nearly an entire page's worth of space for alignment.
      // Oh well.
     global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
@@ -112,7 +112,7 @@ bool page_valid (Page*, uint32) { return true; }
 #endif
 
 NOINLINE
-void* allocate_small (Page*& first_partial, uint32 slot_size) {
+void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
     if (!first_partial) [[unlikely]] {
          // We need a new page
         Page* page;
@@ -213,7 +213,7 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) {
     return (char*)page + slot;
 }
 
-void* allocate_large (usize size) {
+void* allocate_large (usize size) noexcept {
 #ifdef UNI_LILAC_PROFILE
     oversize_allocated += 1;
     oversize_current += 1;
@@ -221,12 +221,15 @@ void* allocate_large (usize size) {
         oversize_most = oversize_current;
 #endif
     void* r = std::malloc(size);
+     // Usually I prefer to just let it segfault when malloc returns null, but
+     // we've established a contract that our API never returns null, and I
+     // don't really want to break it.
     if (!r) malloc_failed();
     return r;
 }
 
 NOINLINE
-void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
+void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept {
      // Check that we own this pointer
      // This expect causes optimized build to load &global too early
 #ifndef NDEBUG
@@ -283,7 +286,7 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
     }
 }
 
-void deallocate_large (void* p, usize) {
+void deallocate_large (void* p, usize) noexcept {
 #ifdef UNI_LILAC_PROFILE
     if (p) {
         oversize_deallocated += 1;
@@ -296,7 +299,7 @@ void deallocate_large (void* p, usize) {
 } using namespace in;
 
 NOINLINE
-void deallocate_unknown_size (void* p) {
+void deallocate_unknown_size (void* p) noexcept {
      // p is allowed to be null, in which case it will be passed to free, which
      // allows null pointers.
     if ((char*)p >= (char*)global.pool
@@ -309,7 +312,7 @@ void deallocate_unknown_size (void* p) {
     else [[unlikely]] deallocate_large(p, 0);
 }
 
-void dump_profile () {
+void dump_profile () noexcept {
 #ifdef UNI_LILAC_PROFILE
     std::fprintf(stderr,
         "\ncl size page+ page- page= page> slot+ slot- slot= slot>\n");

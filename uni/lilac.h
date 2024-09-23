@@ -60,25 +60,25 @@ namespace uni::lilac {
 ///// API
 
  // Allocate some memory.
-void* allocate (usize);
+void* allocate (usize) noexcept;
  // Deallocate previously allocated memory.  The pointer must not be null.
-void deallocate (void*, usize);
+void deallocate (void*, usize) noexcept;
 
  // Deallocate a block whose size you don't know.  May or may not be slower than
  // if the size is known.  The pointer may be null, in which case nothing
  // happens.
-void deallocate_unknown_size (void*);
+void deallocate_unknown_size (void*) noexcept;
 
  // This has the exact same behavior as allocate(), but is faster if the size is
  // known at compile-time (and probably slower if it isn't).
-void* allocate_fixed_size (usize);
+void* allocate_fixed_size (usize) noexcept;
  // Same as above but with deallocation.  You are allowed to mix-and-match
  // fixed_size and non-fixed_size allocation and deallocation functions.  The
  // pointer must not be null.
-void deallocate_fixed_size (void*, usize);
+void deallocate_fixed_size (void*, usize) noexcept;
 
  // Dump some stats to stderr, but only if compiled with UNI_LILAC_PROFILE
-void dump_profile ();
+void dump_profile () noexcept;
 
 namespace in {
 
@@ -156,16 +156,16 @@ struct Page;
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(2), gnu::assume_aligned(8)
 ]]
-void* allocate_small (Page*& first_partial, uint32 slot_size);
+void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept;
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]]
-void* allocate_large (usize size);
+void* allocate_large (usize size) noexcept;
 [[gnu::nonnull(1)]]
-void deallocate_small (void*, Page*& first_partial, uint32 slot_size);
+void deallocate_small (void*, Page*& first_partial, uint32 slot_size) noexcept;
 [[gnu::nonnull(1)]]
-void deallocate_large (void*, usize size);
+void deallocate_large (void*, usize size) noexcept;
 
  // Make the data structures visible so the lookup of first_partial_pages can be
  // done at compile-time.
@@ -187,7 +187,7 @@ inline Global global;
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]] NOINLINE inline
-void* allocate (usize size) {
+void* allocate (usize size) noexcept {
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
         uint32 slot_size = in::tables.class_sizes[sc];
@@ -197,7 +197,7 @@ void* allocate (usize size) {
 }
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
-void deallocate (void* p, usize) {
+void deallocate (void* p, usize) noexcept {
     expect(p);
      // Reading the size class from the page is faster than calculating it
     deallocate_unknown_size(p);
@@ -207,7 +207,7 @@ void deallocate (void* p, usize) {
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]] ALWAYS_INLINE
-void* allocate_fixed_size (usize size) {
+void* allocate_fixed_size (usize size) noexcept {
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
         uint32 slot_size = in::tables.class_sizes[sc];
@@ -217,7 +217,7 @@ void* allocate_fixed_size (usize size) {
 }
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
-void deallocate_fixed_size (void* p, usize size) {
+void deallocate_fixed_size (void* p, usize size) noexcept {
     expect(p);
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
