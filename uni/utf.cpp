@@ -87,10 +87,10 @@ UniqueString16 to_utf16 (Str s) noexcept {
          // Modern virtual memory systems mean that for big enough allocations,
          // even if we vastly overallocate we won't actually use much more
          // physical RAM than we write to.
-        auto buffer = (char16*)malloc(sizeof(char16) * buffer_size);
+        auto buffer = new char16 [buffer_size];
         usize len = to_utf16_buffer(buffer, s);
         auto r = UniqueString16(buffer, len);
-        free(buffer);
+        delete[] buffer;
         return r;
     }
 }
@@ -151,10 +151,10 @@ UniqueString from_utf16 (Str16 s) noexcept {
          // Modern virtual memory systems mean that for big enough allocations,
          // even if we vastly overallocate we won't actually use much more
          // physical RAM than we write to.
-        auto buffer = (char*)malloc(sizeof(char) * buffer_size);
+        auto buffer = new char [buffer_size];
         usize len = from_utf16_buffer(buffer, s);
         auto r = UniqueString(buffer, len);
-        free(buffer);
+        delete[] buffer;
         return r;
     }
 }

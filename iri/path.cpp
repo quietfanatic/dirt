@@ -106,17 +106,17 @@ const IRI& program_location () noexcept {
     static IRI r = []{
         int len = wai_getExecutablePath(nullptr, 0, nullptr);
         require(len > 0);
-        auto path = (char*)std::malloc(len);
+        auto path = new char [len];
         require(wai_getExecutablePath(path, len, nullptr) == len);
         IRI r = from_fs_path(Str(path, len));
         expect(r);
-         // Promote the AnyString to static, unless someone replaced the type
-         // with something incompatible.
+         // Promote the IRI's AnyString to static, unless someone replaced IRI's
+         // string type with something incompatible.
         if (requires { r.spec_.impl.sizex2_with_owned; }) {
             auto& sx2wo = r.spec_.impl.sizex2_with_owned;
             const_cast<uint32&>(sx2wo) &= ~1;
         }
-        std::free(path);
+        delete[] path;
         return r;
     }();
     return r;
