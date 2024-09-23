@@ -334,17 +334,18 @@ const Pair<AnyPtr, SharedLocation>* search_location_cache (AnyPtr item) {
          // compiler to use cmoves, but it seems pretty eager here, possibly
          // because it can tell it's a binary search.
         auto& a = mid->first;
-        int res;
         if (a.address == item.address) {
-            res = a.type.remove_readonly().data
-                - item.type.remove_readonly().data;
-            if (res == 0) return mid;
+            usize aa = a.type.remove_readonly().data;
+            usize bb = item.type.remove_readonly().data;
+            if (aa == bb) return mid;
+             // Did you know you can use ?: on lvalues?
+            (aa < bb ? bottom : top) = mid;
         }
         else {
-            res = (usize)a.address - (usize)item.address;
+            ((usize)a.address < (usize)item.address
+                ? bottom : top
+            ) = mid;
         }
-         // Did you know you can use ?: on lvalues?
-        (res < 0 ? bottom : top) = mid;
     }
     return null;
 }
