@@ -4,7 +4,7 @@
  // Features:
  //  - Realtime-safe (O(1) worst case*)
  //  - Good best-case overhead (0.4%)
- //  - Small code size (1k compiled code and data)
+ //  - Small code size (just over 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
  //  - Basic stat collection with UNI_LILAC_PROFILE defined
  // Unconfirmed, but believed to be the case:
@@ -53,7 +53,7 @@
  // depending on the kernel.)
 
 #pragma once
-#include "common.h"
+#include "assertions.h"
 
 namespace uni::lilac {
 
@@ -61,18 +61,20 @@ namespace uni::lilac {
 
  // Allocate some memory.
 void* allocate (usize);
- // Deallocate previously allocated memory.
+ // Deallocate previously allocated memory.  The pointer must not be null.
 void deallocate (void*, usize);
 
  // Deallocate a block whose size you don't know.  May or may not be slower than
- // if the size is known.
+ // if the size is known.  The pointer may be null, in which case nothing
+ // happens.
 void deallocate_unknown_size (void*);
 
  // This has the exact same behavior as allocate(), but is faster if the size is
  // known at compile-time (and probably slower if it isn't).
 void* allocate_fixed_size (usize);
  // Same as above but with deallocation.  You are allowed to mix-and-match
- // fixed_size and non-fixed_size allocation and deallocation functions.
+ // fixed_size and non-fixed_size allocation and deallocation functions.  The
+ // pointer must not be null.
 void deallocate_fixed_size (void*, usize);
 
  // Dump some stats to stderr, but only if compiled with UNI_LILAC_PROFILE
@@ -196,6 +198,7 @@ void* allocate (usize size) {
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate (void* p, usize) {
+    expect(p);
      // Reading the size class from the page is faster than calculating it
     deallocate_unknown_size(p);
 }
@@ -215,6 +218,7 @@ void* allocate_fixed_size (usize size) {
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate_fixed_size (void* p, usize size) {
+    expect(p);
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
         uint32 slot_size = in::tables.class_sizes[sc];

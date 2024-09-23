@@ -1,7 +1,6 @@
 #include "lilac.h"
 
 #include <cstdlib>
-#include "assertions.h"
 
 //#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
@@ -43,6 +42,12 @@ static uint64 oversize_most = 0;
 //static std::vector<bool> decisions;
 #endif
 
+[[noreturn]] static
+void out_of_memory () { require(false); std::abort(); }
+
+[[noreturn]] static
+void malloc_failed () { require(false); std::abort(); }
+
  // Noinline this and pass the argument along, so that allocate_small can tail
  // call this.  This keeps allocate_small from having to save cat on the stack
  // during the call to std::aligned_alloc.
@@ -53,6 +58,7 @@ void* init_pool (Page*& first_partial, uint32 slot_size) {
      // Probably wasting nearly an entire page's worth of space for alignment.
      // Oh well.
     global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
+    if (!global.pool) malloc_failed();
     global.pool_end = global.pool + pool_size / page_size;
     global.first_untouched_page = global.pool;
      // This is what allocate_small would do if we called back to it, and it's
@@ -82,9 +88,6 @@ void* init_pool (Page*& first_partial, uint32 slot_size) {
 #endif
     return (char*)page + page_overhead;
 }
-
-[[noreturn]] static
-void out_of_memory () { require(false); std::abort(); }
 
  // This complex of an expect() bogs down the optimizer
 #ifndef NDEBUG
@@ -217,7 +220,9 @@ void* allocate_large (usize size) {
     if (oversize_most < oversize_current)
         oversize_most = oversize_current;
 #endif
-    return std::malloc(size);
+    void* r = std::malloc(size);
+    if (!r) malloc_failed();
+    return r;
 }
 
 NOINLINE
@@ -280,8 +285,10 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) {
 
 void deallocate_large (void* p, usize) {
 #ifdef UNI_LILAC_PROFILE
-    oversize_deallocated += 1;
-    oversize_current -= 1;
+    if (p) {
+        oversize_deallocated += 1;
+        oversize_current -= 1;
+    }
 #endif
     std::free(p);
 }
@@ -290,6 +297,8 @@ void deallocate_large (void* p, usize) {
 
 NOINLINE
 void deallocate_unknown_size (void* p) {
+     // p is allowed to be null, in which case it will be passed to free, which
+     // allows null pointers.
     if ((char*)p >= (char*)global.pool
      && (char*)p < (char*)global.pool_end
     ) {
