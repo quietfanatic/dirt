@@ -1,5 +1,6 @@
 #include "document.h"
 
+#include "../../uni/lilac.h"
 #include "../common.h"
 #include "../reflection/anyref.h"
 #include "../reflection/describe.h"
@@ -65,7 +66,7 @@ struct DocumentData {
             auto header = static_cast<DocumentItemHeader*>(items.next);
             if (header->type) header->type.destroy(header->data());
             header->~DocumentItemHeader();
-            free(header);
+            lilac::deallocate_unknown_size(header);
         }
     }
 };
@@ -107,7 +108,9 @@ AnyPtr Document::find_with_id (usize id) const {
 
 void* Document::allocate (Type t) noexcept {
     auto id = data->next_id++;
-    auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
+    auto p = lilac::allocate(
+        sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
+    );
     auto header = new (p) DocumentItemHeader(&data->items, t, id);
     return header+1;
 }
@@ -127,7 +130,9 @@ void* Document::allocate_named (Type t, AnyString name) {
         if (find_with_name(name)) {
             raise(e_DocumentItemNameDuplicate, move(name));
         }
-        auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
+        auto p = lilac::allocate(
+            sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
+        );
         auto header = new (p) DocumentItemHeader(&data->items, t, move(name));
         return header+1;
     }
@@ -139,7 +144,9 @@ void* Document::allocate_named (Type t, AnyString name) {
             raise(e_General, "Unreasonable growth of _next_id");
         }
         if (id >= data->next_id) data->next_id = id + 1;
-        auto p = malloc(sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0));
+        auto p = lilac::allocate(
+            sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
+        );
         auto header = new (p) DocumentItemHeader(&data->items, t, id);
         return header+1;
     }
@@ -160,7 +167,7 @@ void Document::delete_ (Type t, Mu* p) noexcept {
     if (header->type) header->type.destroy(p);
     header->~DocumentItemHeader();
     if (data->last_lookup == header) data->last_lookup = &data->items;
-    free(header);
+    lilac::deallocate_unknown_size(header);
 }
 
 void Document::delete_named (Str name) {
@@ -173,7 +180,7 @@ void Document::deallocate (void* p) noexcept {
     auto header = (DocumentItemHeader*)p - 1;
     header->~DocumentItemHeader();
     if (data->last_lookup == header) data->last_lookup = &data->items;
-    free(header);
+    lilac::deallocate_unknown_size(header);
 }
 
 } using namespace ayu;
