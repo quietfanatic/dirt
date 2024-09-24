@@ -1,5 +1,6 @@
 #include "parse.h"
 
+#include <array>
 #include <cstring>
 #include <charconv>
 #include <limits>
@@ -13,6 +14,46 @@
 namespace ayu {
 
 namespace in {
+
+enum CharProps : uint8 {
+    CHAR_IS_WS = 0x80,
+    CHAR_CONTINUES_WORD = 0x40,
+    CHAR_TERM_MASK = 0x0f,
+    CHAR_TERM_ERROR = 0,
+    CHAR_TERM_WORD = 1,
+    CHAR_TERM_DIGIT = 2,
+    CHAR_TERM_DOT = 3,
+    CHAR_TERM_PLUS = 4,
+    CHAR_TERM_MINUS = 5,
+    CHAR_TERM_STRING = 6,
+    CHAR_TERM_ARRAY = 7,
+    CHAR_TERM_OBJECT = 8,
+    CHAR_TERM_DECL = 9,
+    CHAR_TERM_SHORTCUT = 10,
+};
+constexpr std::array<uint8, 256> char_props = []{
+    std::array<uint8, 256> r = {};
+    for (char c : {' ', '\f', '\n', '\r', '\t', '\v'}) {
+        r[c] = CHAR_IS_WS;
+    }
+    for (char c = '0'; c <= '9'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_DIGIT;
+    for (char c = 'a'; c <= 'z'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_WORD;
+    for (char c = 'A'; c <= 'Z'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_WORD;
+    for (char c : {
+        '!', '$', '%', '+', '-', '.', '/', '<', '>',
+        '?', '@', '^', '_', '~', '#', '&', '*', '='
+    }) r[c] = CHAR_CONTINUES_WORD;
+    for (char c : {'_', '/', '?', '#'}) r[c] |= CHAR_TERM_WORD;
+    r['.'] |= CHAR_TERM_DOT;
+    r['+'] |= CHAR_TERM_PLUS;
+    r['-'] |= CHAR_TERM_MINUS;
+    r['"'] |= CHAR_TERM_STRING;
+    r['['] |= CHAR_TERM_ARRAY;
+    r['{'] |= CHAR_TERM_OBJECT;
+    r['&'] |= CHAR_TERM_DECL;
+    r['*'] |= CHAR_TERM_SHORTCUT;
+    return r;
+}();
 
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
@@ -74,21 +115,22 @@ struct Parser {
 
     NOINLINE const char* parse_term (const char* in, Tree& r) {
         if (in >= end) return got_error(in, r);
-        switch (*in) {
-            case ANY_WORD_STARTER: return got_word(in, r);
-            case ANY_DECIMAL_DIGIT: return got_digit(in, r);
-            case '.': return got_dot(in, r);
-            case '+': return got_plus(in, r);
+        switch (char_props[*in] & CHAR_TERM_MASK) {
+            case CHAR_TERM_ERROR: return got_error(in, r);
+            case CHAR_TERM_WORD: return got_word(in, r);
+            case CHAR_TERM_DIGIT: return got_digit(in, r);
+            case CHAR_TERM_DOT: return got_dot(in, r);
+            case CHAR_TERM_PLUS: return got_plus(in, r);
              // Comments starting with -- should already have been skipped by a
              // previous skip_ws().
-            case '-': return got_minus(in, r);
+            case CHAR_TERM_MINUS: return got_minus(in, r);
 
-            case '"': return got_string(in, r);
-            case '[': return got_array(in, r);
-            case '{': return got_object(in, r);
+            case CHAR_TERM_STRING: return got_string(in, r);
+            case CHAR_TERM_ARRAY: return got_array(in, r);
+            case CHAR_TERM_OBJECT: return got_object(in, r);
 
-            case '&': return got_decl(in, r);
-            case '*': return got_shortcut(in, r);
+            case CHAR_TERM_DECL: return got_decl(in, r);
+            case CHAR_TERM_SHORTCUT: return got_shortcut(in, r);
             default: return got_error(in, r);
         }
     }
@@ -98,22 +140,20 @@ struct Parser {
     NOINLINE const char* find_word_end (const char* in) {
         in++; // First character already known to be part of word
         while (in < end) {
-            switch (*in) {
-                case ANY_LETTER: case ANY_DECIMAL_DIGIT: case ANY_WORD_SYMBOL:
-                    in++; break;
-                case ':': {
-                     // Allow :: for c++ types
-                    if (in + 1 < end && in[1] == ':') {
-                        in += 2;
-                        break;
-                    }
-                    else return in;
-                }
-                case '"': {
-                    error(in, "\" cannot occur inside a word (are you missing the first \"?)");
-                }
-                default: return in;
+            if (char_props[*in] & CHAR_CONTINUES_WORD) {
+                in++;
             }
+            else if (*in == ':') {
+                 // Allow :: for c++ types
+                if (in + 1 < end && in[1] == ':') {
+                    in += 2;
+                }
+                else return in;
+            }
+            else if (*in == '"') {
+                error(in, "\" cannot occur inside a word (are you missing the first \"?)");
+            }
+            else return in;
         }
         return in;
     }
@@ -461,50 +501,47 @@ struct Parser {
 
     NOINLINE const char* skip_ws (const char* in) {
         while (in < end) {
-            switch (*in) {
-                case ANY_WS: in++; break;
-                case '-': {
-                    if (in + 1 < end && in[1] == '-') {
-                        in = skip_comment(in);
-                        break;
-                    }
-                    else return in;
-                }
-                default: return in;
+            if (char_props[*in] & CHAR_IS_WS) {
+                in++;
             }
+            else if (*in == '-') {
+                if (in + 1 < end && in[1] == '-') {
+                    in = skip_comment(in);
+                }
+                else return in;
+            }
+            else return in;
         }
         return in;
     }
 
     NOINLINE const char* skip_comma (const char* in) {
         while (in < end) {
-            switch (*in) {
-                case ANY_WS: in++; break;
-                case ',': in++; goto next;
-                case '-': {
-                    if (in + 1 < end && in[1] == '-') {
-                        in = skip_comment(in);
-                        break;
-                    }
-                    else return in;
-                }
-                default: return in;
+            if (char_props[*in] & CHAR_IS_WS) {
+                in++;
             }
+            else if (*in == '-') {
+                if (in + 1 < end && in[1] == '-') {
+                    in = skip_comment(in);
+                }
+                else return in;
+            }
+            else if (*in == ',') { in++; goto next; }
+            else return in;
         }
         return in;
         next:
         while (in < end) {
-            switch (*in) {
-                case ANY_WS: in++; break;
-                case '-': {
-                    if (in + 1 < end && in[1] == '-') {
-                        in = skip_comment(in);
-                        break;
-                    }
-                    else return in;
-                }
-                default: return in;
+            if (char_props[*in] & CHAR_IS_WS) {
+                in++;
             }
+            else if (*in == '-') {
+                if (in + 1 < end && in[1] == '-') {
+                    in = skip_comment(in);
+                }
+                else return in;
+            }
+            else return in;
         }
         return in;
     }
