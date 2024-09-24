@@ -20,7 +20,6 @@ struct alignas(page_size) Page {
     uint32 slot_size;
     Page* next_page;
     Page* prev_page;
-    char data [page_usable_size];
 };
 static_assert(sizeof(Page) == page_size);
 
@@ -209,6 +208,7 @@ void* allocate_large (usize size) noexcept {
     oversize_current += 1;
     if (oversize_most < oversize_current)
         oversize_most = oversize_current;
+    fprintf(stderr, "oversize+ %zu\n", size);
 #endif
     void* r = std::malloc(size);
      // Usually I prefer to just let it segfault when malloc returns null, but

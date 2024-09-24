@@ -15,13 +15,16 @@
  //    2~4 code cache lines (de/alloc pair).
  //  - Is written in C++ but could be ported to C straightforwardly
  // Caveats:
- //  - Singlethreaded only
- //  - Only allocates up to 2040 bytes (relays larger requests to malloc)
+ //  - Singlethreaded only (but possibly fast enough that you could put a mutex
+ //    on the entire thing and still compete with an ordinary multithreaded
+ //    allocator)
+ //  - Only allocates up to 4080 bytes (relays larger requests to malloc)
  //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit).  All the
  //    virtual address space is reserved at once, so it won't play well with
  //    other libraries that reserve huge address spaces on 32-bit systems.
  //  - Only 8-byte alignment is guaranteed
- //  - Bad but bounded (and unlikely?) worst-case fragmentation
+ //  - Bad but bounded (and unlikely?) worst-case external fragmentation
+ //  - Worst-case internal fragmentation is 33%
  //  - Cannot give memory back to the OS (but most allocators can't anyway)
  //  - Very experimental and untested with anything but GCC on Linux x64
  //
@@ -102,7 +105,7 @@ static constexpr uint32 page_size = 8192;
 static constexpr uint32 page_overhead = 32;
 static constexpr uint32 page_usable_size = page_size - page_overhead;
 
-static constexpr uint32 n_size_classes = 18;
+static constexpr uint32 n_size_classes = 20;
 static constexpr uint32 largest_small = 11;
 struct alignas(64) Tables {
      // These size classes are optimized for 8192 (8160 usable) byte pages, and
@@ -111,10 +114,10 @@ struct alignas(64) Tables {
     uint16 class_sizes [n_size_classes] = {
      //  0   1   2   3   4   5   6
         16, 24, 32, 40, 56, 72, 104,
-     //  7    8    9   10   11   12
-        136, 200, 272, 408, 544, 680,
-     // 13    14    15    16    17
-        904, 1160, 1360, 1632, 2040
+     //  7    8    9   10   11   12   13
+        136, 200, 272, 408, 544, 680, 908,
+     //  14    15    16    17    18    19
+        1160, 1360, 1632, 2040, 2720, 4080
     };
     uint8 small_classes_by_8 [69] = {
      //   0   8  16  24  32  40  48  56  64  72  80  88  96 104 112 120
@@ -128,9 +131,9 @@ struct alignas(64) Tables {
      // 512 520 528 536 544
         11, 11, 11, 11, 11
     };
-    uint8 medium_classes_by_div [12] = {
-     //  4   5   6   7   8   9  10  11  12  13  14  15
-        17, 16, 15, 14, 14, 13, 13, 13, 12, 12, 12, 12
+    uint8 medium_classes_by_div [16] = {
+     //        2   3   4   5   6   7   8   9  10  11  12  13  14  15
+        0, 0, 19, 18, 17, 16, 15, 14, 14, 13, 13, 13, 12, 12, 12, 12
     };
 };
 constexpr Tables tables;
@@ -144,7 +147,7 @@ int32 get_size_class (usize size) {
     }
     else if (size <= tables.class_sizes[n_size_classes-1]) {
         return tables.medium_classes_by_div[
-            page_usable_size / uint32(size) - 4
+            page_usable_size / uint32(size)
         ];
     }
     else [[unlikely]] return -1;
