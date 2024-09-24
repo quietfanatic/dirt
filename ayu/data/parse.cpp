@@ -421,22 +421,25 @@ struct Parser {
 
     NOINLINE const char* got_decl (const char* in, Tree& r) {
         in++;  // for the &
-        AnyString name;
-        in = parse_shortcut_name(in, name);
-        in = skip_ws(in);
-        if (in < end && *in == ':') {
-            in++;
+        {
+            AnyString name;
+            in = parse_shortcut_name(in, name);
             in = skip_ws(in);
-            Tree value;
-            in = parse_term(in, value);
-            in = set_shortcut(in, move(name), move(value));
-            in = skip_comma(in);
-            return parse_term(in, r);
-        }
-        else {
-            in = parse_term(in, r);
-            return set_shortcut(in, move(name), r);
-        }
+            if (in < end && *in == ':') {
+                in++;
+                in = skip_ws(in);
+                Tree value;
+                in = parse_term(in, value);
+                in = set_shortcut(in, move(name), move(value));
+                in = skip_comma(in); 
+                 // Fall through
+            }
+            else {
+                in = parse_term(in, r);
+                return set_shortcut(in, move(name), r);
+            }
+        } // Destroy name and value so we can tail call parse_term.
+        return parse_term(in, r);
     }
 
     NOINLINE const char* got_shortcut (const char* in, Tree& r) {
@@ -508,7 +511,10 @@ struct Parser {
 
 ///// ERRORS
 
-    NOINLINE const char* got_error (const char* in, Tree&) {
+     // noipa stops noreturn from propagating through and disabling tail call in
+     // parse_term
+    [[gnu::noipa]] NOINLINE
+    const char* got_error (const char* in, Tree&) {
         if (in >= end) error(in, "Expected term but ran into end of input");
         check_error_chars(in);
         error(in, cat("Expected term but got ", *in));
