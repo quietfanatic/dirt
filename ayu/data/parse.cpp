@@ -114,9 +114,9 @@ struct Parser {
 ///// TERM
 
     NOINLINE const char* parse_term (const char* in, Tree& r) {
-        if (in >= end) return got_error(in, r);
+        if (in >= end) [[unlikely]] return got_error(in, r);
         switch (char_props[*in] & CHAR_TERM_MASK) {
-            case CHAR_TERM_ERROR: return got_error(in, r);
+            case CHAR_TERM_ERROR: [[unlikely]] return got_error(in, r);
             case CHAR_TERM_WORD: return got_word(in, r);
             case CHAR_TERM_DIGIT: return got_digit(in, r);
             case CHAR_TERM_DOT: return got_dot(in, r);
@@ -131,7 +131,7 @@ struct Parser {
 
             case CHAR_TERM_DECL: return got_decl(in, r);
             case CHAR_TERM_SHORTCUT: return got_shortcut(in, r);
-            default: return got_error(in, r);
+            default: never();
         }
     }
 
@@ -140,7 +140,7 @@ struct Parser {
     NOINLINE const char* find_word_end (const char* in) {
         in++; // First character already known to be part of word
         while (in < end) {
-            if (char_props[*in] & CHAR_CONTINUES_WORD) {
+            if (char_props[*in] & CHAR_CONTINUES_WORD) [[likely]] {
                 in++;
             }
             else if (*in == ':') {
@@ -153,7 +153,7 @@ struct Parser {
             else if (*in == '"') {
                 error(in, "\" cannot occur inside a word (are you missing the first \"?)");
             }
-            else return in;
+            else [[likely]] return in;
         }
         return in;
     }
@@ -504,7 +504,7 @@ struct Parser {
             if (char_props[*in] & CHAR_IS_WS) {
                 in++;
             }
-            else if (*in == '-') {
+            else if (*in == '-') [[unlikely]] {
                 if (in + 1 < end && in[1] == '-') {
                     in = skip_comment(in);
                 }
@@ -520,7 +520,7 @@ struct Parser {
             if (char_props[*in] & CHAR_IS_WS) {
                 in++;
             }
-            else if (*in == '-') {
+            else if (*in == '-') [[unlikely]] {
                 if (in + 1 < end && in[1] == '-') {
                     in = skip_comment(in);
                 }
@@ -535,7 +535,7 @@ struct Parser {
             if (char_props[*in] & CHAR_IS_WS) {
                 in++;
             }
-            else if (*in == '-') {
+            else if (*in == '-') [[unlikely]] {
                 if (in + 1 < end && in[1] == '-') {
                     in = skip_comment(in);
                 }
@@ -550,7 +550,7 @@ struct Parser {
 
      // noipa stops noreturn from propagating through and disabling tail call in
      // parse_term
-    [[gnu::noipa]] NOINLINE
+    [[gnu::noipa, gnu::cold]] NOINLINE
     const char* got_error (const char* in, Tree&) {
         if (in >= end) error(in, "Expected term but ran into end of input");
         check_error_chars(in);
