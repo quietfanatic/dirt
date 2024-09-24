@@ -185,9 +185,6 @@ constexpr Tree::operator AnyString () && {
     }
     else in::raise_TreeWrongForm(*this, Form::String);
 }
-inline Tree::operator UniqueString16 () const {
-    return to_utf16(Str(*this));
-}
 constexpr Tree::operator Slice<Tree> () const {
     if (form == Form::Array) {
         return Slice<Tree>(data.as_array_ptr, meta >> 1);

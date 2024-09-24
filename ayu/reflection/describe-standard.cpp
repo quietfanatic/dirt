@@ -2,6 +2,7 @@
 // std::vector, include the .h file.
 
 #include "../../iri/iri.h"
+#include "../../uni/utf.h"
 #include "describe-standard.h"
 
 using namespace ayu;
@@ -11,10 +12,14 @@ AYU_DESCRIBE(std::string,
     from_tree([](std::string& v, const Tree& t){ v = std::string(Str(t)); })
 )
 AYU_DESCRIBE(std::u16string,
-    to_tree([](const std::u16string& v){ return Tree(Str16(v)); }),
+    to_tree([](const std::u16string& v){
+        return Tree(uni::from_utf16(v));
+    }),
      // Inefficient but I don't really care about std::u16string, I'm just using
      // it for testing
-    from_tree([](std::u16string& v, const Tree& t){ v = UniqueString16(t); })
+    from_tree([](std::u16string& v, const Tree& t){
+        v = uni::to_utf16(Str(t));
+    })
 )
 
 AYU_DESCRIBE(std::string_view,
@@ -24,7 +29,7 @@ AYU_DESCRIBE(std::string_view,
 )
 AYU_DESCRIBE(std::u16string_view,
     to_tree([](const std::u16string_view& v){
-        return Tree(Str16(v));
+        return Tree(uni::from_utf16(v));
     })
 )
 

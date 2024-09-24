@@ -6,7 +6,6 @@
 
 #include <exception>
 #include "../../uni/copy-ref.h"
-#include "../../uni/utf.h"
 #include "../common.internal.h"
 
 namespace ayu {
@@ -91,7 +90,6 @@ struct Tree {
      // This is not optimal but who serializes individual 8-bit code units
     explicit Tree (char v, TreeFlags f = {}) : Tree(UniqueString(1,v), f) { }
     explicit constexpr Tree (AnyString, TreeFlags = {});
-    explicit Tree (Str16 v, TreeFlags f = {}) : Tree(from_utf16(v), f) { }
      // Optimize raw char literals
     template <usize n>
     explicit constexpr Tree (const char(& v )[n], TreeFlags f = {}) :
@@ -135,7 +133,6 @@ struct Tree {
     explicit constexpr operator Str () const;
     explicit constexpr operator AnyString () const&;
     explicit constexpr operator AnyString () &&;
-    explicit operator UniqueString16 () const;
     explicit constexpr operator Slice<Tree> () const;
     explicit constexpr operator AnyArray<Tree> () const&;
     explicit constexpr operator AnyArray<Tree> () &&;
