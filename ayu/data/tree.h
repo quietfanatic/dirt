@@ -51,6 +51,7 @@ DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 
 struct Tree {
     Form form;
+    uint8 unused;
      // Only the flags can be modified after construction.
     TreeFlags flags;
 
