@@ -2,7 +2,7 @@
  // Super simple small size singlethreaded slab allocator.
  //
  // Features:
- //  - Realtime-safe (O(1) worst case*)
+ //  - Realtime-safe (O(1) worst case depending on your OS's demand paging)
  //  - Good best-case overhead (0.4%)
  //  - Small code size (just over 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
@@ -29,12 +29,14 @@
  // conditions are:
  //  - if the pool could not be reserved on the first allocation, or
  //  - when the entire memory pool runs out
- // in which cases the program will be terminated.
+ // in which cases the program will be terminated.  Requesting an allocation of
+ // size 0 will return a non-null pointer to a minimally-allocated region.
  //
  // You can override the global operator new and operator delete by linking
  // lilac-global-override.cpp into the program.  Only do this is your entire
  // program is singlethreaded, or at least never allocates memory on another
- // thread.
+ // thread.  You cannot replace malloc and free because lilac relies on malloc
+ // to reserve its initial memory pool and to handle large allocations.
  //
  // Like other paging allocators, you can achieve worst-case fragmentation by
  // allocating a large amount of same-sized objects, deallocating all but one
@@ -46,11 +48,6 @@
  // single object over and over again if that allocation happens to be the first
  // or last slot in a page, including the first allocation of any given size
  // class.  It'll still beat the pants off any multithreaded allocator.
- //
- // (* The first allocation will reserve the entire pool's virtual address
- // space, and allocations that increase the total pool size may trigger
- // on-demand paging of physical memory, which may or may not be realtime-safe
- // depending on the kernel.)
 
 #pragma once
 #include "assertions.h"
@@ -77,6 +74,11 @@ void* allocate_fixed_size (usize) noexcept;
  // pointer must not be null.
 void deallocate_fixed_size (void*, usize) noexcept;
 
+ // Equivalent of realloc.  Must not be passed a null pointer.  There's no
+ // version where the old size is passed in (it's not that useful).  The current
+ // implmentation never shrinks the memory region.
+void* reallocate (void*, usize) noexcept;
+
  // Dump some stats to stderr, but only if compiled with UNI_LILAC_PROFILE
 void dump_profile () noexcept;
 
@@ -86,7 +88,7 @@ namespace in {
 
  // Maximum size of the pool in bytes.  I can't call std::aligned_alloc with
  // more than 16GB on my machine.  You probably want your program to crash
- // before it consumes 16GB anyway.
+ // before it consumes more than this anyway.
 static constexpr usize pool_size =
     sizeof(void*) >= 8 ? 16ULL*1024*1024*1024 - 16384
                        : 1*1024*1024*1024 - 16384;
@@ -180,20 +182,13 @@ inline Global global;
 
 } // in
 
-///// INLINES
+///// INLINES (and optimization attributes)
 
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
-]] NOINLINE inline
-void* allocate (usize size) noexcept {
-    int32 sc = in::get_size_class(size);
-    if (sc >= 0) {
-        uint32 slot_size = in::tables.class_sizes[sc];
-        return in::allocate_small(in::global.first_partial_pages[sc], slot_size);
-    }
-    else [[unlikely]] return in::allocate_large(size);
-}
+]]
+void* allocate (usize size) noexcept;
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate (void* p, usize) noexcept {
@@ -225,5 +220,11 @@ void deallocate_fixed_size (void* p, usize size) noexcept {
     }
     else [[unlikely]] in::deallocate_large(p, size);
 }
+
+[[
+    nodiscard, gnu::malloc, gnu::returns_nonnull,
+    gnu::nonnull(1), gnu::alloc_size(2), gnu::assume_aligned(8)
+]]
+void* reallocate (void*, usize) noexcept;
 
 } // uni::lilac

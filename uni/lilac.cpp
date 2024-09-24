@@ -1,6 +1,7 @@
 #include "lilac.h"
 
 #include <cstdlib>
+#include <cstring>
 
 //#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
@@ -44,10 +45,10 @@ static uint64 oversize_most = 0;
 //static std::vector<bool> decisions;
 #endif
 
-[[noreturn]] static
+[[noreturn]] ALWAYS_INLINE static
 void out_of_memory () { require(false); std::abort(); }
 
-[[noreturn]] static
+[[noreturn]] ALWAYS_INLINE static
 void malloc_failed () { require(false); std::abort(); }
 
 NOINLINE static
@@ -82,7 +83,7 @@ void* init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
 }
 
  // Noinline this and pass the argument along, so that allocate_small can tail
- // call this.  This keeps allocate_small from having to save cat on the stack
+ // call this.  This keeps allocate_small from having to save stuff on the stack
  // during the call to std::aligned_alloc.
  // I don't know whether it's appropriate to put [[gnu::cold]] on a function
  // that's always called exactly once.
@@ -217,6 +218,18 @@ void* allocate_large (usize size) noexcept {
     return r;
 }
 
+} using namespace in;
+NOINLINE
+void* allocate (usize size) noexcept {
+    int32 sc = get_size_class(size);
+    if (sc >= 0) {
+        uint32 slot_size = tables.class_sizes[sc];
+        return allocate_small(global.first_partial_pages[sc], slot_size);
+    }
+    else [[unlikely]] return allocate_large(size);
+}
+namespace in {
+
 NOINLINE
 void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept {
      // Check that we own this pointer
@@ -300,6 +313,38 @@ void deallocate_unknown_size (void* p) noexcept {
         deallocate_small(p, fp, page->slot_size);
     }
     else [[unlikely]] deallocate_large(p, 0);
+}
+
+namespace in {
+ // noinline-and-tail-call, so that reallocate doesn't have to make a stack
+ // frame if it doesn't have to.
+NOINLINE
+void* reallocate_from_small (void* p, usize s, uint32 old_s) {
+    void* r = allocate(s);
+    std::memmove(r, p, old_s);
+    deallocate_unknown_size(p);
+    return r;
+}
+} // in
+
+NOINLINE
+void* reallocate (void* p, usize s) noexcept {
+    if ((char*)p >= (char*)global.pool
+     && (char*)p < (char*)global.pool_end
+    ) [[likely]] {
+        Page* page = (Page*)((usize)p & ~usize(page_size - 1));
+        uint32 old_s = page->slot_size;
+        if (s > old_s) {
+            return reallocate_from_small(p, s, old_s);
+        }
+        else return p;
+    }
+    else {
+        if (s > tables.class_sizes[n_size_classes-1]) {
+            return std::realloc(p, s);
+        }
+        else return p;
+    }
 }
 
 void dump_profile () noexcept {
