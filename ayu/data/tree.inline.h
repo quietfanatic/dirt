@@ -85,7 +85,7 @@ constexpr Tree::Tree (Tree&& o) {
 constexpr Tree::Tree (const Tree& o) :
     form(o.form), unused(o.unused), flags(o.flags), meta(o.meta), data(o.data)
 {
-    if (meta & 1 && data.as_char_ptr) {
+    if (meta & 1) {
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
 }
@@ -107,7 +107,7 @@ constexpr Tree& Tree::operator= (const Tree& o) {
 }
 
 constexpr Tree::~Tree () {
-    if (meta & 1) {
+    if (meta & 1) [[unlikely]] {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }

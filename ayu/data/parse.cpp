@@ -280,6 +280,7 @@ struct Parser {
                 case '"': goto start;
                 case '\\':
                     n_escapes++;
+                     // No buffer overrun, goes directly to p < end check.
                     p += 2;
                     break;
                 default: p++; break;
@@ -342,6 +343,7 @@ struct Parser {
         invalid_x: error(in, "Invalid \\x escape sequence");
     }
 
+    NOINLINE
     const char* got_u_escape (const char* in, UniqueString& out) {
         UniqueString16 units (Capacity(1));
          // Process multiple \uXXXX sequences at once so
@@ -437,46 +439,30 @@ struct Parser {
         return end;
     }
 
-    NOINLINE const char* set_shortcut (const char* in, MoveRef<AnyString> name_, MoveRef<Tree> value_) {
-        auto name = *move(name_);
-        auto value = *move(value_);
-        for (auto& sc : shortcuts) {
-            if (sc.first == name) {
-                error(in, cat("Multiple declarations of shortcut &", name));
-            }
-        }
-        shortcuts.emplace_back(move(name), move(value));
-        return in;
-    }
-
-    const char* get_shortcut (const char* in, Tree& r, Str name) {
-        for (auto& sc : shortcuts) {
-            if (sc.first == name) {
-                new (&r) Tree(sc.second);
-                return in;
-            }
-        }
-        error(in, cat("Unknown shortcut *", name));
-    }
-
     NOINLINE const char* got_decl (const char* in, Tree& r) {
         in++;  // for the &
         {
             AnyString name;
             in = parse_shortcut_name(in, name);
+            for (auto& sc : shortcuts) {
+                if (sc.first == name) {
+                    error(in, cat("Multiple declarations of shortcut &", name));
+                }
+            }
             in = skip_ws(in);
             if (in < end && *in == ':') {
                 in++;
                 in = skip_ws(in);
                 Tree value;
                 in = parse_term(in, value);
-                in = set_shortcut(in, move(name), move(value));
-                in = skip_comma(in); 
+                shortcuts.emplace_back(move(name), move(value));
+                in = skip_comma(in);
                  // Fall through
             }
             else {
                 in = parse_term(in, r);
-                return set_shortcut(in, move(name), r);
+                shortcuts.emplace_back(move(name), r);
+                return in;
             }
         } // Destroy name and value so we can tail call parse_term.
         return parse_term(in, r);
@@ -486,7 +472,13 @@ struct Parser {
         in++;  // for the *
         AnyString name;
         in = parse_shortcut_name(in, name);
-        return get_shortcut(in, r, name);
+        for (auto& sc : shortcuts) {
+            if (sc.first == name) {
+                new (&r) Tree(sc.second);
+                return in;
+            }
+        }
+        error(in, cat("Unknown shortcut *", name));
     }
 
 ///// NON-SEMANTIC CONTENT
