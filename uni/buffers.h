@@ -27,20 +27,17 @@ inline namespace buffers {
             return (SharableBufferHeader*)data - 1;
         }
 
-        static constexpr usize max_capacity = uint32(-1);
+        static constexpr usize max_capacity = 0x80000000;
 
          // Round up a requested size a little to avoid excessive reallocations
         static constexpr usize capacity_for_size (usize size) {
+            require(size <= max_capacity);
              // Give up on rounding up non-power-of-two sizes.
             usize mask = sizeof(T) == 1 ? 7
                        : sizeof(T) == 2 ? 3
                        : sizeof(T) == 4 ? 1
                        : 0;
             usize cap = (size + mask) & ~mask;
-            if (cap > max_capacity) [[unlikely]] {
-                require(size <= max_capacity);
-                cap = max_capacity;
-            }
             return cap;
         }
 
@@ -49,15 +46,12 @@ inline namespace buffers {
          // Round up the requested size to a power of two, anticipating
          // continual growth.
         static constexpr usize plenty_for_size (usize size) {
+            require(size <= max_capacity);
             constexpr usize min = min_capacity < 4 ? 4 : min_capacity;
             if (size <= min) return min;
-            else if (size <= (max_capacity >> 1) + 1) {
+            else {
                  // This should be fast on any modern processor
                 return std::bit_ceil(uint32(size));
-            }
-            else [[unlikely]] {
-                require(size <= max_capacity);
-                return max_capacity;
             }
         }
 
