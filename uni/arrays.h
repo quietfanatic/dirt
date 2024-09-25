@@ -1021,10 +1021,8 @@ struct ArrayInterface {
 
      // The minimum capacity of a shared buffer (enough elements to fill 24 (on
      // 64-bit) or 16 (on 32-bit) bytes).
-    static constexpr usize min_capacity =
-        SharableBuffer<T>::capacity_for_size(1);
-    static constexpr usize max_capacity =
-        SharableBuffer<T>::capacity_for_size(max_size_);
+    static constexpr usize min_capacity = SharableBuffer<T>::min_capacity;
+    static constexpr usize max_capacity = SharableBuffer<T>::max_capacity;
 
      // Returns if this array is owned (has a shared or unique buffer).  If
      // this returns true, then there is a SharableBufferHeader behind data().
@@ -1159,17 +1157,18 @@ struct ArrayInterface {
         }
     }
 
-     // Make this array unique and if it has more capacity than necessary,
-     // reallocate so that capacity is equal to length (rounded up to allocation
-     // granularity).  Note that if this array is sharing its buffer with
-     // another array, calling this may increase memory usage instead of
-     // decreasing it.
+     // Make this array unique and if it has significantly more capacity than
+     // necessary, reallocate so that capacity is equal to length.  Note that if
+     // this array is sharing its buffer with another array, calling this may
+     // increase memory usage instead of decreasing it.  To prevent pointless
+     // reallocations due to allocator rounding, only reallocates if it can
+     // shrink by more than 33%.
     ALWAYS_INLINE constexpr
     void shrink_to_fit () requires (ac::supports_owned) {
         if (!unique() ||
-            SharableBuffer<T>::capacity_for_size(size()) < capacity()
+            size() * 3 / 2 < capacity()
         ) {
-            set_owned_unique(reallocate_noinline(impl, size()), size());
+            set_owned_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -1179,7 +1178,7 @@ struct ArrayInterface {
     ALWAYS_INLINE
     void make_unique () requires (ac::supports_owned) {
         if (!unique()) {
-            set_owned_unique(reallocate_noinline(impl, size()), size());
+            set_owned_unique(reallocate(impl, size()), size());
         }
     }
 
@@ -1855,31 +1854,12 @@ struct ArrayInterface {
         return allocate_copy(ptr, s);
     }
 
-     // Used by reserve.  Not NOINLINE because new_size is likely to be
-     // statically known, making this a trivial wrapper.
-    [[gnu::malloc, gnu::returns_nonnull]] static
-    T* reallocate (Impl impl, usize new_size) {
-        return reallocate_exact(
-            impl, SharableBuffer<T>::capacity_for_size(new_size)
-        );
-    }
-
-     // Used by shrink_to_fit, and make_unique.  NOINLINE because the new size
-     // is probably not statically known and reallocate_exact can be tail
-     // called.
-    [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* reallocate_noinline (Impl impl, usize new_size) {
-        return reallocate_exact(
-            impl, SharableBuffer<T>::capacity_for_size(new_size)
-        );
-    }
-
      // Used by reserve_plenty and indirectly by push_back, append, etc.
      // NOINLINE because reallocate_exact can be tail called and new_size is
      // probably not statically known.
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
     T* reallocate_plenty (Impl impl, usize new_size) {
-        return reallocate_exact(
+        return reallocate(
             impl, SharableBuffer<T>::plenty_for_size(new_size)
         );
     }
@@ -1887,13 +1867,13 @@ struct ArrayInterface {
      // Reallocate without rounding the capacity at all.  NOINLINE because it
      // can be tail called, and this is likely to be on a slow path.
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
-    T* reallocate_exact (Impl impl, usize cap)
+    T* reallocate (Impl impl, usize cap)
         noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
         usize s = self.size();
         expect(cap >= s);
-        T* dat = SharableBuffer<T>::allocate_exact(cap);
+        T* dat = SharableBuffer<T>::allocate(cap);
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
          // It's unlikely that any type will have one of copy or move be trivial

@@ -27,21 +27,8 @@ inline namespace buffers {
             return (SharableBufferHeader*)data - 1;
         }
 
+        static constexpr usize min_capacity = (sizeof(T) + 7) / 8 * 8 / sizeof(T);
         static constexpr usize max_capacity = 0x80000000;
-
-         // Round up a requested size a little to avoid excessive reallocations
-        static constexpr usize capacity_for_size (usize size) {
-            require(size <= max_capacity);
-             // Give up on rounding up non-power-of-two sizes.
-            usize mask = sizeof(T) == 1 ? 7
-                       : sizeof(T) == 2 ? 3
-                       : sizeof(T) == 4 ? 1
-                       : 0;
-            usize cap = (size + mask) & ~mask;
-            return cap;
-        }
-
-        static constexpr usize min_capacity = capacity_for_size(1);
 
          // Round up the requested size to a power of two, anticipating
          // continual growth.
@@ -55,21 +42,8 @@ inline namespace buffers {
             }
         }
 
-         // Allocate rounding up a little
         [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
         T* allocate (usize size) {
-            return allocate_exact(capacity_for_size(size));
-        }
-
-         // Allocate rounding up to a power of two
-        [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
-        T* allocate_plenty (usize size) {
-            return allocate_exact(plenty_for_size(size));
-        }
-
-         // Allocate the exact amount without rounding (may waste space)
-        [[gnu::malloc, gnu::returns_nonnull]] static
-        T* allocate_exact (usize cap) {
             static_assert(
                 alignof(T) <= 8,
                 "SharableBuffer and uni array types with elements that have "
@@ -77,12 +51,20 @@ inline namespace buffers {
             );
              // Use uint64 instead of usize because on 32-bit platforms we need
              // to make sure we don't overflow usize.
-            uint64 bytes = sizeof(SharableBufferHeader) + (uint64)cap * sizeof(T);
+            uint64 bytes = sizeof(SharableBufferHeader) + (uint64)size * sizeof(T);
             require(bytes <= usize(-1));
-            auto header = (SharableBufferHeader*)lilac::allocate(bytes);
-            const_cast<uint32&>(header->capacity) = cap;
+            auto block = lilac::allocate_block(bytes);
+            auto header = (SharableBufferHeader*)block.address;
+            const_cast<uint32&>(header->capacity) =
+                (block.capacity - sizeof(SharableBufferHeader)) / sizeof(T);
             header->ref_count = 1;
             return (T*)(header + 1);
+        }
+
+         // Allocate rounding up to a power of two
+        [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
+        T* allocate_plenty (usize size) {
+            return allocate(plenty_for_size(size));
         }
 
         [[gnu::nonnull(1)]] ALWAYS_INLINE static
