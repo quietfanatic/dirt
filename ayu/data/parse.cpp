@@ -137,7 +137,8 @@ struct Parser {
 
 ///// WORDS (unquoted)
 
-    NOINLINE const char* find_word_end (const char* in) {
+    NOINLINE Str parse_word (const char* in) {
+        const char* start = in;
         in++; // First character already known to be part of word
         while (in < end) {
             if (char_props[*in] & CHAR_CONTINUES_WORD) [[likely]] {
@@ -148,41 +149,41 @@ struct Parser {
                 if (in + 1 < end && in[1] == ':') {
                     in += 2;
                 }
-                else return in;
+                else return Str(start, in);
             }
             else if (*in == '"') {
                 error(in, "\" cannot occur inside a word (are you missing the first \"?)");
             }
-            else [[likely]] return in;
+            else [[likely]] return Str(start, in);
         }
-        return in;
+        return Str(start, in);
     }
 
     NOINLINE const char* got_word (const char* in, Tree& r) {
-        auto word_end = find_word_end(in);
-        auto word = Str(in, word_end);
+        auto word = parse_word(in);
         if (word == "null") new (&r) Tree(null);
         else if (word == "true") new (&r) Tree(true);
         else if (word == "false") new (&r) Tree(false);
         else new (&r) Tree(word);
-        return word_end;
+        return word.end();
     }
 
 ///// NUMBERS
 
     [[noreturn, gnu::cold]] NOINLINE
-    void error_invalid_number (const char* in, const char* num_end) {
-        if (in < end) {
-            check_error_chars(num_end);
+    void error_invalid_number (Str word) {
+        if (word.end() < end) {
+            check_error_chars(word.end());
         }
-        error(in, "Couldn't parse number");
+        error(word.begin(), "Couldn't parse number");
     }
 
     template <bool hex>
-    const char* parse_floating (const char* in, Tree& r, const char* word_end, bool minus) {
+    const char* parse_floating (Str word, Tree& r, bool minus) {
         double floating;
+        const char* word_end = word.end();
         auto [num_end, ec] = std::from_chars(
-            in, word_end, floating,
+            word.begin(), word_end, floating,
             hex ? std::chars_format::hex
                 : std::chars_format::general
         );
@@ -191,19 +192,19 @@ struct Parser {
             new (&r) Tree(minus ? -floating : floating, f);
             return num_end;
         }
-        else error_invalid_number(in, num_end);
+        else error_invalid_number(word);
     }
 
     template <bool hex>
-    const char* parse_number (const char* in, Tree& r, const char* word_end, bool minus) {
+    const char* parse_number (Str word, Tree& r, bool minus) {
          // Using an unsigned integer parser will reject words that start with a
          // + or -.
         uint64 integer;
         auto [num_end, ec] = std::from_chars(
-            in, word_end, integer, hex ? 16 : 10
+            word.begin(), word.end(), integer, hex ? 16 : 10
         );
-        if (ec != std::errc()) error_invalid_number(in, num_end);
-        if (num_end == word_end) {
+        if (ec != std::errc()) error_invalid_number(word);
+        if (num_end == word.end()) {
             TreeFlags f = hex ? TreeFlags::PreferHex : TreeFlags();
             if (minus) {
                 if (integer == 0) new (&r) Tree(-0.0, f);
@@ -214,57 +215,56 @@ struct Parser {
         }
          // Forbid ending with a .
         if (num_end[0] == '.') {
-            if (num_end + 1 >= word_end ||
+            if (num_end + 1 >= word.end() ||
                 (num_end[1] & ~('a' & ~'A')) == (hex ? 'P' : 'E')
-            ) error(in, "Number cannot end with a dot.");
+            ) error(num_end, "Number cannot end with a dot.");
         }
-        return parse_floating<hex>(in, r, word_end, minus);
+        return parse_floating<hex>(word, r, minus);
     }
 
-    NOINLINE const char* parse_number_based (const char* in, Tree& r, const char* word_end, bool minus) {
+    NOINLINE const char* parse_number_based (Str word, Tree& r, bool minus) {
          // Detect hex prefix
-        if (in + 1 < word_end && (Str(in, 2) == "0x" || Str(in, 2) == "0X")) {
-            in += 2;
-            return parse_number<true>(in, r, word_end, minus);
+        if (word.size() >= 2 && (word.chop(2) == "0x" || word.chop(2) == "0X")) {
+            return parse_number<true>(word.slice(2), r, minus);
         }
-        else return parse_number<false>(in, r, word_end, minus);
+        else return parse_number<false>(word, r, minus);
     }
 
     NOINLINE const char* got_digit (const char* in, Tree& r) {
-        return parse_number_based(in, r, find_word_end(in), false);
+        return parse_number_based(parse_word(in), r, false);
     }
 
     NOINLINE const char* got_dot (const char* in, Tree& r) {
-        auto word_end = find_word_end(in);
-        if (in+1 < word_end) switch (in[1]) {
+        auto word = parse_word(in);
+        if (word.size() > 1) switch (word[1]) {
             case ANY_DECIMAL_DIGIT: case '+': case '-': {
                 error(in, "Number cannot start with a dot.");
             }
         }
-        new (&r) Tree(Str(in, word_end));
-        return word_end;
+        new (&r) Tree(word);
+        return word.end();
     }
 
     NOINLINE const char* got_plus (const char* in, Tree& r) {
-        auto word_end = find_word_end(in);
-        if (Str(in, word_end) == "+nan") {
+        auto word = parse_word(in);
+        if (word == "+nan") {
             new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
-            return word_end;
+            return word.end();
         }
-        else if (Str(in, word_end) == "+inf") {
+        else if (word == "+inf") {
             new (&r) Tree(std::numeric_limits<double>::infinity());
-            return word_end;
+            return word.end();
         }
-        return parse_number_based(in+1, r, word_end, false);
+        return parse_number_based(word.slice(1), r, false);
     }
 
     NOINLINE const char* got_minus (const char* in, Tree& r) {
-        auto word_end = find_word_end(in);
-        if (Str(in, word_end) == "-inf") {
+        auto word = parse_word(in);
+        if (word == "-inf") {
             new (&r) Tree(-std::numeric_limits<double>::infinity());
-            return word_end;
+            return word.end();
         }
-        return parse_number_based(in+1, r, word_end, true);
+        return parse_number_based(word.slice(1), r, true);
     }
 
 ///// STRINGS (quoted)
