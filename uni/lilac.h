@@ -82,6 +82,15 @@ void deallocate_fixed_size (void*, usize) noexcept;
  // implmentation never shrinks the memory region.
 void* reallocate (void*, usize) noexcept;
 
+ // Like allocate, but also returns the size of the allocated block.  The
+ // returned size may be equal to the requsted size, or it may be up to 50%
+ // larger.
+struct Block {
+    void* address;
+    usize capacity;
+};
+Block allocate_block (usize) noexcept;
+
  // Dump some stats to stderr, but only if compiled with UNI_LILAC_PROFILE
 void dump_profile () noexcept;
 
@@ -105,6 +114,7 @@ static constexpr uint32 page_size = 8192;
 static constexpr uint32 page_overhead = 32;
 static constexpr uint32 page_usable_size = page_size - page_overhead;
 
+ // With the current implementation, 20 is a sweet spot for number of classes.
 static constexpr uint32 n_size_classes = 20;
 static constexpr uint32 largest_small = 11;
 struct alignas(64) Tables {
@@ -115,7 +125,7 @@ struct alignas(64) Tables {
      //  0   1   2   3   4   5   6
         16, 24, 32, 40, 56, 72, 104,
      //  7    8    9   10   11   12   13
-        136, 200, 272, 408, 544, 680, 908,
+        136, 200, 272, 408, 544, 680, 904,
      //  14    15    16    17    18    19
         1160, 1360, 1632, 2040, 2720, 4080
     };
@@ -131,6 +141,9 @@ struct alignas(64) Tables {
      // 512 520 528 536 544
         11, 11, 11, 11, 11
     };
+     // In theory we shouldn't need these 2 padding spaces, and can just
+     // subtract 2 from the lookup index, but GCC-12 doesn't optimize the
+     // subtraction out properly.  We've got room anyway.
     uint8 medium_classes_by_div [16] = {
      //        2   3   4   5   6   7   8   9  10  11  12  13  14  15
         0, 0, 19, 18, 17, 16, 15, 14, 14, 13, 13, 13, 12, 12, 12, 12
@@ -157,16 +170,10 @@ int32 get_size_class (usize size) {
 
 struct Page;
 
-[[
-    nodiscard, gnu::malloc, gnu::returns_nonnull,
-    gnu::alloc_size(2), gnu::assume_aligned(8)
-]]
-void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept;
-[[
-    nodiscard, gnu::malloc, gnu::returns_nonnull,
-    gnu::alloc_size(1), gnu::assume_aligned(8)
-]]
-void* allocate_large (usize size) noexcept;
+[[nodiscard]]
+Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept;
+[[nodiscard]]
+Block allocate_large (usize size) noexcept;
 [[gnu::nonnull(1)]]
 void deallocate_small (void*, Page*& first_partial, uint32 slot_size) noexcept;
 void deallocate_large (void*, usize size) noexcept;
@@ -190,8 +197,10 @@ inline Global global;
 [[
     nodiscard, gnu::malloc, gnu::returns_nonnull,
     gnu::alloc_size(1), gnu::assume_aligned(8)
-]]
-void* allocate (usize size) noexcept;
+]] ALWAYS_INLINE
+void* allocate (usize size) noexcept {
+    return allocate_block(size).address;
+}
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate (void* p, usize) noexcept {
@@ -207,10 +216,11 @@ void deallocate (void* p, usize) noexcept {
 void* allocate_fixed_size (usize size) noexcept {
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
+        auto& fp = in::global.first_partial_pages[sc];
         uint32 slot_size = in::tables.class_sizes[sc];
-        return in::allocate_small(in::global.first_partial_pages[sc], slot_size);
+        return in::allocate_small(fp, slot_size).address;
     }
-    else [[unlikely]] return in::allocate_large(size);
+    else [[unlikely]] return in::allocate_large(size).address;
 }
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
@@ -218,8 +228,9 @@ void deallocate_fixed_size (void* p, usize size) noexcept {
     expect(p);
     int32 sc = in::get_size_class(size);
     if (sc >= 0) {
+        auto& fp = in::global.first_partial_pages[sc];
         uint32 slot_size = in::tables.class_sizes[sc];
-        in::deallocate_small(p, in::global.first_partial_pages[sc], slot_size);
+        in::deallocate_small(p, fp, slot_size);
     }
     else [[unlikely]] in::deallocate_large(p, size);
 }
@@ -229,5 +240,8 @@ void deallocate_fixed_size (void* p, usize size) noexcept {
     gnu::nonnull(1), gnu::alloc_size(2), gnu::assume_aligned(8)
 ]]
 void* reallocate (void*, usize) noexcept;
+
+[[nodiscard]]
+Block allocate_block (usize size) noexcept;
 
 } // uni::lilac

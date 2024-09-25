@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 
-//#define UNI_LILAC_PROFILE
+#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
 #include <cstdio>
 #include <vector>
@@ -51,7 +51,7 @@ void out_of_memory () { require(false); std::abort(); }
 void malloc_failed () { require(false); std::abort(); }
 
 NOINLINE static
-void* init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
+Block init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
      // Might as well shortcut the first allocation here, skipping the full
      // check later (we can't go from empty to full in one allocation).  This
      // also avoids writing a non-zero constant to these fields, which would
@@ -78,7 +78,7 @@ void* init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
     if (slot_bytes_most < slot_bytes_current)
         slot_bytes_most = slot_bytes_current;
 #endif
-    return (char*)page + page_overhead;
+    return Block{(char*)page + page_overhead, slot_size};
 }
 
  // Noinline this and pass the argument along, so that allocate_small can tail
@@ -87,7 +87,7 @@ void* init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
  // I don't know whether it's appropriate to put [[gnu::cold]] on a function
  // that's always called exactly once.
 NOINLINE static
-void* init_pool (Page*& first_partial, uint32 slot_size) noexcept {
+Block init_pool (Page*& first_partial, uint32 slot_size) noexcept {
      // Probably wasting nearly an entire page's worth of space for alignment.
      // Oh well.
     global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
@@ -122,7 +122,7 @@ bool page_valid (Page*, uint32) { return true; }
 #endif
 
 NOINLINE
-void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
+Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
     if (!first_partial) [[unlikely]] {
          // We need a new page
         if (global.first_free_page) {
@@ -199,10 +199,10 @@ void* allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
         Page** next_target = prev ? &prev->next_page : &first_partial;
         *next_target = next;
     }
-    return (char*)page + slot;
+    return Block{(char*)page + slot, slot_size};
 }
 
-void* allocate_large (usize size) noexcept {
+Block allocate_large (usize size) noexcept {
 #ifdef UNI_LILAC_PROFILE
     oversize_allocated += 1;
     oversize_current += 1;
@@ -215,12 +215,14 @@ void* allocate_large (usize size) noexcept {
      // we've established a contract that our API never returns null, and I
      // don't really want to break it.
     if (!r) malloc_failed();
-    return r;
+     // Rounding up to the allocation granularity isn't worth it.  For large
+     // allocations you won't miss 7 extra bytes that you didn't even request.
+    return Block{r, size};
 }
 
 } using namespace in;
 NOINLINE
-void* allocate (usize size) noexcept {
+Block allocate_block (usize size) noexcept {
     int32 sc = get_size_class(size);
     if (sc >= 0) {
         uint32 slot_size = tables.class_sizes[sc];
