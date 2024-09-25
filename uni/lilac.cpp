@@ -321,7 +321,7 @@ namespace in {
 NOINLINE
 void* reallocate_from_small (void* p, usize s, uint32 old_s) {
     void* r = allocate(s);
-    std::memmove(r, p, old_s);
+    std::memcpy(r, p, old_s);
     deallocate_unknown_size(p);
     return r;
 }
