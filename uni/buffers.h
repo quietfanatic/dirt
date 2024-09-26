@@ -27,15 +27,26 @@ inline namespace buffers {
             return (SharableBufferHeader*)data - 1;
         }
 
-        static constexpr usize min_capacity = (sizeof(T) + 7) / 8 * 8 / sizeof(T);
-        static constexpr usize max_capacity = 0x80000000;
+        static constexpr usize min_capacity = 8 / sizeof(T) ? 8 / sizeof(T) : 1;
+         // Match max_capacity with ArrayInterface's max_size
+        static constexpr usize max_capacity = 0x7fffffff;
 
          // Round up the requested size to a power of two, anticipating
          // continual growth.
         static constexpr usize plenty_for_size (usize size) {
-            require(size <= max_capacity);
-            constexpr usize min = min_capacity < 4 ? 4 : min_capacity;
-            if (size <= min) return min;
+             // Pick a reasonable first capacity for various sizes of objects.
+             // There isn't a whole lot of science to these choices, besides
+             // that AYU tends to have a lot of arrays of size 2*16 bytes.
+            constexpr usize min = sizeof(T) <= 1 ? 16
+                                : sizeof(T) <= 2 ? 8
+                                : sizeof(T) <= 8 ? 4
+                                : sizeof(T) <= 64 ? 2
+                                : 1;
+            if (size > 0x40000000) [[unlikely]] {
+                require(size <= max_capacity);
+                return max_capacity;
+            }
+            else if (size <= min) return min;
             else {
                  // This should be fast on any modern processor
                 return std::bit_ceil(uint32(size));
@@ -44,11 +55,6 @@ inline namespace buffers {
 
         [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
         T* allocate (usize size) {
-            static_assert(
-                alignof(T) <= 8,
-                "SharableBuffer and uni array types with elements that have "
-                "align > 8 are NYI."
-            );
              // Use uint64 instead of usize because on 32-bit platforms we need
              // to make sure we don't overflow usize.
             uint64 bytes = sizeof(SharableBufferHeader) + (uint64)size * sizeof(T);

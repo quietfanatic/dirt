@@ -50,7 +50,7 @@
  // Owned arrays are limited to a size and capacity of 2^31-1 elements even on
  // 64-bit systems.  Trying to allocate larger than that will panic.  If you
  // need arrays larger than that you probably should be manually allocating them
- // anyway.  TODO: Enforcement of max size seems to be a little lax...
+ // anyway.
  //
  // Reference counts are limited to 2^32-1, but overflow is not checked.  Four
  // billion array objects would take 64 GB of RAM anyway so if you get to that
