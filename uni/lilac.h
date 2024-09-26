@@ -2,7 +2,7 @@
  // Super simple small size singlethreaded slab allocator.
  //
  // Features:
- //  - Realtime-safe (O(1) worst case depending on your OS's demand paging)
+ //  - Realtime-safe (O(1) worst case, depending on your OS's demand paging)
  //  - Good best-case overhead (0.4%)
  //  - Small code size (just over 1k compiled code and data)
  //  - Some corruption detection when debug assertions are enabled
@@ -24,9 +24,11 @@
  //    other libraries that reserve huge address spaces on 32-bit systems.
  //  - Only 8-byte alignment is guaranteed
  //  - Bad but bounded (and unlikely?) worst-case external fragmentation
- //  - Worst-case internal fragmentation is 33%
+ //  - Worst-case internal fragmentation is 50%.  Average for randomly-sized
+ //    allocations is probably around 15%.
  //  - Cannot give memory back to the OS (but most allocators can't anyway)
  //  - Very experimental and untested with anything but GCC on Linux x64
+ //  - Up to 145k space overhead due to paging granularity
  //
  // Allocation never returns null or throws an exception.  The only error
  // conditions are:
@@ -116,37 +118,37 @@ static constexpr uint32 page_usable_size = page_size - page_overhead;
 
  // With the current implementation, 20 is a sweet spot for number of classes.
 static constexpr uint32 n_size_classes = 20;
-static constexpr uint32 largest_small = 11;
+static constexpr uint32 largest_small = 12;
 struct alignas(64) Tables {
      // These size classes are optimized for 8192 (8160 usable) byte pages, and
      // also for use with SharableBuffer and ArrayInterface, which like to have
      // sizes of 8+2^n.
     uint16 class_sizes [n_size_classes] = {
      //  0   1   2   3   4   5   6
-        16, 24, 32, 40, 56, 72, 104,
+        16, 24, 32, 40, 56, 72, 88,
      //  7    8    9   10   11   12   13
-        136, 200, 272, 408, 544, 680, 904,
+        104, 136, 200, 272, 384, 544, 736,
      //  14    15    16    17    18    19
-        1160, 1360, 1632, 2040, 2720, 4080
+        1016, 1360, 1632, 2040, 2720, 4080
     };
     uint8 small_classes_by_8 [69] = {
      //   0   8  16  24  32  40  48  56  64  72  80  88  96 104 112 120
-         0,  0,  0,  1,  2,  3,  4,  4,  5,  5,  6,  6,  6,  6,  7,  7,
+         0,  0,  0,  1,  2,  3,  4,  4,  5,  5,  6,  6,  7,  7,  8,  8,
      // 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248
-         7,  7,  8,  8,  8,  8,  8,  8,  8,  8,  9,  9,  9,  9,  9,  9,
+         8,  8,  9,  9,  9,  9,  9,  9,  9,  9, 10, 10, 10, 10, 10, 10,
      // 256 264 272 280 288 296 304 312 320 328 336 344 352 360 368 376
-         9,  9,  9, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10,
+        10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
      // 384 392 400 408 416 424 432 440 448 456 464 472 480 488 496 504
-        10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+        11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
      // 512 520 528 536 544
-        11, 11, 11, 11, 11
+        12, 12, 12, 12, 12
     };
      // In theory we shouldn't need these 2 padding spaces, and can just
      // subtract 2 from the lookup index, but GCC-12 doesn't optimize the
      // subtraction out properly.  We've got room anyway.
-    uint8 medium_classes_by_div [16] = {
-     //        2   3   4   5   6   7   8   9  10  11  12  13  14  15
-        0, 0, 19, 18, 17, 16, 15, 14, 14, 13, 13, 13, 12, 12, 12, 12
+    uint8 medium_classes_by_div [15] = {
+     //        2   3   4   5   6   7   8   9  10  11  12  13  14
+        0, 0, 19, 18, 17, 16, 15, 15, 14, 14, 14, 13, 13, 13, 13
     };
 };
 constexpr Tables tables;

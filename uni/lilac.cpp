@@ -25,23 +25,22 @@ static_assert(sizeof(Page) == page_size);
 
 #ifdef UNI_LILAC_PROFILE
 struct Profile {
-    uint64 pages_picked = 0;
-    uint64 pages_emptied = 0;
-    uint32 pages_current = 0;
-    uint32 pages_most = 0;
-    uint64 slots_allocated = 0;
-    uint64 slots_deallocated = 0;
-    uint32 slots_current = 0;
-    uint32 slots_most = 0;
+    uint64 pages_picked;
+    uint64 pages_emptied;
+    uint32 pages_current;
+    uint32 pages_most;
+    uint64 slots_allocated;
+    uint64 slots_deallocated;
+    uint32 slots_current;
+    uint32 slots_most;
 };
-static Profile profiles [n_size_classes];
+static Profile profiles [n_size_classes] = {};
 static usize slot_bytes_current = 0;
 static usize slot_bytes_most = 0;
 static uint64 oversize_allocated = 0;
 static uint64 oversize_deallocated = 0;
 static uint64 oversize_current = 0;
 static uint64 oversize_most = 0;
-//static std::vector<bool> decisions;
 #endif
 
 [[noreturn]] ALWAYS_INLINE static
@@ -157,7 +156,6 @@ Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
     slot_bytes_current += slot_size;
     if (slot_bytes_most < slot_bytes_current)
         slot_bytes_most = slot_bytes_current;
-//    decisions.push_back(page->first_free_slot);
 #endif
 
      // Branched version.  Ideally this compiles to a single forward branch,
@@ -208,7 +206,6 @@ Block allocate_large (usize size) noexcept {
     oversize_current += 1;
     if (oversize_most < oversize_current)
         oversize_most = oversize_current;
-    fprintf(stderr, "oversize+ %zu\n", size);
 #endif
     void* r = std::malloc(size);
      // Usually I prefer to just let it segfault when malloc returns null, but
@@ -371,16 +368,6 @@ void dump_profile () noexcept {
         slot_bytes_most,
         (global.first_untouched_page - global.pool) * page_size
     );
-//    uint8 counter = 1;
-//    uint32 sum = 0;
-//    for (auto b : decisions) {
-//        sum += (b!=(counter > 1));
-//        std::fputc(b!=(counter > 1)?'1':'0', stderr);
-//        if (b && counter < 3) counter++;
-//        else if (!b && counter > 0) counter--;
-//    }
-//    std::fputc('\n', stderr);
-//    std::fprintf(stderr, "%u/%zu\n", sum, decisions.size());
 #endif
 }
 
