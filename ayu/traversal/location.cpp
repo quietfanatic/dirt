@@ -71,8 +71,8 @@ static constexpr IRI anonymous_iri ("ayu-anonymous:");
 NOINLINE static
 UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
     switch (loc->form) {
-        case LF::Resource: base = &loc->resource()->name(); return "#";
-        case LF::Reference: base = &anonymous_iri; return "#";
+        case LF::Resource: base = &loc->resource()->name(); break;
+        case LF::Reference: base = &anonymous_iri; break;
         case LF::Key: return cat(
             location_to_iri_accumulate(base, loc->parent()),
             '/', *loc->key()
@@ -83,6 +83,10 @@ UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
         );
         default: never();
     }
+     // This string won't last so we don't need to worry about overallocating
+    UniqueString r (Capacity(32));
+    r.push_back_expect_capacity('#');
+    return r;
 }
 
 } // in
