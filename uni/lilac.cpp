@@ -35,6 +35,7 @@ struct Profile {
     uint32 slots_most;
 };
 static Profile profiles [n_size_classes] = {};
+static Profile total = {};
 static usize slot_bytes_current = 0;
 static usize slot_bytes_most = 0;
 static uint64 oversize_allocated = 0;
@@ -66,13 +67,21 @@ Block init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
 #ifdef UNI_LILAC_PROFILE
     uint32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].pages_picked += 1;
+    total.pages_picked += 1;
     profiles[sc].pages_current += 1;
+    total.pages_current += 1;
     if (profiles[sc].pages_most < profiles[sc].pages_current)
         profiles[sc].pages_most = profiles[sc].pages_current;
+    if (total.pages_most < total.pages_current)
+        total.pages_most = total.pages_current;
     profiles[sc].slots_allocated += 1;
+    total.slots_allocated += 1;
     profiles[sc].slots_current += 1;
+    total.slots_current += 1;
     if (profiles[sc].slots_most < profiles[sc].slots_current)
         profiles[sc].slots_most = profiles[sc].slots_current;
+    if (total.slots_most < total.slots_current)
+        total.slots_most = total.slots_current;
     slot_bytes_current += slot_size;
     if (slot_bytes_most < slot_bytes_current)
         slot_bytes_most = slot_bytes_current;
@@ -150,9 +159,13 @@ Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
 #ifdef UNI_LILAC_PROFILE
     uint32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].slots_allocated += 1;
+    total.slots_allocated += 1;
     profiles[sc].slots_current += 1;
+    total.slots_current += 1;
     if (profiles[sc].slots_most < profiles[sc].slots_current)
         profiles[sc].slots_most = profiles[sc].slots_current;
+    if (total.slots_most < total.slots_current)
+        total.slots_most = total.slots_current;
     slot_bytes_current += slot_size;
     if (slot_bytes_most < slot_bytes_current)
         slot_bytes_most = slot_bytes_current;
@@ -255,7 +268,9 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept
 #ifdef UNI_LILAC_PROFILE
     uint32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].slots_deallocated += 1;
+    total.slots_deallocated += 1;
     profiles[sc].slots_current -= 1;
+    total.slots_current -= 1;
     slot_bytes_current -= slot_size;
 #endif
      // It's possible to do a math trick to merge these branches into one, but
@@ -274,7 +289,9 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept
 #ifdef UNI_LILAC_PROFILE
         uint32 sc = &first_partial - global.first_partial_pages;
         profiles[sc].pages_emptied += 1;
+        total.pages_emptied += 1;
         profiles[sc].pages_current -= 1;
+        total.pages_current -= 1;
 #endif
     }
     else if (page->bytes_used + slot_size * 2 > page_size) [[unlikely]] {
@@ -349,17 +366,31 @@ void* reallocate (void* p, usize s) noexcept {
 void dump_profile () noexcept {
 #ifdef UNI_LILAC_PROFILE
     std::fprintf(stderr,
-        "\ncl size page+ page- page= page> slot+ slot- slot= slot>\n");
+        "\ncl size page+ page- page= page> slot+ slot- slot= slot>  bytes+  bytes- bytes= bytes>\n");
+    uint64 tb_a = 0; uint64 tb_d = 0;
+    uint64 tb_c = 0; uint64 tb_m = 0;
     for (uint32 i = 0; i < n_size_classes; i++) {
         auto& p = profiles[i];
-        std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u\n",
+        uint64 s = tables.class_sizes[i];
+        std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u %7zu %7zu %6zu %6zu\n",
             i, tables.class_sizes[i],
             p.pages_picked, p.pages_emptied,
             p.pages_current, p.pages_most,
             p.slots_allocated, p.slots_deallocated,
-            p.slots_current, p.slots_most
+            p.slots_current, p.slots_most,
+            p.slots_allocated * s, p.slots_deallocated * s,
+            p.slots_current * s, p.slots_most * s
         );
+        tb_a += p.slots_allocated * s; tb_d += p.slots_deallocated * s;
+        tb_c += p.slots_current * s; tb_m += p.slots_most * s;
     }
+    std::fprintf(stderr, "  total %5zu %5zu %5u %5u %5zu %5zu %5u %5u %7zu %7zu %6zu %6zu\n",
+        total.pages_picked, total.pages_emptied,
+        total.pages_current, total.pages_most,
+        total.slots_allocated, total.slots_deallocated,
+        total.slots_current, total.slots_most,
+        tb_a, tb_d, tb_c, tb_m
+    );
     std::fprintf(stderr, "over+ %zu over- %zu over= %zu over> %zu\n",
         oversize_allocated, oversize_deallocated,
         oversize_current, oversize_most
