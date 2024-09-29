@@ -48,4 +48,9 @@ inline UniqueString ascii_to_lower (Str s) {
     });
 }
 
+[[gnu::const]]
+uint8 count_decimal_digits (uint64 v);
+
+char* write_decimal_digits (char* p, uint8 count, uint64 v);
+
 } // namespace uni

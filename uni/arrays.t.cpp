@@ -219,6 +219,10 @@ UniqueString b30 (uint32 v) {
     return cat("foo", v, "barbarbar");
 }
 
+UniqueString c30 (uint64 v) {
+    return cat(v);
+}
+
 UniqueString t31 () {
     return cat("foo", 5.0, "bar");
 }

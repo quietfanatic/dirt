@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include "arrays.h"
+#include "text.h"
 
 namespace uni {
 inline namespace strings {
@@ -124,27 +125,19 @@ template <class T> requires (std::is_integral_v<T>)
 struct StringConversion<T> {
     using Self = StringConversion<T>;
     T v;
+    uint8 count;
+    StringConversion (T v) : v(v) { }
      // Get a close upper bound for the number of digits.
-    ALWAYS_INLINE constexpr usize size () const {
-        if (!v) return 1;
-        std::make_unsigned_t<T> abs = v < 0 ? -v : v;
-         // The number of bits/digits is actually 1 larger than the log base
-         // 2/10 of the number.
-        uint8 log2v = std::bit_width(abs) - 1;
-         // ln(2)/ln(10) == 0.301029995663981... which we'll round up to 1/3.
-         // We could use a closer number like 0.31, but using integer division
-         // makes it easier for the optimizer to do range analysis.  Either way,
-         // we're only going to be overallocating by a byte or two.
-        uint8 log10v = log2v / 3;
-        return (v < 0) + log10v + 1;
+    ALWAYS_INLINE constexpr usize size () {
+        bool sign = v < 0;
+        count = count_decimal_digits(sign ? -v : v);
+        expect(count > 0);
+        return count + sign;
     }
     constexpr char* write (char* out) const {
-        auto [ptr, ec] = std::to_chars(out, out + in::max_digits<T>, v);
-        expect(ec == std::errc());
-#ifdef NDEBUG
-        expect(usize(ptr - out) <= size());
-#endif
-        return ptr;
+        bool sign = v < 0;
+        if (sign) *out++ = '-';
+        return write_decimal_digits(out, count, sign ? -v : v);
     }
 };
 
@@ -247,7 +240,7 @@ ALWAYS_INLINE char* cat_write (char* out, const T& t) {
 }
 
 template <class... Tail> ALWAYS_INLINE
-void cat_append (UniqueString& h, const Tail&... t) {
+void cat_append (UniqueString& h, Tail&&... t) {
     if constexpr (sizeof...(Tail) > 0) {
         usize cap = h.size();
         (cat_add_no_overflow(cap, t.size()), ...);
@@ -261,7 +254,7 @@ void cat_append (UniqueString& h, const Tail&... t) {
 }
 
 template <class Head, class... Tail> ALWAYS_INLINE
-UniqueString cat_construct (Head&& h, const Tail&... t) {
+UniqueString cat_construct (Head&& h, Tail&&... t) {
      // Record of investigations: I was poking around in the disassembly on an
      // optimized build, and found that this function was producing a call to
      // UniqueString::remove_ref, which indicated that a move construct (and
