@@ -99,11 +99,10 @@ struct Printer {
             return ptr;
         }
         else {
-            auto [ptr, ec] = std::to_chars(
-                p, p+19, uint64(v)
+            p = write_decimal_digits(
+                p, count_decimal_digits(v), v
             );
-            expect(ec == std::errc());
-            return ptr;
+            return p;
         }
     }
 
