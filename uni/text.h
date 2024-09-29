@@ -3,7 +3,7 @@
 #pragma once
 
 #include "common.h"
-#include "strings.h"
+#include "arrays.h"
 
 namespace uni {
 
@@ -48,9 +48,13 @@ inline UniqueString ascii_to_lower (Str s) {
     });
 }
 
-[[gnu::const]]
-uint8 count_decimal_digits (uint64 v);
 
-char* write_decimal_digits (char* p, uint8 count, uint64 v);
+ // Returns the number of decimal digits in the unsigned number.
+[[gnu::const]]
+uint32 count_decimal_digits (uint64 v);
+
+ // Writes exactly count digits of v.  Count must be the number returned by
+ // count_decimal_digits(v).  Returns p + count.
+char* write_decimal_digits (char* p, uint32 count, uint64 v);
 
 } // namespace uni
