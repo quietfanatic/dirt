@@ -22,7 +22,7 @@ struct IndexLocation : Location {
     uint32 index;
     IndexLocation (MoveRef<SharedLocation> p, usize i) :
         Location(LF::Index), parent(*move(p)), index(i)
-    { expect(index == i); }
+    { expect(index == i); } // forgot what this is for but I think it's optimization
 };
 
 };

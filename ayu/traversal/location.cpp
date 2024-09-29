@@ -68,34 +68,80 @@ namespace in {
 
 static constexpr IRI anonymous_iri ("ayu-anonymous:");
 
-NOINLINE static
-UniqueString location_to_iri_accumulate (const IRI*& base, LocationRef loc) {
-    switch (loc->form) {
-        case LF::Resource: base = &loc->resource()->name(); break;
-        case LF::Reference: base = &anonymous_iri; break;
-        case LF::Key: return cat(
-            location_to_iri_accumulate(base, loc->parent()),
-            '/', *loc->key()
-        );
-        case LF::Index: return cat(
-            location_to_iri_accumulate(base, loc->parent()),
-            '+', *loc->index()
-        );
-        default: never();
-    }
-     // This string won't last so we don't need to worry about overallocating
-    UniqueString r (Capacity(32));
-    r.push_back_expect_capacity('#');
-    return r;
-}
+struct LocationToIRI {
+    UniqueString fragment;
+    const IRI* base;
 
+    NOINLINE
+    char* use_base (LocationRef loc, uint32 cap) {
+        switch (loc->form) {
+            case LF::Resource: base = &loc->resource()->name(); break;
+            case LF::Reference: base = &anonymous_iri; break;
+            default: never();
+        }
+        expect(cap > 0);
+        new (&fragment) UniqueString (Uninitialized(cap));
+        char* p = fragment.begin();
+        *p++ = '#';
+        return p;
+    }
+
+    NOINLINE
+    char* use_key (LocationRef loc, uint32 cap) {
+        expect(loc->form == LF::Key);
+        char* p = visit(loc->parent(), cap + 1 + loc->key()->size());
+        *p++ = '/';
+        expect(loc->form == LF::Key);
+        char* r = p + loc->key()->size();
+        std::memcpy(p, loc->key()->data(), loc->key()->size());
+        return r;
+    }
+
+    NOINLINE
+    char* use_small_index (LocationRef loc, uint32 cap) {
+        expect(loc->form == LF::Index);
+        char* p = visit(loc->parent(), cap + 2);
+        *p++ = '+';
+        expect(loc->form == LF::Index);
+        expect(*loc->index() < 10);
+        *p++ = '0' + *loc->index();
+        return p;
+    }
+
+    NOINLINE
+    char* use_large_index (LocationRef loc, uint32 cap) {
+        expect(loc->form == LF::Index);
+        uint32 digits = count_decimal_digits(*loc->index());
+        expect(loc->form == LF::Index);
+        char* p = visit(loc->parent(), cap + 1 + digits);
+        *p++ = '+';
+        expect(loc->form == LF::Index);
+        return write_decimal_digits(p, digits, *loc->index());
+    }
+
+    NOINLINE
+    char* visit (LocationRef loc, uint32 cap) {
+        switch (loc->form) {
+            case LF::Resource:
+            case LF::Reference: return use_base(loc, cap);
+            case LF::Key: return use_key(loc, cap);
+            case LF::Index:
+                if (*loc->index() < 10) {
+                    return use_small_index(loc, cap);
+                }
+                else return use_large_index(loc, cap);
+            default: never();
+        }
+    }
+};
 } // in
 
 IRI location_to_iri (LocationRef loc) noexcept {
     if (!loc) return IRI();
-    const IRI* base;
-    UniqueString fragment = location_to_iri_accumulate(base, loc);
-    return IRI(fragment, *base);
+    LocationToIRI lti;
+    char* p = lti.visit(loc, 1);
+    expect(p == lti.fragment.end());
+    return IRI(lti.fragment, *lti.base);
 }
 
 SharedLocation location_from_iri (const IRI& iri) {
