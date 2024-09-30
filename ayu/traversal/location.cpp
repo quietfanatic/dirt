@@ -111,6 +111,7 @@ struct LocationToIRI {
     NOINLINE
     char* use_large_index (LocationRef loc, uint32 cap) {
         expect(loc->form == LF::Index);
+        expect(*loc->index() >= 10);
         uint32 digits = count_decimal_digits(*loc->index());
         expect(loc->form == LF::Index);
         char* p = visit(loc->parent(), cap + 1 + digits);

@@ -68,23 +68,29 @@ struct Printer {
     }
 
     char* print_index (char* p, uint32 v) {
-        if (v == 0) {
-            return pstr(p, "  -- 0");
-        }
         p = reserve(p, 15);
-        p = 5+(char*)std::memcpy(p, "  -- ", 5);
-        auto [ptr, ec] = std::to_chars(p, p+10, v);
-        expect(ec == std::errc());
-        return ptr;
+        *p++ = ' '; *p++ = ' '; *p++ = '-'; *p++ = '-'; *p++ = ' ';
+        return write_decimal_digits(p, count_decimal_digits(v), v);
+    }
+
+    NOINLINE
+    char* print_small_int (char* p, const Tree& t) {
+        p = reserve(p, 3);
+        int64 v = t.data.as_int64;
+        expect(v >= 0 && v < 10);
+        bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
+        if (hex) {
+            *p++ = '0'; *p++ = 'x';
+        }
+        *p++ = '0' + v;
+        return p;
     }
 
     NOINLINE
     char* print_int64 (char* p, const Tree& t) {
-        int64 v = t.data.as_int64;
-        if (v == 0) {
-            return pchar(p, '0');
-        }
         p = reserve(p, 20);
+        int64 v = t.data.as_int64;
+        expect(v < 0 || v >= 10);
         if (v < 0) {
             *p++ = '-';
             v = -v;
@@ -384,6 +390,9 @@ struct Printer {
             case Form::Bool: return print_bool(p, t);
             case Form::Number: {
                 if (t.meta) return print_double(p, t);
+                else if (t.data.as_int64 >= 0 && t.data.as_int64 < 10) {
+                    return print_small_int(p, t);
+                }
                 else return print_int64(p, t);
             }
             case Form::String: return print_string(p, Str(t), &t);
