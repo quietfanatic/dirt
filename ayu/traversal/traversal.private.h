@@ -53,11 +53,8 @@ struct Traversal {
      // addressable is set.
     Mu* address;
 
-    AnyRef to_reference () const noexcept;
-    AnyRef to_reference_parent_addressable () const noexcept;
-    AnyRef to_reference_chain () const noexcept;
-    SharedLocation to_location () const noexcept;
-    SharedLocation to_location_chain () const noexcept;
+    void to_reference (void* r) const noexcept;
+    void to_location (void* r) const noexcept;
     [[noreturn, gnu::cold]]
     void wrap_exception () const;
 };
@@ -263,131 +260,12 @@ void trav_delegate (
     trav_acr<visit>(child, parent, acr, mode);
 }
 
- // noexcept because any user code called from here should be confirmed to
- // already work without throwing.
-NOINLINE inline
-AnyRef Traversal::to_reference () const noexcept {
-    if (addressable) {
-        return AnyPtr(Type(desc, readonly), address);
-    }
-    else if (op == TraversalOp::Start) {
-        auto& self = static_cast<const StartTraversal&>(*this);
-        return *self.reference;
-    }
-    else if (parent->addressable) {
-        return to_reference_parent_addressable();
-    }
-    else return to_reference_chain();
-}
-
-NOINLINE inline
-AnyRef Traversal::to_reference_parent_addressable () const noexcept {
-    switch (op) {
-        case TraversalOp::Delegate: case TraversalOp::Attr: case TraversalOp::Elem: {
-            auto& self = static_cast<const AcrTraversal&>(*this);
-            auto type = Type(parent->desc, parent->readonly);
-            return AnyRef(AnyPtr(type, parent->address), self.acr);
-        }
-        case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const ComputedAttrTraversal&>(*this);
-            return self.func(*parent->address, *self.key);
-        }
-        case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ComputedElemTraversal&>(*this);
-            return self.func(*parent->address, self.index);
-        }
-        case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const ContiguousElemTraversal&>(*this);
-            auto data = self.func(*parent->address);
-            auto desc = DescriptionPrivate::get(data.type);
-            data.address = (Mu*)(
-                (char*)data.address + self.index * desc->cpp_size
-            );
-            return data;
-        }
-        default: never();
-    }
-}
-
-NOINLINE inline
-AnyRef Traversal::to_reference_chain () const noexcept {
-    AnyRef parent_ref = parent->to_reference();
-    switch (op) {
-        case TraversalOp::Attr: case TraversalOp::Elem:
-        case TraversalOp::Delegate: {
-            auto& self = static_cast<const AcrTraversal&>(*this);
-            return AnyRef(parent_ref.host, new ChainAcr(
-                parent_ref.acr, self.acr
-            ));
-        }
-        case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const ComputedAttrTraversal&>(*this);
-            return AnyRef(parent_ref.host, new ChainAttrFuncAcr(
-                parent_ref.acr, self.func, *self.key
-            ));
-        }
-        case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ComputedElemTraversal&>(*this);
-            return AnyRef(parent_ref.host, new ChainElemFuncAcr(
-                parent_ref.acr, self.func, self.index
-            ));
-        }
-        case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const ContiguousElemTraversal&>(*this);
-            return AnyRef(parent_ref.host, new ChainDataFuncAcr(
-                parent_ref.acr, self.func, self.index
-            ));
-        }
-        default: never();
-    }
-}
-
-NOINLINE inline
-SharedLocation Traversal::to_location () const noexcept {
-    if (op == TraversalOp::Start) {
-        auto& self = static_cast<const StartTraversal&>(*this);
-        if (self.location) return self.location;
-         // This * took a half a day of debugging to add. :(
-        else return SharedLocation(*self.reference);
-    }
-    else return to_location_chain();
-}
-
-NOINLINE inline
-SharedLocation Traversal::to_location_chain () const noexcept {
-    SharedLocation parent_loc = parent->to_location();
-    switch (op) {
-        case TraversalOp::Delegate: return parent_loc;
-        case TraversalOp::Attr: {
-            auto& self = static_cast<const AttrTraversal&>(*this);
-            return SharedLocation(move(parent_loc), *self.key);
-        }
-        case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const ComputedAttrTraversal&>(*this);
-            return SharedLocation(move(parent_loc), *self.key);
-        }
-         // These three branches can technically be merged, hopefully the
-         // compiler does so.
-        case TraversalOp::Elem: {
-            auto& self = static_cast<const ElemTraversal&>(*this);
-            return SharedLocation(move(parent_loc), self.index);
-        }
-        case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ComputedElemTraversal&>(*this);
-            return SharedLocation(move(parent_loc), self.index);
-        }
-        case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const ContiguousElemTraversal&>(*this);
-            return SharedLocation(move(parent_loc), self.index);
-        }
-        default: never();
-    }
-}
-
 inline
 void Traversal::wrap_exception () const {
      // TODO: don't call to_location() if not necessary
-    rethrow_with_travloc(to_location());
+    SharedLocation loc;
+    to_location(&loc);
+    rethrow_with_travloc(loc);
 }
 
 } // namespace ayu::in

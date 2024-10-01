@@ -299,7 +299,7 @@ struct ReturnRefTraversal : ReturnRefTraversalHead, T { };
 void return_ref (const Traversal& tr) {
     auto& trav = static_cast<const ReturnRefTraversal<>&>(tr);
     expect(!trav.r->acr);
-    *trav.r = trav.to_reference();
+    trav.to_reference(trav.r);
 }
 
 struct GetAttrTraversalHead {

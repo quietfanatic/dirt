@@ -65,7 +65,11 @@ struct TraverseScan {
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
-                    bool done = cb(trav.to_reference(), trav.loc);
+                    bool done; {
+                        AnyRef ref;
+                        trav.to_reference(&ref);
+                        done = cb(ref, trav.loc);
+                    }
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
                 }

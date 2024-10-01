@@ -747,9 +747,15 @@ struct TraverseFromTree {
          // We're duplicating the work to get the ref and loc if there's both a
          // swizzle and an init, but almost no types are going to have both.
         if (auto swizzle = trav.desc->swizzle()) {
+            AnyRef ref;
+            trav.to_reference(&ref);
+            SharedLocation loc;
+            trav.to_location(&loc);
             IFTContext::current->swizzle_ops.emplace_back(
-                swizzle->f, trav.to_reference(), *trav.tree, trav.to_location()
+                swizzle->f, move(ref), *trav.tree, move(loc)
             );
+            expect(!ref.acr);
+            expect(!loc);
         }
         if (auto init = trav.desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
@@ -757,12 +763,18 @@ struct TraverseFromTree {
             for (i = init_ops.size(); i > 0; --i) {
                 if (init->priority <= init_ops[i-1].priority) break;
             }
+            AnyRef ref;
+            trav.to_reference(&ref);
+            SharedLocation loc;
+            trav.to_location(&loc);
             if (i == init_ops.size()) init_ops.emplace_back(
-                init->f, init->priority, trav.to_reference(), trav.to_location()
+                init->f, init->priority, move(ref), move(loc)
             );
             else init_ops.emplace(i,
-                init->f, init->priority, trav.to_reference(), trav.to_location()
+                init->f, init->priority, move(ref), move(loc)
             );
+            expect(!ref.acr);
+            expect(!loc);
         }
     }
 
