@@ -161,12 +161,14 @@ struct Accessor {
     }
 
     void inc () const {
-         // Most ACRs are constexpr
+         // Unlikely because most ACRs are constexpr.  This cannot be converted
+         // to branchless code because the acr may be in a readonly region.
         if (ref_count) [[unlikely]] {
             const_cast<uint16&>(ref_count)++;
         }
     }
-    NOINLINE void do_dec () const {
+    NOINLINE // noinline this so it doesn't make the caller allocate stack space
+    void do_dec () const {
         if (!--const_cast<uint16&>(ref_count)) {
             vt->destroy_this(const_cast<Accessor*>(this));
             delete this;

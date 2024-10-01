@@ -31,7 +31,7 @@ namespace ayu::in {
     AnyString make_pointer_name (Type t) {
         return cat(t.name(), '*');
     }
-    NOINLINE inline 
+    NOINLINE inline
     AnyString make_template_name_1 (StaticString prefix, Type t) {
         return cat(prefix, t.name(), '>');
     }

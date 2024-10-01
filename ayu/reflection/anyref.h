@@ -77,7 +77,7 @@ struct AnyRef {
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
      // Copy and move construction and assignment
     constexpr AnyRef (const AnyRef& o) : AnyRef(o.host, o.acr) {
-        if (acr) acr->inc();
+        if (acr) [[unlikely]] acr->inc();
     }
     constexpr AnyRef (AnyRef&& o) :
         host(o.host), acr(o.acr)
@@ -89,7 +89,7 @@ struct AnyRef {
         this->~AnyRef();
         host = o.host;
         acr = o.acr;
-        if (acr) acr->inc();
+        if (acr) [[unlikely]] acr->inc();
         return *this;
     }
     constexpr AnyRef& operator = (AnyRef&& o) {
@@ -101,7 +101,7 @@ struct AnyRef {
         return *this;
     }
 
-    constexpr ~AnyRef () { if (acr) acr->dec(); }
+    constexpr ~AnyRef () { if (acr) [[unlikely]] acr->dec(); }
 
     explicit constexpr operator bool () const { return !!host; }
 
@@ -128,7 +128,8 @@ struct AnyRef {
 
      // Returns typed null if this reference is not addressable.
     constexpr AnyPtr address () const {
-        return acr ? acr->address(*host.address) : host;
+        if (!acr) [[likely]] return host;
+        else return acr->address(*host.address);
     }
      // Can throw TypeCantCast, even if the result is null.
     constexpr Mu* address_as (Type t) const {

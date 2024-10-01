@@ -4,7 +4,7 @@ namespace ayu::in {
 
 static void to_reference_parent_addressable (const Traversal&, void*);
 static void to_reference_chain (const Traversal&, void*);
-static void to_location_start_ref (const StartTraversal&, void*);
+static void to_location_start_ref (const Traversal&, void*);
 static void to_location_chain (const Traversal&, void*);
 
  // noexcept because any user code called from here should be confirmed to
@@ -19,6 +19,7 @@ void Traversal::to_reference (void* r) const noexcept {
         new (r) AnyRef(*self.reference);
     }
     else if (parent->addressable) {
+         // This won't tail call for some reason
         to_reference_parent_addressable(*this, r);
     }
     else to_reference_chain(*this, r);
@@ -102,13 +103,14 @@ void Traversal::to_location (void* r) const noexcept {
     if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
         if (self.location) new (r) SharedLocation(self.location);
-        else to_location_start_ref(self, r);
+        else to_location_start_ref(*this, r);
     }
     else to_location_chain(*this, r);
 }
 
 NOINLINE static
-void to_location_start_ref (const StartTraversal& self, void* r) {
+void to_location_start_ref (const Traversal& trav, void* r) {
+    auto& self = static_cast<const StartTraversal&>(trav);
      // This * took a half a day of debugging to add. :(
     new (r) SharedLocation(*self.reference);
 }
