@@ -77,41 +77,64 @@ int natural_compare (Str a, Str b) noexcept {
 uint32 count_decimal_digits (uint64 v) {
      // There isn't a better way to do this.  You can estimate the digits with
      // some branchless logarithmic math, but you can't really get a precise
-     // count that way.  At least we can convert every other comparison to
-     // branchless.
+     // count that way.  At least we can convert many of the comparisons to
+     // branchless form.  I don't really know what the ideal proportion of
+     // branches to nonbranches is, but this seems pretty reasonable.  The first
+     // block fits in 16 bytes of x64 and the first and second together in 64.
     if (v <= 9) [[likely]] return 1;
-    if (v <= 999) [[likely]] return v <= 99 ? 2 : 3;
-    if (v <= 99'999) [[likely]] return v <= 9'999 ? 4 : 5;
-    if (v <= 9'999'999) [[likely]] return v <= 999'999 ? 6 : 7;
-    if (v <= 999'999'999) [[likely]] return v <= 99'999'999 ? 8 : 9;
-    if (v <= 99'999'999'999ULL) [[likely]]
-        return v <= 9'999'999'999ULL ? 10 : 11;
-    if (v <= 9'999'999'999'999ULL) [[likely]]
-        return v <= 999'999'999'999ULL ? 12 : 13;
-    if (v <= 999'999'999'999'999ULL) [[likely]]
-        return v <= 99'999'999'999'999ULL ? 14 : 15;
-    if (v <= 99'999'999'999'999'999ULL) [[likely]]
-        return v <= 9'999'999'999'999'999ULL ? 16 : 17;
-    if (v <= 9'999'999'999'999'999'999ULL) [[likely]]
-        return v <= 999'999'999'999'999'999ULL ? 18 : 19;
-    return 20;
+    else if (v <= 99'999) [[likely]] {
+        uint32 r = 2;
+        r += uint32(v) > 99;
+        r += uint32(v) > 999;
+        r += uint32(v) > 9'999;
+        return r;
+    }
+     // For some reason putting any more [[likely]]s on these makes the compiler
+     // merge returns in a suboptimal way (it stops using the eax register?),
+     // and I can't convince it not to do that.  Some other perturbations make
+     // it do that too, even with only two [[likely]]s.
+    else if (v <= 9'999'999'999ULL) {
+        uint32 r = 6;
+        r += uint32(v) > 999'999;
+        r += uint32(v) > 9'999'999;
+        r += uint32(v) > 99'999'999;
+        r += uint32(v) > 999'999'999;
+        return r;
+    }
+    else if (v <= 999'999'999'999'999ULL) {
+        uint32 r = 11;
+        r += v > 99'999'999'999ULL;
+        r += v > 999'999'999'999ULL;
+        r += v > 9'999'999'999'999ULL;
+        r += v > 99'999'999'999'999ULL;
+        return r;
+    }
+    else {
+        uint32 r = 16;
+        r += v > 9'999'999'999'999'999ULL;
+        r += v > 99'999'999'999'999'999ULL;
+        r += v > 999'999'999'999'999'999ULL;
+        r += v > 9'999'999'999'999'999'999ULL;
+        return r;
+    }
 }
 
 char* write_decimal_digits (char* p, uint32 count, uint64 v) {
      // The STL std::to_chars is kinda messy.  It does two digits at a time,
-     // which is theoretically faster, but it reads from static data and has
-     // more instructions and branches, so it's harder on caches.
+     // which is theoretically faster, but it reads a lookup table and has more
+     // instructions and branches, so it's harder on caches.
+    expect(count >= 1 && count <= 20);
     if (count == 1) [[likely]] {
         end:
         expect(v < 10);
         *p = '0' + v;
         return p + count;
     }
-    expect(count >= 2 && count <= 20);
     for (uint32 c = count - 1; c; --c) {
         p[c] = '0' + v % 10;
         v /= 10;
     }
+    expect(v);
     goto end;
 }
 

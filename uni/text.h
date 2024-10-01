@@ -27,9 +27,8 @@ constexpr int from_hex_digit (char c) {
 
  // Returns 0 if the given int is not 0..15
 constexpr char to_hex_digit (uint8 digit) {
-    if (digit < 10) return '0' + digit;
-    else if (digit < 16) return 'A' + digit - 10;
-    else return 0;
+    if (digit >= 16) [[unlikely]] return 0;
+    return digit + (digit < 10 ? '0' : 'A' - 10);
 }
 
 inline UniqueString ascii_to_upper (Str s) {
@@ -48,13 +47,14 @@ inline UniqueString ascii_to_lower (Str s) {
     });
 }
 
-
- // Returns the number of decimal digits in the unsigned number.
+ // Returns the number of decimal digits in the unsigned number.  Can return 1
+ // through 20.  You can also think of this as 1+floor(log10(v)) except it
+ // returns 1 for 0 instead of -inf.
 [[gnu::const]]
 uint32 count_decimal_digits (uint64 v);
 
- // Writes exactly count digits of v.  Count must be the number returned by
- // count_decimal_digits(v).  Returns p + count.
+ // Writes out the decimal form of v.  Count must be the number returned by
+ // count_decimal_digits(v).  Returns p + count (the end of the written number).
 char* write_decimal_digits (char* p, uint32 count, uint64 v);
 
 } // namespace uni
