@@ -29,10 +29,6 @@ enum class TraversalOp : uint8 {
 struct Traversal {
     const Traversal* parent;
     TraversalOp op;
-     // Only traverse addressable items.  If an unaddressable and
-     // non-pass-through item is encountered, the traversal's callback will not
-     // be called.  This remains constant throughout the whole traversal.
-    bool only_addressable;
      // Attr has collapse_optional flag set.  This is independent for each item.
     bool collapse_optional;
      // If this item has a stable address, then to_reference() can use the
@@ -105,9 +101,6 @@ template <VisitFunc& visit> NOINLINE
 void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
     child.addressable &= addr;
     child.children_addressable |= child.addressable;
-    if (child.only_addressable) {
-        if (!child.children_addressable) return;
-    }
     child.readonly |= v.type.readonly();
     child.desc = DescriptionPrivate::get(v.type);
     child.address = v.address;
@@ -118,14 +111,12 @@ void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
  // their callers are prepared to allocate a lot of stack for them.
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
-    StartTraversal& child,
-    const AnyRef& ref, LocationRef loc, bool only_addressable, AccessMode mode
+    StartTraversal& child, const AnyRef& ref, LocationRef loc, AccessMode mode
 ) try {
     expect(ref);
 
     child.parent = null;
     child.op = TraversalOp::Start;
-    child.only_addressable = only_addressable;
     child.readonly = ref.host.type.readonly();
     child.collapse_optional = false; // Can't collapse top-level item
     child.addressable = true;
@@ -146,7 +137,6 @@ void trav_acr (
 ) try {
     child.acr = acr;
     child.parent = &parent;
-    child.only_addressable = parent.only_addressable;
     child.collapse_optional = !!(acr->attr_flags & AttrFlags::CollapseOptional);
     child.addressable = parent.children_addressable;
     child.children_addressable =
@@ -165,7 +155,6 @@ void trav_ref (
     const AnyRef& ref, AccessMode mode
 ) try {
     child.parent = &parent;
-    child.only_addressable = parent.only_addressable;
     child.collapse_optional = false;
     child.addressable = parent.children_addressable;
     child.children_addressable = ref.acr &&
@@ -184,7 +173,6 @@ void trav_ptr (
     AnyPtr ptr, AccessMode
 ) try {
     child.parent = &parent;
-    child.only_addressable = parent.only_addressable;
     child.collapse_optional = false;
     child.addressable = parent.children_addressable;
     child.children_addressable = parent.children_addressable;

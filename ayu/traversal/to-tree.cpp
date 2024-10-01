@@ -35,7 +35,7 @@ struct TraverseToTree {
         ToTreeTraversal<StartTraversal> child;
         child.dest = &dest;
         trav_start<visit>(
-            child, item, loc, false, AccessMode::Read
+            child, item, loc, AccessMode::Read
         );
         plog("to_tree end");
         return dest;

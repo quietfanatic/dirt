@@ -125,7 +125,7 @@ struct TraverseFromTree {
         PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
         FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
-        trav_start<visit>(child, item, loc, false, AccessMode::Write);
+        trav_start<visit>(child, item, loc, AccessMode::Write);
     }
 
     NOINLINE static

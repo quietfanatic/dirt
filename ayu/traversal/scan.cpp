@@ -42,6 +42,7 @@ struct TraverseScan {
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
+                    if (!trav.children_addressable) return;
                     bool done = trav.addressable &&
                         cb(AnyPtr(trav.desc, trav.address), trav.loc);
                     if (done) [[unlikely]] trav.context->done = true;
@@ -52,7 +53,7 @@ struct TraverseScan {
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.loc = base_loc;
-        trav_start<visit>(child, base_item, base_loc, true, AccessMode::Read);
+        trav_start<visit>(child, base_item, base_loc, AccessMode::Read);
         currently_scanning = false;
         return ctx.done;
     }
@@ -78,7 +79,7 @@ struct TraverseScan {
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.loc = base_loc;
-        trav_start<visit>(child, base_item, base_loc, false, AccessMode::Read);
+        trav_start<visit>(child, base_item, base_loc, AccessMode::Read);
         currently_scanning = false;
         return ctx.done;
     }
