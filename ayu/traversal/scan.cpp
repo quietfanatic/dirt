@@ -53,6 +53,7 @@ struct TraverseScan {
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.loc = base_loc;
+        child.collapse_optional = false;
         trav_start<visit>(child, base_item, base_loc, AccessMode::Read);
         currently_scanning = false;
         return ctx.done;
@@ -79,6 +80,7 @@ struct TraverseScan {
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.loc = base_loc;
+        child.collapse_optional = false;
         trav_start<visit>(child, base_item, base_loc, AccessMode::Read);
         currently_scanning = false;
         return ctx.done;
@@ -136,6 +138,8 @@ struct TraverseScan {
                 child_loc = SharedLocation(trav.loc, attr->key);
                 child.loc = child_loc;
             }
+            child.collapse_optional =
+                !!(acr->attr_flags & AttrFlags::CollapseOptional);
             trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
             child_loc = {};
             if (child.context->done) [[unlikely]] return;
@@ -166,6 +170,7 @@ struct TraverseScan {
             ScanTraversal<ComputedAttrTraversal> child;
             child.context = trav.context;
             child.loc = child_loc;
+            child.collapse_optional = false;
             trav_computed_attr<visit>(
                 child, trav, ref, f, key, AccessMode::Read
             );
@@ -193,6 +198,7 @@ struct TraverseScan {
                 child_loc = SharedLocation(trav.loc, i);
                 child.loc = child_loc;
             }
+            child.collapse_optional = false;
              // TODO: verify that the child item is array-like.
             trav_elem<visit>(child, trav, acr, i, AccessMode::Read);
             if (child.context->done) [[unlikely]] return;
@@ -231,6 +237,7 @@ struct TraverseScan {
                 child_loc = SharedLocation(trav.loc, i);
                 child.loc = child_loc;
             }
+            child.collapse_optional = false;
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Read
             );
@@ -250,6 +257,7 @@ struct TraverseScan {
             SharedLocation child_loc;
             ScanTraversal<ContiguousElemTraversal> child;
             child.context = trav.context;
+            child.collapse_optional = false;
             if (trav.collapse_optional) {
                 child.loc = trav.loc;
             }
@@ -271,6 +279,7 @@ struct TraverseScan {
         ScanTraversal<DelegateTraversal> child;
         child.context = trav.context;
         child.loc = trav.loc;
+        child.collapse_optional = trav.collapse_optional;
         expect(trav.desc->delegate_offset);
         auto acr = trav.desc->delegate_acr();
         trav_delegate<visit>(child, trav, acr, AccessMode::Read);

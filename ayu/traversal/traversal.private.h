@@ -29,8 +29,6 @@ enum class TraversalOp : uint8 {
 struct Traversal {
     const Traversal* parent;
     TraversalOp op;
-     // Attr has collapse_optional flag set.  This is independent for each item.
-    bool collapse_optional;
      // If this item has a stable address, then to_reference() can use the
      // address directly instead of having to chain from parent.
      // Before access, = parent.children_addressable.
@@ -44,6 +42,9 @@ struct Traversal {
      // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
      // track of it here.  This can go from off to on, but never from on to off.
     bool readonly;
+     // Attr containing this item has collapse_optional set.  This is only used
+     // by ScanTraversal; it's just here to save space.
+    bool collapse_optional;
     const DescriptionPrivate* desc;
      // This address is not guaranteed to be permanently valid unless
      // addressable is set.
@@ -117,11 +118,10 @@ void trav_start (
 
     child.parent = null;
     child.op = TraversalOp::Start;
-    child.readonly = ref.host.type.readonly();
-    child.collapse_optional = false; // Can't collapse top-level item
     child.addressable = true;
     child.children_addressable = ref.acr &&
         !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
+    child.readonly = ref.host.type.readonly();
     child.reference = &ref;
     child.location = loc;
     ref.access(mode, AccessCB(
@@ -137,7 +137,6 @@ void trav_acr (
 ) try {
     child.acr = acr;
     child.parent = &parent;
-    child.collapse_optional = !!(acr->attr_flags & AttrFlags::CollapseOptional);
     child.addressable = parent.children_addressable;
     child.children_addressable =
         !!(acr->flags & AcrFlags::PassThroughAddressable);
@@ -155,7 +154,6 @@ void trav_ref (
     const AnyRef& ref, AccessMode mode
 ) try {
     child.parent = &parent;
-    child.collapse_optional = false;
     child.addressable = parent.children_addressable;
     child.children_addressable = ref.acr &&
         !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
@@ -173,7 +171,6 @@ void trav_ptr (
     AnyPtr ptr, AccessMode
 ) try {
     child.parent = &parent;
-    child.collapse_optional = false;
     child.addressable = parent.children_addressable;
     child.children_addressable = parent.children_addressable;
     child.readonly = parent.readonly | ptr.type.readonly();
