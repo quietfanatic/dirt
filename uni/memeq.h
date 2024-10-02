@@ -17,6 +17,7 @@ namespace uni {
  //   - ...you're suspicious of amateur memory-manipulation code compared to
  //     tried-and-true standard library code.
  //   - ...portability is more important than performance.
+ // In other words, use memcmp instead of this. :3
  //
  // Unlike memcmp, you are allowed to pass nullptrs if s == 0.
 constexpr bool memeq (const void* a, const void* b, std::size_t s) {
@@ -53,19 +54,28 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
         else if (s >= 4) {
              // In the case of s == 4, these reads will overlap exactly, but
              // it's not worth doing another branch to check for that.
+             // Note: I tried changing this && to & to avoid a branch but it had
+             // the disasterous consequence of uninlining the memcmp calls!
             return std::memcmp(ap, bp, 4) == 0 &&
                    std::memcmp(ap + s - 4, bp + s - 4, 4) == 0;
         }
         else {
-             // There isn't really anything satisfying to do here.  This
-             // specific sequence seems to optimize well without using too many
-             // registers.
-            if (s >= 2) {
-                if (std::memcmp(ap, bp, 2) != 0) return false;
-                ap += 2; bp += 2; s -= 2;
-            }
-            if (s && ap[0] != bp[0]) return false;
-            return true;
+             // There isn't really anything satisfying to do here.  This has
+             // been through many iterations.
+            if (!s) [[unlikely]] return true;
+            if (s >= 2 && std::memcmp(ap, bp, 2) != 0) return false;
+            return ap[s-1] == bp[s-1];
+             // Here's a cool mostly-branchless method but it tends to use up a
+             // lot of registers, especially in a loop where the compiler likes
+             // to hoist out the s>>1 and s-1 calculations.
+//            if (!s) [[unlikely]] return true;
+//            else {
+//                bool r = true;
+//                r &= ap[0] == bp[0];
+//                r &= ap[s>>1] == bp[s>>1];
+//                r &= ap[s-1] == bp[s-1];
+//                return r;
+//            }
         }
     }
 #else
