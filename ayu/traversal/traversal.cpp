@@ -126,7 +126,13 @@ void to_location_chain (const Traversal& trav, void* r) {
         }
         case TraversalOp::Attr: {
             auto& self = static_cast<const AttrTraversal&>(trav);
-            new (r) SharedLocation(move(parent_loc), *self.key);
+            if (!!(self.acr->attr_flags & AttrFlags::Include)) {
+                 // Collapse location for an included attribute.
+                new (r) SharedLocation(move(parent_loc));
+            }
+            else {
+                new (r) SharedLocation(move(parent_loc), *self.key);
+            }
             return;
         }
         case TraversalOp::ComputedAttr: {
