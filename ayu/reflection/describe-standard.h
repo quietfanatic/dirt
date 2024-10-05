@@ -23,24 +23,32 @@
 #include "describe-base.h"
 
 namespace ayu::in {
-    NOINLINE inline
-    AnyString make_optional_name (Type t) {
+    [[gnu::noclone]] NOINLINE inline
+    AnyString make_optional_name (Type t) noexcept {
         return cat(t.name(), '?');
     }
-    NOINLINE inline
-    AnyString make_pointer_name (Type t) {
+    [[gnu::noclone]] NOINLINE inline
+    AnyString make_pointer_name (Type t) noexcept {
         return cat(t.name(), '*');
     }
-    NOINLINE inline
-    AnyString make_template_name_1 (StaticString prefix, Type t) {
+    [[gnu::noclone]] NOINLINE inline
+    AnyString make_template_name_1 (StaticString prefix, Type t) noexcept {
         return cat(prefix, t.name(), '>');
     }
-    NOINLINE inline
-    AnyString make_tuple_name (StaticString* names, usize len) {
+    [[gnu::noclone]] NOINLINE inline
+    AnyString make_tuple_name (
+         // Yes this is the correct number of pointers.
+         // Yes, it is ridiculous.
+         // No, there is no way to make it not ridiculous.
+        Description const* const* const* descs, usize len
+    ) noexcept {
         expect(len >= 1);
         return cat(
-            "std::tuple<", Caterator(", ", len, [names](usize i){
-                return names[i];
+            "std::tuple<", Caterator(", ", len, [descs](usize i){
+                 // This will call get_description_name twice for each desc, but
+                 // this should still be faster and smaller than caching all the
+                 // names in a variable-length array.
+                return expect(Type(*descs[i]).name());
             }), '>'
         );
     }
@@ -455,10 +463,10 @@ AYU_DESCRIBE_TEMPLATE(
             return "std::tuple<>";
         }
         else {
-            uni::StaticString names [] = {
-                ayu::Type::CppType<Ts>().name()...
+            static constexpr const ayu::in::Description* const* descs [] = {
+                ayu::in::get_indirect_description<Ts>()...
             };
-            return ayu::in::make_tuple_name(names, sizeof...(Ts));
+            return ayu::in::make_tuple_name(descs, sizeof...(Ts));
         }
     }),
     ayu::in::TupleElems<Ts...>::make(

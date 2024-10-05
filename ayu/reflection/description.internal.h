@@ -107,7 +107,7 @@ namespace ayu::in {
     const Description* get_description_for_name (Str) noexcept;
     const Description* need_description_for_name (Str);
 
-    StaticString get_description_name (const Description*);
+    StaticString get_description_name (const Description*) noexcept;
 
     UniqueString get_demangled_name (const std::type_info&) noexcept;
 
