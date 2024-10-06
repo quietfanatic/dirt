@@ -15,8 +15,8 @@ struct GRect;
 
 using Rect = GRect<float>;
 using DRect = GRect<double>;
-using IRect = GRect<int32>;
-using LRect = GRect<int64>;
+using IRect = GRect<i32>;
+using LRect = GRect<i64>;
  // I can imagine use cases for this.
 using BRect = GRect<bool>;
 
@@ -345,8 +345,8 @@ AYU_DESCRIBE_TEMPLATE(
     []{
         if constexpr (std::is_same_v<T, float>) return desc::name("geo::Rect");
         else if constexpr (std::is_same_v<T, double>) return desc::name("geo::DRect");
-        else if constexpr (std::is_same_v<T, uni::int32>) return desc::name("geo::IRect");
-        else if constexpr (std::is_same_v<T, uni::int64>) return desc::name("geo::LRect");
+        else if constexpr (std::is_same_v<T, uni::i32>) return desc::name("geo::IRect");
+        else if constexpr (std::is_same_v<T, uni::i64>) return desc::name("geo::LRect");
         else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRect");
         else return desc::computed_name([]()->uni::AnyString{
             return uni::cat(

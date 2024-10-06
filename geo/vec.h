@@ -14,20 +14,20 @@ struct GVec;
 
 using Vec = GVec<float, 2>;
 using DVec = GVec<double, 2>;
-using IVec = GVec<int32, 2>;
-using LVec = GVec<int64, 2>;
+using IVec = GVec<i32, 2>;
+using LVec = GVec<i64, 2>;
 using BVec = GVec<bool, 2>;
 
 using Vec3 = GVec<float, 3>;
 using DVec3 = GVec<double, 3>;
-using IVec3 = GVec<int32, 3>;
-using LVec3 = GVec<int64, 3>;
+using IVec3 = GVec<i32, 3>;
+using LVec3 = GVec<i64, 3>;
 using BVec3 = GVec<bool, 3>;
 
 using Vec4 = GVec<float, 4>;
 using DVec4 = GVec<double, 4>;
-using IVec4 = GVec<int32, 4>;
-using LVec4 = GVec<int64, 4>;
+using IVec4 = GVec<i32, 4>;
+using LVec4 = GVec<i64, 4>;
 using BVec4 = GVec<bool, 4>;
 
 ///// VECTOR STORAGE
@@ -462,13 +462,13 @@ AYU_DESCRIBE_TEMPLATE(
             else if constexpr (n == 4) { return desc::name("geo::DVec4"); }
             else return computed();
         }
-        else if constexpr (std::is_same_v<T, uni::int32>) {
+        else if constexpr (std::is_same_v<T, uni::i32>) {
             if constexpr (n == 2) { return desc::name("geo::IVec"); }
             else if constexpr (n == 3) { return desc::name("geo::IVec3"); }
             else if constexpr (n == 4) { return desc::name("geo::IVec4"); }
             else return computed();
         }
-        else if constexpr (std::is_same_v<T, uni::int64>) {
+        else if constexpr (std::is_same_v<T, uni::i64>) {
             if constexpr (n == 2) { return desc::name("geo::LVec"); }
             else if constexpr (n == 3) { return desc::name("geo::LVec3"); }
             else if constexpr (n == 4) { return desc::name("geo::LVec4"); }

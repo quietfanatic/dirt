@@ -12,8 +12,8 @@ struct GRange;
 
 using Range = GRange<float>;
 using DRange = GRange<double>;
-using IRange = GRange<int32>;
-using LRange = GRange<int64>;
+using IRange = GRange<i32>;
+using LRange = GRange<i64>;
 using BRange = GRange<bool>;
 
 template <class T>
@@ -263,8 +263,8 @@ AYU_DESCRIBE_TEMPLATE(
     []{
         if constexpr (std::is_same_v<T, float>) return desc::name("geo::Range");
         else if constexpr (std::is_same_v<T, double>) return desc::name("geo::DRange");
-        else if constexpr (std::is_same_v<T, uni::int32>) return desc::name("geo::IRange");
-        else if constexpr (std::is_same_v<T, uni::int64>) return desc::name("geo::LRange");
+        else if constexpr (std::is_same_v<T, uni::i32>) return desc::name("geo::IRange");
+        else if constexpr (std::is_same_v<T, uni::i64>) return desc::name("geo::LRange");
         else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRange");
         else return desc::computed_name([]()->uni::AnyString{
             return uni::cat(
