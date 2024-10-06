@@ -41,8 +41,8 @@ int natural_compare (Str a, Str b) noexcept {
             }
              // Otherwise, compare digits in the number
             while (an != ap) {
-                if (uint8(*an) != uint8(*bn)) {
-                    return uint8(*an) < uint8(*bn) ? -1 : 1;
+                if (u8(*an) != u8(*bn)) {
+                    return u8(*an) < u8(*bn) ? -1 : 1;
                 }
                 an++; bn++;
             }
@@ -65,8 +65,8 @@ int natural_compare (Str a, Str b) noexcept {
         }
 
         nondigit:
-        if (uint8(*ap) != uint8(*bp)) {
-            return uint8(*ap) < uint8(*bp) ? -1 : 1;
+        if (u8(*ap) != u8(*bp)) {
+            return u8(*ap) < u8(*bp) ? -1 : 1;
         }
         ap++; bp++;
     }
@@ -74,7 +74,7 @@ int natural_compare (Str a, Str b) noexcept {
     return ap == ae ? -1 : bp == be ? 1 : 0;
 }
 
-uint32 count_decimal_digits (uint64 v) {
+u32 count_decimal_digits (u64 v) {
      // There isn't a better way to do this.  You can estimate the digits with
      // some branchless logarithmic math, but you can't really get a precise
      // count that way.  At least we can convert many of the comparisons to
@@ -83,10 +83,10 @@ uint32 count_decimal_digits (uint64 v) {
      // block fits in 16 bytes of x64 and the first and second together in 64.
     if (v <= 9) [[likely]] return 1;
     else if (v <= 99'999) [[likely]] {
-        uint32 r = 2;
-        r += uint32(v) > 99;
-        r += uint32(v) > 999;
-        r += uint32(v) > 9'999;
+        u32 r = 2;
+        r += u32(v) > 99;
+        r += u32(v) > 999;
+        r += u32(v) > 9'999;
         return r;
     }
      // For some reason putting any more [[likely]]s on these makes the compiler
@@ -94,15 +94,15 @@ uint32 count_decimal_digits (uint64 v) {
      // and I can't convince it not to do that.  Some other perturbations make
      // it do that too, even with only two [[likely]]s.
     else if (v <= 9'999'999'999ULL) {
-        uint32 r = 6;
-        r += uint32(v) > 999'999;
-        r += uint32(v) > 9'999'999;
-        r += uint32(v) > 99'999'999;
-        r += uint32(v) > 999'999'999;
+        u32 r = 6;
+        r += u32(v) > 999'999;
+        r += u32(v) > 9'999'999;
+        r += u32(v) > 99'999'999;
+        r += u32(v) > 999'999'999;
         return r;
     }
     else if (v <= 999'999'999'999'999ULL) {
-        uint32 r = 11;
+        u32 r = 11;
         r += v > 99'999'999'999ULL;
         r += v > 999'999'999'999ULL;
         r += v > 9'999'999'999'999ULL;
@@ -110,7 +110,7 @@ uint32 count_decimal_digits (uint64 v) {
         return r;
     }
     else {
-        uint32 r = 16;
+        u32 r = 16;
         r += v > 9'999'999'999'999'999ULL;
         r += v > 99'999'999'999'999'999ULL;
         r += v > 999'999'999'999'999'999ULL;
@@ -119,7 +119,7 @@ uint32 count_decimal_digits (uint64 v) {
     }
 }
 
-char* write_decimal_digits (char* p, uint32 count, uint64 v) {
+char* write_decimal_digits (char* p, u32 count, u64 v) {
      // The STL std::to_chars is kinda messy.  It does two digits at a time,
      // which is theoretically faster, but it reads a lookup table and has more
      // instructions and branches, so it's harder on caches.
@@ -130,7 +130,7 @@ char* write_decimal_digits (char* p, uint32 count, uint64 v) {
         *p = '0' + v;
         return p + count;
     }
-    for (uint32 c = count - 1; c; --c) {
+    for (u32 c = count - 1; c; --c) {
         p[c] = '0' + v % 10;
         v /= 10;
     }

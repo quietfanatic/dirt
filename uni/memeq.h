@@ -45,7 +45,7 @@ constexpr bool memeq (const void* a, const void* b, std::size_t s) {
                  // pointers are UB in C and C++, even if the hardware doesn't
                  // care.  If the hardware supports misaligned reads, this
                  // compiles to exactly the same code as
-                 // *(uint64*)ap != *(uint64*)bp.
+                 // *(u64*)ap != *(u64*)bp.
                 if (std::memcmp(ap, bp, 8) != 0) return false;
             }
              // Finish off with the possibly overlapping final eight bytes.

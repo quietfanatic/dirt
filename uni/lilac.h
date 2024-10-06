@@ -112,18 +112,18 @@ static constexpr usize pool_size =
  // Page size.  Making this higher improves performance and best-case overhead,
  // but makes fragmentation worse.  You will need to adjust the size tables if
  // you change this.
-static constexpr uint32 page_size = 8192;
-static constexpr uint32 page_overhead = 32;
-static constexpr uint32 page_usable_size = page_size - page_overhead;
+static constexpr u32 page_size = 8192;
+static constexpr u32 page_overhead = 32;
+static constexpr u32 page_usable_size = page_size - page_overhead;
 
  // With the current implementation, 20 is a sweet spot for number of classes.
-static constexpr uint32 n_size_classes = 20;
-static constexpr uint32 largest_small = 12;
+static constexpr u32 n_size_classes = 20;
+static constexpr u32 largest_small = 12;
 struct alignas(64) Tables {
      // These size classes are optimized for 8192 (8160 usable) byte pages, and
      // also for use with SharableBuffer and ArrayInterface, which like to have
      // sizes of 8+2^n.
-    uint16 class_sizes [n_size_classes] = {
+    u16 class_sizes [n_size_classes] = {
      //  0   1   2   3   4   5   6
         16, 24, 32, 40, 56, 72, 88,
      //  7    8    9   10   11   12   13
@@ -131,7 +131,7 @@ struct alignas(64) Tables {
      //  14    15    16    17    18    19
         1016, 1360, 1632, 2040, 2720, 4080
     };
-    uint8 small_classes_by_8 [69] = {
+    u8 small_classes_by_8 [69] = {
      //   0   8  16  24  32  40  48  56  64  72  80  88  96 104 112 120
          0,  0,  0,  1,  2,  3,  4,  4,  5,  5,  6,  6,  7,  7,  8,  8,
      // 128 136 144 152 160 168 176 184 192 200 208 216 224 232 240 248
@@ -146,7 +146,7 @@ struct alignas(64) Tables {
      // In theory we shouldn't need these 2 padding spaces, and can just
      // subtract 2 from the lookup index, but GCC-12 doesn't optimize the
      // subtraction out properly.  We've got room anyway.
-    uint8 medium_classes_by_div [15] = {
+    u8 medium_classes_by_div [15] = {
      //        2   3   4   5   6   7   8   9  10  11  12  13  14
         0, 0, 19, 18, 17, 16, 15, 15, 14, 14, 14, 13, 13, 13, 13
     };
@@ -154,15 +154,15 @@ struct alignas(64) Tables {
 constexpr Tables tables;
 
 ALWAYS_INLINE constexpr
-int32 get_size_class (usize size) {
+i32 get_size_class (usize size) {
     if (size <= tables.class_sizes[largest_small]) [[likely]] {
         return tables.small_classes_by_8[
-            uint32(size + 7) >> 3
+            u32(size + 7) >> 3
         ];
     }
     else if (size <= tables.class_sizes[n_size_classes-1]) {
         return tables.medium_classes_by_div[
-            page_usable_size / uint32(size)
+            page_usable_size / u32(size)
         ];
     }
     else [[unlikely]] return -1;
@@ -173,11 +173,11 @@ int32 get_size_class (usize size) {
 struct Page;
 
 [[nodiscard]]
-Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept;
+Block allocate_small (Page*& first_partial, u32 slot_size) noexcept;
 [[nodiscard]]
 Block allocate_large (usize size) noexcept;
 [[gnu::nonnull(1)]]
-void deallocate_small (void*, Page*& first_partial, uint32 slot_size) noexcept;
+void deallocate_small (void*, Page*& first_partial, u32 slot_size) noexcept;
 void deallocate_large (void*, usize size) noexcept;
 
  // Make the data structures visible so the lookup of first_partial_pages can be
@@ -216,10 +216,10 @@ void deallocate (void* p, usize) noexcept {
     gnu::alloc_size(1), gnu::assume_aligned(8)
 ]] ALWAYS_INLINE
 void* allocate_fixed_size (usize size) noexcept {
-    int32 sc = in::get_size_class(size);
+    i32 sc = in::get_size_class(size);
     if (sc >= 0) {
         auto& fp = in::global.first_partial_pages[sc];
-        uint32 slot_size = in::tables.class_sizes[sc];
+        u32 slot_size = in::tables.class_sizes[sc];
         return in::allocate_small(fp, slot_size).address;
     }
     else [[unlikely]] return in::allocate_large(size).address;
@@ -228,10 +228,10 @@ void* allocate_fixed_size (usize size) noexcept {
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate_fixed_size (void* p, usize size) noexcept {
     expect(p);
-    int32 sc = in::get_size_class(size);
+    i32 sc = in::get_size_class(size);
     if (sc >= 0) {
         auto& fp = in::global.first_partial_pages[sc];
-        uint32 slot_size = in::tables.class_sizes[sc];
+        u32 slot_size = in::tables.class_sizes[sc];
         in::deallocate_small(p, fp, slot_size);
     }
     else [[unlikely]] in::deallocate_large(p, size);

@@ -10,9 +10,9 @@ inline namespace buffers {
 
     struct alignas(8) SharableBufferHeader {
          // Number of typed elements this buffer can hold
-        const uint32 capacity;
+        const u32 capacity;
          // Ref count.  For uniquely owned buffers, this is always 1.
-        mutable uint32 ref_count;
+        mutable u32 ref_count;
     };
 
     template <class T>
@@ -49,19 +49,19 @@ inline namespace buffers {
             else if (size <= min) return min;
             else {
                  // This should be fast on any modern processor
-                return std::bit_ceil(uint32(size));
+                return std::bit_ceil(u32(size));
             }
         }
 
         [[gnu::malloc, gnu::returns_nonnull]] ALWAYS_INLINE static
         T* allocate (usize size) {
-             // Use uint64 instead of usize because on 32-bit platforms we need
+             // Use u64 instead of usize because on 32-bit platforms we need
              // to make sure we don't overflow usize.
-            uint64 bytes = sizeof(SharableBufferHeader) + (uint64)size * sizeof(T);
+            u64 bytes = sizeof(SharableBufferHeader) + (u64)size * sizeof(T);
             require(bytes <= usize(-1));
             auto block = lilac::allocate_block(bytes);
             auto header = (SharableBufferHeader*)block.address;
-            const_cast<uint32&>(header->capacity) =
+            const_cast<u32&>(header->capacity) =
                 (block.capacity - sizeof(SharableBufferHeader)) / sizeof(T);
             header->ref_count = 1;
             return (T*)(header + 1);

@@ -21,7 +21,7 @@ struct Committer {
  // Templated so you can have multiple domains of transactions.
 template <class = void>
 struct Transaction {
-    static usize depth;
+    static u32 depth;
 
     Transaction () { depth++; }
     ~Transaction () { if (!--depth) finish(); }
@@ -57,6 +57,6 @@ struct Transaction {
 
 };
 template <class T>
-usize Transaction<T>::depth = 0;
+u32 Transaction<T>::depth = 0;
 
 } // uni

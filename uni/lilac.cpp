@@ -14,10 +14,10 @@ namespace in {
 
 struct alignas(page_size) Page {
      // Note: this must be at offset 0 for a weird optimization
-    uint32 first_free_slot;
-    uint32 bytes_used;  // Includes overhead
-    uint32 size_class;
-    uint32 slot_size;
+    u32 first_free_slot;
+    u32 bytes_used;  // Includes overhead
+    u32 size_class;
+    u32 slot_size;
     Page* next_page;
     Page* prev_page;
 };
@@ -25,23 +25,23 @@ static_assert(sizeof(Page) == page_size);
 
 #ifdef UNI_LILAC_PROFILE
 struct Profile {
-    uint64 pages_picked;
-    uint64 pages_emptied;
-    uint32 pages_current;
-    uint32 pages_most;
-    uint64 slots_allocated;
-    uint64 slots_deallocated;
-    uint32 slots_current;
-    uint32 slots_most;
+    u64 pages_picked;
+    u64 pages_emptied;
+    u32 pages_current;
+    u32 pages_most;
+    u64 slots_allocated;
+    u64 slots_deallocated;
+    u32 slots_current;
+    u32 slots_most;
 };
 static Profile profiles [n_size_classes] = {};
 static Profile total = {};
 static usize slot_bytes_current = 0;
 static usize slot_bytes_most = 0;
-static uint64 oversize_allocated = 0;
-static uint64 oversize_deallocated = 0;
-static uint64 oversize_current = 0;
-static uint64 oversize_most = 0;
+static u64 oversize_allocated = 0;
+static u64 oversize_deallocated = 0;
+static u64 oversize_current = 0;
+static u64 oversize_most = 0;
 #endif
 
 [[noreturn]] ALWAYS_INLINE static
@@ -51,7 +51,7 @@ void out_of_memory () { require(false); std::abort(); }
 void malloc_failed () { require(false); std::abort(); }
 
 NOINLINE static
-Block init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
+Block init_page (Page*& first_partial, u32 slot_size, Page* page) noexcept {
      // Might as well shortcut the first allocation here, skipping the full
      // check later (we can't go from empty to full in one allocation).  This
      // also avoids writing a non-zero constant to these fields, which would
@@ -65,7 +65,7 @@ Block init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
     page->prev_page = null;
      // Still need to twiddle the profile tables
 #ifdef UNI_LILAC_PROFILE
-    uint32 sc = &first_partial - global.first_partial_pages;
+    u32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].pages_picked += 1;
     total.pages_picked += 1;
     profiles[sc].pages_current += 1;
@@ -95,7 +95,7 @@ Block init_page (Page*& first_partial, uint32 slot_size, Page* page) noexcept {
  // I don't know whether it's appropriate to put [[gnu::cold]] on a function
  // that's always called exactly once.
 NOINLINE static
-Block init_pool (Page*& first_partial, uint32 slot_size) noexcept {
+Block init_pool (Page*& first_partial, u32 slot_size) noexcept {
      // Probably wasting nearly an entire page's worth of space for alignment.
      // Oh well.
     global.pool = (Page*)std::aligned_alloc(page_size, pool_size);
@@ -110,11 +110,11 @@ Block init_pool (Page*& first_partial, uint32 slot_size) noexcept {
  // This complex of an expect() bogs down the optimizer
 #ifndef NDEBUG
 static
-bool page_valid (Page* page, uint32 slot_size) {
+bool page_valid (Page* page, u32 slot_size) {
     return (page->first_free_slot < page_size)
         & ((!page->first_free_slot)
          | (((page->first_free_slot - page_overhead) % slot_size == 0)
-          & (page->first_free_slot != *(uint32*)((char*)page + page->first_free_slot))
+          & (page->first_free_slot != *(u32*)((char*)page + page->first_free_slot))
          )
         )
         & (page->bytes_used >= page_overhead)
@@ -126,11 +126,11 @@ bool page_valid (Page* page, uint32 slot_size) {
 }
 #else
 ALWAYS_INLINE static
-bool page_valid (Page*, uint32) { return true; }
+bool page_valid (Page*, u32) { return true; }
 #endif
 
 NOINLINE
-Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
+Block allocate_small (Page*& first_partial, u32 slot_size) noexcept {
     if (!first_partial) [[unlikely]] {
          // We need a new page
         if (global.first_free_page) {
@@ -157,7 +157,7 @@ Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
     Page* page = first_partial;
     expect(page_valid(page, slot_size));
 #ifdef UNI_LILAC_PROFILE
-    uint32 sc = &first_partial - global.first_partial_pages;
+    u32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].slots_allocated += 1;
     total.slots_allocated += 1;
     profiles[sc].slots_current += 1;
@@ -181,7 +181,7 @@ Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
 //    page->bytes_used += slot_size;
 //    if (page->first_free_slot) {
 //        r = (char*)page + page->first_free_slot;
-//        page->first_free_slot = *(uint32*)r;
+//        page->first_free_slot = *(u32*)r;
 //    }
      // Branchless version.  That said, after much perturbation I finally got
      // the cmov to optimize not-so-terribly-badly.  Although it's still not
@@ -189,15 +189,15 @@ Block allocate_small (Page*& first_partial, uint32 slot_size) noexcept {
      // now barely beats the branched version in code size (insts and bytes).
      //
      // Do this add before the cmov to avoid an extra register copy.
-    uint32 new_bu = page->bytes_used + slot_size;
-    uint32 slot = page->first_free_slot;
+    u32 new_bu = page->bytes_used + slot_size;
+    u32 slot = page->first_free_slot;
     if (!slot) slot = page->bytes_used;
      // Doing this before the load below prevents the compiler from using vector
      // instructions to merge the stores together (which is 1 more instruction
      // and 10 more code bytes just to save one store).
     page->bytes_used = new_bu;
      // If first_free_slot is 0, this will write it to itself
-    page->first_free_slot = *(uint32*)((char*)page + page->first_free_slot);
+    page->first_free_slot = *(u32*)((char*)page + page->first_free_slot);
      // Do potentially-cache-missing memory accesses before this branch
     if (new_bu + slot_size > page_size) [[unlikely]] {
          // Page is full!  Take it out of the partial list.
@@ -233,9 +233,9 @@ Block allocate_large (usize size) noexcept {
 } using namespace in;
 NOINLINE
 Block allocate_block (usize size) noexcept {
-    int32 sc = get_size_class(size);
+    i32 sc = get_size_class(size);
     if (sc >= 0) {
-        uint32 slot_size = tables.class_sizes[sc];
+        u32 slot_size = tables.class_sizes[sc];
         return allocate_small(global.first_partial_pages[sc], slot_size);
     }
     else [[unlikely]] return allocate_large(size);
@@ -243,7 +243,7 @@ Block allocate_block (usize size) noexcept {
 namespace in {
 
 NOINLINE
-void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept {
+void deallocate_small (void* p, Page*& first_partial, u32 slot_size) noexcept {
      // Check that we own this pointer
      // This expect causes optimized build to load &global too early
 #ifndef NDEBUG
@@ -257,16 +257,16 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept
     expect(page_valid(page, slot_size));
 #ifndef NDEBUG
      // In debug mode, write trash to freed memory
-    for (uint32 i = 0; i < slot_size >> 3; i++) {
-        ((uint64*)p)[i] = 0xbacafeeddeadbeef;
+    for (u32 i = 0; i < slot_size >> 3; i++) {
+        ((u64*)p)[i] = 0xbacafeeddeadbeef;
     }
 #endif
      // Add to free list
-    *(uint32*)p = page->first_free_slot;
+    *(u32*)p = page->first_free_slot;
     page->first_free_slot = (char*)p - (char*)page;
     page->bytes_used -= slot_size;
 #ifdef UNI_LILAC_PROFILE
-    uint32 sc = &first_partial - global.first_partial_pages;
+    u32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].slots_deallocated += 1;
     total.slots_deallocated += 1;
     profiles[sc].slots_current -= 1;
@@ -287,7 +287,7 @@ void deallocate_small (void* p, Page*& first_partial, uint32 slot_size) noexcept
         page->next_page = global.first_free_page;
         global.first_free_page = page;
 #ifdef UNI_LILAC_PROFILE
-        uint32 sc = &first_partial - global.first_partial_pages;
+        u32 sc = &first_partial - global.first_partial_pages;
         profiles[sc].pages_emptied += 1;
         total.pages_emptied += 1;
         profiles[sc].pages_current -= 1;
@@ -335,7 +335,7 @@ namespace in {
  // noinline-and-tail-call, so that reallocate doesn't have to make a stack
  // frame if it doesn't have to.
 NOINLINE
-void* reallocate_from_small (void* p, usize s, uint32 old_s) {
+void* reallocate_from_small (void* p, usize s, u32 old_s) {
     void* r = allocate(s);
     std::memcpy(r, p, old_s);
     deallocate_unknown_size(p);
@@ -349,7 +349,7 @@ void* reallocate (void* p, usize s) noexcept {
      && (char*)p < (char*)global.pool_end
     ) [[likely]] {
         Page* page = (Page*)((usize)p & ~usize(page_size - 1));
-        uint32 old_s = page->slot_size;
+        u32 old_s = page->slot_size;
         if (s > old_s) {
             return reallocate_from_small(p, s, old_s);
         }
@@ -367,11 +367,11 @@ void dump_profile () noexcept {
 #ifdef UNI_LILAC_PROFILE
     std::fprintf(stderr,
         "\ncl size page+ page- page= page> slot+ slot- slot= slot>  bytes+  bytes- bytes= bytes>\n");
-    uint64 tb_a = 0; uint64 tb_d = 0;
-    uint64 tb_c = 0; uint64 tb_m = 0;
-    for (uint32 i = 0; i < n_size_classes; i++) {
+    u64 tb_a = 0; u64 tb_d = 0;
+    u64 tb_c = 0; u64 tb_m = 0;
+    for (u32 i = 0; i < n_size_classes; i++) {
         auto& p = profiles[i];
-        uint64 s = tables.class_sizes[i];
+        u64 s = tables.class_sizes[i];
         std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u %7zu %7zu %6zu %6zu\n",
             i, tables.class_sizes[i],
             p.pages_picked, p.pages_emptied,

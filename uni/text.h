@@ -26,7 +26,7 @@ constexpr int from_hex_digit (char c) {
 }
 
  // Returns 0 if the given int is not 0..15
-constexpr char to_hex_digit (uint8 digit) {
+constexpr char to_hex_digit (u8 digit) {
     if (digit >= 16) [[unlikely]] return 0;
     return digit + (digit < 10 ? '0' : 'A' - 10);
 }
@@ -51,10 +51,10 @@ inline UniqueString ascii_to_lower (Str s) {
  // through 20.  You can also think of this as 1+floor(log10(v)) except it
  // returns 1 for 0 instead of -inf.
 [[gnu::const]]
-uint32 count_decimal_digits (uint64 v);
+u32 count_decimal_digits (u64 v);
 
  // Writes out the decimal form of v.  Count must be the number returned by
  // count_decimal_digits(v).  Returns p + count (the end of the written number).
-char* write_decimal_digits (char* p, uint32 count, uint64 v);
+char* write_decimal_digits (char* p, u32 count, u64 v);
 
 } // namespace uni

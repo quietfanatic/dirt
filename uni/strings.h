@@ -90,18 +90,18 @@ consteval StaticString operator""_s (const char* p, usize s) {
 ///// DEFAULT STRING CONVERSIONS
 
 namespace in {
-template <class T> constexpr uint32 max_digits;
-template <> constexpr uint32 max_digits<uint8> = 3;
-template <> constexpr uint32 max_digits<int8> = 4;
-template <> constexpr uint32 max_digits<uint16> = 5;
-template <> constexpr uint32 max_digits<int16> = 6;
-template <> constexpr uint32 max_digits<uint32> = 10;
-template <> constexpr uint32 max_digits<int32> = 11;
-template <> constexpr uint32 max_digits<uint64> = 20;
-template <> constexpr uint32 max_digits<int64> = 20;
-template <> constexpr uint32 max_digits<float> = 16;
-template <> constexpr uint32 max_digits<double> = 24;
-template <> constexpr uint32 max_digits<long double> = 48; // dunno, seems safe
+template <class T> constexpr u32 max_digits;
+template <> constexpr u32 max_digits<u8> = 3;
+template <> constexpr u32 max_digits<i8> = 4;
+template <> constexpr u32 max_digits<u16> = 5;
+template <> constexpr u32 max_digits<i16> = 6;
+template <> constexpr u32 max_digits<u32> = 10;
+template <> constexpr u32 max_digits<i32> = 11;
+template <> constexpr u32 max_digits<u64> = 20;
+template <> constexpr u32 max_digits<i64> = 20;
+template <> constexpr u32 max_digits<float> = 16;
+template <> constexpr u32 max_digits<double> = 24;
+template <> constexpr u32 max_digits<long double> = 48; // dunno, seems safe
 } // in
 
 template <>
@@ -125,7 +125,7 @@ template <class T> requires (std::is_integral_v<T>)
 struct StringConversion<T> {
     using Self = StringConversion<T>;
     T v;
-    uint8 count;
+    u8 count;
     StringConversion (T v) : v(v) { }
      // Get a close upper bound for the number of digits.
     ALWAYS_INLINE constexpr usize size () {
@@ -148,7 +148,7 @@ template <class T> requires (std::is_floating_point_v<T>)
 struct StringConversion<T> {
     using Self = StringConversion<T>;
     char digits [in::max_digits<T>];
-    uint32 len;
+    u32 len;
     constexpr StringConversion (T v) {
         if (v != v) {
             std::memcpy(digits, "+nan", len = 4);
@@ -176,7 +176,7 @@ struct StringConversion<T*> {
     ALWAYS_INLINE constexpr usize size () const { return sizeof(usize) * 2; }
     constexpr char* write (char* out) const {
         for (usize i = 0; i < size(); i++) {
-            uint8 nyb = (usize(v) >> (size() - i - 1) * 4) & 0xf;
+            u8 nyb = (usize(v) >> (size() - i - 1) * 4) & 0xf;
             *out++ = nyb >= 10 ? 'a' + nyb - 10 : '0' + nyb;
         }
         return out;

@@ -58,19 +58,19 @@ struct HasBytes<T> {
 // only do one byte at a time, but it's very small.
 
 template <class T>
-constexpr uint64 hash64 (const T& v) {
-    uint64 h = 0xcbf29ce484222325;
+constexpr u64 hash64 (const T& v) {
+    u64 h = 0xcbf29ce484222325;
     HasBytes<T>::for_bytes(v, [&h](char c){
-        h = (h ^ uint8(c)) * 0x100000001b3;
+        h = (h ^ u8(c)) * 0x100000001b3;
     });
     return h;
 }
 
 template <class T>
-constexpr uint32 hash32 (const T& v) {
-    uint32 h = 0x811c9dc5;
+constexpr u32 hash32 (const T& v) {
+    u32 h = 0x811c9dc5;
     HasBytes<T>::for_bytes(v, [&h](char c){
-        h = (h ^ uint8(c)) * 0x1000193;
+        h = (h ^ u8(c)) * 0x1000193;
     });
     return h;
 }
@@ -84,7 +84,7 @@ constexpr usize hash (const T& v) {
 
  // Returns a hash with only the given number of bits.  Any higher bits are 0.
 template <class T>
-constexpr T hash_fold (T h, uint8 bits) {
+constexpr T hash_fold (T h, u8 bits) {
      // If the desired number of bits is smaller than half of usize, just throw
      // away the middle bits.  This still throws away fewer bits than % does.
     T low = h & ((1 << bits) - 1);

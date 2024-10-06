@@ -783,7 +783,7 @@ struct ArrayInterface {
      // 64-bit platforms.  If you need to process arrays larger than 2 billion
      // elements, you're probably already managing your own memory anyway.
     static constexpr usize max_size_ =
-        ac::supports_owned ? uint32(-1) >> 1 : usize(-1) >> 1;
+        ac::supports_owned ? u32(-1) >> 1 : usize(-1) >> 1;
     ALWAYS_INLINE constexpr
     usize max_size () const { return max_size_; }
 
