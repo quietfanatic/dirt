@@ -87,7 +87,7 @@ AYU_DESCRIBE(ayu::test::CustomConstructor,
     destroy([](CustomConstructor*){ })
 )
 
-static tap::TestSet tests ("dirt/ayu/reflection/dynamic", []{
+static tap::TestSet tests ("dirt/ayu/reflection/anyval", []{
     using namespace tap;
     AnyVal d;
     ok(!d, "Default AnyVal is empty");
