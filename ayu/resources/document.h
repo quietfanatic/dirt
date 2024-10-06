@@ -57,7 +57,7 @@ struct Document {
     }
 
     AnyPtr find_with_name (Str) const;
-    AnyPtr find_with_id (usize) const;
+    AnyPtr find_with_id (u32) const;
 
     void* allocate (Type) noexcept;
     void* allocate_named (Type, AnyString);

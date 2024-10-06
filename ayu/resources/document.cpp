@@ -8,9 +8,9 @@
 namespace ayu {
 namespace in {
 
-static usize parse_numbered_name (Str name) {
+static u32 parse_numbered_name (Str name) {
     if (name.empty() || name[0] != '_') return -1;
-    usize id;
+    u32 id;
     auto [ptr, ec] = std::from_chars(name.begin() + 1, name.end(), id);
     if (ptr == name.end()) return id;
     else return -1;
@@ -35,11 +35,10 @@ struct DocumentLinks {
 
  // This alignas shouldn't be necessary but just in case.
 struct alignas(std::max_align_t) DocumentItemHeader : DocumentLinks {
-     // TODO: u32
-    usize id = 0;
+    u32 id = 0;
     AnyString name;
     Type type;
-    DocumentItemHeader (DocumentLinks* links, Type t, usize id) :
+    DocumentItemHeader (DocumentLinks* links, Type t, u32 id) :
         DocumentLinks(links),
         id(id),
         name(""),
@@ -58,7 +57,7 @@ struct alignas(std::max_align_t) DocumentItemHeader : DocumentLinks {
 
 struct DocumentData {
     DocumentLinks items;
-    usize next_id = 0;
+    u32 next_id = 0;
      // Lookups are likely to be in order, so start searching where the last
      // search ended.
     DocumentLinks* last_lookup = &items;
@@ -78,12 +77,12 @@ Document::Document () noexcept : data(new DocumentData) { }
 Document::~Document () { delete data; }
 
 AnyPtr Document::find_with_name (Str name) const {
-    usize id = parse_numbered_name(name);
-    if (id != usize(-1)) return find_with_id(id);
+    u32 id = parse_numbered_name(name);
+    if (id != u32(-1)) return find_with_id(id);
     for (auto link = data->last_lookup->next;; link = link->next) {
         if (link != &data->items) {
             auto h = static_cast<DocumentItemHeader*>(link);
-            if (h->id == usize(-1) && h->name == name) {
+            if (h->id == u32(-1) && h->name == name) {
                 data->last_lookup = link;
                 return AnyPtr(h->type, h->data());
             }
@@ -92,8 +91,8 @@ AnyPtr Document::find_with_name (Str name) const {
     }
     return null;
 }
-AnyPtr Document::find_with_id (usize id) const {
-    expect(id != usize(-1));
+AnyPtr Document::find_with_id (u32 id) const {
+    expect(id != u32(-1));
     for (auto link = data->last_lookup->next;; link = link->next) {
         if (link != &data->items) {
             auto h = static_cast<DocumentItemHeader*>(link);
@@ -120,14 +119,14 @@ void* Document::allocate_named (Type t, AnyString name) {
     if (!name) {
         raise(e_DocumentItemNameInvalid, "Empty string");
     }
-    usize id = parse_numbered_name(name);
-    if (id == usize(-1) && name[0] == '_') {
+    u32 id = parse_numbered_name(name);
+    if (id == u32(-1) && name[0] == '_') {
         raise(e_DocumentItemNameInvalid,
             cat("Names starting with _ are reserved: ", name)
         );
     }
 
-    if (id == usize(-1)) {
+    if (id == u32(-1)) {
         if (find_with_name(name)) {
             raise(e_DocumentItemNameDuplicate, move(name));
         }
@@ -206,7 +205,7 @@ AYU_DESCRIBE(ayu::Document,
             UniqueArray<AnyString> r;
             for (auto link = v.data->items.next; link != &v.data->items; link = link->next) {
                 auto header = static_cast<DocumentItemHeader*>(link);
-                r.emplace_back(header->id != usize(-1)
+                r.emplace_back(header->id != u32(-1)
                     ? AnyString(cat('_', header->id))
                     : header->name
                 );
