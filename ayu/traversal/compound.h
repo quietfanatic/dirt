@@ -38,22 +38,22 @@ AnyRef item_attr (const AnyRef&, const AnyString&, LocationRef loc = {});
  // and if that isn't available, they throw e_ElemsNotSupported.
 
  // Get the length of an array-like item.
-uint item_get_length (const AnyRef&, LocationRef loc = {});
+u32 item_get_length (const AnyRef&, LocationRef loc = {});
  // Set the length of an array-like item.  This may clear some or all of the
  // contents of the item.  If the item only allows certain lengths, this may
  // throw e_WrongLength.
 void item_set_length (
-    const AnyRef&, uint, LocationRef loc = {}
+    const AnyRef&, u32, LocationRef loc = {}
 );
  // Get an element of an array-like item by its index.  Returns an empty
  // AnyRef if the element doesn't exist.
 AnyRef item_maybe_elem (
-    const AnyRef&, uint, LocationRef loc = {}
+    const AnyRef&, u32, LocationRef loc = {}
 );
  // Throws e_ElemNotFound if the element doesn't exist.  Guaranteed not to return
  // an empty or null AnyRef.
 AnyRef item_elem (
-    const AnyRef&, uint, LocationRef loc = {}
+    const AnyRef&, u32, LocationRef loc = {}
 );
 
  // The keys() descriptor of an item produced a type other than
@@ -74,7 +74,7 @@ constexpr ErrorCode e_AttrNotFound = "ayu::e_AttrNotFound";
  // (when given an object tree for the item).
 constexpr ErrorCode e_AttrsNotSupported = "ayu::e_AttrsNotSupported";
 
- // An item's length accessor returned a type other than uint32 or uint64.
+ // An item's length accessor returned a type other than u32 or u64.
 constexpr ErrorCode e_LengthTypeInvalid = "ayu::e_LengthTypeRejected";
  // The set_length operation (which is also part of the item_from_tree process)
  // failed because the provided length was not accepted by the item.
@@ -98,7 +98,7 @@ void raise_AttrMissing (Type item_type, const AnyString& key);
 [[noreturn, gnu::cold]]
 void raise_AttrRejected (Type item_type, const AnyString& key);
 [[noreturn, gnu::cold]]
-void raise_LengthRejected (Type item_type, uint min, uint max, uint got);
+void raise_LengthRejected (Type item_type, u32 min, u32 max, u32 got);
 
  // These are less likely to be useful, but they're here in case you want them.
 [[noreturn, gnu::cold]]
@@ -110,10 +110,10 @@ void raise_AttrsNotSupported (Type);
 [[noreturn, gnu::cold]]
 void raise_LengthTypeInvalid (Type item_type, Type got_type);
 [[noreturn, gnu::cold]]
-void raise_ElemNotFound (Type, uint);
+void raise_ElemNotFound (Type, u32);
 [[noreturn, gnu::cold]]
 void raise_ElemsNotSupported (Type);
 [[noreturn, gnu::cold]]
-void raise_LengthOverflow (uint64);
+void raise_LengthOverflow (u64);
 
 } // ayu

@@ -13,12 +13,12 @@ void raise_TreeCantRepresent (StaticString, TreeRef);
 } // in
 
 constexpr Tree::Tree () :
-    form(Form::Undefined), unused(0), flags(), meta(0), data{.as_int64 = 0}
+    form(Form::Undefined), unused(0), flags(), meta(0), data{.as_i64 = 0}
 { }
 constexpr Tree::Tree (Null, TreeFlags f) :
-    form(Form::Null), unused(0), flags(f), meta(0), data{.as_int64 = 0}
+    form(Form::Null), unused(0), flags(f), meta(0), data{.as_i64 = 0}
 { }
- // Use .as_int64 to write all of data
+ // Use .as_i64 to write all of data
 template <class T> requires (std::is_same_v<T, bool>)
 constexpr Tree::Tree (T v, TreeFlags f) :
     form(Form::Bool), unused(0), flags(f), meta(0), data{.as_bool = v}
@@ -31,7 +31,7 @@ template <class T> requires (
  // refcounting.
 constexpr Tree::Tree (T v, TreeFlags f) :
     form(Form::Number), unused(0), flags(f),
-    meta(0), data{.as_int64 = int64(v)}
+    meta(0), data{.as_i64 = i64(v)}
 { }
 template <class T> requires (std::is_floating_point_v<T>)
 constexpr Tree::Tree (T v, TreeFlags f) :
@@ -56,8 +56,8 @@ constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
 {
 #ifndef NDEBUG
      // Check for duplicate keys
-    for (uint i = 0; i < v.size(); i++)
-    for (uint j = 0; j < i; j++) {
+    for (u32 i = 0; i < v.size(); i++)
+    for (u32 j = 0; j < i; j++) {
         expect(v[i].first != v[j].first);
     }
 #endif
@@ -75,7 +75,7 @@ inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
 constexpr Tree::Tree (Tree&& o) {
     if (std::is_constant_evaluated()) {
         form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
-        o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_int64 = 0;
+        o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_i64 = 0;
     }
     else {
         std::memcpy((void*)this, &o, sizeof(Tree));
@@ -93,7 +93,7 @@ constexpr Tree::Tree (const Tree& o) :
 constexpr Tree& Tree::operator= (Tree&& o) {
     this->~Tree();
     form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
-    o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_int64 = 0;
+    o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_i64 = 0;
     return *this;
 }
 constexpr Tree& Tree::operator= (const Tree& o) {
@@ -137,28 +137,28 @@ constexpr Tree::operator T () const { \
             else in::raise_TreeCantRepresent(#T, *this); \
         } \
         else { \
-            int64 v = data.as_int64; \
-            if (int64(T(v)) == v) return v; \
+            i64 v = data.as_i64; \
+            if (i64(T(v)) == v) return v; \
             else in::raise_TreeCantRepresent(#T, *this); \
         } \
     } \
     else in::raise_TreeWrongForm(*this, Form::Number); \
 }
-AYU_INTEGRAL_CONVERSION(int8)
-AYU_INTEGRAL_CONVERSION(uint8)
-AYU_INTEGRAL_CONVERSION(int16)
-AYU_INTEGRAL_CONVERSION(uint16)
-AYU_INTEGRAL_CONVERSION(int32)
-AYU_INTEGRAL_CONVERSION(uint32)
-AYU_INTEGRAL_CONVERSION(int64)
-AYU_INTEGRAL_CONVERSION(uint64)
+AYU_INTEGRAL_CONVERSION(i8)
+AYU_INTEGRAL_CONVERSION(u8)
+AYU_INTEGRAL_CONVERSION(i16)
+AYU_INTEGRAL_CONVERSION(u16)
+AYU_INTEGRAL_CONVERSION(i32)
+AYU_INTEGRAL_CONVERSION(u32)
+AYU_INTEGRAL_CONVERSION(i64)
+AYU_INTEGRAL_CONVERSION(u64)
 #undef AYU_INTEGRAL_CONVERSION
 constexpr Tree::operator double () const {
      // Special case: allow null to represent +nan for JSON compatibility
     if (form == Form::Null) return uni::nan;
     else if (form == Form::Number) {
         if (meta) return data.as_double;
-        else return data.as_int64;
+        else return data.as_i64;
     }
     else in::raise_TreeWrongForm(*this, Form::Number);
 }
@@ -262,7 +262,7 @@ constexpr const Tree* Tree::attr (Str key) const {
     }
     else in::raise_TreeWrongForm(*this, Form::Object);
 }
-constexpr const Tree* Tree::elem (uint index) const {
+constexpr const Tree* Tree::elem (u32 index) const {
     if (form == Form::Array) {
         auto a = Slice<Tree>(*this);
         if (index < a.size()) return &a[index];
@@ -276,7 +276,7 @@ constexpr const Tree& Tree::operator[] (Str key) const {
         "This tree has no attr with key \"", key, '"'
     ));
 }
-constexpr const Tree& Tree::operator[] (uint index) const {
+constexpr const Tree& Tree::operator[] (u32 index) const {
     if (const Tree* r = elem(index)) return *r;
     else raise(e_General, cat(
         "This tree has no elem with index ", index

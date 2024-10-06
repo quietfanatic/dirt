@@ -59,7 +59,7 @@ struct TraverseGetKeys {
     void use_attrs (
         const GetKeysTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
-        for (uint16 i = 0; i < attrs->n_attrs; i++) {
+        for (u16 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (!!(acr->attr_flags & AttrFlags::Invisible)) continue;
@@ -135,7 +135,7 @@ struct TraverseSetKeys {
          // setting a flag if there are no included attrs, or maybe by using an
          // unordered_set?
          // TODO: Use a next_list like in from-tree.
-        for (uint i = 0; i < keys.size(); ++i) {
+        for (u32 i = 0; i < keys.size(); ++i) {
             if (keys[i] == key) {
                 keys.erase(i);
                 return true;
@@ -182,7 +182,7 @@ struct TraverseSetKeys {
          // something like 4500.  TODO: enforce a reasonable max n_attrs in
          // descriptors-internal.h.
         bool claimed [attrs->n_attrs] = {};
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (claim(*trav.keys, attr->key)) {
@@ -196,7 +196,7 @@ struct TraverseSetKeys {
             else raise_AttrMissing(trav.desc, attr->key);
         }
          // Then check included attrs
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (!!(acr->attr_flags & AttrFlags::Include)) {
@@ -241,8 +241,8 @@ struct TraverseSetKeys {
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
-        for (uint i = 0; i < keys.size(); i++)
-        for (uint j = 0; j < i; j++) {
+        for (u32 i = 0; i < keys.size(); i++)
+        for (u32 j = 0; j < i; j++) {
             expect(keys[i] != keys[j]);
         }
 #endif
@@ -343,7 +343,7 @@ struct TraverseAttr {
         const GetAttrTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
          // First check direct attrs
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->key == *trav.get_key) {
                 ReturnRefTraversal<AttrTraversal> child;
@@ -355,7 +355,7 @@ struct TraverseAttr {
             }
         }
          // Then included attrs
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (!!(acr->attr_flags & AttrFlags::Include)) {
@@ -417,14 +417,14 @@ namespace in {
  // This is simple enough we don't need to use the traversal system.
 struct TraverseGetLength {
     static
-    uint start (const AnyRef& item, LocationRef loc) try {
-        uint32 len;
+    u32 start (const AnyRef& item, LocationRef loc) try {
+        u32 len;
         item.read(AccessCB(len, &visit));
         return len;
     } catch (...) { rethrow_with_travloc(loc); }
 
     static
-    void visit (uint32& len, AnyPtr item, bool) {
+    void visit (u32& len, AnyPtr item, bool) {
         auto desc = DescriptionPrivate::get(item.type);
         if (auto acr = desc->length_acr()) {
             read_length_acr(len, item, acr);
@@ -441,7 +441,7 @@ struct TraverseGetLength {
 
 } // in
 
-uint item_get_length (const AnyRef& item, LocationRef loc) {
+u32 item_get_length (const AnyRef& item, LocationRef loc) {
     return TraverseGetLength::start(item, loc);
 }
 
@@ -451,18 +451,18 @@ namespace in {
 
 struct TraverseSetLength {
     static
-    void start (const AnyRef& item, uint32 len, LocationRef loc) try {
+    void start (const AnyRef& item, u32 len, LocationRef loc) try {
         item.read(AccessCB(len, &visit));
     } catch (...) { rethrow_with_travloc(loc); }
 
     NOINLINE static
-    void visit (uint32& len, AnyPtr item, bool) {
+    void visit (u32& len, AnyPtr item, bool) {
         auto desc = DescriptionPrivate::get(item.type);
         if (auto acr = desc->length_acr()) {
             write_length_acr(len, item, acr);
         }
         else if (auto elems = desc->elems()) {
-            uint min = elems->chop_flag(AttrFlags::Optional);
+            u32 min = elems->chop_flag(AttrFlags::Optional);
             if (len < min || len > elems->n_elems) {
                 raise_LengthRejected(item.type, min, elems->n_elems, len);
             }
@@ -477,7 +477,7 @@ struct TraverseSetLength {
 
 } // in
 
-void item_set_length (const AnyRef& item, uint len, LocationRef loc) {
+void item_set_length (const AnyRef& item, u32 len, LocationRef loc) {
     if (len > AnyArray<Tree>::max_size_) {
         raise_LengthOverflow(len);
     }
@@ -489,7 +489,7 @@ void item_set_length (const AnyRef& item, uint len, LocationRef loc) {
 namespace in {
 
 struct GetElemTraversalHead {
-    uint index;
+    u32 index;
 };
 
 template <class T = Traversal>
@@ -499,7 +499,7 @@ struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
 struct TraverseElem {
 
     NOINLINE static
-    AnyRef start (const AnyRef& item, uint index, LocationRef loc) {
+    AnyRef start (const AnyRef& item, u32 index, LocationRef loc) {
         AnyRef r;
         GetElemTraversal<StartTraversal> child;
         child.index = index;
@@ -558,7 +558,7 @@ struct TraverseElem {
     ) {
          // We have to read the length to do bounds checking, making this
          // ironically slower than computed_elems.
-        uint32 len;
+        u32 len;
         read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         if (trav.index >= len) return;
         expect(trav.desc->contiguous_elems_offset);
@@ -588,12 +588,12 @@ struct TraverseElem {
 } // in
 
 AnyRef item_maybe_elem (
-    const AnyRef& item, uint index, LocationRef loc
+    const AnyRef& item, u32 index, LocationRef loc
 ) {
     return TraverseElem::start(item, index, loc);
 }
 
-AnyRef item_elem (const AnyRef& item, uint index, LocationRef loc) {
+AnyRef item_elem (const AnyRef& item, u32 index, LocationRef loc) {
     AnyRef r = TraverseElem::start(item, index, loc);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
@@ -604,14 +604,14 @@ AnyRef item_elem (const AnyRef& item, uint index, LocationRef loc) {
 
 ///// LENGTH AND KEYS ACR HANDLING
 
-void in::read_length_acr_cb (uint32& len, AnyPtr v, bool) {
-    uint64 l;
+void in::read_length_acr_cb (u32& len, AnyPtr v, bool) {
+    u64 l;
     Type t = v.type.remove_readonly();
-    if (t == Type::CppType<uint32>()) {
-        l = reinterpret_cast<const uint32&>(*v.address);
+    if (t == Type::CppType<u32>()) {
+        l = reinterpret_cast<const u32&>(*v.address);
     }
-    else if (t == Type::CppType<uint64>()) {
-        l = reinterpret_cast<const uint64&>(*v.address);
+    else if (t == Type::CppType<u64>()) {
+        l = reinterpret_cast<const u64&>(*v.address);
     }
     else raise_LengthTypeInvalid(Type(), t);
     if (l > AnyArray<Tree>::max_size_) {
@@ -620,13 +620,13 @@ void in::read_length_acr_cb (uint32& len, AnyPtr v, bool) {
     len = l;
 }
 
-void in::write_length_acr_cb (uint32& len, AnyPtr v, bool) {
+void in::write_length_acr_cb (u32& len, AnyPtr v, bool) {
     expect(len <= AnyArray<Tree>::max_size_);
-    if (v.type == Type::CppType<uint32>()) {
-        reinterpret_cast<uint32&>(*v.address) = len;
+    if (v.type == Type::CppType<u32>()) {
+        reinterpret_cast<u32&>(*v.address) = len;
     }
-    else if (v.type == Type::CppType<uint64>()) {
-        reinterpret_cast<uint64&>(*v.address) = len;
+    else if (v.type == Type::CppType<u64>()) {
+        reinterpret_cast<u64&>(*v.address) = len;
     }
     else {
         raise_LengthTypeInvalid(Type(), v.type);
@@ -647,7 +647,7 @@ void raise_AttrRejected (Type item_type, const AnyString& key) {
     ));
 }
 
-void raise_LengthRejected (Type item_type, uint min, uint max, uint got) {
+void raise_LengthRejected (Type item_type, u32 min, u32 max, u32 got) {
     UniqueString mess = min == max ? cat(
         "Item of type ", item_type.name(), " given wrong length ", got,
         " (expected ", min, ")"
@@ -678,7 +678,7 @@ void raise_AttrsNotSupported (Type item_type) {
     ));
 }
 
-void raise_ElemNotFound (Type item_type, uint index) {
+void raise_ElemNotFound (Type item_type, u32 index) {
     raise(e_ElemNotFound, cat(
         "Item of type ", item_type.name(), " has no element at index ", index
     ));
@@ -693,12 +693,12 @@ void raise_ElemsNotSupported (Type item_type) {
 
 void raise_LengthTypeInvalid (Type, Type got_type) {
     raise(e_LengthTypeInvalid, cat(
-        "Item has length accessor of wrong type; expected uint32 or uint64 but got ",
+        "Item has length accessor of wrong type; expected u32 or u64 but got ",
         got_type.name()
     ));
 }
 
-void raise_LengthOverflow (uint64 len) {
+void raise_LengthOverflow (u64 len) {
     raise(e_LengthOverflow, cat(
         "Item's length is far too large (", len, " > 0x7fffffff)"
     ));

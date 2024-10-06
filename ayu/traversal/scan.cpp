@@ -121,7 +121,7 @@ struct TraverseScan {
     void use_attrs (const ScanTraversal<>& trav) {
         expect(trav.desc->attrs_offset);
         auto attrs = trav.desc->attrs();
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
              // Not discarding invisible attrs for scan purposes.
             auto acr = attr->acr();
@@ -182,7 +182,7 @@ struct TraverseScan {
     void use_elems (const ScanTraversal<>& trav) {
         expect(trav.desc->elems_offset);
         auto elems = trav.desc->elems();
-        for (uint i = 0; i < elems->n_elems; i++) {
+        for (u32 i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
             SharedLocation child_loc;
@@ -207,13 +207,13 @@ struct TraverseScan {
 
     NOINLINE static
     void use_computed_elems (const ScanTraversal<>& trav) {
-        uint32 len;
+        u32 len;
         read_length_acr(
             len, AnyPtr(trav.desc, trav.address), trav.desc->length_acr()
         );
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        for (uint i = 0; i < len; i++) {
+        for (u32 i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             SharedLocation child_loc;
@@ -237,7 +237,7 @@ struct TraverseScan {
 
     NOINLINE static
     void use_contiguous_elems (const ScanTraversal<>& trav) {
-        uint32 len;
+        u32 len;
         read_length_acr(
             len, AnyPtr(trav.desc, trav.address), trav.desc->length_acr()
         );
@@ -245,7 +245,7 @@ struct TraverseScan {
         expect(trav.desc->contiguous_elems_offset);
         auto f = trav.desc->contiguous_elems()->f;
         auto ptr = f(*trav.address);
-        for (uint i = 0; i < len; i++) {
+        for (u32 i = 0; i < len; i++) {
             SharedLocation child_loc;
             ScanTraversal<ContiguousElemTraversal> child;
             child.context = trav.context;
@@ -282,7 +282,7 @@ struct TraverseScan {
  // with different types are different items.
 static UniqueArray<Pair<AnyPtr, SharedLocation>> location_cache;
 static bool have_location_cache = false;
-static uint keep_location_cache_count = 0;
+static u32 keep_location_cache_count = 0;
 
 NOINLINE // Noinline the slow path to make the callback leaner
 bool realloc_cache (auto& cache, AnyPtr ptr, LocationRef loc) {

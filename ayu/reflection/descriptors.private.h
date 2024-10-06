@@ -5,7 +5,7 @@
 namespace ayu::in {
 
 template <class C>
-const C* offset_get (const void* base, uint16 offset) {
+const C* offset_get (const void* base, u16 offset) {
     if (!offset) return null;
     return (const C*)((char*)base + offset);
 }
@@ -23,8 +23,8 @@ struct ValueDcrPrivate : ValueDcr<Mu> {
 };
 
 struct ValuesDcrPrivate : ValuesDcr<Mu> {
-    const ValueDcrPrivate* value (uint16 i) const {
-        uint16 offset = (&n_values)[i+1];
+    const ValueDcrPrivate* value (u16 i) const {
+        u16 offset = (&n_values)[i+1];
         return (const ValueDcrPrivate*)((char*)this + offset);
     }
 };
@@ -54,8 +54,8 @@ struct AttrDcrPrivate : AttrDcr<Mu> {
 };
 
 struct AttrsDcrPrivate : AttrsDcr<Mu> {
-    const AttrDcrPrivate* attr (uint16 i) const {
-        uint16 offset = (&n_attrs)[i+1];
+    const AttrDcrPrivate* attr (u16 i) const {
+        u16 offset = (&n_attrs)[i+1];
         return (const AttrDcrPrivate*)((char*)this + offset);
     }
 };
@@ -69,14 +69,14 @@ struct ElemDcrPrivate : ElemDcr<Mu> {
 };
 
 struct ElemsDcrPrivate : ElemsDcr<Mu> {
-    const ElemDcrPrivate* elem (uint16 i) const {
-        uint16 offset = (&n_elems)[i+1];
+    const ElemDcrPrivate* elem (u16 i) const {
+        u16 offset = (&n_elems)[i+1];
         return (const ElemDcrPrivate*)((char*)this + offset);
     }
      // Take elements off the end that have the given flag (e.g. optional or
      // invisible).  TODO: this could be done at compile time
-    uint16 chop_flag (AttrFlags flag) const {
-        uint16 r = n_elems;
+    u16 chop_flag (AttrFlags flag) const {
+        u16 r = n_elems;
         while (r && !!(elem(r-1)->acr()->attr_flags & flag)) r--;
         return r;
     }

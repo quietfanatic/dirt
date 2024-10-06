@@ -40,11 +40,11 @@ namespace ayu::in {
          // Yes this is the correct number of pointers.
          // Yes, it is ridiculous.
          // No, there is no way to make it not ridiculous.
-        Description const* const* const* descs, uint len
+        Description const* const* const* descs, u32 len
     ) noexcept {
         expect(len >= 1);
         return cat(
-            "std::tuple<", Caterator(", ", len, [descs](uint i){
+            "std::tuple<", Caterator(", ", len, [descs](u32 i){
                  // This will call get_description_name twice for each desc, but
                  // this should still be faster and smaller than caching all the
                  // names in a variable-length array.

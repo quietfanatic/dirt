@@ -15,7 +15,7 @@ namespace ayu {
 
 namespace in {
 
-enum CharProps : uint8 {
+enum CharProps : u8 {
     CHAR_IS_WS = 0x80,
     CHAR_CONTINUES_WORD = 0x40,
     CHAR_TERM_MASK = 0x0f,
@@ -31,8 +31,8 @@ enum CharProps : uint8 {
     CHAR_TERM_DECL = 9,
     CHAR_TERM_SHORTCUT = 10,
 };
-constexpr std::array<uint8, 256> char_props = []{
-    std::array<uint8, 256> r = {};
+constexpr std::array<u8, 256> char_props = []{
+    std::array<u8, 256> r = {};
     for (char c : {' ', '\f', '\n', '\r', '\t', '\v'}) {
         r[c] = CHAR_IS_WS;
     }
@@ -62,14 +62,14 @@ struct Parser {
      // data in a structured text format, you're going to have performance
      // problems anyway, and you should offload some of it to binary or flat
      // text formats.
-    static constexpr uint32 max_depth = 200;
+    static constexpr u32 max_depth = 200;
 
 ///// TOP
 
     const char* end;
     const char* begin;
     const AnyString& filename;
-    uint32 shallowth;
+    u32 shallowth;
 
     Parser (Str s, const AnyString& filename) :
         end(s.end()),
@@ -199,7 +199,7 @@ struct Parser {
     const char* parse_number (Str word, Tree& r, bool minus) {
          // Using an unsigned integer parser will reject words that start with a
          // + or -.
-        uint64 integer;
+        u64 integer;
         auto [num_end, ec] = std::from_chars(
             word.begin(), word.end(), integer, hex ? 16 : 10
         );
@@ -273,7 +273,7 @@ struct Parser {
         in++;  // for the "
          // Find the end of the string and determine upper bound of required
          // capacity.
-        uint n_escapes = 0;
+        u32 n_escapes = 0;
         const char* p = in;
         while (p < end) {
             switch (*p) {
@@ -553,7 +553,7 @@ struct Parser {
     void check_error_chars (const char* in) {
         if (*in <= ' ' || *in >= 127) {
             error(in, cat(
-                "Unrecognized byte <", to_hex_digit(uint8(*in) >> 4),
+                "Unrecognized byte <", to_hex_digit(u8(*in) >> 4),
                 to_hex_digit(*in & 0xf), '>'
             ));
         }
@@ -568,7 +568,7 @@ struct Parser {
     void error (const char* in, Str mess) {
          // Diagnose line and column number
          // I'm not sure the col is exactly right
-        uint line = 1;
+        u32 line = 1;
         const char* last_lf = begin - 1;
         for (const char* p2 = begin; p2 != in; p2++) {
             if (*p2 == '\n') {
@@ -576,7 +576,7 @@ struct Parser {
                 last_lf = p2;
             }
         }
-        uint col = in - last_lf;
+        u32 col = in - last_lf;
         raise(e_ParseFailed, cat(
             mess, " at ", filename, ':', line, ':', col
         ));
@@ -713,15 +713,15 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("[+nana]");
      // Test depth limit
     auto big = UniqueString(Capacity(402));
-    for (uint i = 0; i < 201; i++) {
+    for (u32 i = 0; i < 201; i++) {
         big.push_back_expect_capacity('[');
     }
-    for (uint i = 0; i < 201; i++) {
+    for (u32 i = 0; i < 201; i++) {
         big.push_back_expect_capacity(']');
     }
     n(StaticString(big));
     auto redwood = Tree::array();
-    for (uint i = 0; i < 199; i++) {
+    for (u32 i = 0; i < 199; i++) {
         redwood = Tree::array(redwood);
     }
     y(StaticString(big.slice(1, 401)), redwood);

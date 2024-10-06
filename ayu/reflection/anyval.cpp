@@ -110,8 +110,8 @@ static tap::TestSet tests ("dirt/ayu/reflection/dynamic", []{
         d = AnyVal(Type::CppType<CustomConstructor>());
     }, "Can construct type with externally-supplied constructor/destructor");
 
-    d = AnyVal::make<int32>(4);
-    is(item_to_tree(&d), tree_from_string("[int32 4]"), "AnyVal to_tree works");
+    d = AnyVal::make<i32>(4);
+    is(item_to_tree(&d), tree_from_string("[i32 4]"), "AnyVal to_tree works");
     doesnt_throw([&]{
         item_from_string(&d, "[double 55]");
     });

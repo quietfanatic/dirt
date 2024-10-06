@@ -30,8 +30,8 @@ struct ChainAttrFuncAcr : Accessor {
 struct ChainElemFuncAcr : Accessor {
     const Accessor* outer;
     ElemFunc<Mu>* f;
-    uint index;
-    ChainElemFuncAcr (const Accessor* o, ElemFunc<Mu>* f, uint i) :
+    u32 index;
+    ChainElemFuncAcr (const Accessor* o, ElemFunc<Mu>* f, u32 i) :
         Accessor(&_vt, o->flags), outer(o), f(f), index(i)
     { outer->inc(); }
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
@@ -42,8 +42,8 @@ struct ChainElemFuncAcr : Accessor {
 struct ChainDataFuncAcr : Accessor {
     const Accessor* outer;
     DataFunc<Mu>* f;
-    uint index;
-    ChainDataFuncAcr (const Accessor* o, DataFunc<Mu>* f, uint i) :
+    u32 index;
+    ChainDataFuncAcr (const Accessor* o, DataFunc<Mu>* f, u32 i) :
         Accessor(&_vt, o->flags), outer(o), f(f), index(i)
     { outer->inc(); }
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);

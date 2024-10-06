@@ -73,7 +73,7 @@ struct LocationToIRI {
     const IRI* base;
 
     NOINLINE
-    char* use_base (LocationRef loc, uint32 cap) {
+    char* use_base (LocationRef loc, u32 cap) {
         switch (loc->form) {
             case LF::Resource: base = &loc->resource()->name(); break;
             case LF::Reference: base = &anonymous_iri; break;
@@ -87,7 +87,7 @@ struct LocationToIRI {
     }
 
     NOINLINE
-    char* use_key (LocationRef loc, uint32 cap) {
+    char* use_key (LocationRef loc, u32 cap) {
         expect(loc->form == LF::Key);
         char* p = visit(loc->parent(), cap + 1 + loc->key()->size());
         *p++ = '/';
@@ -98,7 +98,7 @@ struct LocationToIRI {
     }
 
     NOINLINE
-    char* use_small_index (LocationRef loc, uint32 cap) {
+    char* use_small_index (LocationRef loc, u32 cap) {
         expect(loc->form == LF::Index);
         char* p = visit(loc->parent(), cap + 2);
         *p++ = '+';
@@ -109,10 +109,10 @@ struct LocationToIRI {
     }
 
     NOINLINE
-    char* use_large_index (LocationRef loc, uint32 cap) {
+    char* use_large_index (LocationRef loc, u32 cap) {
         expect(loc->form == LF::Index);
         expect(*loc->index() >= 10);
-        uint32 digits = count_decimal_digits(*loc->index());
+        u32 digits = count_decimal_digits(*loc->index());
         expect(loc->form == LF::Index);
         char* p = visit(loc->parent(), cap + 1 + digits);
         *p++ = '+';
@@ -121,7 +121,7 @@ struct LocationToIRI {
     }
 
     NOINLINE
-    char* visit (LocationRef loc, uint32 cap) {
+    char* visit (LocationRef loc, u32 cap) {
         switch (loc->form) {
             case LF::Resource:
             case LF::Reference: return use_base(loc, cap);

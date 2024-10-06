@@ -71,7 +71,7 @@ struct FromTreeTraversalHead {
     const Tree* tree;
 };
 struct ClaimAttrsTraversalHead {
-    uint32* next_list;
+    u32* next_list;
 };
 template <class T = Traversal>
 struct FromTreeTraversal : FromTreeTraversalHead, T { };
@@ -311,23 +311,23 @@ struct TraverseFromTree {
     void use_attrs_stack (
         const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
-        uint32 next_list_buf [capacity / 4];
+        u32 next_list_buf [capacity / 4];
         use_attrs_buf(trav, attrs, next_list_buf);
     }
 
     NOINLINE static
     void use_attrs_heap (
         const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs,
-        uint32 next_list_len
+        u32 next_list_len
     ) {
-        auto next_list_buf = std::unique_ptr<uint32[]>(new uint32[next_list_len]);
+        auto next_list_buf = std::unique_ptr<u32[]>(new u32[next_list_len]);
         use_attrs_buf(trav, attrs, &next_list_buf[0]);
     }
 
     NOINLINE static
     void use_attrs_buf (
         const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs,
-        uint32* next_list_buf
+        u32* next_list_buf
     ) {
          // Build a linked list of indexes so that we can claim attrs in
          // constant time.  next_list = next_list_buffer + 1, so that:
@@ -351,14 +351,14 @@ struct TraverseFromTree {
          // unlikely to be worth it.
          //
          // (Note that using -1 as a sentinel does not reduce the usable array
-         // size by 1.  The maximum array tree size is uint32(-1), for which
-         // uint32(-1) is not a valid index.)
+         // size by 1.  The maximum array tree size is u32(-1), for which
+         // u32(-1) is not a valid index.)
         auto len = trav.tree->meta >> 1;
-        for (uint32 i = 0; i < len; i++) next_list_buf[i] = i;
-        next_list_buf[len] = uint32(-1);
+        for (u32 i = 0; i < len; i++) next_list_buf[i] = i;
+        next_list_buf[len] = u32(-1);
 
         claim_attrs_use_attrs(trav, &next_list_buf[0] + 1, attrs);
-        if (next_list_buf[0] != uint32(-1)) {
+        if (next_list_buf[0] != u32(-1)) {
             expect(trav.tree->form == Form::Object);
             raise_AttrRejected(
                 trav.desc, trav.tree->data.as_object_ptr[next_list_buf[0]].first
@@ -400,18 +400,18 @@ struct TraverseFromTree {
 
     NOINLINE static
     void claim_attrs_use_attrs (
-        const FromTreeTraversal<>& trav, uint32* next_list,
+        const FromTreeTraversal<>& trav, u32* next_list,
         const AttrsDcrPrivate* attrs
     ) {
         expect(trav.tree->form == Form::Object);
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto flags = attr->acr()->attr_flags;
              // First try matching attr directly even if it's included
-            uint32* prev_next; uint32 j;
+            u32* prev_next; u32 j;
             for (
                 prev_next = &next_list[-1], j = *prev_next;
-                j != uint32(-1);
+                j != u32(-1);
                 prev_next = &next_list[j], j = *prev_next
             ) {
                 auto& [key, value] = trav.tree->data.as_object_ptr[j];
@@ -470,7 +470,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void claim_attrs_use_computed_attrs (
-        const FromTreeTraversal<>& trav, uint32* next_list,
+        const FromTreeTraversal<>& trav, u32* next_list,
         const Accessor* keys_acr
     ) {
          // We should only get here if a parent item included a child item that
@@ -479,23 +479,23 @@ struct TraverseFromTree {
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
         expect(trav.desc->computed_attrs_offset);
         auto f = trav.desc->computed_attrs()->f;
-        uint32* prev_next; uint32 i;
+        u32* prev_next; u32 i;
         for (
             prev_next = &next_list[-1], i = *prev_next;
-            i != uint32(-1);
+            i != u32(-1);
             prev_next = &next_list[i], i = *prev_next
         ) {
             expect(trav.tree->form == Form::Object);
             write_computed_attr(trav, trav.tree->data.as_object_ptr[i], f);
         }
          // Consume entire list
-        next_list[-1] = uint32(-1);
+        next_list[-1] = u32(-1);
         finish_item(trav);
     }
 
     NOINLINE static
     void claim_attrs_use_delegate (
-        const FromTreeTraversal<>& trav, uint32* next_list,
+        const FromTreeTraversal<>& trav, u32* next_list,
         const Accessor* acr
     ) {
         ClaimAttrsTraversal<DelegateTraversal> child;
@@ -524,7 +524,7 @@ struct TraverseFromTree {
     ) {
          // Writable keys, so write them.
         auto keys = UniqueArray<AnyString>(
-            object.size(), [&object](uint i){ return object[i].first; }
+            object.size(), [&object](u32 i){ return object[i].first; }
         );
         keys_acr->write(*trav.address,
             AccessCB(move(keys), [](auto&& keys, AnyPtr v, bool)
@@ -552,8 +552,8 @@ struct TraverseFromTree {
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
-        for (uint i = 0; i < keys.size(); i++)
-        for (uint j = 0; j < i; j++) {
+        for (u32 i = 0; i < keys.size(); i++)
+        for (u32 j = 0; j < i; j++) {
             expect(keys[i] != keys[j]);
         }
 #endif
@@ -598,13 +598,13 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, const ElemsDcrPrivate* elems
     ) {
          // Check whether length is acceptable
-        uint min = elems->chop_flag(AttrFlags::Optional);
+        u32 min = elems->chop_flag(AttrFlags::Optional);
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }
-        for (uint i = 0; i < array.size(); i++) {
+        for (u32 i = 0; i < array.size(); i++) {
             auto acr = elems->elem(i)->acr();
             if (!!(acr->attr_flags & AttrFlags::Ignored)) continue;
             FromTreeTraversal<ElemTraversal> child;
@@ -620,11 +620,11 @@ struct TraverseFromTree {
     ) {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
-        uint32 len = array.size();
+        u32 len = array.size();
         write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        for (uint i = 0; i < array.size(); i++) {
+        for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             FromTreeTraversal<ComputedElemTraversal> child;
@@ -642,13 +642,13 @@ struct TraverseFromTree {
     ) {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
-        uint32 len = array.size();
+        u32 len = array.size();
         write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         if (array) {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
-            for (uint i = 0; i < array.size(); i++) {
+            for (u32 i = 0; i < array.size(); i++) {
                 FromTreeTraversal<ContiguousElemTraversal> child;
                 child.tree = &array[i];
                 trav_contiguous_elem<visit>(
@@ -666,7 +666,7 @@ struct TraverseFromTree {
     void use_values_all_strings (
         const FromTreeTraversal<>& trav, const ValuesDcrPrivate* values
     ) {
-        for (uint i = 0; i < values->n_values; i++) {
+        for (u32 i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
              // These are for optimization, not safety
             expect(trav.tree->form == Form::String);
@@ -683,7 +683,7 @@ struct TraverseFromTree {
     void use_values (
         const FromTreeTraversal<>& trav, const ValuesDcrPrivate* values
     ) {
-        for (uint i = 0; i < values->n_values; i++) {
+        for (u32 i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
             if (*trav.tree == value->name) {
                 values->assign(*trav.address, *value->get_value());
@@ -733,7 +733,7 @@ struct TraverseFromTree {
         }
         if (auto init = trav.desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
-            uint32 i;
+            u32 i;
             for (i = init_ops.size(); i > 0; --i) {
                 if (init->priority <= init_ops[i-1].priority) break;
             }

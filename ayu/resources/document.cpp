@@ -35,6 +35,7 @@ struct DocumentLinks {
 
  // This alignas shouldn't be necessary but just in case.
 struct alignas(std::max_align_t) DocumentItemHeader : DocumentLinks {
+     // TODO: u32
     usize id = 0;
     AnyString name;
     Type type;

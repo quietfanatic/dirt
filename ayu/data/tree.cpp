@@ -97,12 +97,12 @@ bool operator == (const Tree& a, const Tree& b) noexcept {
                     auto bv = b.data.as_double;
                     return av == bv || (av != av && bv != bv);
                 }
-                else return a.data.as_double == b.data.as_int64;
+                else return a.data.as_double == b.data.as_i64;
             }
             else if (b.meta) {
-                return a.data.as_int64 == b.data.as_double;
+                return a.data.as_i64 == b.data.as_double;
             }
-            else return a.data.as_int64 == b.data.as_int64;
+            else return a.data.as_i64 == b.data.as_i64;
         }
         case Form::String: {
             return Str(a.data.as_char_ptr, a.meta >> 1) ==
@@ -171,11 +171,11 @@ static tap::TestSet tests ("dirt/ayu/data/tree", []{
         int(Tree(3.5));
     }, "Can't convert 3.5 to integer");
     throws_code<e_TreeCantRepresent>([]{
-        int8(Tree(1000));
-    }, "Can't convert 1000 to int8");
+        i8(Tree(1000));
+    }, "Can't convert 1000 to i8");
     throws_code<e_TreeCantRepresent>([]{
-        uint8(Tree(-1));
-    }, "Can't convert -1 to uint8");
+        u8(Tree(-1));
+    }, "Can't convert -1 to u8");
     is(Tree::array(Tree(3), Tree(4)), Tree::array(Tree(3), Tree(4)), "Compare arrays.");
     isnt(Tree::array(Tree(3), Tree(4)), Tree::array(Tree(4), Tree(3)), "Compare unequal arrays.");
     is(

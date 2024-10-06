@@ -8,7 +8,7 @@
 namespace ayu {
 namespace in {
 
-static uint64 diagnostic_serialization = 0;
+static u64 diagnostic_serialization = 0;
 
  // The subtypes in traversal.private.h build the struct to the right (as is
  // normal), so we'll build it to the left instead.
@@ -103,7 +103,7 @@ struct TraverseToTree {
     void use_values (
         const ToTreeTraversal<>& trav, const ValuesDcrPrivate* values
     ) {
-        for (uint i = 0; i < values->n_values; i++) {
+        for (u32 i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
             if (values->compare(*trav.address, *value->get_value())) {
                 new (trav.dest) Tree(value->name);
@@ -119,7 +119,7 @@ struct TraverseToTree {
     ) {
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
          // First just build the object as though none of the attrs are included
-        for (uint i = 0; i < attrs->n_attrs; i++) {
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (!!(attr->acr()->attr_flags & AttrFlags::Invisible)) continue;
 
@@ -137,8 +137,8 @@ struct TraverseToTree {
          // while flattening them.
         if (!!(trav.desc->flags & DescFlags::AttrsNeedRebuild)) {
              // Determine length for preallocation
-            uint len = object.size();
-            for (uint i = 0; i < attrs->n_attrs; i++) {
+            u32 len = object.size();
+            for (u32 i = 0; i < attrs->n_attrs; i++) {
                 auto flags = attrs->attr(i)->acr()->attr_flags;
                  // Ignore HasDefault; it can only decrease the length by 1, and
                  // checking whether it does requires comparing Trees, so I'd
@@ -153,7 +153,7 @@ struct TraverseToTree {
              // Allocate
             auto new_object = decltype(object)(Capacity(len));
              // Selectively flatten
-            for (uint i = 0; i < attrs->n_attrs; i++) {
+            for (u32 i = 0; i < attrs->n_attrs; i++) {
                 auto attr = attrs->attr(i);
                 auto flags = attr->acr()->attr_flags;
                 auto key = move(object[i].first);
@@ -226,7 +226,7 @@ struct TraverseToTree {
                 const AnyArray<AnyString>&
             >(*v.address);
             expect(!object);
-            object = UniqueArray<TreePair>(keys.size(), [&](uint i){
+            object = UniqueArray<TreePair>(keys.size(), [&](u32 i){
                 return TreePair{keys[i], Tree()};
             });
         }));
@@ -252,7 +252,7 @@ struct TraverseToTree {
     ) {
         auto len = elems->chop_flag(AttrFlags::Invisible);
         auto array = UniqueArray<Tree>(Capacity(len));
-        for (uint i = 0; i < len; i++) {
+        for (u32 i = 0; i < len; i++) {
             auto acr = elems->elem(i)->acr();
             ToTreeTraversal<ElemTraversal> child;
             child.dest = &array.emplace_back_expect_capacity(Tree());
@@ -268,12 +268,12 @@ struct TraverseToTree {
     void use_computed_elems (
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        uint32 len;
+        u32 len;
         read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         auto array = UniqueArray<Tree>(len);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        for (uint i = 0; i < array.size(); i++) {
+        for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             ToTreeTraversal<ComputedElemTraversal> child;
@@ -289,7 +289,7 @@ struct TraverseToTree {
     void use_contiguous_elems (
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        uint32 len;
+        u32 len;
         read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         auto array = UniqueArray<Tree>(len);
          // If len is 0, don't even bother calling the contiguous_elems
@@ -298,7 +298,7 @@ struct TraverseToTree {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
-            for (uint i = 0; i < array.size(); i++) {
+            for (u32 i = 0; i < array.size(); i++) {
                 ToTreeTraversal<ContiguousElemTraversal> child;
                 child.dest = &array[i];
                 trav_contiguous_elem<visit>(

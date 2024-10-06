@@ -30,7 +30,7 @@ struct ResourceData : Resource {
      // extra room for it, but storing it externally would require using an
      // unordered_map (to use a UniqueArray, we need an integer index, but
      // that's what this itself is).
-    uint32 node_id;
+    u32 node_id;
     IRI name;
     AnyVal value {};
     ResourceData (const IRI& n) : name(n) { }
@@ -704,7 +704,7 @@ AYU_DESCRIBE(ayu::ResourceRef,
 #include "../test/test-environment.private.h"
 #include "global.h"
 
-AYU_DESCRIBE_INSTANTIATE(std::vector<int32*>)
+AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)
 
 static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     using namespace tap;
@@ -738,13 +738,13 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         doc = &input->value().as<ayu::Document>();
     }, "Getting typed value from a resource");
     is(input->state(), RS::Loaded, "Resource::value() automatically loads resource");
-    is(input["foo"][1].get_as<int32>(), 4, "Value was generated properly (0)");
+    is(input["foo"][1].get_as<i32>(), 4, "Value was generated properly (0)");
     is(input["bar"][1].get_as<std::string>(), "qux", "Value was generated properly (1)");
 
     throws_code<e_ResourceStateInvalid>([&]{ save(output); }, "save throws on unloaded resource");
 
     doc->delete_named("foo");
-    doc->new_named<int32>("asdf", 51);
+    doc->new_named<i32>("asdf", 51);
 
     doesnt_throw([&]{ rename(input, output); }, "rename");
     is(input->state(), RS::Unloaded, "Old resource is RS::Unloaded after renaming");
@@ -753,7 +753,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     doesnt_throw([&]{ save(output); }, "save");
     is(tree_from_file(resource_filename(output->name())), tree_from_string(
-        "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _next_id:0}]"
+        "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _next_id:0}]"
     ), "Resource was saved with correct contents");
     ok(source_exists(output->name()), "source_exists returns true before deletion");
     doesnt_throw([&]{ remove_source(output->name()); }, "remove_source");
@@ -774,17 +774,17 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         is(ref.get_as<std::string>(), "qux", "reference_from_location got correct item");
     });
     doc = &output->value().as<ayu::Document>();
-    ref = output["asdf"][1].address_as<int32>();
+    ref = output["asdf"][1].address_as<i32>();
     doesnt_throw([&]{
         loc = reference_to_location(ref);
     });
     is(item_to_tree(&loc), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "reference_to_location works");
     doc->new_<AnyRef>(output["bar"][1]);
     doesnt_throw([&]{ save(output); }, "save with reference");
-    doc->new_<int32*>(output["asdf"][1]);
+    doc->new_<i32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
     is(tree_from_file(resource_filename(output->name())), tree_from_string(
-        "[ayu::Document {bar:[std::string qux] asdf:[int32 51] _0:[ayu::AnyRef #/bar+1] _1:[int32* #/asdf+1] _next_id:2}]"
+        "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _0:[ayu::AnyRef #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct reference as location");
     throws_code<e_OpenFailed>([&]{
         load(badinput);

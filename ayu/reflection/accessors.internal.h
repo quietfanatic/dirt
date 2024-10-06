@@ -15,7 +15,7 @@ namespace ayu::in {
 
 ///// UNIVERSAL ACCESSOR STUFF
 
-enum class AcrFlags : uint8 {
+enum class AcrFlags : u8 {
      // Make TreeFlags-equivalent values the same value for optimization.
     PreferHex = 0x1,
     PreferCompact = 0x2,
@@ -33,7 +33,7 @@ DECLARE_ENUM_BITWISE_OPERATORS(AcrFlags)
 
  // These belong on AttrDcr and ElemDcr, but we're putting them with the
  // accessor flags to save space.
-enum class AttrFlags : uint8 {
+enum class AttrFlags : u8 {
      // If this is set, the attr doesn't need to be present when doing
      // the from_tree operation.  There's no support for default values here;
      // if an attr wants a default value, set it in the class's default
@@ -116,7 +116,7 @@ struct Accessor {
      // constexpr classes.)  Note also that the refcount starts at 1, so when
      // constructing an AnyRef or a ChainAcr with a new Accessor*, don't call
      // inc() on it.
-    uint16 ref_count = 1;
+    u16 ref_count = 1;
     AcrFlags flags = {};
      // These belong on AttrDcr and ElemDcr but we're storing them here to
      //  save space.
@@ -164,12 +164,12 @@ struct Accessor {
          // Unlikely because most ACRs are constexpr.  This cannot be converted
          // to branchless code because the acr may be in a readonly region.
         if (ref_count) [[unlikely]] {
-            const_cast<uint16&>(ref_count)++;
+            const_cast<u16&>(ref_count)++;
         }
     }
     NOINLINE // noinline this so it doesn't make the caller allocate stack space
     void do_dec () const {
-        if (!--const_cast<uint16&>(ref_count)) {
+        if (!--const_cast<u16&>(ref_count)) {
             vt->destroy_this(const_cast<Accessor*>(this));
             delete this;
         }

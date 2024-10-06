@@ -20,7 +20,7 @@ namespace ayu {
 ///// RESOURCES
 
  // The possible states a Resource can have.
-enum class ResourceState : uint8 {
+enum class ResourceState : u8 {
      // This resource is not loaded and has an empty value.
     Unloaded,
      // This resource is currently being loaded.  Its value exists but is

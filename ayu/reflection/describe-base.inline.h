@@ -126,9 +126,9 @@ template <class Acr>
 constexpr auto _AYU_DescribeBase<T>::attr (
     StaticString key, const Acr& acr, in::AttrFlags flags
 ) {
-    uint count = !!(flags & in::AttrFlags::Optional)
-               + !!(flags & in::AttrFlags::Include)
-               + !!(flags & in::AttrFlags::CollapseOptional);
+    u32 count = !!(flags & in::AttrFlags::Optional)
+              + !!(flags & in::AttrFlags::Include)
+              + !!(flags & in::AttrFlags::CollapseOptional);
     if (count > 1) {
         ERROR_conflicting_flags_on_attr();
     }

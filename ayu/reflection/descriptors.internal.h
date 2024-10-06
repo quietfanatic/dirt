@@ -75,7 +75,7 @@ struct Cat<HeadT, TailTs...> :
     { }
 
     template <class T>
-    constexpr T* get (uint16 n) {
+    constexpr T* get (u16 n) {
         if constexpr (std::is_base_of_v<T, HeadT>) {
             if (n == 0) return &this->Head::head;
             else return Tail::template get<T>(n-1);
@@ -83,7 +83,7 @@ struct Cat<HeadT, TailTs...> :
         else return Tail::template get<T>(n);
     }
     template <class T>
-    constexpr const T* get (uint16 n) const {
+    constexpr const T* get (u16 n) const {
         if constexpr (std::is_base_of_v<T, HeadT>) {
             if (n == 0) return &this->Head::head;
             else return Tail::template get<T>(n-1);
@@ -102,11 +102,11 @@ template <>
 struct Cat<> {
     constexpr Cat () { }
     template <class T>
-    constexpr T* get (uint16) {
+    constexpr T* get (u16) {
         return null;
     }
     template <class T>
-    constexpr const T* get (uint16) const {
+    constexpr const T* get (u16) const {
         return null;
     }
     template <class F>
@@ -150,7 +150,7 @@ template <class T>
 struct Descriptor : ComparableAddress { };
 template <class T>
 struct AttachedDescriptor : Descriptor<T> {
-    constexpr uint16 get_offset (DescriptionFor<T>& header) {
+    constexpr u16 get_offset (DescriptionFor<T>& header) {
         return static_cast<ComparableAddress*>(this)
              - static_cast<ComparableAddress*>(&header);
     }
@@ -245,17 +245,17 @@ template <class T>
 struct ValuesDcr : AttachedDescriptor<T> {
     CompareFunc<T>* compare;
     AssignFunc<T>* assign;
-    uint16 n_values;
+    u16 n_values;
 };
 template <class T, class... Values>
 struct ValuesDcrWith : ValuesDcr<T> {
-    uint16 offsets [sizeof...(Values)] {};
+    u16 offsets [sizeof...(Values)] {};
     Cat<Values...> values;
     constexpr ValuesDcrWith (Values&&... vs) :
         ValuesDcr<T>{{}, &compare<T>, &assign<T>, sizeof...(Values)},
         values(move(vs)...)
     {
-        for (uint i = 0; i < sizeof...(Values); i++) {
+        for (u32 i = 0; i < sizeof...(Values); i++) {
             offsets[i] = static_cast<const ComparableAddress*>(
                 values.template get<ValueDcr<T>>(i)
             ) - static_cast<const ComparableAddress*>(this);
@@ -269,7 +269,7 @@ struct ValuesDcrWith : ValuesDcr<T> {
         ValuesDcr<T>{{}, compare, assign, sizeof...(Values)},
         values(move(vs)...)
     {
-        for (uint i = 0; i < sizeof...(Values); i++) {
+        for (u32 i = 0; i < sizeof...(Values); i++) {
             offsets[i] = static_cast<const ComparableAddress*>(
                 values.template get<ValueDcr<T>>(i)
             ) - static_cast<const ComparableAddress*>(this);
@@ -314,18 +314,18 @@ struct AttrDefaultDcrWith : AttrDefault, AttrDcrWith<T, Acr> {
 
 template <class T>
 struct AttrsDcr : AttachedDescriptor<T> {
-    uint16 n_attrs;
+    u16 n_attrs;
 };
 
 template <class T, class... Attrs>
 struct AttrsDcrWith : AttrsDcr<T> {
-    uint16 offsets [sizeof...(Attrs)] {};
+    u16 offsets [sizeof...(Attrs)] {};
     Cat<Attrs...> attrs;
     constexpr AttrsDcrWith (Attrs&&... as) :
-        AttrsDcr<T>{{}, uint16(sizeof...(Attrs))},
+        AttrsDcr<T>{{}, u16(sizeof...(Attrs))},
         attrs(move(as)...)
     {
-        for (uint i = 0; i < sizeof...(Attrs); i++) {
+        for (u32 i = 0; i < sizeof...(Attrs); i++) {
             offsets[i] = static_cast<ComparableAddress*>(
                 attrs.template get<AttrDcr<T>>(i)
             ) - static_cast<ComparableAddress*>(this);
@@ -358,20 +358,20 @@ struct ElemDcrWith : ElemDcr<T> {
 
 template <class T>
 struct ElemsDcr : AttachedDescriptor<T> {
-    uint16 n_elems;
+    u16 n_elems;
 };
 
 template <class T, class... Elems>
 struct ElemsDcrWith : ElemsDcr<T> {
-    uint16 offsets [sizeof...(Elems)] {};
+    u16 offsets [sizeof...(Elems)] {};
     Cat<Elems...> elems;
     constexpr ElemsDcrWith (Elems&&... es) :
-        ElemsDcr<T>{{}, uint16(sizeof...(Elems))},
+        ElemsDcr<T>{{}, u16(sizeof...(Elems))},
         elems(move(es)...)
     {
         bool have_optional = false;
         bool have_invisible = false;
-        uint16 i = 0;
+        u16 i = 0;
         elems.for_each([&]<class Elem>(const Elem& elem){
             if (!!(elem.acr.attr_flags & AttrFlags::Optional)) {
                 have_optional = true;
@@ -416,8 +416,8 @@ template <class T, class Acr>
 struct LengthDcrWith : LengthDcr<T> {
     static_assert(std::is_same_v<typename Acr::AcrFromType, T>);
     static_assert(
-        std::is_same_v<typename Acr::AcrToType, uint32> ||
-        std::is_same_v<typename Acr::AcrToType, uint64>
+        std::is_same_v<typename Acr::AcrToType, u32> ||
+        std::is_same_v<typename Acr::AcrToType, u64>
     );
     Acr acr;
     constexpr LengthDcrWith (const Acr& a) :
@@ -426,7 +426,7 @@ struct LengthDcrWith : LengthDcr<T> {
 };
 
 template <class T>
-using ElemFunc = AnyRef(T&, uint);
+using ElemFunc = AnyRef(T&, u32);
 template <class T>
 struct ComputedElemsDcr : AttachedDescriptor<T> {
     ElemFunc<T>* f;
@@ -485,7 +485,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     using Desc = FullDescription<T, std::remove_cvref_t<Dcrs>...>;
 
     static_assert(
-        sizeof(T) <= uint32(-1),
+        sizeof(T) <= u32(-1),
         "Cannot describe type larger the 4GB"
     );
     static_assert(

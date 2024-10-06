@@ -391,7 +391,7 @@ struct _AYU_DescribeBase {
     template <class Acr>
      // Use this for array-like items of variable length (or fixed-size items
      // with very long length).  The accessor must have a child type of either
-     // uint32 or uint64 (which should include uint, usize, and size_t).
+     // u32 or u64 (one of which is usize aka size_t).
      // Regardless of the type, its returned value cannot be more than the max
      // array size, 0x7fffffff or 2,147,483,647.
      //
@@ -422,7 +422,7 @@ struct _AYU_DescribeBase {
      //
      // If computed_elems() is present, length() must also be present, and
      // elems() and contiguous_elems() must not be present.
-    static constexpr auto computed_elems (AnyRef(* f )(T&, uint));
+    static constexpr auto computed_elems (AnyRef(* f )(T&, u32));
      // Use this for objects that have elements of identical laid out
      // sequentially in memory.  The provided function must return an AnyPtr to
      // the 0th element, and each subsequent element must be sizeof(Element)

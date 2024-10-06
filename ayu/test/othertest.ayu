@@ -2,9 +2,9 @@
 [ayu::Document {
     ext_ref:[ayu::AnyRef testfile.ayu#/foo+1]
     ext_pointer:[std::string* testfile.ayu#/bar+1]
-    a:[int32 3]
-    b:[int32 4]
-    c:[int32 5]
+    a:[i32 3]
+    b:[i32 4]
+    c:[i32 5]
      -- TODO: I broke references inside unordered_set
-    set:[std::vector<int32*> [#/a+1 #/b+1 #/c+1]]
+    set:[std::vector<i32*> [#/a+1 #/b+1 #/c+1]]
 }]

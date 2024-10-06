@@ -83,7 +83,7 @@ namespace ayu::test {
         InitTest it;
         int it_val = -1;
     };
-    enum ScalarElemTest : uint8 {
+    enum ScalarElemTest : u8 {
     };
     struct InternalRefTest {
         int a;
@@ -143,15 +143,15 @@ AYU_DESCRIBE(ayu::test::ElemTest,
     )
 )
 AYU_DESCRIBE(ayu::test::ElemsTest,
-    length(value_funcs<uint32>(
-        [](const ElemsTest& v)->uint32{
+    length(value_funcs<u32>(
+        [](const ElemsTest& v)->u32{
             return v.xs.size();
         },
-        [](ElemsTest& v, uint32 l){
+        [](ElemsTest& v, u32 l){
             v.xs.resize(l);
         }
     )),
-    computed_elems([](ElemsTest& v, uint i){
+    computed_elems([](ElemsTest& v, u32 i){
         return AnyRef(&v.xs.at(i));
     })
 )
@@ -206,20 +206,20 @@ AYU_DESCRIBE(ayu::test::NestedInitTest,
 )
 AYU_DESCRIBE(ayu::test::ScalarElemTest,
     elems(
-        elem(value_funcs<uint8>(
-            [](const ScalarElemTest& v) -> uint8 {
-                return uint8(v) >> 4;
+        elem(value_funcs<u8>(
+            [](const ScalarElemTest& v) -> u8 {
+                return u8(v) >> 4;
             },
-            [](ScalarElemTest& v, uint8 m){
-                v = ScalarElemTest((uint8(v) & 0xf) | (m << 4));
+            [](ScalarElemTest& v, u8 m){
+                v = ScalarElemTest((u8(v) & 0xf) | (m << 4));
             }
         )),
-        elem(value_funcs<uint8>(
-            [](const ScalarElemTest& v) -> uint8 {
-                return uint8(v) & 0xf;
+        elem(value_funcs<u8>(
+            [](const ScalarElemTest& v) -> u8 {
+                return u8(v) & 0xf;
             },
-            [](ScalarElemTest& v, uint8 m){
-                v = ScalarElemTest((uint8(v) & 0xf0) | (m & 0xf));
+            [](ScalarElemTest& v, u8 m){
+                v = ScalarElemTest((u8(v) & 0xf0) | (m & 0xf));
             }
         ))
     )

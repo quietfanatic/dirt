@@ -50,8 +50,8 @@ static tap::TestSet tests ("dirt/ayu/reflection/describe-standard", []{
     });
     is(s16_got, s16, "Can deserialize wstring");
      // Test tuples
-    std::tuple<int32, std::string, std::vector<int32>> data;
-    std::tuple<int32, std::string, std::vector<int32>> expected_data
+    std::tuple<i32, std::string, std::vector<i32>> data;
+    std::tuple<i32, std::string, std::vector<i32>> expected_data
         = {45, "asdf", {3, 4, 5}};
     Str s = "[45 asdf [3 4 5]]";
     doesnt_throw([&]{

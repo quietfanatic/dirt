@@ -27,7 +27,7 @@ struct Printer {
      // estimate-first-and-allocate-once strategy, but once the length
      // estimation gets complicated enough, it ends up slower than reallocating.
     NOINLINE
-    char* extend (char* p, uint more) {
+    char* extend (char* p, u32 more) {
         char* old_begin = begin;
         char* new_begin = SharableBuffer<char>::allocate_plenty(
             p - old_begin + more
@@ -40,7 +40,7 @@ struct Printer {
         return p - old_begin + begin;
     }
 
-    char* reserve (char* p, uint more) {
+    char* reserve (char* p, u32 more) {
         if (p + more >= end) [[unlikely]] return extend(p, more);
         else return p;
     }
@@ -67,7 +67,7 @@ struct Printer {
         return t.data.as_bool ? pstr(p, "true") : pstr(p, "false");
     }
 
-    char* print_index (char* p, uint32 v) {
+    char* print_index (char* p, u32 v) {
         p = reserve(p, 15);
         *p++ = ' '; *p++ = ' '; *p++ = '-'; *p++ = '-'; *p++ = ' ';
         return write_decimal_digits(p, count_decimal_digits(v), v);
@@ -76,7 +76,7 @@ struct Printer {
     NOINLINE
     char* print_small_int (char* p, const Tree& t) {
         p = reserve(p, 3);
-        int64 v = t.data.as_int64;
+        i64 v = t.data.as_i64;
         expect(v >= 0 && v < 10);
         bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
         if (hex) {
@@ -87,9 +87,9 @@ struct Printer {
     }
 
     NOINLINE
-    char* print_int64 (char* p, const Tree& t) {
+    char* print_i64 (char* p, const Tree& t) {
         p = reserve(p, 20);
-        int64 v = t.data.as_int64;
+        i64 v = t.data.as_i64;
         expect(v < 0 || v >= 10);
         if (v < 0) {
             *p++ = '-';
@@ -99,7 +99,7 @@ struct Printer {
         if (hex) {
             *p++ = '0'; *p++ = 'x';
             auto [ptr, ec] = std::to_chars(
-                p, p+16, uint64(v), 16
+                p, p+16, u64(v), 16
             );
             expect(ec == std::errc());
             return ptr;
@@ -170,7 +170,7 @@ struct Printer {
     char* print_quoted_expanded (char* p, Str s) {
         p = reserve(p, 2 + s.size());
         *p++ = '"';
-        for (uint i = 0; i < s.size(); i++) {
+        for (u32 i = 0; i < s.size(); i++) {
             char esc;
             switch (s[i]) {
                 case '"': esc = '"'; goto escape;
@@ -193,7 +193,7 @@ struct Printer {
     char* print_quoted_contracted (char* p, Str s) {
         p = reserve(p, 2 + s.size());
         *p++ = '"';
-        for (uint i = 0; i < s.size(); i++) {
+        for (u32 i = 0; i < s.size(); i++) {
             char esc;
             switch (s[i]) {
                 case '"': esc = '"'; goto escape;
@@ -273,7 +273,7 @@ struct Printer {
         }
     }
 
-    char* print_newline (char* p, uint ind) {
+    char* print_newline (char* p, u32 ind) {
         p = reserve(p, 1 + ind * 4);
         *p++ = '\n';
         for (; ind; ind--) p = 4+(char*)std::memcpy(p, "    ", 4);
@@ -281,7 +281,7 @@ struct Printer {
     }
 
     NOINLINE
-    char* print_array (char* p, const Tree& t, uint ind) {
+    char* print_array (char* p, const Tree& t, u32 ind) {
         expect(t.form == Form::Array);
         auto a = Slice<Tree>(t);
         if (a.empty()) {
@@ -323,7 +323,7 @@ struct Printer {
     }
 
     NOINLINE
-    char* print_object (char* p, const Tree& t, uint ind) {
+    char* print_object (char* p, const Tree& t, u32 ind) {
         expect(t.form == Form::Object);
         auto o = Slice<TreePair>(t);
         if (o.empty()) {
@@ -384,16 +384,16 @@ struct Printer {
      // saving things on the stack.  If everything is NOINLINE, this function
      // will require no prologue or epilogue.
     NOINLINE
-    char* print_tree (char* p, const Tree& t, uint ind) {
+    char* print_tree (char* p, const Tree& t, u32 ind) {
         switch (t.form) {
             case Form::Null: return print_null(p);
             case Form::Bool: return print_bool(p, t);
             case Form::Number: {
                 if (t.meta) return print_double(p, t);
-                else if (t.data.as_int64 >= 0 && t.data.as_int64 < 10) {
+                else if (t.data.as_i64 >= 0 && t.data.as_i64 < 10) {
                     return print_small_int(p, t);
                 }
-                else return print_int64(p, t);
+                else return print_i64(p, t);
             }
             case Form::String: return print_string(p, Str(t), &t);
             case Form::Array: return print_array(p, t, ind);
@@ -404,7 +404,7 @@ struct Printer {
     }
 
     UniqueString print (const Tree& t) {
-        uint cap = t.form == Form::Array || t.form == Form::Object
+        u32 cap = t.form == Form::Array || t.form == Form::Object
             ? 256 : 32;
         begin = SharableBuffer<char>::allocate_plenty(cap);
         end = begin + cap;
@@ -471,7 +471,7 @@ static tap::TestSet tests ("dirt/ayu/data/print", []{
 
     auto test = [](Str got, Str expected, std::string name){
         if (!is(got, expected, name)) {
-            uint i = 0;
+            u32 i = 0;
             for (; i < got.size() && i < expected.size(); i++) {
                 if (got[i] != expected[i]) {
                     diag(cat("First difference at ",

@@ -11,7 +11,7 @@
 namespace ayu {
 
  // For unambiguity, types of trees are called forms.
-enum class Form : uint8 {
+enum class Form : u8 {
     Undefined = 0,
     Null,
     Bool,
@@ -26,7 +26,7 @@ enum class Form : uint8 {
 
  // Options that control how a Tree is printed.  These do not have any effect on
  // the semantics of the Tree, and they do not affect subtrees.
-enum class TreeFlags : uint16 {
+enum class TreeFlags : u16 {
      // For Number: Print the number as hexadecimal.
     PreferHex = 0x1,
      // For Array or Object: When pretty-printing, print this item compactly,
@@ -51,7 +51,7 @@ DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 
 struct Tree {
     Form form;
-    uint8 unused;
+    u8 unused;
      // Only the flags can be modified after construction.
     TreeFlags flags;
 
@@ -115,18 +115,18 @@ struct Tree {
     ///// CONVERSION FROM TREE
      // These throw if the tree is not the right form or if
      // the requested type cannot store the value, e.g. try to convert to a
-     // uint8 a Tree containing the number 257.
+     // u8 a Tree containing the number 257.
     explicit constexpr operator Null () const;
     explicit constexpr operator bool () const;
     explicit constexpr operator char () const;
-    explicit constexpr operator int8 () const;
-    explicit constexpr operator uint8 () const;
-    explicit constexpr operator int16 () const;
-    explicit constexpr operator uint16 () const;
-    explicit constexpr operator int32 () const;
-    explicit constexpr operator uint32 () const;
-    explicit constexpr operator int64 () const;
-    explicit constexpr operator uint64 () const;
+    explicit constexpr operator i8 () const;
+    explicit constexpr operator u8 () const;
+    explicit constexpr operator i16 () const;
+    explicit constexpr operator u16 () const;
+    explicit constexpr operator i32 () const;
+    explicit constexpr operator u32 () const;
+    explicit constexpr operator i64 () const;
+    explicit constexpr operator u64 () const;
     explicit constexpr operator float () const { return double(*this); }
     explicit constexpr operator double () const;
      // Warning 1: The returned Str is not NUL-terminated.
@@ -148,22 +148,22 @@ struct Tree {
     constexpr const Tree* attr (Str key) const;
      // Returns null if the invocant is not an ARRAY or does not have an
      // element at the given index.
-    constexpr const Tree* elem (uint index) const;
+    constexpr const Tree* elem (u32 index) const;
 
      // Throws if the tree is not an object or doesn't have that attribute.
     constexpr const Tree& operator[] (Str key) const;
      // Throws if the tree is not an array or the index is out of bounds.
-    constexpr const Tree& operator[] (uint index) const;
+    constexpr const Tree& operator[] (u32 index) const;
 
     ///// INTERNAL
 
      // For Form::Number: 0 = integer, 2 = floating
      // For Form::String|Array|Object|Error: impl.sizex2_with_owned
      // For all types: meta & 1 means we need to refcount.
-    uint32 meta;
+    u32 meta;
     union {
         bool as_bool;
-        int64 as_int64;
+        i64 as_i64;
         double as_double;
         const char* as_char_ptr;
         const Tree* as_array_ptr;
@@ -184,7 +184,7 @@ bool operator == (const Tree& a, const Tree& b) noexcept;
  // Tried to get something out of a tree that was the wrong form.
 constexpr ErrorCode e_TreeWrongForm = "ayu::e_TreeWrongForm";
  // Tried to get something (probably a number) out of a tree but its value was
- // out of range for the requested type.  Example, uint8(Tree(257)).
+ // out of range for the requested type.  Example, u8(Tree(257)).
 constexpr ErrorCode e_TreeCantRepresent = "ayu::e_TreeCantRepresent";
 
 }  // namespace ayu

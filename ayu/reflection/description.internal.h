@@ -18,7 +18,7 @@ static_assert(sizeof(ComparableAddress) == 1);
 
 using NameFunc = AnyString();
 
-enum class DescFlags : uint8 {
+enum class DescFlags : u8 {
     PreferArray = 1 << 0,
     PreferObject = 1 << 1,
     Preference = PreferArray | PreferObject,
@@ -32,7 +32,7 @@ enum class DescFlags : uint8 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
 
-enum class TypeFlags : uint8 {
+enum class TypeFlags : u8 {
     NoRefsToChildren = 1 << 0
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
@@ -41,8 +41,8 @@ struct Description : ComparableAddress {
 #ifdef AYU_STORE_TYPE_INFO
     const std::type_info* cpp_type = null;
 #endif
-    uint32 cpp_size = 0;
-    uint32 cpp_align = 0;
+    u32 cpp_size = 0;
+    u32 cpp_align = 0;
     union {
         StaticString name;
         struct {
@@ -54,26 +54,26 @@ struct Description : ComparableAddress {
     DescFlags flags = {};
     TypeFlags type_flags = {};
 
-    uint16 to_tree_offset = 0;
-    uint16 from_tree_offset = 0;
-    uint16 before_from_tree_offset = 0;
-    uint16 swizzle_offset = 0;
-    uint16 init_offset = 0;
-    uint16 values_offset = 0;
-    uint16 keys_offset = 0;
+    u16 to_tree_offset = 0;
+    u16 from_tree_offset = 0;
+    u16 before_from_tree_offset = 0;
+    u16 swizzle_offset = 0;
+    u16 init_offset = 0;
+    u16 values_offset = 0;
+    u16 keys_offset = 0;
     union {
-        uint16 attrs_offset = 0; // keys_offset == 0
-        uint16 computed_attrs_offset; // keys_offset != 0
+        u16 attrs_offset = 0; // keys_offset == 0
+        u16 computed_attrs_offset; // keys_offset != 0
     };
-    uint16 length_offset = 0;
+    u16 length_offset = 0;
     union {
-        uint16 elems_offset = 0; // length_offset == 0
+        u16 elems_offset = 0; // length_offset == 0
          // length_offset != 0 && !ElemsContiguous
-        uint16 computed_elems_offset;
+        u16 computed_elems_offset;
          // length_offset != 0 && ElemsContiguous
-        uint16 contiguous_elems_offset;
+        u16 contiguous_elems_offset;
     };
-    uint16 delegate_offset = 0;
+    u16 delegate_offset = 0;
 };
 
 } // namespace ayu::in
