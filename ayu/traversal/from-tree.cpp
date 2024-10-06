@@ -3,7 +3,7 @@
 #include <memory>
 #include "../reflection/descriptors.private.h"
 #include "../resources/resource.h"
-#include "compound.h"  // for error codes
+#include "compound.private.h"
 #include "traversal.private.h"
 
 namespace ayu {
@@ -614,41 +614,14 @@ struct TraverseFromTree {
         finish_item(trav);
     }
 
-    static
-    void write_length (
-        const FromTreeTraversal<>& trav,
-        const Accessor* length_acr, Slice<Tree> array
-    ) {
-        if (!(length_acr->flags & AcrFlags::Readonly)) {
-            length_acr->write(*trav.address,
-                AccessCB(array, [](auto& array, AnyPtr v, bool)
-            {
-                require_writeable_length(v.type);
-                reinterpret_cast<usize&>(*v.address) = array.size();
-            }));
-        }
-        else {
-             // For readonly length, read it and check that it's the same.
-            usize len;
-            length_acr->read(*trav.address,
-                AccessCB(len, [](usize& len, AnyPtr v, bool)
-            {
-                require_readable_length(v.type);
-                len = reinterpret_cast<usize&>(*v.address);
-            }));
-            if (array.size() != len) {
-                raise_LengthRejected(trav.desc, len, len, trav.tree->meta >> 1);
-            }
-        }
-    }
-
     NOINLINE static
     void use_computed_elems (
         const FromTreeTraversal<>& trav, const Accessor* length_acr
     ) {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
-        write_length(trav, length_acr, array);
+        uint32 len = array.size();
+        write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < array.size(); i++) {
@@ -669,7 +642,8 @@ struct TraverseFromTree {
     ) {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
-        write_length(trav, length_acr, array);
+        uint32 len = array.size();
+        write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         if (array) {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;

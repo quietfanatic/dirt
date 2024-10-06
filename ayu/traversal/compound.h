@@ -74,7 +74,7 @@ constexpr ErrorCode e_AttrNotFound = "ayu::e_AttrNotFound";
  // (when given an object tree for the item).
 constexpr ErrorCode e_AttrsNotSupported = "ayu::e_AttrsNotSupported";
 
- // An item's length accessor returned a type other than usize
+ // An item's length accessor returned a type other than uint32 or uint64.
 constexpr ErrorCode e_LengthTypeInvalid = "ayu::e_LengthTypeRejected";
  // The set_length operation (which is also part of the item_from_tree process)
  // failed because the provided length was not accepted by the item.
@@ -88,6 +88,9 @@ constexpr ErrorCode e_ElemNotFound = "ayu::e_ElemNotFound";
  // thrown by any of the length or elem operations and also by item_from_tree
  // (when given an array tree for the item).
 constexpr ErrorCode e_ElemsNotSupported = "ayu::e_ElemsNotSupported";
+ // A length() accessor returned a value that was way too large (larger than
+ // Array<*>::max_size_, or 0x7fffffff).
+constexpr ErrorCode e_LengthOverflow = "ayu::e_LengthOverflow";
 
  // You might want to use these error types in your descriptions.
 [[noreturn, gnu::cold]]
@@ -110,26 +113,7 @@ void raise_LengthTypeInvalid (Type item_type, Type got_type);
 void raise_ElemNotFound (Type, usize);
 [[noreturn, gnu::cold]]
 void raise_ElemsNotSupported (Type);
+[[noreturn, gnu::cold]]
+void raise_LengthOverflow (uint64);
 
-inline void require_readable_keys (Type t) {
-    if (t.remove_readonly() != Type::CppType<AnyArray<AnyString>>()) {
-        raise_KeysTypeInvalid(Type(), t);
-    }
-}
-inline void require_writeable_keys (Type t) {
-    if (t != Type::CppType<AnyArray<AnyString>>()) {
-        raise_KeysTypeInvalid(Type(), t);
-    }
-}
-inline void require_readable_length (Type t) {
-    if (t.remove_readonly() != Type::CppType<usize>()) {
-        raise_LengthTypeInvalid(Type(), t);
-    }
-}
-inline void require_writeable_length (Type t) {
-    if (t != Type::CppType<usize>()) {
-        raise_LengthTypeInvalid(Type(), t);
-    }
-}
-
-} // namespace ayu
+} // ayu

@@ -1,4 +1,4 @@
-#include "compound.h"
+#include "compound.private.h"
 
 #include "../reflection/describe-standard.h"
 #include "../reflection/descriptors.private.h"
@@ -418,19 +418,16 @@ namespace in {
 struct TraverseGetLength {
     static
     usize start (const AnyRef& item, LocationRef loc) try {
-        usize len;
+        uint32 len;
         item.read(AccessCB(len, &visit));
         return len;
     } catch (...) { rethrow_with_travloc(loc); }
 
     static
-    void visit (usize& len, AnyPtr item, bool) {
+    void visit (uint32& len, AnyPtr item, bool) {
         auto desc = DescriptionPrivate::get(item.type);
         if (auto acr = desc->length_acr()) {
-            acr->read(*item.address, AccessCB(len, [](usize& len, AnyPtr l, bool){
-                require_readable_length(l.type);
-                len = reinterpret_cast<const usize&>(*l.address);
-            }));
+            read_length_acr(len, item, acr);
         }
         else if (auto elems = desc->elems()) {
             len = elems->chop_flag(AttrFlags::Invisible);
@@ -454,35 +451,15 @@ namespace in {
 
 struct TraverseSetLength {
     static
-    void start (const AnyRef& item, usize len, LocationRef loc) try {
+    void start (const AnyRef& item, uint32 len, LocationRef loc) try {
         item.read(AccessCB(len, &visit));
     } catch (...) { rethrow_with_travloc(loc); }
 
     NOINLINE static
-    void visit (usize& len, AnyPtr item, bool) {
+    void visit (uint32& len, AnyPtr item, bool) {
         auto desc = DescriptionPrivate::get(item.type);
         if (auto acr = desc->length_acr()) {
-            if (!(acr->flags & AcrFlags::Readonly)) {
-                acr->write(*item.address,
-                    AccessCB(len, [](usize& len, AnyPtr l, bool)
-                {
-                    require_writeable_length(l.type);
-                    reinterpret_cast<usize&>(*l.address) = len;
-                }));
-            }
-            else {
-                 // For readonly length, just check that the provided length matches
-                usize expected;
-                acr->read(*item.address,
-                    AccessCB(expected, [](usize& ex, AnyPtr l, bool)
-                {
-                    require_readable_length(l.type);
-                    ex = reinterpret_cast<const usize&>(l);
-                }));
-                if (len != expected) {
-                    raise_LengthRejected(item.type, expected, expected, len);
-                }
-            }
+            write_length_acr(len, item, acr);
         }
         else if (auto elems = desc->elems()) {
             usize min = elems->chop_flag(AttrFlags::Optional);
@@ -501,6 +478,9 @@ struct TraverseSetLength {
 } // in
 
 void item_set_length (const AnyRef& item, usize len, LocationRef loc) {
+    if (len > AnyArray<Tree>::max_size_) {
+        raise_LengthOverflow(len);
+    }
     TraverseSetLength::start(item, len, loc);
 }
 
@@ -578,13 +558,8 @@ struct TraverseElem {
     ) {
          // We have to read the length to do bounds checking, making this
          // ironically slower than computed_elems.
-        usize len;
-        length_acr->read(*trav.address,
-            AccessCB(len, [](usize& len, AnyPtr v, bool){
-                require_readable_length(v.type);
-                len = reinterpret_cast<const usize&>(*v.address);
-            })
-        );
+        uint32 len;
+        read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         if (trav.index >= len) return;
         expect(trav.desc->contiguous_elems_offset);
         auto f = trav.desc->contiguous_elems()->f;
@@ -627,21 +602,38 @@ AnyRef item_elem (const AnyRef& item, usize index, LocationRef loc) {
     return r;
 }
 
+///// LENGTH AND KEYS ACR HANDLING
+
+void in::read_length_acr_cb (uint32& len, AnyPtr v, bool) {
+    uint64 l;
+    Type t = v.type.remove_readonly();
+    if (t == Type::CppType<uint32>()) {
+        l = reinterpret_cast<const uint32&>(*v.address);
+    }
+    else if (t == Type::CppType<uint64>()) {
+        l = reinterpret_cast<const uint64&>(*v.address);
+    }
+    else raise_LengthTypeInvalid(Type(), t);
+    if (l > AnyArray<Tree>::max_size_) {
+        raise_LengthOverflow(l);
+    }
+    len = l;
+}
+
+void in::write_length_acr_cb (uint32& len, AnyPtr v, bool) {
+    expect(len <= AnyArray<Tree>::max_size_);
+    if (v.type == Type::CppType<uint32>()) {
+        reinterpret_cast<uint32&>(*v.address) = len;
+    }
+    else if (v.type == Type::CppType<uint64>()) {
+        reinterpret_cast<uint64&>(*v.address) = len;
+    }
+    else {
+        raise_LengthTypeInvalid(Type(), v.type);
+    }
+}
+
 ///// ERRORS
-
-void raise_KeysTypeInvalid (Type, Type got_type) {
-    raise(e_KeysTypeInvalid, cat(
-        "Item has keys accessor of wrong type; expected AnyArray<AnyString> but got ",
-        got_type.name()
-    ));
-}
-
-void raise_AttrsNotSupported (Type item_type) {
-    raise(e_AttrsNotSupported, cat(
-        "Item of type ", item_type.name(),
-        " does not support behaving like an ", "object"
-    ));
-}
 
 void raise_AttrMissing (Type item_type, const AnyString& key) {
     raise(e_AttrMissing, cat(
@@ -652,6 +644,43 @@ void raise_AttrMissing (Type item_type, const AnyString& key) {
 void raise_AttrRejected (Type item_type, const AnyString& key) {
     raise(e_AttrRejected, cat(
         "Item of type ", item_type.name(), " given unwanted key ", key
+    ));
+}
+
+void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
+    UniqueString mess = min == max ? cat(
+        "Item of type ", item_type.name(), " given wrong length ", got,
+        " (expected ", min, ")"
+    ) : cat(
+        "Item of type ", item_type.name(), " given wrong length ", got,
+        " (expected between ", min, " and ", max, ")"
+    );
+    raise(e_LengthRejected, move(mess));
+}
+
+void raise_KeysTypeInvalid (Type, Type got_type) {
+    raise(e_KeysTypeInvalid, cat(
+        "Item has keys accessor of wrong type; expected AnyArray<AnyString> but got ",
+        got_type.name()
+    ));
+}
+
+void raise_AttrNotFound (Type item_type, const AnyString& key) {
+    raise(e_AttrNotFound, cat(
+        "Item of type ", item_type.name(), " has no attribute with key ", key
+    ));
+}
+
+void raise_AttrsNotSupported (Type item_type) {
+    raise(e_AttrsNotSupported, cat(
+        "Item of type ", item_type.name(),
+        " does not support behaving like an ", "object"
+    ));
+}
+
+void raise_ElemNotFound (Type item_type, usize index) {
+    raise(e_ElemNotFound, cat(
+        "Item of type ", item_type.name(), " has no element at index ", index
     ));
 }
 
@@ -669,26 +698,9 @@ void raise_LengthTypeInvalid (Type, Type got_type) {
     ));
 }
 
-void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
-    UniqueString mess = min == max ? cat(
-        "Item of type ", item_type.name(), " given wrong length ", got,
-        " (expected ", min, ")"
-    ) : cat(
-        "Item of type ", item_type.name(), " given wrong length ", got,
-        " (expected between ", min, " and ", max, ")"
-    );
-    raise(e_LengthRejected, move(mess));
-}
-
-void raise_AttrNotFound (Type item_type, const AnyString& key) {
-    raise(e_AttrNotFound, cat(
-        "Item of type ", item_type.name(), " has no attribute with key ", key
-    ));
-}
-
-void raise_ElemNotFound (Type item_type, usize index) {
-    raise(e_ElemNotFound, cat(
-        "Item of type ", item_type.name(), " has no element at index ", index
+void raise_LengthOverflow (uint64 len) {
+    raise(e_LengthOverflow, cat(
+        "Item's length is far too large (", len, " > 0x7fffffff)"
     ));
 }
 

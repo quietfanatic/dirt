@@ -1,7 +1,7 @@
 #include "to-tree.h"
 
 #include "../reflection/descriptors.private.h"
-#include "compound.h"
+#include "compound.private.h"
 #include "scan.h"
 #include "traversal.private.h"
 
@@ -264,24 +264,12 @@ struct TraverseToTree {
         new (trav.dest) Tree(move(array));
     }
 
-    static usize read_length (
-        const ToTreeTraversal<>& trav, const Accessor* length_acr
-    ) {
-        usize len;
-        length_acr->read(*trav.address,
-            AccessCB(len, [](usize& len, AnyPtr v, bool)
-        {
-            require_readable_length(v.type);
-            len = reinterpret_cast<const usize&>(*v.address);
-        }));
-        return len;
-    }
-
     NOINLINE static
     void use_computed_elems (
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        usize len = read_length(trav, length_acr);
+        uint32 len;
+        read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         auto array = UniqueArray<Tree>(len);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
@@ -301,7 +289,8 @@ struct TraverseToTree {
     void use_contiguous_elems (
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        usize len = read_length(trav, length_acr);
+        uint32 len;
+        read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         auto array = UniqueArray<Tree>(len);
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't needed for computed_elems.

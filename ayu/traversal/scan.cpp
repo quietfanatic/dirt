@@ -4,7 +4,7 @@
 #include "../reflection/anyref.h"
 #include "../reflection/descriptors.private.h"
 #include "../resources/universe.private.h"
-#include "compound.h"
+#include "compound.private.h"
 #include "location.h"
 #include "traversal.private.h"
 
@@ -205,23 +205,12 @@ struct TraverseScan {
         }
     }
 
-    static
-    usize read_length (const ScanTraversal<>& trav) {
-        expect(trav.desc->length_offset);
-        auto length_acr = trav.desc->length_acr();
-        usize len;
-        length_acr->read(*trav.address,
-            AccessCB(len, [](usize& len, AnyPtr v, bool)
-        {
-            require_readable_length(v.type);
-            len = reinterpret_cast<usize&>(*v.address);
-        }));
-        return len;
-    }
-
     NOINLINE static
     void use_computed_elems (const ScanTraversal<>& trav) {
-        usize len = read_length(trav);
+        uint32 len;
+        read_length_acr(
+            len, AnyPtr(trav.desc, trav.address), trav.desc->length_acr()
+        );
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
         for (usize i = 0; i < len; i++) {
@@ -248,7 +237,10 @@ struct TraverseScan {
 
     NOINLINE static
     void use_contiguous_elems (const ScanTraversal<>& trav) {
-        usize len = read_length(trav);
+        uint32 len;
+        read_length_acr(
+            len, AnyPtr(trav.desc, trav.address), trav.desc->length_acr()
+        );
         if (!len) return;
         expect(trav.desc->contiguous_elems_offset);
         auto f = trav.desc->contiguous_elems()->f;

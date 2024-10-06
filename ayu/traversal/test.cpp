@@ -143,11 +143,11 @@ AYU_DESCRIBE(ayu::test::ElemTest,
     )
 )
 AYU_DESCRIBE(ayu::test::ElemsTest,
-    length(value_funcs<usize>(
-        [](const ElemsTest& v){
+    length(value_funcs<uint32>(
+        [](const ElemsTest& v)->uint32{
             return v.xs.size();
         },
-        [](ElemsTest& v, usize l){
+        [](ElemsTest& v, uint32 l){
             v.xs.resize(l);
         }
     )),

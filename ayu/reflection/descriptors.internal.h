@@ -415,7 +415,10 @@ struct LengthDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
 struct LengthDcrWith : LengthDcr<T> {
     static_assert(std::is_same_v<typename Acr::AcrFromType, T>);
-    static_assert(std::is_same_v<typename Acr::AcrToType, usize>);
+    static_assert(
+        std::is_same_v<typename Acr::AcrToType, uint32> ||
+        std::is_same_v<typename Acr::AcrToType, uint64>
+    );
     Acr acr;
     constexpr LengthDcrWith (const Acr& a) :
         acr(constexpr_acr(a))

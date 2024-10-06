@@ -390,9 +390,12 @@ struct _AYU_DescribeBase {
     );
     template <class Acr>
      // Use this for array-like items of variable length (or fixed-size items
-     // with very long length).  The accessor must have a child type
-     // of usize (AKA size_t).  Writing to this accessor may clear the contents
-     // of the item.
+     // with very long length).  The accessor must have a child type of either
+     // uint32 or uint64 (which should include uint, usize, and size_t).
+     // Regardless of the type, its returned value cannot be more than the max
+     // array size, 0x7fffffff or 2,147,483,647.
+     //
+     // Writing to this accessor may clear the contents of the item.
      //
      // When serializing, the length of the resulting array Tree will be
      // determined by calling `accessor`s read method.
