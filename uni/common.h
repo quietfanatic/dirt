@@ -2,30 +2,46 @@
 
 #include <cstdint>
 #include <limits>
-#include <string_view>
 #include <type_traits>
 #include <utility>
 
 namespace uni {
 inline namespace common {
 
+///// New-fangled int names
+using i8 = std::int8_t;
+using i16 = std::int16_t;
+using i32 = std::int32_t;
+using i64 = std::int64_t;
+using isize = std::intptr_t;
+using u8 = std::uint8_t;
+using u16 = std::uint16_t;
+using u32 = std::uint32_t;
+using u64 = std::uint64_t;
+using usize = std::uintptr_t;
+ // I once met a compiler that defined uint32_t as unsigned int, uint64_t as
+ // unsigned long long, but size_t as unsigned long.  If that happens, fiddle
+ // with the compiler flags until it doesn't.
+static_assert(std::is_same_v<isize, i32> || std::is_same_v<isize, i64>);
+static_assert(std::is_same_v<usize, u32> || std::is_same_v<usize, u64>);
+static_assert(std::is_same_v<usize, std::size_t>);
+
+///// Old-fashioned int names
 using int8 = std::int8_t;
 using int16 = std::int16_t;
 using int32 = std::int32_t;
 using int64 = std::int64_t;
-using isize = std::intptr_t;
 using uint = unsigned int;  // 32 bits on most platforms
 using uint8 = std::uint8_t;
 using uint16 = std::uint16_t;
 using uint32 = std::uint32_t;
 using uint64 = std::uint64_t;
-using usize = std::uintptr_t;
- // I once met a compiler that defined uint32 as unsigned int, uint64 as
- // unsigned long long, but size_t as unsigned long.  If that happens, fiddle
- // with the compiler flags until it doesn't.
-static_assert(std::is_same_v<isize, int32> || std::is_same_v<isize, int64>);
-static_assert(std::is_same_v<usize, uint32> || std::is_same_v<usize, uint64>);
-static_assert(std::is_same_v<usize, std::size_t>);
+
+///// Other types and constants
+ // Anyone using this header is expected to treat char as UTF-8.
+ // These are not in std:: for some reason
+using char16 = char16_t;
+using char32 = char32_t;
 
 using Null = std::nullptr_t;
 constexpr Null null = nullptr;
@@ -40,11 +56,6 @@ constexpr float nan = std::numeric_limits<float>::quiet_NaN();
     #undef inf
 #endif
 constexpr float inf = std::numeric_limits<float>::infinity();
-
- // Anyone using this header is expected to treat char as UTF-8.
- // These are not in std:: for some reason
-using char16 = char16_t;
-using char32 = char32_t;
 
 using std::move;
 
