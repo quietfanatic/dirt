@@ -35,8 +35,8 @@ UniqueString encode_path (Str input) noexcept {
                         *out++ = '/'; break;
                     }
                 }
-                uint8 high = uint8(c) >> 4;
-                uint8 low = uint8(c) & 0xf;
+                u8 high = u8(c) >> 4;
+                u8 low = u8(c) & 0xf;
                 *out++ = '%';
                 *out++ = high >= 10 ? high - 10 + 'A' : high + '0';
                 *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
@@ -46,7 +46,7 @@ UniqueString encode_path (Str input) noexcept {
         }
     }
     UniqueString r;
-    r.impl = {uint32(out - buf), buf};
+    r.impl = {u32(out - buf), buf};
     return r;
 }
 
@@ -114,7 +114,7 @@ const IRI& program_location () noexcept {
          // string type with something incompatible.
         if (requires { r.spec_.impl.sizex2_with_owned; }) {
             auto& sx2wo = r.spec_.impl.sizex2_with_owned;
-            const_cast<uint32&>(sx2wo) &= ~1;
+            const_cast<u32&>(sx2wo) &= ~1;
         }
         delete[] path;
         return r;

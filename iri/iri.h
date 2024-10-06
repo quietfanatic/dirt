@@ -60,9 +60,9 @@
 // yourself on the results when you want to decode them.
 //
 // The IRI class is pretty lightweight, with one reference-counted string and
-// four uint16s.  16 bytes on 32-bit and 24 bytes on 64-bit.  However it is NOT
+// four u16s.  16 bytes on 32-bit and 24 bytes on 64-bit.  However it is NOT
 // threadsafe.  If you want to pass IRIs between threads, martial them through
-// UniqueString first.
+// UniqueString first.  TODO: Add make_not_shared like for arrays.
 //
 // There are no facilities for parsing query strings yet.
 //
@@ -85,7 +85,7 @@
 namespace iri {
 using namespace uni;
 
-constexpr uint32 maximum_length = uint16(-1);
+constexpr u32 maximum_length = u16(-1);
 
 ///// PERCENT-ENCODING
 
@@ -129,7 +129,7 @@ constexpr Relativity relativity (Str);
 ///// ERRORS
 
  // What went wrong when parsing an IRI
-enum class Error : uint16 {
+enum class Error : u16 {
      // This IRI is not actually invalid.
     NoError,
      // This IRI is empty.
@@ -179,8 +179,8 @@ struct IRI {
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr explicit IRI (
         AnyString spec,
-        uint16 scheme_end, uint16 authority_end,
-        uint16 path_end, uint16 query_end
+        u16 scheme_end, u16 authority_end,
+        u16 path_end, u16 query_end
     );
 
      // Construct an invalid IRI with the given values for error() and
@@ -345,10 +345,10 @@ struct IRI {
      // These members are publically accessible but only use them if you know
      // what you're doing.
     const AnyString spec_;
-    const uint16 scheme_end = 0; // 0 means invalid IRI
-    const uint16 authority_end = 0; // reused to store error code (except Empty)
-    const uint16 path_end = 0;
-    const uint16 query_end = 0;
+    const u16 scheme_end = 0; // 0 means invalid IRI
+    const u16 authority_end = 0; // reused to store error code (except Empty)
+    const u16 path_end = 0;
+    const u16 query_end = 0;
 };
 
  // Force compile-time parsing

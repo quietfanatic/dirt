@@ -6,7 +6,7 @@ namespace iri {
 
 static int read_percent (const char* in, const char* end) {
     if (in + 3 > end) [[unlikely]] return -1;
-    uint8 byte = 0;
+    u8 byte = 0;
     for (int i = 1; i < 3; i++) {
         byte <<= 4;
         switch (in[i]) {
@@ -19,9 +19,9 @@ static int read_percent (const char* in, const char* end) {
     return byte;
 }
 
-static char* write_percent (char* out, uint8 c) {
-    uint8 high = uint8(c) >> 4;
-    uint8 low = uint8(c) & 0xf;
+static char* write_percent (char* out, u8 c) {
+    u8 high = u8(c) >> 4;
+    u8 low = u8(c) & 0xf;
     *out++ = '%';
     *out++ = high >= 10 ? high - 10 + 'A' : high + '0';
     *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
@@ -62,7 +62,7 @@ UniqueString encode (Str input) noexcept {
         }
     }
     UniqueString r;
-    r.impl = {uint32(out - buf), buf};
+    r.impl = {u32(out - buf), buf};
     return r;
 }
 
@@ -86,17 +86,17 @@ UniqueString decode (Str input) noexcept {
         else *out++ = *in++;
     }
     UniqueString r;
-    r.impl = {uint32(out - buf), buf};
+    r.impl = {u32(out - buf), buf};
     return r;
 }
 
 struct IRIParser {
     Str input;
     UniqueString output;
-    uint16 scheme_end;
-    uint16 authority_end;
-    uint16 path_end;
-    uint16 query_end;
+    u16 scheme_end;
+    u16 authority_end;
+    u16 path_end;
+    u16 query_end;
 
     void parse (const IRI& base) {
         if (!input) return fail(Error::Empty);
@@ -400,7 +400,7 @@ struct IRIParser {
     [[gnu::cold]] void fail (Error err) {
         output = input;
         scheme_end = path_end = query_end = 0;
-        authority_end = uint16(err);
+        authority_end = u16(err);
     }
 };
 
@@ -416,7 +416,7 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
 }
 
 AnyString IRI::relative_to (const IRI& base) const noexcept {
-    uint32 tail;
+    u32 tail;
     if (!*this) [[unlikely]] return "";
     else if (!base) {
         if (base.empty()) goto return_everything;
@@ -462,7 +462,7 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
 
          // We already know path starts with a /.
         tail = authority_end + 1;
-        uint32 i;
+        u32 i;
         for (i = authority_end + 1; i < path_end && i < base.path_end; i++) {
             if (spec_[i] != base.spec_[i]) goto found_difference;
             else if (spec_[i] == '/') tail = i + 1;
@@ -495,14 +495,14 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
         found_difference:
          // Okay the paths are different, so count how many extra segments are
          // in the base, and prepend that many ../s.
-        uint32 dotdots = 0;
+        u32 dotdots = 0;
         for (; i < base.path_end; i++) {
             if (base.spec_[i] == '/') dotdots++;
         }
         usize cap = dotdots * 3 + (spec_.size() - tail);
         expect(cap < UniqueString::max_size_);
         auto r = UniqueString(Capacity(cap));
-        for (uint32 i = 0; i < dotdots; i++) {
+        for (u32 i = 0; i < dotdots; i++) {
             r.append_expect_capacity("../");
         }
         r.append_expect_capacity(spec_.slice(tail));
@@ -600,7 +600,7 @@ static tap::TestSet tests ("dirt/iri/iri", []{
     ok(!empty.valid(), "!empty.valid()");
     ok(empty.empty(), "empty.empty()");
     ok(!empty, "!empty");
-    for (uint32 i = 0; i < n_cases; i++) {
+    for (u32 i = 0; i < n_cases; i++) {
         IRI iri (cases[i].i, IRI(cases[i].b));
         is(iri.scheme(), cases[i].s, cat(
             cases[i].i, " (", cases[i].b, ") scheme = ", cases[i].s
@@ -618,7 +618,7 @@ static tap::TestSet tests ("dirt/iri/iri", []{
             cases[i].i, " (", cases[i].b, ") fragment = ", cases[i].f
         ));
         is(iri.error(), cases[i].e, cat(
-            cases[i].i, " (", cases[i].b, ") error = ", uint16(cases[i].e)
+            cases[i].i, " (", cases[i].b, ") error = ", u16(cases[i].e)
         ));
     }
 

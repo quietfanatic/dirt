@@ -103,10 +103,10 @@ struct ConstexprValidator {
     const char* begin;
     const char* in;
     const char* end;
-    uint16 scheme_end;
-    uint16 authority_end;
-    uint16 path_end;
-    uint16 query_end;
+    u16 scheme_end;
+    u16 authority_end;
+    u16 path_end;
+    u16 query_end;
 
     constexpr IRI parse (Str input, const IRI& base) {
         if (!base.empty()) ERROR_cannot_resolve_relative_IRIs_at_constexpr_time();
@@ -264,7 +264,7 @@ struct ConstexprValidator {
 
     static constexpr void validate_percent (const char* in, const char* end) {
         if (in + 3 > end) ERROR_invalid_percent_sequence();
-        uint8 byte = 0;
+        u8 byte = 0;
         for (int i = 1; i < 3; i++) {
             byte <<= 4;
             switch (in[i]) {
@@ -314,12 +314,12 @@ constexpr IRI::IRI (Str ref, const IRI& base) :
     )
 { }
 
-constexpr IRI::IRI (AnyString spec, uint16 c, uint16 p, uint16 q, uint16 h) :
+constexpr IRI::IRI (AnyString spec, u16 c, u16 p, u16 q, u16 h) :
     spec_(move(spec)), scheme_end(c), authority_end(p), path_end(q), query_end(h)
 { }
 
 constexpr IRI::IRI (Error code, const AnyString& spec) :
-    spec_(spec), authority_end(uint16(code))
+    spec_(spec), authority_end(u16(code))
 { expect(code != Error::NoError && code != Error::Empty); }
 
 constexpr IRI::IRI (const IRI& o) = default;
@@ -331,10 +331,10 @@ constexpr IRI::IRI (IRI&& o) :
     query_end(o.query_end)
 {
     if (!std::is_constant_evaluated()) {
-        const_cast<uint16&>(o.scheme_end) = 0;
-        const_cast<uint16&>(o.authority_end) = 0;
-        const_cast<uint16&>(o.path_end) = 0;
-        const_cast<uint16&>(o.query_end) = 0;
+        const_cast<u16&>(o.scheme_end) = 0;
+        const_cast<u16&>(o.authority_end) = 0;
+        const_cast<u16&>(o.path_end) = 0;
+        const_cast<u16&>(o.query_end) = 0;
     }
 }
 constexpr IRI& IRI::operator = (const IRI& o) {
@@ -432,7 +432,7 @@ constexpr IRI IRI::chop_path () const {
 constexpr IRI IRI::chop_filename () const {
     if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
     if (!hierarchical()) [[unlikely]] return IRI(Error::CouldNotResolve);
-    uint32 i = path_end;
+    u32 i = path_end;
     while (spec_[i-1] != '/') --i;
     return IRI(
         spec_.chop(i),
@@ -442,7 +442,7 @@ constexpr IRI IRI::chop_filename () const {
 constexpr IRI IRI::chop_last_slash () const {
     if (!scheme_end) [[unlikely]] return IRI(Error::InputInvalid);
     if (!hierarchical()) [[unlikely]] return IRI(Error::CouldNotResolve);
-    uint32 i = path_end;
+    u32 i = path_end;
     while (spec_[i-1] != '/') --i;
     --i;
     if (i == authority_end) [[unlikely]] return IRI(Error::PathOutsideRoot);
@@ -482,9 +482,9 @@ constexpr IRI IRI::chop (usize new_size) const {
          // has changed in an unintended way.
         return IRI(Error::InputInvalid, spec_.chop(new_size));
     }
-    uint16 a = authority_end;
-    uint16 p = path_end;
-    uint16 q = query_end;
+    u16 a = authority_end;
+    u16 p = path_end;
+    u16 q = query_end;
     if (new_size < authority_end) {
         a = p = q = new_size;
     }
