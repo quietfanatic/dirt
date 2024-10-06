@@ -23,13 +23,13 @@ struct Command {
     void* function;
     StaticString name;
     StaticString description;
-    usize required_arg_count;
+    u32 required_arg_count;
     Function<ayu::Type()>* args_type;
 
     template <class... Args>
     constexpr Command (
         Function<void(Args...)> f,
-        StaticString name, StaticString desc = "", usize req = sizeof...(Args)
+        StaticString name, StaticString desc = "", u32 req = sizeof...(Args)
     ) :
         wrapper(
             CommandWrapper<Args...>::get_unwrap(std::index_sequence_for<Args...>{})

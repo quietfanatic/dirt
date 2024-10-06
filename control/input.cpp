@@ -9,7 +9,7 @@ namespace control {
 
 Input input_from_event (SDL_Event* event) noexcept {
     Input r;
-    uint16 mods;
+    u16 mods;
     switch (event->type) {
         case SDL_KEYDOWN: {
             r.type = InputType::Key;
@@ -44,7 +44,7 @@ bool input_currently_pressed (Input input) noexcept {
     return input_currently_pressed(input, SDL_GetKeyboardState(null));
 }
 
-bool input_currently_pressed (Input input, const uint8* keyboard) noexcept {
+bool input_currently_pressed (Input input, const u8* keyboard) noexcept {
     switch (input.type) {
         case InputType::Key: {
             return keyboard[SDL_GetScancodeFromKey(input.code)];
@@ -125,7 +125,7 @@ void send_input_as_event (Input input, int window) noexcept {
     }
 }
 
-Input input_from_integer (int32 i) noexcept {
+Input input_from_integer (i32 i) noexcept {
     switch (i) {
         case 0: case 1: case 2: case 3: case 4:
         case 5: case 6: case 7: case 8: case 9:
@@ -138,7 +138,7 @@ Input input_from_integer (int32 i) noexcept {
     }
 }
 
-int32 input_to_integer (Input input) noexcept {
+i32 input_to_integer (Input input) noexcept {
     if (input.type != InputType::Key) return -1;
     switch (input.code) {
         case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
@@ -153,8 +153,8 @@ int32 input_to_integer (Input input) noexcept {
 // and efficiency isn't that important here; this is just for deserialization,
 // not for ordinary runtime lookups.
 struct TableEntry {
-    uint32 hash;
-    uint32 size;
+    u32 hash;
+    u32 size;
     const char* name;
     Input input;
 };
@@ -167,7 +167,7 @@ static constexpr auto inputs_by_hash = []{
 #define BTN_ALT(n, c) BTN(n, c)
 #include "keys-table.h"
     };
-    constexpr usize len = sizeof(unsorted) / sizeof(unsorted[0]);
+    constexpr u32 len = sizeof(unsorted) / sizeof(unsorted[0]);
     std::array<TableEntry, len> r;
     for (usize i = 0; i < len; i++) {
         r[i] = unsorted[i];
@@ -181,12 +181,12 @@ static constexpr auto inputs_by_hash = []{
  // Now we want to make a table mapping codes to names, but first we have to
  // determine what the ranges of codes actually are.
 struct CodeRanges {
-    int32 min_low = 0x7fffffff;
-    int32 max_low = 0;
-    int32 min_high = 0x7fffffff;
-    int32 max_high = 0;
-    int32 min_btn = 0x7fffffff;
-    int32 max_btn = 0;
+    i32 min_low = 0x7fffffff;
+    i32 max_low = 0;
+    i32 min_high = 0x7fffffff;
+    i32 max_high = 0;
+    i32 min_btn = 0x7fffffff;
+    i32 max_btn = 0;
 };
 
 static constexpr CodeRanges code_ranges = []{
@@ -219,21 +219,21 @@ static_assert(code_ranges.max_btn - code_ranges.min_btn < 10);
  // inputs_by_hash table, let's just index that with 8-bit indexes.
 static_assert(inputs_by_hash.size() < 255);
 struct InputsByCode {
-    uint8 low [code_ranges.max_low - code_ranges.min_low + 1];
-    uint8 high [code_ranges.max_high - code_ranges.min_high + 1];
-    uint8 btn [code_ranges.max_btn - code_ranges.min_btn + 1];
+    u8 low [code_ranges.max_low - code_ranges.min_low + 1];
+    u8 high [code_ranges.max_high - code_ranges.min_high + 1];
+    u8 btn [code_ranges.max_btn - code_ranges.min_btn + 1];
 };
 static constexpr auto inputs_by_code = []{
     InputsByCode r;
     for (auto& i : r.low) i = -1;
     for (auto& i : r.high) i = -1;
     for (auto& i : r.btn) i = -1;
-    constexpr uint32 keys [] = {
+    constexpr u32 keys [] = {
 #define KEY(n, c) hash32(n),
 #include "keys-table.h"
     };
-    for (uint32 hash : keys) {
-        for (usize i = 0; i < inputs_by_hash.size(); i++) {
+    for (u32 hash : keys) {
+        for (u32 i = 0; i < inputs_by_hash.size(); i++) {
             if (inputs_by_hash[i].input.type == InputType::Key) {
                 if (hash == inputs_by_hash[i].hash) {
                     auto code = inputs_by_hash[i].input.code;
@@ -244,12 +244,12 @@ static constexpr auto inputs_by_code = []{
             }
         }
     }
-    constexpr uint32 btns [] = {
+    constexpr u32 btns [] = {
 #define BTN(n, c) hash32(n),
 #include "keys-table.h"
     };
-    for (uint32 hash : btns) {
-        for (usize i = 0; i < inputs_by_hash.size(); i++) {
+    for (u32 hash : btns) {
+        for (u32 i = 0; i < inputs_by_hash.size(); i++) {
             if (inputs_by_hash[i].input.type == InputType::Button) {
                 if (hash == inputs_by_hash[i].hash) {
                     auto code = inputs_by_hash[i].input.code;
@@ -265,25 +265,25 @@ static constexpr auto inputs_by_code = []{
  // compiler generates code that loads the address of the struct and then adds
  // the offset to the member, instead of loading the address of the member
  // directly.  This works around that.
-static constexpr StaticArray<uint8> inputs_by_code_low (inputs_by_code.low);
-static constexpr StaticArray<uint8> inputs_by_code_high (inputs_by_code.high);
-static constexpr StaticArray<uint8> inputs_by_code_btn (inputs_by_code.btn);
+static constexpr StaticArray<u8> inputs_by_code_low (inputs_by_code.low);
+static constexpr StaticArray<u8> inputs_by_code_high (inputs_by_code.high);
+static constexpr StaticArray<u8> inputs_by_code_btn (inputs_by_code.btn);
 
 Input input_from_string (Str name) {
     if (!name) return Input{};
     if (name.size() > 32) {
         raise(e_General, "Input descriptor is too long to be an input name");
     }
-    uint32 hash = hash32(name);
+    u32 hash = hash32(name);
      // Binary search.  <algorithm> only has a binary search that returns a bool
      // and one that returns a range of elements, and both require an input
      // that's the same type as a table entry.
      //
      // Using integers here instead of pointers seems to optimize better.
-    uint32 b = 0;
-    uint32 e = inputs_by_hash.size();
+    u32 b = 0;
+    u32 e = inputs_by_hash.size();
     for (;;) {
-        uint32 mid = b + (e - b) / 2;
+        u32 mid = b + (e - b) / 2;
         auto& entry = inputs_by_hash[mid];
         if (hash == entry.hash) {
             if (name == Str(entry.name, entry.size)) {
@@ -308,7 +308,7 @@ StaticString input_to_string (Input input) {
                 ) return "";
                 auto ii = input.code - code_ranges.min_high;
                 auto i = inputs_by_code_high[ii];
-                if (i == uint8(-1)) return "";
+                if (i == u8(-1)) return "";
                 return StaticString(
                     inputs_by_hash[i].name, inputs_by_hash[i].size
                 );
@@ -319,7 +319,7 @@ StaticString input_to_string (Input input) {
                 ) return "";
                 auto ii = input.code - code_ranges.min_low;
                 auto i = inputs_by_code_low[ii];
-                if (i == uint8(-1)) return "";
+                if (i == u8(-1)) return "";
                 return StaticString(
                     inputs_by_hash[i].name, inputs_by_hash[i].size
                 );
@@ -331,7 +331,7 @@ StaticString input_to_string (Input input) {
             ) return "";
             auto ii = input.code - code_ranges.min_btn;
             auto i = inputs_by_code_btn[ii];
-            if (i == uint8(-1)) return "";
+            if (i == u8(-1)) return "";
             return StaticString(
                 inputs_by_hash[i].name, inputs_by_hash[i].size
             );
@@ -344,7 +344,7 @@ StaticString input_to_string (Input input) {
 static ayu::Tree input_to_tree (const Input& input) {
     if (!!(input.type == InputType::None)) return ayu::Tree::array();
     auto a = UniqueArray<ayu::Tree>(
-        Capacity(1 + std::popcount(uint8(input.flags)))
+        Capacity(1 + std::popcount(u8(input.flags)))
     );
     if (!!(input.flags & InputFlags::Repeatable)) {
         a.emplace_back_expect_capacity("repeatable");
@@ -449,7 +449,7 @@ static void input_from_tree_no_modifiers (InputNoModifiers& input, const ayu::Tr
             break;
         }
         case ayu::Form::Number: {
-            input = InputNoModifiers(input_from_integer(int32(tree)));
+            input = InputNoModifiers(input_from_integer(i32(tree)));
             break;
         }
         default: ayu::raise(e_General, "InputNoModifiers wasn't given a string or integer");

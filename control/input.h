@@ -11,13 +11,13 @@ union SDL_Event;
 namespace control {
 using namespace uni;
 
-enum class InputType : uint8 {
+enum class InputType : u8 {
     None,
     Key,  // Use SDLK_* values
     Button  // USE SDL_BUTTON_* values
 };
 
-enum class InputFlags : uint8 {
+enum class InputFlags : u8 {
     Ctrl = 1,
     Alt = 2,
     Shift = 4,
@@ -33,7 +33,7 @@ DECLARE_ENUM_BITWISE_OPERATORS(InputFlags)
 struct Input {
     InputType type = InputType::None;
     InputFlags flags = InputFlags{0};
-    int32 code = 0;
+    i32 code = 0;
     constexpr explicit operator bool () const { return type != InputType::None; }
      // Don't use this to check inputs against bindings, the Repeatable flag
      // will mess things up.  Use input_matches_binding instead.
@@ -50,15 +50,15 @@ bool input_matches_binding (Input got, Input binding) noexcept;
  // Only works for InputType::Key.  Ignores modifiers!
 bool input_currently_pressed (Input input) noexcept;
  // To not duplicate calls to SDL_GetKeyboardState
-bool input_currently_pressed (Input input, const uint8* keyboard) noexcept;
+bool input_currently_pressed (Input input, const u8* keyboard) noexcept;
 
  // Mainly for testing
 void send_input_as_event (Input i, int windowID) noexcept;
 
  // 0..9 map to the number keys, and other numbers are raw scancodes.
  // Does not work for mouse buttons.
-Input input_from_integer (int32 d) noexcept;
-int32 input_to_integer (Input i) noexcept;
+Input input_from_integer (i32 d) noexcept;
+i32 input_to_integer (Input i) noexcept;
 
  // Symbolic name in all lowercase (Ignores modifier keys).
  // May not work on obscure keys.
