@@ -24,7 +24,7 @@ static void default_on_event (ActiveLoop& self, SDL_Event* event) {
 
 void ActiveLoop::start () {
     double lag = 0;
-    uint32 last_ticks = SDL_GetTicks();
+    u32 last_ticks = SDL_GetTicks();
     for (;;) {
          // Handle events
         SDL_Event event;
@@ -52,7 +52,7 @@ void ActiveLoop::start () {
         }
          // Delay if we need to.
          // TODO: Is this the best place to put this?
-        uint32 new_ticks = SDL_GetTicks();
+        u32 new_ticks = SDL_GetTicks();
         lag += (new_ticks - last_ticks) / 1000.0;
         last_ticks = new_ticks;
         if (lag < 0) {

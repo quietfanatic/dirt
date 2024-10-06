@@ -28,7 +28,7 @@ Window::Window (
 ) { }
 
 Window::Window (
-    const char* title, int x, int y, int w, int h, uint32 flags,
+    const char* title, int x, int y, int w, int h, u32 flags,
     const GLAttributes& attrs
 ) noexcept {
     glow::require_sdl(!SDL_InitSubSystem(SDL_INIT_VIDEO));

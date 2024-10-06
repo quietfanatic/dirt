@@ -28,7 +28,7 @@ struct Window {
      // Arguments passed to SDL_CreateWindow
     Window (
         const char* title,
-        int x, int y, int w, int h, uint32 flags,
+        int x, int y, int w, int h, u32 flags,
         const GLAttributes& attrs = GLAttributes()
     ) noexcept;
      // Slightly shorter version
