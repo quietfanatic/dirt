@@ -9,7 +9,8 @@ namespace glow {
 using namespace geo;
 
 struct ImageRef {
-     // The width and height in pixels.
+     // The width and height in pixels.  Images can't be more than 2 billion x 2
+     // billion pixels.  Sorry about that.
     IVec size;
      // Distance between rows in pixels.  If all the pixels are stored
      // contiguously, this should be equal to size.x

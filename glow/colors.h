@@ -5,25 +5,25 @@
 namespace glow {
 
 struct RGBA8 {
-    uint8 r;
-    uint8 g;
-    uint8 b;
-    uint8 a;
-    constexpr RGBA8 (uint8 r, uint8 g, uint8 b, uint8 a) :
+    u8 r;
+    u8 g;
+    u8 b;
+    u8 a;
+    constexpr RGBA8 (u8 r, u8 g, u8 b, u8 a) :
         r(r), g(g), b(b), a(a)
     { }
-     // Convert from a uint32 in 0xRRGGBBAA format (native endian)
-    constexpr RGBA8 (uint32 rgba = 0) :
+     // Convert from a u32 in 0xRRGGBBAA format (native endian)
+    constexpr RGBA8 (u32 rgba = 0) :
         r(rgba >> 24), g(rgba >> 16), b(rgba >> 8), a(rgba)
     { }
-    constexpr explicit operator uint32 () const {
-        return uint32(r) << 24 | uint32(g) << 16 | uint32(b) << 8 | uint32(a);
+    constexpr explicit operator u32 () const {
+        return u32(r) << 24 | u32(g) << 16 | u32(b) << 8 | u32(a);
     }
      // operator bool only checks alpha.
     constexpr explicit operator bool () const { return a; }
 };
 inline bool operator == (RGBA8 a, RGBA8 b) {
-    return uint32(a) == uint32(b);
+    return u32(a) == u32(b);
 }
 
 } // namespace glow

@@ -13,7 +13,7 @@
 
 namespace glow {
 
-ResourceTexture::ResourceTexture (uint32 target) : Texture(target) {
+ResourceTexture::ResourceTexture (ui32 target) : Texture(target) {
     glBindTexture(target, id);
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -60,7 +60,7 @@ void ResourceTexture::load () {
         default: {
              // Nontrivial format, so ask SDL to convert
             uni::warn_utf8(uni::cat("Weird image format, converting ", source.spec(), "\n"));
-            uint32 sdl_format;
+            ui32 sdl_format;
             if (SDL_ISPIXELFORMAT_ALPHA(surf->format->format)) {
                 sdl_format = SDL_PIXELFORMAT_RGBA32;
                 internal_format = GL_RGBA8;
@@ -85,14 +85,14 @@ void ResourceTexture::load () {
         }
     }
      // Detect greyscale images and unused alpha channels
-    auto pixels = reinterpret_cast<uint8*>(surf->pixels);
+    auto pixels = reinterpret_cast<ui8*>(surf->pixels);
     if (surf->format->format == SDL_PIXELFORMAT_RGB24) {
         bool greyscale = true;
-        for (int32 y = 0; y < surf->h; y++)
-        for (int32 x = 0; x < surf->w; x++) {
-            uint8 r = pixels[y * surf->pitch + x*3];
-            uint8 g = pixels[y * surf->pitch + x*3 + 1];
-            uint8 b = pixels[y * surf->pitch + x*3 + 2];
+        for (i32 y = 0; y < surf->h; y++)
+        for (i32 x = 0; x < surf->w; x++) {
+            ui8 r = pixels[y * surf->pitch + x*3];
+            ui8 g = pixels[y * surf->pitch + x*3 + 1];
+            ui8 b = pixels[y * surf->pitch + x*3 + 2];
             if (r != g || g != b) {
                 greyscale = false;
                 goto done_24;
@@ -104,12 +104,12 @@ void ResourceTexture::load () {
     else if (surf->format->format == SDL_PIXELFORMAT_RGBA32) {
         bool greyscale = true;
         bool unused_alpha = true;
-        for (int32 y = 0; y < surf->h; y++)
-        for (int32 x = 0; x < surf->w; x++) {
-            uint8 r = pixels[y * surf->pitch + x*4];
-            uint8 g = pixels[y * surf->pitch + x*4 + 1];
-            uint8 b = pixels[y * surf->pitch + x*4 + 2];
-            uint8 a = pixels[y * surf->pitch + x*4 + 3];
+        for (i32 y = 0; y < surf->h; y++)
+        for (i32 x = 0; x < surf->w; x++) {
+            ui8 r = pixels[y * surf->pitch + x*4];
+            ui8 g = pixels[y * surf->pitch + x*4 + 1];
+            ui8 b = pixels[y * surf->pitch + x*4 + 2];
+            ui8 a = pixels[y * surf->pitch + x*4 + 3];
             if (r != g || g != b) {
                 greyscale = false;
                 if (!unused_alpha) goto done_32;
@@ -148,7 +148,7 @@ void ResourceTexture::load () {
     }
 #ifdef GLOW_PROFILING
     double time4 = uni::now();
-    int64 mem = surf->w * surf->h;
+    i64 mem = surf->w * surf->h;
     if (internal_format == GL_RG8) mem *= 2;
     else if (internal_format == GL_RGB8) mem *= 3;
     else if (internal_format == GL_RGBA8) mem *= 4;

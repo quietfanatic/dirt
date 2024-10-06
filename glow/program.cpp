@@ -6,10 +6,10 @@
 
 namespace glow {
 
-Shader::Shader (uint type) : id(0) {
+Shader::Shader (u32 type) : id(0) {
     if (type) {
         init();
-        const_cast<uint&>(id) = glCreateShader(type);
+        const_cast<u32&>(id) = glCreateShader(type);
     }
 }
 
@@ -20,8 +20,8 @@ Shader::~Shader () {
 void Shader::compile () {
     require(id);
     glCompileShader(id);
-    int status = 0; glGetShaderiv(id, GL_COMPILE_STATUS, &status);
-    int loglen = 0; glGetShaderiv(id, GL_INFO_LOG_LENGTH, &loglen);
+    i32 status = 0; glGetShaderiv(id, GL_COMPILE_STATUS, &status);
+    i32 loglen = 0; glGetShaderiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
          // TODO: Use UniqueString
         std::string info_log (loglen, 0);
@@ -38,7 +38,7 @@ static Program* current_program = null;
 
 Program::Program () {
     init();
-    const_cast<uint&>(id) = glCreateProgram();
+    const_cast<u32&>(id) = glCreateProgram();
 }
 
 Program::~Program () {
@@ -48,9 +48,9 @@ Program::~Program () {
 void Program::link () {
     require(id);
      // Detach old shaders
-    int n_to_detach; glGetProgramiv(id, GL_ATTACHED_SHADERS, &n_to_detach);
+    i32 n_to_detach; glGetProgramiv(id, GL_ATTACHED_SHADERS, &n_to_detach);
     if (n_to_detach) {
-        uint to_detach [n_to_detach];
+        u32 to_detach [n_to_detach];
         glGetAttachedShaders(id, n_to_detach, null, to_detach);
         for (auto s : to_detach) {
             glDetachShader(id, s);
@@ -58,15 +58,15 @@ void Program::link () {
     }
      // Attach new shaders
     for (auto* s : shaders) {
-        int status = 0; glGetShaderiv(s->id, GL_COMPILE_STATUS, &status);
+        i32 status = 0; glGetShaderiv(s->id, GL_COMPILE_STATUS, &status);
         if (!status) s->compile();
         glAttachShader(id, s->id);
     }
      // Link
     Program_before_link();
     glLinkProgram(id);
-    int status = 0; glGetProgramiv(id, GL_LINK_STATUS, &status);
-    int loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
+    i32 status = 0; glGetProgramiv(id, GL_LINK_STATUS, &status);
+    i32 loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
         std::string info_log (loglen, 0);
         glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
@@ -102,8 +102,8 @@ void Program::unuse () {
 
 void Program::validate () {
     glValidateProgram(id);
-    int status = 0; glGetProgramiv(id, GL_VALIDATE_STATUS, &status);
-    int loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
+    i32 status = 0; glGetProgramiv(id, GL_VALIDATE_STATUS, &status);
+    i32 loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
     auto info_log = std::string(loglen, 0);
     glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
     ayu::dump(status);
@@ -131,7 +131,7 @@ AYU_DESCRIBE(glow::Shader,
         attr("type", value_funcs<ShaderType>(
             [](const Shader& v){
                 if (v.id) {
-                    int type = 0;
+                    i32 type = 0;
                     glGetShaderiv(v.id, GL_SHADER_TYPE, &type);
                     return ShaderType(type);
                 }
@@ -140,14 +140,14 @@ AYU_DESCRIBE(glow::Shader,
             [](Shader& v, ShaderType type){
                 if (v.id) glDeleteShader(v.id);
                 if (type) {
-                    const_cast<uint&>(v.id) = glCreateShader(type);
+                    const_cast<u32&>(v.id) = glCreateShader(type);
                 }
             }
         )),
         attr("source", mixed_funcs<std::string>(
             [](const Shader& v){
                 require(v.id);
-                int len = 0;
+                i32 len = 0;
                 glGetShaderiv(v.id, GL_SHADER_SOURCE_LENGTH, &len);
                 if (!len) return std::string();
                 std::string r (len-1, 0);
@@ -156,7 +156,7 @@ AYU_DESCRIBE(glow::Shader,
             },
             [](Shader& v, const std::string& s){
                 const char* src_p = s.c_str();
-                int src_len = s.size();
+                i32 src_len = s.size();
                 glShaderSource(v.id, 1, &src_p, &src_len);
             }
         ))
@@ -191,7 +191,7 @@ static tap::TestSet tests ("dirt/glow/program", []{
         program = ayu::ResourceRef(iri::IRI("test:/test-program.ayu"))["program"][1];
     }, "Can load program from ayu document");
     program->use();
-    int u_screen_rect = glGetUniformLocation(*program, "u_screen_rect");
+    i32 u_screen_rect = glGetUniformLocation(*program, "u_screen_rect");
     isnt(u_screen_rect, -1, "Can get a uniform location");
     auto screen_rect = Rect{-0.5, -0.5, 0.5, 0.5};
     doesnt_throw([&]{
@@ -204,8 +204,8 @@ static tap::TestSet tests ("dirt/glow/program", []{
     }, "glDrawArrays");
 
     UniqueArray<RGBA8> expected_pixels (area(env.size));
-    for (int y = 0; y < env.size.y; y++)
-    for (int x = 0; x < env.size.x; x++) {
+    for (i32 y = 0; y < env.size.y; y++)
+    for (i32 x = 0; x < env.size.x; x++) {
         if (y >= env.size.y / 4 && y < env.size.y * 3 / 4
          && x >= env.size.x / 4 && x < env.size.x * 3 / 4) {
             expected_pixels[y*env.size.x+x] = RGBA8(30, 40, 50, 60);

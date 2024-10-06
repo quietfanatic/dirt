@@ -9,13 +9,13 @@
 namespace glow {
 
 struct TextureProgram : Program {
-    int u_screen_rect = -1;
-    int u_tex_rect = -1;
+    i32 u_screen_rect = -1;
+    i32 u_tex_rect = -1;
 
     void Program_after_link () override {
         u_screen_rect = glGetUniformLocation(id, "u_screen_rect");
         u_tex_rect = glGetUniformLocation(id, "u_tex_rect");
-        int u_tex = glGetUniformLocation(id, "u_tex");
+        i32 u_tex = glGetUniformLocation(id, "u_tex");
         glUniform1i(u_tex, 0);
         require(u_screen_rect != -1);
         require(u_tex_rect != -1);
@@ -71,9 +71,9 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
 
     is(dynamic_cast<FileImage*>(tex2->source.image)->storage, null, "File texture was trimmed");
 
-    RGBA8 bg = uint32(0x331100ee);
-    RGBA8 fg = uint32(0x2674dbf0);
-    RGBA8 fg2 = uint32(0x2674dbff);
+    RGBA8 bg = u32(0x331100ee);
+    RGBA8 fg = u32(0x2674dbf0);
+    RGBA8 fg2 = u32(0x2674dbff);
 
     is(tex->size(), IVec{7, 5}, "Created texture has correct size");
     is(tex2->size(), IVec{7, 5}, "File image texture has correct size");
@@ -96,8 +96,8 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
     }, "Can draw texture");
 
     UniqueImage expected (env.size);
-    for (int y = 0; y < env.size.y; y++)
-    for (int x = 0; x < env.size.x; x++) {
+    for (i32 y = 0; y < env.size.y; y++)
+    for (i32 x = 0; x < env.size.x; x++) {
         if (y >= env.size.y / 4 && y < env.size.y * 3 / 4
          && x >= env.size.x / 4 && x < env.size.x * 3 / 4) {
             expected[{x, y}] = fg2;
@@ -110,8 +110,8 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
     UniqueImage got = env.read_pixels();
 
     bool match = true;
-    for (int y = 0; y < env.size.y; y++)
-    for (int x = 0; x < env.size.x; x++) {
+    for (i32 y = 0; y < env.size.y; y++)
+    for (i32 x = 0; x < env.size.x; x++) {
         if (expected[{x, y}] != got[{x, y}]) {
             match = false;
             diag(ayu::item_to_string(&expected[{x, y}]));

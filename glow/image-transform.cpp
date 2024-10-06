@@ -8,8 +8,8 @@ namespace glow {
 UniqueImage ReplaceColor::apply (const ImageRef& in, BVec flip) {
     IRect bounds = in.bounds();
     UniqueImage out (in.size);
-    for (int y = 0; y < out.size.y; y++)
-    for (int x = 0; x < out.size.x; x++) {
+    for (i32 y = 0; y < out.size.y; y++)
+    for (i32 x = 0; x < out.size.x; x++) {
         RGBA8 pixel = in[{
             flip.x ? bounds.r - x - 1 : bounds.l + x,
             flip.y ? bounds.t - y - 1 : bounds.b + y
@@ -23,8 +23,8 @@ UniqueImage ReplaceColor::apply (const ImageRef& in, BVec flip) {
 UniqueImage copy_pixels (const ImageRef& in, BVec flip) {
     IRect bounds = in.bounds();
     UniqueImage out (in.size);
-    for (int y = 0; y < out.size.y; y++)
-    for (int x = 0; x < out.size.x; x++) {
+    for (i32 y = 0; y < out.size.y; y++)
+    for (i32 x = 0; x < out.size.x; x++) {
         out[{x, y}] = in[{
             flip.x ? bounds.r - x - 1 : bounds.l + x,
             flip.y ? bounds.t - y - 1 : bounds.b + y
@@ -56,7 +56,7 @@ UniqueImage copy_pixels (const ImageRef& in, BVec flip) {
 //                "its left are different."
 //            );
 //        }
-//        for (int x = pos.x; x < data.size.x; ++x) {
+//        for (i32 x = pos.x; x < data.size.x; ++x) {
 //            RGBA8 from = data[{x, pos.y}];
 //            RGBA8 to = data[{x, pos.y + 1}];
 //            if (from == background && to == background) break;
@@ -71,7 +71,7 @@ UniqueImage copy_pixels (const ImageRef& in, BVec flip) {
 //                "above it are different."
 //            );
 //        }
-//        for (int y = pos.y; x < data.size.y; ++y) {
+//        for (i32 y = pos.y; x < data.size.y; ++y) {
 //            RGBA8 from = data[{pos.x, y}];
 //            RGBA8 to = data[{pos.x + 1, y}];
 //            if (from == background && to == background) break;
@@ -81,8 +81,8 @@ UniqueImage copy_pixels (const ImageRef& in, BVec flip) {
 //
 //     // Copy pixels while applying map
 //    UniqueImage out (in.size);
-//    for (int y = 0; y < out.size.y; y++)
-//    for (int x = 0; x < out.size.x; x++) {
+//    for (i32 y = 0; y < out.size.y; y++)
+//    for (i32 x = 0; x < out.size.x; x++) {
 //        RGBA8 from = in[{
 //            flip.x ? bounds.r - x - 1 : bounds.l + x,
 //            flip.y ? bounds.t - y - 1 : bounds.b + y

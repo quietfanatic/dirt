@@ -5,10 +5,10 @@
 
 namespace glow {
 
-Texture::Texture (uint target) : target(target) {
+Texture::Texture (u32 target) : target(target) {
     if (target) {
         init();
-        glGenTextures(1, &const_cast<uint&>(id));
+        glGenTextures(1, &const_cast<u32&>(id));
         glBindTexture(target, id);
     }
 }
@@ -19,15 +19,15 @@ Texture::~Texture () {
     }
 }
 
-geo::IVec Texture::size (int level) {
+geo::IVec Texture::size (i32 level) {
     geo::IVec r;
     glBindTexture(target, id);
     glGetTexLevelParameteriv(target, level, GL_TEXTURE_WIDTH, &r.x);
     glGetTexLevelParameteriv(target, level, GL_TEXTURE_HEIGHT, &r.y);
     return r;
 }
-int32 Texture::bpp (int level) {
-    GLint rsize, gsize, bsize, asize;
+i32 Texture::bpp (i32 level) {
+    i32 rsize, gsize, bsize, asize;
     glBindTexture(target, id);
     glGetTexLevelParameteriv(target, level, GL_TEXTURE_RED_SIZE, &rsize);
     glGetTexLevelParameteriv(target, level, GL_TEXTURE_GREEN_SIZE, &gsize);
@@ -97,7 +97,7 @@ AYU_DESCRIBE(glow::Texture,
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                  // Can't return both S and T so just pick one
-                int r = 0;
+                i32 r = 0;
                 glGetTexParameteriv(v.target, GL_TEXTURE_WRAP_S, &r);
                 return TextureWrap(r);
             },
@@ -110,7 +110,7 @@ AYU_DESCRIBE(glow::Texture,
         attr("wrap_s", value_funcs<TextureWrap>(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
-                int r = 0;
+                i32 r = 0;
                 glGetTexParameteriv(v.target, GL_TEXTURE_WRAP_S, &r);
                 return TextureWrap(r);
             },
@@ -122,7 +122,7 @@ AYU_DESCRIBE(glow::Texture,
         attr("wrap_t", value_funcs<TextureWrap>(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
-                int r = 0;
+                i32 r = 0;
                 glGetTexParameteriv(v.target, GL_TEXTURE_WRAP_T, &r);
                 return TextureWrap(r);
             },
@@ -133,7 +133,7 @@ AYU_DESCRIBE(glow::Texture,
         attr("mag_filter", value_funcs<TextureMagFilter>(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
-                int r = 0;
+                i32 r = 0;
                 glGetTexParameteriv(v.target, GL_TEXTURE_MAG_FILTER, &r);
                 return TextureMagFilter(r);
             },
@@ -145,7 +145,7 @@ AYU_DESCRIBE(glow::Texture,
         attr("min_filter", value_funcs<TextureMinFilter>(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
-                int r = 0;
+                i32 r = 0;
                 glGetTexParameteriv(v.target, GL_TEXTURE_MAG_FILTER, &r);
                 return TextureMinFilter(r);
             },
@@ -157,7 +157,7 @@ AYU_DESCRIBE(glow::Texture,
         attr("filter", value_funcs<TextureMagFilter>(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
-                int r = 0;
+                i32 r = 0;
                 glGetTexParameteriv(v.target, GL_TEXTURE_MAG_FILTER, &r);
                 return TextureMagFilter(r);
             },

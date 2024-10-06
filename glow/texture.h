@@ -11,12 +11,12 @@ namespace glow {
 struct Texture {
      // Specifies what kind of texture this is.  GL_TEXTURE_*.
      // If 0, texture won't actually be created.
-    const uint target;
+    const u32 target;
 
-    explicit Texture (uint target = 0);
+    explicit Texture (u32 target = 0);
 
     Texture (Texture&& o) : target(o.target), id(o.id) {
-        const_cast<uint&>(o.id) = 0;
+        const_cast<u32&>(o.id) = 0;
     }
     ~Texture ();
     Texture& operator= (Texture&& o) {
@@ -24,15 +24,15 @@ struct Texture {
         return *new (this) Texture(move(o));
     }
 
-    const uint id = 0;
-    operator uint () const { return id; }
+    const u32 id = 0;
+    operator u32 () const { return id; }
 
      // Uses glGetTexLevelParameter
      // Returns {0, 0} if this texture (level) has not been initialized
-    geo::IVec size (int level = 0);
+    geo::IVec size (i32 level = 0);
      // Returns 0 if this texture (level) has not been initialized
      // I believe this can return a maximum of 256 (double precision RGBA)
-    int32 bpp (int level = 0);
+    i32 bpp (i32 level = 0);
 };
 
 } // namespace glow

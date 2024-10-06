@@ -5,14 +5,14 @@
 namespace glow {
 
 struct Shader {
-    explicit Shader (uint type = 0);
-    Shader (Shader&& o) : id(o.id) { const_cast<uint&>(o.id) = 0; }
+    explicit Shader (u32 type = 0);
+    Shader (Shader&& o) : id(o.id) { const_cast<u32&>(o.id) = 0; }
     ~Shader ();
 
     void compile ();
 
-    const uint id = 0;
-    operator uint () const { return id; }
+    const u32 id = 0;
+    operator u32 () const { return id; }
 };
 
 struct Program {
@@ -24,7 +24,7 @@ struct Program {
     virtual void Program_before_unuse () { }
 
     Program ();
-    Program (Program&& o) : id(o.id) { const_cast<uint&>(o.id) = 0; }
+    Program (Program&& o) : id(o.id) { const_cast<u32&>(o.id) = 0; }
     ~Program ();
 
     void link ();
@@ -33,8 +33,8 @@ struct Program {
      // For render debugging
     void validate ();
 
-    const uint id = 0;
-    operator uint () const { return id; }
+    const u32 id = 0;
+    operator u32 () const { return id; }
 };
 
 constexpr uni::ErrorCode e_ShaderCompileFailed = "glow::e_ShaderCompileFailed";

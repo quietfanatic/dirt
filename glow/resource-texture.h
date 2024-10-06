@@ -13,7 +13,7 @@ namespace glow {
 
 struct ResourceTexture : Texture {
     iri::IRI source;
-    ResourceTexture (uint32 target = GL_TEXTURE_2D);
+    ResourceTexture (u32 target = GL_TEXTURE_2D);
     ~ResourceTexture ();
     void load ();
 };
