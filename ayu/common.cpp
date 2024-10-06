@@ -14,7 +14,7 @@ void dump_refs (Slice<AnyRef> rs) {
         default: {
             UniqueString r = "[";
             r.append(item_to_string(rs[0]));
-            for (usize i = 1; i < rs.size(); i++) {
+            for (uint i = 1; i < rs.size(); i++) {
                 r.push_back(' ');
                 r.append(item_to_string(rs[i]));
             }

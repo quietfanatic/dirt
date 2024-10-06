@@ -56,8 +56,8 @@ constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
 {
 #ifndef NDEBUG
      // Check for duplicate keys
-    for (usize i = 0; i < v.size(); i++)
-    for (usize j = 0; j < i; j++) {
+    for (uint i = 0; i < v.size(); i++)
+    for (uint j = 0; j < i; j++) {
         expect(v[i].first != v[j].first);
     }
 #endif
@@ -262,7 +262,7 @@ constexpr const Tree* Tree::attr (Str key) const {
     }
     else in::raise_TreeWrongForm(*this, Form::Object);
 }
-constexpr const Tree* Tree::elem (usize index) const {
+constexpr const Tree* Tree::elem (uint index) const {
     if (form == Form::Array) {
         auto a = Slice<Tree>(*this);
         if (index < a.size()) return &a[index];
@@ -276,7 +276,7 @@ constexpr const Tree& Tree::operator[] (Str key) const {
         "This tree has no attr with key \"", key, '"'
     ));
 }
-constexpr const Tree& Tree::operator[] (usize index) const {
+constexpr const Tree& Tree::operator[] (uint index) const {
     if (const Tree* r = elem(index)) return *r;
     else raise(e_General, cat(
         "This tree has no elem with index ", index

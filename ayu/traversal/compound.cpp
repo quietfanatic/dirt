@@ -135,7 +135,7 @@ struct TraverseSetKeys {
          // setting a flag if there are no included attrs, or maybe by using an
          // unordered_set?
          // TODO: Use a next_list like in from-tree.
-        for (usize i = 0; i < keys.size(); ++i) {
+        for (uint i = 0; i < keys.size(); ++i) {
             if (keys[i] == key) {
                 keys.erase(i);
                 return true;
@@ -241,8 +241,8 @@ struct TraverseSetKeys {
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
-        for (usize i = 0; i < keys.size(); i++)
-        for (usize j = 0; j < i; j++) {
+        for (uint i = 0; i < keys.size(); i++)
+        for (uint j = 0; j < i; j++) {
             expect(keys[i] != keys[j]);
         }
 #endif
@@ -417,7 +417,7 @@ namespace in {
  // This is simple enough we don't need to use the traversal system.
 struct TraverseGetLength {
     static
-    usize start (const AnyRef& item, LocationRef loc) try {
+    uint start (const AnyRef& item, LocationRef loc) try {
         uint32 len;
         item.read(AccessCB(len, &visit));
         return len;
@@ -441,7 +441,7 @@ struct TraverseGetLength {
 
 } // in
 
-usize item_get_length (const AnyRef& item, LocationRef loc) {
+uint item_get_length (const AnyRef& item, LocationRef loc) {
     return TraverseGetLength::start(item, loc);
 }
 
@@ -462,7 +462,7 @@ struct TraverseSetLength {
             write_length_acr(len, item, acr);
         }
         else if (auto elems = desc->elems()) {
-            usize min = elems->chop_flag(AttrFlags::Optional);
+            uint min = elems->chop_flag(AttrFlags::Optional);
             if (len < min || len > elems->n_elems) {
                 raise_LengthRejected(item.type, min, elems->n_elems, len);
             }
@@ -477,7 +477,7 @@ struct TraverseSetLength {
 
 } // in
 
-void item_set_length (const AnyRef& item, usize len, LocationRef loc) {
+void item_set_length (const AnyRef& item, uint len, LocationRef loc) {
     if (len > AnyArray<Tree>::max_size_) {
         raise_LengthOverflow(len);
     }
@@ -489,7 +489,7 @@ void item_set_length (const AnyRef& item, usize len, LocationRef loc) {
 namespace in {
 
 struct GetElemTraversalHead {
-    usize index;
+    uint index;
 };
 
 template <class T = Traversal>
@@ -499,7 +499,7 @@ struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
 struct TraverseElem {
 
     NOINLINE static
-    AnyRef start (const AnyRef& item, usize index, LocationRef loc) {
+    AnyRef start (const AnyRef& item, uint index, LocationRef loc) {
         AnyRef r;
         GetElemTraversal<StartTraversal> child;
         child.index = index;
@@ -588,12 +588,12 @@ struct TraverseElem {
 } // in
 
 AnyRef item_maybe_elem (
-    const AnyRef& item, usize index, LocationRef loc
+    const AnyRef& item, uint index, LocationRef loc
 ) {
     return TraverseElem::start(item, index, loc);
 }
 
-AnyRef item_elem (const AnyRef& item, usize index, LocationRef loc) {
+AnyRef item_elem (const AnyRef& item, uint index, LocationRef loc) {
     AnyRef r = TraverseElem::start(item, index, loc);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
@@ -647,7 +647,7 @@ void raise_AttrRejected (Type item_type, const AnyString& key) {
     ));
 }
 
-void raise_LengthRejected (Type item_type, usize min, usize max, usize got) {
+void raise_LengthRejected (Type item_type, uint min, uint max, uint got) {
     UniqueString mess = min == max ? cat(
         "Item of type ", item_type.name(), " given wrong length ", got,
         " (expected ", min, ")"
@@ -678,7 +678,7 @@ void raise_AttrsNotSupported (Type item_type) {
     ));
 }
 
-void raise_ElemNotFound (Type item_type, usize index) {
+void raise_ElemNotFound (Type item_type, uint index) {
     raise(e_ElemNotFound, cat(
         "Item of type ", item_type.name(), " has no element at index ", index
     ));
@@ -693,7 +693,7 @@ void raise_ElemsNotSupported (Type item_type) {
 
 void raise_LengthTypeInvalid (Type, Type got_type) {
     raise(e_LengthTypeInvalid, cat(
-        "Item has length accessor of wrong type; expected usize but got ",
+        "Item has length accessor of wrong type; expected uint32 or uint64 but got ",
         got_type.name()
     ));
 }

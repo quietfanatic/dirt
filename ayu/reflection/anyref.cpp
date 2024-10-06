@@ -47,7 +47,7 @@ void AnyRef::raise_Unaddressable () const {
 AnyRef AnyRef::operator[] (const AnyString& key) {
     return item_attr(*this, key);
 }
-AnyRef AnyRef::operator[] (usize index) {
+AnyRef AnyRef::operator[] (uint index) {
     return item_elem(*this, index);
 }
 

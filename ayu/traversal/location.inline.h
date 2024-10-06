@@ -20,7 +20,7 @@ struct KeyLocation : Location {
 struct IndexLocation : Location {
     SharedLocation parent;
     uint32 index;
-    IndexLocation (MoveRef<SharedLocation> p, usize i) :
+    IndexLocation (MoveRef<SharedLocation> p, uint i) :
         Location(LF::Index), parent(*move(p)), index(i)
     { expect(index == i); } // forgot what this is for but I think it's optimization
 };
@@ -33,7 +33,7 @@ inline SharedLocation::SharedLocation (const AnyRef& ref) noexcept :
 inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, MoveRef<AnyString> k) noexcept :
     data(new in::KeyLocation(expect(*move(p)), *move(k)))
 { }
-inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, usize i) noexcept :
+inline SharedLocation::SharedLocation (MoveRef<SharedLocation> p, uint i) noexcept :
     data(new in::IndexLocation(expect(*move(p)), i))
 { }
 

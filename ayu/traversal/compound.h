@@ -38,22 +38,22 @@ AnyRef item_attr (const AnyRef&, const AnyString&, LocationRef loc = {});
  // and if that isn't available, they throw e_ElemsNotSupported.
 
  // Get the length of an array-like item.
-usize item_get_length (const AnyRef&, LocationRef loc = {});
+uint item_get_length (const AnyRef&, LocationRef loc = {});
  // Set the length of an array-like item.  This may clear some or all of the
  // contents of the item.  If the item only allows certain lengths, this may
  // throw e_WrongLength.
 void item_set_length (
-    const AnyRef&, usize, LocationRef loc = {}
+    const AnyRef&, uint, LocationRef loc = {}
 );
  // Get an element of an array-like item by its index.  Returns an empty
  // AnyRef if the element doesn't exist.
 AnyRef item_maybe_elem (
-    const AnyRef&, usize, LocationRef loc = {}
+    const AnyRef&, uint, LocationRef loc = {}
 );
  // Throws e_ElemNotFound if the element doesn't exist.  Guaranteed not to return
  // an empty or null AnyRef.
 AnyRef item_elem (
-    const AnyRef&, usize, LocationRef loc = {}
+    const AnyRef&, uint, LocationRef loc = {}
 );
 
  // The keys() descriptor of an item produced a type other than
@@ -98,7 +98,7 @@ void raise_AttrMissing (Type item_type, const AnyString& key);
 [[noreturn, gnu::cold]]
 void raise_AttrRejected (Type item_type, const AnyString& key);
 [[noreturn, gnu::cold]]
-void raise_LengthRejected (Type item_type, usize min, usize max, usize got);
+void raise_LengthRejected (Type item_type, uint min, uint max, uint got);
 
  // These are less likely to be useful, but they're here in case you want them.
 [[noreturn, gnu::cold]]
@@ -110,7 +110,7 @@ void raise_AttrsNotSupported (Type);
 [[noreturn, gnu::cold]]
 void raise_LengthTypeInvalid (Type item_type, Type got_type);
 [[noreturn, gnu::cold]]
-void raise_ElemNotFound (Type, usize);
+void raise_ElemNotFound (Type, uint);
 [[noreturn, gnu::cold]]
 void raise_ElemsNotSupported (Type);
 [[noreturn, gnu::cold]]

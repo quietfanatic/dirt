@@ -76,7 +76,7 @@ struct AttrTraversal : AcrTraversal {
 };
 
 struct ElemTraversal : AcrTraversal {
-    usize index;
+    uint32 index;
 };
 
 struct ComputedAttrTraversal : RefTraversal {
@@ -86,12 +86,12 @@ struct ComputedAttrTraversal : RefTraversal {
 
 struct ComputedElemTraversal : RefTraversal {
     ElemFunc<Mu>* func;
-    usize index;
+    uint32 index;
 };
 
 struct ContiguousElemTraversal : PtrTraversal {
     DataFunc<Mu>* func;
-    usize index;
+    uint32 index;
 };
 
 using VisitFunc = void(const Traversal&);
@@ -207,7 +207,7 @@ void trav_computed_attr (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_elem (
     ElemTraversal& child, const Traversal& parent,
-    const Accessor* acr, usize index, AccessMode mode
+    const Accessor* acr, uint32 index, AccessMode mode
 ) {
     child.op = TraversalOp::Elem;
     child.index = index;
@@ -217,7 +217,7 @@ void trav_elem (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_elem (
     ComputedElemTraversal& child, const Traversal& parent,
-    const AnyRef& ref, ElemFunc<Mu>* func, usize index, AccessMode mode
+    const AnyRef& ref, ElemFunc<Mu>* func, uint32 index, AccessMode mode
 ) {
     child.op = TraversalOp::ComputedElem;
     child.func = func;
@@ -228,7 +228,7 @@ void trav_computed_elem (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_contiguous_elem (
     ContiguousElemTraversal& child, const Traversal& parent,
-    AnyPtr ptr, DataFunc<Mu>* func, usize index, AccessMode mode
+    AnyPtr ptr, DataFunc<Mu>* func, uint32 index, AccessMode mode
 ) {
     child.op = TraversalOp::ContiguousElem;
     child.func = func;

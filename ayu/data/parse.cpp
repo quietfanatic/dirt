@@ -273,7 +273,7 @@ struct Parser {
         in++;  // for the "
          // Find the end of the string and determine upper bound of required
          // capacity.
-        usize n_escapes = 0;
+        uint n_escapes = 0;
         const char* p = in;
         while (p < end) {
             switch (*p) {
@@ -713,15 +713,15 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("[+nana]");
      // Test depth limit
     auto big = UniqueString(Capacity(402));
-    for (usize i = 0; i < 201; i++) {
+    for (uint i = 0; i < 201; i++) {
         big.push_back_expect_capacity('[');
     }
-    for (usize i = 0; i < 201; i++) {
+    for (uint i = 0; i < 201; i++) {
         big.push_back_expect_capacity(']');
     }
     n(StaticString(big));
     auto redwood = Tree::array();
-    for (usize i = 0; i < 199; i++) {
+    for (uint i = 0; i < 199; i++) {
         redwood = Tree::array(redwood);
     }
     y(StaticString(big.slice(1, 401)), redwood);

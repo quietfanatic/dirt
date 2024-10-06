@@ -27,7 +27,7 @@ struct Printer {
      // estimate-first-and-allocate-once strategy, but once the length
      // estimation gets complicated enough, it ends up slower than reallocating.
     NOINLINE
-    char* extend (char* p, usize more) {
+    char* extend (char* p, uint more) {
         char* old_begin = begin;
         char* new_begin = SharableBuffer<char>::allocate_plenty(
             p - old_begin + more
@@ -40,7 +40,7 @@ struct Printer {
         return p - old_begin + begin;
     }
 
-    char* reserve (char* p, usize more) {
+    char* reserve (char* p, uint more) {
         if (p + more >= end) [[unlikely]] return extend(p, more);
         else return p;
     }
@@ -170,7 +170,7 @@ struct Printer {
     char* print_quoted_expanded (char* p, Str s) {
         p = reserve(p, 2 + s.size());
         *p++ = '"';
-        for (usize i = 0; i < s.size(); i++) {
+        for (uint i = 0; i < s.size(); i++) {
             char esc;
             switch (s[i]) {
                 case '"': esc = '"'; goto escape;
@@ -193,7 +193,7 @@ struct Printer {
     char* print_quoted_contracted (char* p, Str s) {
         p = reserve(p, 2 + s.size());
         *p++ = '"';
-        for (usize i = 0; i < s.size(); i++) {
+        for (uint i = 0; i < s.size(); i++) {
             char esc;
             switch (s[i]) {
                 case '"': esc = '"'; goto escape;
@@ -404,7 +404,7 @@ struct Printer {
     }
 
     UniqueString print (const Tree& t) {
-        usize cap = t.form == Form::Array || t.form == Form::Object
+        uint cap = t.form == Form::Array || t.form == Form::Object
             ? 256 : 32;
         begin = SharableBuffer<char>::allocate_plenty(cap);
         end = begin + cap;
@@ -471,7 +471,7 @@ static tap::TestSet tests ("dirt/ayu/data/print", []{
 
     auto test = [](Str got, Str expected, std::string name){
         if (!is(got, expected, name)) {
-            usize i = 0;
+            uint i = 0;
             for (; i < got.size() && i < expected.size(); i++) {
                 if (got[i] != expected[i]) {
                     diag(cat("First difference at ",

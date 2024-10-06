@@ -137,7 +137,7 @@ struct TraverseToTree {
          // while flattening them.
         if (!!(trav.desc->flags & DescFlags::AttrsNeedRebuild)) {
              // Determine length for preallocation
-            usize len = object.size();
+            uint len = object.size();
             for (uint i = 0; i < attrs->n_attrs; i++) {
                 auto flags = attrs->attr(i)->acr()->attr_flags;
                  // Ignore HasDefault; it can only decrease the length by 1, and
@@ -226,7 +226,7 @@ struct TraverseToTree {
                 const AnyArray<AnyString>&
             >(*v.address);
             expect(!object);
-            object = UniqueArray<TreePair>(keys.size(), [&](usize i){
+            object = UniqueArray<TreePair>(keys.size(), [&](uint i){
                 return TreePair{keys[i], Tree()};
             });
         }));
@@ -273,7 +273,7 @@ struct TraverseToTree {
         auto array = UniqueArray<Tree>(len);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        for (usize i = 0; i < array.size(); i++) {
+        for (uint i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             ToTreeTraversal<ComputedElemTraversal> child;
@@ -298,7 +298,7 @@ struct TraverseToTree {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
-            for (usize i = 0; i < array.size(); i++) {
+            for (uint i = 0; i < array.size(); i++) {
                 ToTreeTraversal<ContiguousElemTraversal> child;
                 child.dest = &array[i];
                 trav_contiguous_elem<visit>(

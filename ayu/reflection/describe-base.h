@@ -422,7 +422,7 @@ struct _AYU_DescribeBase {
      //
      // If computed_elems() is present, length() must also be present, and
      // elems() and contiguous_elems() must not be present.
-    static constexpr auto computed_elems (AnyRef(* f )(T&, usize));
+    static constexpr auto computed_elems (AnyRef(* f )(T&, uint));
      // Use this for objects that have elements of identical laid out
      // sequentially in memory.  The provided function must return an AnyPtr to
      // the 0th element, and each subsequent element must be sizeof(Element)

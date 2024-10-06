@@ -148,12 +148,12 @@ struct Tree {
     constexpr const Tree* attr (Str key) const;
      // Returns null if the invocant is not an ARRAY or does not have an
      // element at the given index.
-    constexpr const Tree* elem (usize index) const;
+    constexpr const Tree* elem (uint index) const;
 
      // Throws if the tree is not an object or doesn't have that attribute.
     constexpr const Tree& operator[] (Str key) const;
      // Throws if the tree is not an array or the index is out of bounds.
-    constexpr const Tree& operator[] (usize index) const;
+    constexpr const Tree& operator[] (uint index) const;
 
     ///// INTERNAL
 

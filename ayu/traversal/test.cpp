@@ -151,7 +151,7 @@ AYU_DESCRIBE(ayu::test::ElemsTest,
             v.xs.resize(l);
         }
     )),
-    computed_elems([](ElemsTest& v, usize i){
+    computed_elems([](ElemsTest& v, uint i){
         return AnyRef(&v.xs.at(i));
     })
 )

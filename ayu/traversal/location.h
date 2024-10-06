@@ -13,7 +13,7 @@
 //     data Location = RootLocation Resource
 //                   | RefLocation AnyRef
 //                   | KeyLocation Location AnyString
-//                   | IndexLocation Location usize
+//                   | IndexLocation Location uint
 //
 // TODO: Provide functions to translate AnyRefs directly to and from IRIs
 // somewhere.
@@ -46,7 +46,7 @@ struct Location : in::RefCounted {
      // Returns null if this location is a root or has an index.
     const AnyString* key () const noexcept;
      // Returns null if this location is a root or has a key.
-    const uint32* index () const noexcept;
+    const uint* index () const noexcept;
 
      // Walks down to the root Location (containing either a Resource or a
      // AnyRef) and returns it.
@@ -78,7 +78,7 @@ struct SharedLocation {
      // Constructs a location based on another one with an added attribute key
      // or element index.
     SharedLocation (MoveRef<SharedLocation> parent, MoveRef<AnyString> key) noexcept;
-    SharedLocation (MoveRef<SharedLocation> parent, usize index) noexcept;
+    SharedLocation (MoveRef<SharedLocation> parent, uint index) noexcept;
 
     constexpr explicit operator bool () const { return !!data; }
     const Location& operator* () const { return *data; }

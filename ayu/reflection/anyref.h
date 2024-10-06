@@ -242,7 +242,7 @@ struct AnyRef {
      // but they're extern so that we don't pull too many dependencies into this
      // header.
     AnyRef operator [] (const AnyString& key);
-    AnyRef operator [] (usize index);
+    AnyRef operator [] (uint index);
 };
 
  // AnyRef comparison is best-effort.  If two AnyRefs were constructed

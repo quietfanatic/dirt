@@ -524,7 +524,7 @@ struct TraverseFromTree {
     ) {
          // Writable keys, so write them.
         auto keys = UniqueArray<AnyString>(
-            object.size(), [&object](usize i){ return object[i].first; }
+            object.size(), [&object](uint i){ return object[i].first; }
         );
         keys_acr->write(*trav.address,
             AccessCB(move(keys), [](auto&& keys, AnyPtr v, bool)
@@ -552,8 +552,8 @@ struct TraverseFromTree {
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
-        for (usize i = 0; i < keys.size(); i++)
-        for (usize j = 0; j < i; j++) {
+        for (uint i = 0; i < keys.size(); i++)
+        for (uint j = 0; j < i; j++) {
             expect(keys[i] != keys[j]);
         }
 #endif
@@ -598,13 +598,13 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, const ElemsDcrPrivate* elems
     ) {
          // Check whether length is acceptable
-        usize min = elems->chop_flag(AttrFlags::Optional);
+        uint min = elems->chop_flag(AttrFlags::Optional);
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
         }
-        for (usize i = 0; i < array.size(); i++) {
+        for (uint i = 0; i < array.size(); i++) {
             auto acr = elems->elem(i)->acr();
             if (!!(acr->attr_flags & AttrFlags::Ignored)) continue;
             FromTreeTraversal<ElemTraversal> child;
@@ -624,7 +624,7 @@ struct TraverseFromTree {
         write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
         expect(trav.desc->computed_elems_offset);
         auto f = trav.desc->computed_elems()->f;
-        for (usize i = 0; i < array.size(); i++) {
+        for (uint i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
             FromTreeTraversal<ComputedElemTraversal> child;
@@ -648,7 +648,7 @@ struct TraverseFromTree {
             expect(trav.desc->contiguous_elems_offset);
             auto f = trav.desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
-            for (usize i = 0; i < array.size(); i++) {
+            for (uint i = 0; i < array.size(); i++) {
                 FromTreeTraversal<ContiguousElemTraversal> child;
                 child.tree = &array[i];
                 trav_contiguous_elem<visit>(

@@ -426,7 +426,7 @@ struct LengthDcrWith : LengthDcr<T> {
 };
 
 template <class T>
-using ElemFunc = AnyRef(T&, usize);
+using ElemFunc = AnyRef(T&, uint);
 template <class T>
 struct ComputedElemsDcr : AttachedDescriptor<T> {
     ElemFunc<T>* f;
