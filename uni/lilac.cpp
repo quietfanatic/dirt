@@ -1,11 +1,11 @@
 #include "lilac.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 //#define UNI_LILAC_PROFILE
 #ifdef UNI_LILAC_PROFILE
-#include <cstdio>
 #include <vector>
 #endif
 
@@ -45,10 +45,16 @@ static u64 oversize_most = 0;
 #endif
 
 [[noreturn]] ALWAYS_INLINE static
-void out_of_memory () { require(false); std::abort(); }
+void out_of_memory () {
+    std::fprintf(stderr, "uni::lilac panic: out of memory\n");
+    std::abort();
+}
 
 [[noreturn]] ALWAYS_INLINE static
-void malloc_failed () { require(false); std::abort(); }
+void malloc_failed () {
+    std::fprintf(stderr, "uni::lilac panic: malloc failed\n");
+    std::abort();
+}
 
 NOINLINE static
 Block init_page (Page*& first_partial, u32 slot_size, Page* page) noexcept {

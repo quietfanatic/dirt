@@ -19,7 +19,7 @@
  //    on the entire thing and still compete with an ordinary multithreaded
  //    allocator)
  //  - Only allocates up to 4080 bytes (relays larger requests to malloc)
- //  - Maximum total size of close to 16GB (64-bit) or 1GB (32-bit).  All the
+ //  - Maximum total size of close to 8GB (64-bit) or 1GB (32-bit).  All the
  //    virtual address space is reserved at once, so it won't play well with
  //    other libraries that reserve huge address spaces on 32-bit systems.
  //  - Only 8-byte alignment is guaranteed
@@ -104,7 +104,7 @@ namespace in {
  // more than 16GB on my machine.  You probably want your program to crash
  // before it consumes more than this anyway.
 static constexpr usize pool_size =
-    sizeof(void*) >= 8 ? 16ULL*1024*1024*1024 - 16384
+    sizeof(void*) >= 8 ? 8ULL*1024*1024*1024 - 16384
                        : 1*1024*1024*1024 - 16384;
 
 ///// SIZE CLASSES
