@@ -135,31 +135,34 @@ ALWAYS_INLINE static
 bool page_valid (Page*, u32) { return true; }
 #endif
 
+static
+Block allocate_page (Page*& first_partial, u32 slot_size) noexcept {
+    if (global.first_free_page) {
+         // Use previously freed page
+        Page* page = global.first_free_page;
+        global.first_free_page = page->next_page;
+        return init_page(first_partial, slot_size, page);
+    }
+    else {
+        if (global.first_untouched_page >= global.pool_end) [[unlikely]] {
+            if (!global.first_untouched_page) {
+                 // We haven't actually initialized yet
+                return init_pool(first_partial, slot_size);
+            }
+            else [[unlikely]] out_of_memory();
+        }
+         // Get fresh page
+        Page* page = global.first_untouched_page;
+        global.first_untouched_page += 1;
+        return init_page(first_partial, slot_size, page);
+    }
+}
+
 NOINLINE
 Block allocate_small (Page*& first_partial, u32 slot_size) noexcept {
     if (!first_partial) [[unlikely]] {
-         // We need a new page
-        if (global.first_free_page) {
-             // Use previously freed page
-            Page* page = global.first_free_page;
-            global.first_free_page = page->next_page;
-            return init_page(first_partial, slot_size, page);
-        }
-        else {
-            if (global.first_untouched_page >= global.pool_end) [[unlikely]] {
-                if (!global.first_untouched_page) {
-                     // We haven't actually initialized yet
-                    return init_pool(first_partial, slot_size);
-                }
-                else [[unlikely]] out_of_memory();
-            }
-             // Get fresh page
-            Page* page = global.first_untouched_page;
-            global.first_untouched_page += 1;
-            return init_page(first_partial, slot_size, page);
-        }
+        return allocate_page(first_partial, slot_size);
     }
-
     Page* page = first_partial;
     expect(page_valid(page, slot_size));
 #ifdef UNI_LILAC_PROFILE
