@@ -91,13 +91,19 @@ constexpr Tree::Tree (const Tree& o) :
 }
 
 constexpr Tree& Tree::operator= (Tree&& o) {
-    this->~Tree();
+    if (meta & 1) [[unlikely]] {
+        auto header = SharableBuffer<char>::header(data.as_char_ptr);
+        if (!--header->ref_count) in::delete_Tree_data(*this);
+    }
     form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
     o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_i64 = 0;
     return *this;
 }
 constexpr Tree& Tree::operator= (const Tree& o) {
-    this->~Tree();
+    if (meta & 1) [[unlikely]] {
+        auto header = SharableBuffer<char>::header(data.as_char_ptr);
+        if (!--header->ref_count) in::delete_Tree_data(*this);
+    }
     form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
     if (meta & 1) {
          // data.as_*_ptr should never be null if the refcounted bit is set

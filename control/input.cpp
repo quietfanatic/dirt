@@ -1,5 +1,6 @@
 #include "input.h"
 
+#include <algorithm>
 #include <cstring>
 #include <SDL2/SDL_events.h>
 #include "../ayu/reflection/describe.h"

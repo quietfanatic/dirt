@@ -577,8 +577,8 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
              // Allow computed_name to override non-computed name.
             have_computed_name = true;
             header.flags |= DescFlags::NameComputed;
-            header.cached_name = dcr.cache;
-            header.computed_name = dcr.f;
+            header.computed_name.cache = dcr.cache;
+            header.computed_name.f = dcr.f;
         }
         else if constexpr (std::is_base_of_v<ToTreeDcr<T>, Dcr>) {
 #define AYU_APPLY_OFFSET(dcr_type, dcr_name) \

@@ -46,9 +46,9 @@ struct Description : ComparableAddress {
     union {
         StaticString name;
         struct {
-            StaticString* cached_name;
-            NameFunc* computed_name;
-        };
+            StaticString* cache;
+            NameFunc* f;
+        } computed_name;
     };
 
     DescFlags flags = {};
