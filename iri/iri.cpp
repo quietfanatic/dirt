@@ -28,7 +28,7 @@ static char* write_percent (char* out, u8 c) {
     return out;
 }
 
-static char* parse_percent (char* out, const char* in, const char* end) {
+static char* canonicalize_percent (char* out, const char* in, const char* end) {
     int byte = read_percent(in, end);
     if (byte < 0) [[unlikely]] return null;
     switch (char(byte)) {
@@ -231,7 +231,7 @@ struct IRIParser {
                 authority_end = path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             case '%':
-                if (!(out = parse_percent(out, in, in_end))) {
+                if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
@@ -262,7 +262,7 @@ struct IRIParser {
             case '/': case '?': case '#':
                 return finish_segment(out, in, in_end);
             case '%':
-                if (!(out = parse_percent(out, in, in_end))) {
+                if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
@@ -322,7 +322,7 @@ struct IRIParser {
                 path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             case '%':
-                if (!(out = parse_percent(out, in, in_end))) {
+                if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
@@ -347,7 +347,7 @@ struct IRIParser {
                 query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
             case '%':
-                if (!(out = parse_percent(out, in, in_end))) {
+                if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
@@ -372,7 +372,7 @@ struct IRIParser {
                 *out++ = *in++;
                 break;
             case '%':
-                if (!(out = parse_percent(out, in, in_end))) {
+                if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;

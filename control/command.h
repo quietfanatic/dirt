@@ -4,7 +4,7 @@
 #pragma once
 
 #include <utility>
-#include "../ayu/reflection/anyval.h" 
+#include "../ayu/reflection/anyval.h"
  // For tuple describability
 #include "../ayu/reflection/describe-standard.h"
 #include "../ayu/reflection/type.h"
