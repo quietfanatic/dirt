@@ -28,13 +28,6 @@ struct Type {
      // Construct from internal data
     constexpr Type (const in::Description* desc, bool readonly = false) :
         data(reinterpret_cast<usize>(desc) | readonly) { }
-#ifdef AYU_STORE_TYPE_INFO
-     // Can throw UnknownType.  There is no way to extract information about
-     // constness from a std::type_info, so it must be provided as a bool.
-    constexpr Type (const std::type_info& t, bool readonly = false) :
-        Type(in::need_description_for_type_info(t), readonly)
-    { }
-#endif
      // Should never throw, and in fact should compile to a single pointer
      // return.  This cannot be constexpr because get_description_for_cpp_type
      // may have to cross to a compilation unit where the actual description is
@@ -67,13 +60,6 @@ struct Type {
     StaticString name (this Type t) {
         return in::get_description_name(t.get_description());
     }
-#ifdef AYU_STORE_TYPE_INFO
-     // Get the std::type_info& for this type.  NOTE: CONSTNESS INFO IS
-     // CURRENTLY NYI
-    constexpr const std::type_info& cpp_type (this Type t) {
-        return *t.get_description()->cpp_type;
-    }
-#endif
      // Get the sizeof() of this type
     constexpr usize cpp_size (this Type t) {
         return t.get_description()->cpp_size;

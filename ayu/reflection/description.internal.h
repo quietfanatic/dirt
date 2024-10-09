@@ -38,9 +38,6 @@ enum class TypeFlags : u8 {
 DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
 
 struct Description : ComparableAddress {
-#ifdef AYU_STORE_TYPE_INFO
-    const std::type_info* cpp_type = null;
-#endif
     u32 cpp_size = 0;
     u32 cpp_align = 0;
     union {
@@ -100,10 +97,6 @@ namespace ayu_desc {
 
 namespace ayu::in {
     const Description* register_description (const Description*) noexcept;
-#ifdef AYU_STORE_TYPE_INFO
-    const Description* get_description_for_type_info (const std::type_info&) noexcept;
-    const Description* need_description_for_type_info (const std::type_info&);
-#endif
     const Description* get_description_for_name (Str) noexcept;
     const Description* need_description_for_name (Str);
 

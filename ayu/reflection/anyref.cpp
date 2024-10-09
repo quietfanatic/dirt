@@ -44,10 +44,10 @@ void AnyRef::raise_Unaddressable () const {
     }
 }
 
-AnyRef AnyRef::operator[] (const AnyString& key) {
+AnyRef AnyRef::operator[] (const AnyString& key) const {
     return item_attr(*this, key);
 }
-AnyRef AnyRef::operator[] (u32 index) {
+AnyRef AnyRef::operator[] (u32 index) const {
     return item_elem(*this, index);
 }
 

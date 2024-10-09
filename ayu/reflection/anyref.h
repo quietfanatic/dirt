@@ -241,8 +241,8 @@ struct AnyRef {
      // Syntax sugar.  These are just wrappers around item_attr and item_elem,
      // but they're extern so that we don't pull too many dependencies into this
      // header.
-    AnyRef operator [] (const AnyString& key);
-    AnyRef operator [] (u32 index);
+    AnyRef operator [] (const AnyString& key) const;
+    AnyRef operator [] (u32 index) const;
 };
 
  // AnyRef comparison is best-effort.  If two AnyRefs were constructed

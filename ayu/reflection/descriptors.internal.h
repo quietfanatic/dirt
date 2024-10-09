@@ -498,9 +498,6 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         std::remove_cvref_t<Dcrs>::make_static(move(dcrs))...
     );
     auto& header = *desc.template get<DescriptionFor<T>>(0);
-#ifdef AYU_STORE_TYPE_INFO
-    header.cpp_type = &typeid(T);
-#endif
     header.cpp_size = sizeof(T);
     header.cpp_align = alignof(T);
     if constexpr (std::is_trivially_default_constructible_v<T>) {

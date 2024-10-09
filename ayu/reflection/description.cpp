@@ -12,11 +12,7 @@ namespace ayu {
 namespace in {
 
 struct Registry {
-#ifdef AYU_STORE_TYPE_INFO
-    std::unordered_map<std::type_index, const Description*> by_cpp_type;
-#else
     UniqueArray<const Description*> to_init;
-#endif
     std::unordered_map<Str, const Description*> by_name;
     bool initted = false;
 };
@@ -31,45 +27,18 @@ static void init_names () {
     if (!r.initted) {
         r.initted = true;
         plog("init types begin");
-#ifdef AYU_STORE_TYPE_INFO
-        for (auto& p : r.by_cpp_type) {
-            r.by_name.emplace(get_description_name(p.second), p.second);
-        }
-#else
         r.to_init.consume([&r](const Description* desc){
             r.by_name.emplace(get_description_name(desc), desc);
         });
-#endif
         plog("init types end");
     }
 }
 
 const Description* register_description (const Description* desc) noexcept {
     require(!registry().initted);
-#ifdef AYU_STORE_TYPE_INFO
-    auto [p, e] = registry().by_cpp_type.emplace(*desc->cpp_type, desc);
-    return p->second;
-#else
     registry().to_init.push_back(desc);
     return desc;
-#endif
 }
-
-#ifdef AYU_STORE_TYPE_INFO
-const Description* get_description_for_type_info (const std::type_info& t) noexcept {
-    auto& ds = registry().by_cpp_type;
-    auto iter = ds.find(t);
-    if (iter != ds.end()) return iter->second;
-    else return null;
-}
-const Description* need_description_for_type_info (const std::type_info& t) {
-    auto desc = get_description_for_type_info(t);
-    if (desc) return desc;
-    else raise(e_TypeUnknown, cat(
-        "C++ type ", get_demangled_name(t), " doesn't have an AYU_DESCRIBE"
-    ));
-}
-#endif
 
 const Description* get_description_for_name (Str name) noexcept {
     init_names();
@@ -98,11 +67,7 @@ StaticString get_description_name (const Description* desc) noexcept {
     }
     else if (desc->name) { return desc->name; }
     else {
-#ifdef AYU_STORE_TYPE_INFO
-        return StaticString(desc->cpp_type->name());
-#else
         return "!(Unknown Type Name)";
-#endif
     }
 }
 
