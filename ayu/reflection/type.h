@@ -55,51 +55,51 @@ struct Type {
     { }
 
      // Checks if this is the empty type.
-    explicit constexpr operator bool () const { return data & ~1; }
+    explicit constexpr operator bool (this Type t) { return t.data & ~1; }
      // Checks if this type is readonly (const).
-    constexpr bool readonly () const { return data & 1; }
+    constexpr bool readonly (this Type t) { return t.data & 1; }
      // Add or remove readonly bit
-    constexpr Type add_readonly () const { return Type(get_description(), true); }
-    constexpr Type remove_readonly () const { return Type(get_description(), false); }
+    constexpr Type add_readonly (this Type t) { return Type(t.get_description(), true); }
+    constexpr Type remove_readonly (this Type t) { return Type(t.get_description(), false); }
 
      // Get human-readable type name (whatever name was registered with
      // AYU_DESCRIBE).  This ignores the readonly bit.
-    StaticString name () const {
-        return in::get_description_name(get_description());
+    StaticString name (this Type t) {
+        return in::get_description_name(t.get_description());
     }
 #ifdef AYU_STORE_TYPE_INFO
      // Get the std::type_info& for this type.  NOTE: CONSTNESS INFO IS
      // CURRENTLY NYI
-    constexpr const std::type_info& cpp_type () const {
-        return *get_description()->cpp_type;
+    constexpr const std::type_info& cpp_type (this Type t) {
+        return *t.get_description()->cpp_type;
     }
 #endif
      // Get the sizeof() of this type
-    constexpr usize cpp_size () const {
-        return get_description()->cpp_size;
+    constexpr usize cpp_size (this Type t) {
+        return t.get_description()->cpp_size;
     }
      // Get the alignof() of this type
-    constexpr usize cpp_align () const {
-        return get_description()->cpp_align;
+    constexpr usize cpp_align (this Type t){
+        return t.get_description()->cpp_align;
     }
      // Construct an instance of this type in-place.  The target must have at
      // least the required size and alignment.  May throw CannotDefaultConstruct
      // or CannotDestroy.
-    void default_construct (void* target) const;
+    void default_construct (this Type, void* target);
      // Destory an instance of this type in-place.  The memory will not be
      // allocated.
-    void destroy (Mu*) const;
+    void destroy (this Type, Mu*);
      // Allocate a buffer appropriate for containing an instance of this type.
      // This uses operator new(size, align, nothrow), so either use
      // type.deallocate(p) or operator delete(p, align) to delete the pointer.
-    void* allocate () const noexcept;
+    void* allocate (this Type) noexcept;
      // Deallocate a buffer previously allocated with allocate()
-    void deallocate (void*) const noexcept;
+    void deallocate (this Type, void*) noexcept;
      // Allocate and construct an instance of this type.
-    Mu* default_new () const;
+    Mu* default_new (this Type);
      // Destruct and deallocate and instance of this type.
      // Should be called delete, but, you know
-    void delete_ (Mu*) const;
+    void delete_ (this Type, Mu*);
 
      // Cast from derived class to base class.  Does a depth-first search
      // through the derived class's description looking for accessors like:
@@ -122,20 +122,20 @@ struct Type {
      // Previous versions of this library also had downcast_to (and cast_to,
      // which tries upcast then downcast) but it was dragging down refactoring
      // and I didn't end up actually using it.
-    Mu* try_upcast_to (Type, Mu*) const;
+    Mu* try_upcast_to (this Type from, Type to, Mu*);
     template <class T>
-    T* try_upcast_to (Mu* p) const {
-        return (T*)try_upcast_to(Type::CppType<T>(), p);
+    T* try_upcast_to (this Type from, Mu* p) {
+        return (T*)from.try_upcast_to(Type::CppType<T>(), p);
     }
-    Mu* upcast_to (Type, Mu*) const;
+    Mu* upcast_to (this Type from, Type to, Mu*);
     template <class T>
-    T* upcast_to (Mu* p) const {
-        return (T*)upcast_to(Type::CppType<T>(), p);
+    T* upcast_to (this Type from, Mu* p) {
+        return (T*)from.upcast_to(Type::CppType<T>(), p);
     }
 
      // Internal
-    constexpr in::Description* get_description () const {
-        return reinterpret_cast<in::Description*>(data & ~1);
+    constexpr in::Description* get_description (this Type t) {
+        return reinterpret_cast<in::Description*>(t.data & ~1);
     }
 };
 
