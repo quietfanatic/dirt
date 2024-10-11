@@ -330,28 +330,27 @@ bool get_location_cache () {
     return true;
 }
 
+ // This optimization interferes with condition move conversion in recent gcc
+[[gnu::optimize("-fno-thread-jumps")]]
 const Pair<AnyPtr, SharedLocation>* search_location_cache (AnyPtr item) {
     if (!have_location_cache) return null;
-    auto bottom = location_cache.begin();
-    auto top = location_cache.end();
+    u32 bottom = 0;
+    u32 top = location_cache.size();
     while (top != bottom) {
-        auto mid = bottom + (top - bottom) / 2;
-         // Slightly awkward reorganization to make it easier for the compiler
-         // to use conditional moves.  Normally it's kinda hard to get the
-         // compiler to use cmoves, but it seems pretty eager here, possibly
-         // because it can tell it's a binary search.
-        auto& a = mid->first;
-        if (a.address == item.address) {
-            usize aa = a.type.remove_readonly().data;
+        u32 mid = (top + bottom) / 2;
+        auto& e = location_cache[mid];
+        if (e.first.address == item.address) {
+            usize aa = e.first.type.remove_readonly().data;
             usize bb = item.type.remove_readonly().data;
-            if (aa == bb) return mid;
-             // Did you know you can use ?: on lvalues?
-            (aa < bb ? bottom : top) = mid;
+            if (aa == bb) return &e;
+            bool up = aa < bb;
+            if (up) bottom = mid + 1;
+            if (!up) top = mid;
         }
         else {
-            ((usize)a.address < (usize)item.address
-                ? bottom : top
-            ) = mid;
+            bool up = (usize)e.first.address < (usize)item.address;
+            if (up) bottom = mid + 1;
+            if (!up) top = mid;
         }
     }
     return null;

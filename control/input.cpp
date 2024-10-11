@@ -270,10 +270,19 @@ static constexpr StaticArray<u8> inputs_by_code_low (inputs_by_code.low);
 static constexpr StaticArray<u8> inputs_by_code_high (inputs_by_code.high);
 static constexpr StaticArray<u8> inputs_by_code_btn (inputs_by_code.btn);
 
+[[noreturn, gnu::cold]] static
+void raise_UnknownInput (Str name) {
+    if (name.size() > 32) {
+        raise(e_General, "Input descriptor is too long to be an input name");
+    }
+    else raise(e_General, cat("Unknown input descriptor: ", name));
+}
+
+[[gnu::optimize("-fno-thread-jumps","-fno-split-paths")]]
 Input input_from_string (Str name) {
     if (!name) return Input{};
     if (name.size() > 32) {
-        raise(e_General, "Input descriptor is too long to be an input name");
+        raise_UnknownInput(name);
     }
     u32 hash = hash32(name);
      // Binary search.  <algorithm> only has a binary search that returns a bool
@@ -283,20 +292,17 @@ Input input_from_string (Str name) {
      // Using integers here instead of pointers seems to optimize better.
     u32 b = 0;
     u32 e = inputs_by_hash.size();
-    for (;;) {
-        u32 mid = b + (e - b) / 2;
+    while (b != e) {
+        u32 mid = (b + e) / 2;
         auto& entry = inputs_by_hash[mid];
-        if (hash == entry.hash) {
-            if (name == Str(entry.name, entry.size)) {
-                return entry.input;
-            }
-            else break;
-        }
-        else if (b == mid) break;
-        else if (hash < entry.hash) e = mid;
-        else b = mid;
+        bool up = entry.hash < hash;
+        if (up) b = mid + 1;
+        if (!up) e = mid;
     }
-    raise(e_General, cat("Unknown input descriptor: ", name));
+    if (b < inputs_by_hash.size() && inputs_by_hash[b].hash == hash) {
+        return inputs_by_hash[b].input;
+    }
+    else raise_UnknownInput(name);
 }
 
 StaticString input_to_string (Input input) {

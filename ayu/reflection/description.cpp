@@ -16,20 +16,6 @@ struct HashedDescription {
     usize hash;
     const Description* desc;
 };
-int compare_hd (const void* aa, const void* bb) {
-    auto a = reinterpret_cast<const HashedDescription*>(aa);
-    auto b = reinterpret_cast<const HashedDescription*>(bb);
-    if (a->hash != b->hash) [[likely]] {
-         // can't subtract here, it'll overflow
-        return a->hash < b->hash ? -1 : 1;
-    }
-    auto an = get_description_name(a->desc);
-    auto bn = get_description_name(b->desc);
-    if (an.size() == bn.size()) {
-        return std::memcmp(an.data(), bn.data(), an.size());
-    }
-    else return int(an.size() - bn.size());
-}
 
 struct Registry {
     UniqueArray<HashedDescription> by_name;
@@ -39,6 +25,14 @@ struct Registry {
 static Registry& registry () {
     static Registry r;
     return r;
+}
+
+static
+StaticString get_description_name_cached (const Description* desc) {
+    if (!!(desc->flags & DescFlags::NameComputed)) {
+        return *desc->computed_name.cache;
+    }
+    else return desc->name;
 }
 
 NOINLINE static
@@ -51,8 +45,26 @@ void init_names () {
         require(n);
         p.hash = uni::hash(n);
     }
+     // Why we using qsort instead of std::sort, isn't std::sort faster?  Yes,
+     // but the reason it's faster is that it generates 10k of code for every
+     // callsite, which is overkill for something that'll be called exactly
+     // once at init time.
     std::qsort(
-        r.by_name.data(), r.by_name.size(), sizeof(r.by_name[0]), compare_hd
+        r.by_name.data(), r.by_name.size(), sizeof(r.by_name[0]),
+        [](const void* aa, const void* bb){
+            auto a = reinterpret_cast<const HashedDescription*>(aa);
+            auto b = reinterpret_cast<const HashedDescription*>(bb);
+            if (a->hash != b->hash) [[likely]] {
+                 // can't subtract here, it'll overflow
+                return a->hash < b->hash ? -1 : 1;
+            }
+            auto an = get_description_name_cached(a->desc);
+            auto bn = get_description_name_cached(b->desc);
+            if (an.size() == bn.size()) {
+                return std::memcmp(an.data(), bn.data(), an.size());
+            }
+            else return int(an.size() - bn.size());
+        }
     );
     plog("init types end");
 }
@@ -63,26 +75,33 @@ const Description* register_description (const Description* desc) noexcept {
     return desc;
 }
 
+ // in current gcc, this optimization interferes with conditional moves
+[[gnu::optimize("-fno-thread-jumps")]]
 const Description* get_description_for_name (Str name) noexcept {
     auto& r = registry();
     if (!r.initted) [[unlikely]] init_names();
     if (!name) return null;
     auto h = uni::hash(name);
-    auto bottom = r.by_name.begin();
-    auto top = r.by_name.end();
+    u32 bottom = 0;
+    u32 top = r.by_name.size();
     while (bottom != top) {
-        auto mid = bottom + (top - bottom) / 2;
-        if (mid->hash == h) [[unlikely]] {
-            Str n = get_description_name(mid->desc);
-            if (n.size() == name.size()) [[likely]] {
-                if (n == name) [[likely]] {
-                    return mid->desc;
-                }
-                else (n < name ? bottom : top) = mid;
+        u32 mid = (top + bottom) / 2;
+        auto& e = r.by_name[mid];
+        if (e.hash == h) [[unlikely]] {
+            Str n = get_description_name_cached(e.desc);
+            if (n == name) [[likely]] {
+                return e.desc;
+            }
+            else if (n.size() == name.size()) {
+                (n < name ? bottom : top) = mid;
             }
             else (n.size() < name.size() ? bottom : top) = mid;
         }
-        else (mid->hash < h ? bottom : top) = mid;
+        else {
+            bool up = e.hash < h;
+            if (up) bottom = mid + 1;
+            if (!up) top = mid;
+        }
     }
     return null;
 }
