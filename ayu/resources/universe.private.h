@@ -58,10 +58,10 @@ struct Universe {
     }
 
     void register_scheme (const ResourceScheme* scheme) {
-        usize h = hash(scheme->scheme_name);
+        usize h = hash(scheme->name);
         for (auto& s : schemes) {
-            if (s.hash == h && s.value->scheme_name == scheme->scheme_name) {
-                raise(e_ResourceSchemeNameDuplicate, scheme->scheme_name);
+            if (s.hash == h && s.value->name == scheme->name) {
+                raise(e_ResourceSchemeNameDuplicate, scheme->name);
             }
         }
         schemes.emplace_back(h, scheme);
@@ -70,16 +70,16 @@ struct Universe {
         Str scheme = name.scheme();
         usize h = hash(scheme);
         for (auto& s : schemes) {
-            if (s.hash == h && s.value->scheme_name == scheme) {
+            if (s.hash == h && s.value->name == scheme) {
                 return s.value;
             }
         }
         raise(e_ResourceSchemeNotFound, name.spec());
     }
     void unregister_scheme (const ResourceScheme* scheme) {
-        usize h = hash(scheme->scheme_name);
+        usize h = hash(scheme->name);
         for (auto& s : schemes) {
-            if (s.hash == h && s.value->scheme_name == scheme->scheme_name) {
+            if (s.hash == h && s.value->name == scheme->name) {
                 schemes.erase(&s);
                 return;
             }

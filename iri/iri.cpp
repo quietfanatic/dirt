@@ -532,7 +532,6 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
 }
 
 bool scheme_canonical (Str scheme) {
-     // Must start with a letter.
     const char* p = scheme.begin();
     const char* end = scheme.end();
     if (p >= end) return false;

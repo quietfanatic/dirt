@@ -356,6 +356,12 @@ struct IRI {
  // Force compile-time parsing
 consteval IRI constant (StaticString ref) { return IRI(ref); }
 
+inline namespace literals {
+    consteval IRI operator ""_iri (const char* s, usize n) {
+        return IRI(StaticString(s, n));
+    }
+} // literals
+
  // Determine if the scheme name is fully canonical (valid and lowercase).
 bool scheme_canonical (Str scheme);
 

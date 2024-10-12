@@ -6,8 +6,8 @@ namespace ayu {
 using namespace in;
 
 void ResourceScheme::activate () const {
-    if (!iri::scheme_canonical(scheme_name)) {
-        raise(e_ResourceSchemeNameInvalid, scheme_name);
+    if (!iri::scheme_canonical(name)) {
+        raise(e_ResourceSchemeNameInvalid, name);
     }
     universe().register_scheme(this);
 }

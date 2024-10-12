@@ -26,8 +26,7 @@ namespace ayu {
  // manipulate any Types until main() starts.
 struct ResourceScheme {
      // Must be a valid scheme name matching [a-z][a-z0-9+.-]*
-     // TODO: Store an IRI here instead.
-    const AnyString scheme_name;
+    const AnyString name;
 
      // If you want to do some of your own validation besides the standard IRI
      // validation.  If this returns false, UnacceptableResourceName will
@@ -49,8 +48,8 @@ struct ResourceScheme {
     virtual AnyString get_file (const IRI&) const { return ""; }
      // TODO: Non-file resource schemes
 
-    explicit ResourceScheme (AnyString scheme_name, bool auto_activate = true) :
-        scheme_name(move(scheme_name))
+    explicit ResourceScheme (AnyString n, bool auto_activate = true) :
+        name(move(n))
     {
         if (auto_activate) activate();
     }
@@ -61,7 +60,7 @@ struct ResourceScheme {
     ResourceScheme& operator = (ResourceScheme&&) = delete;
 
     virtual ~ResourceScheme () {
-        if (scheme_name) deactivate();
+        deactivate();
     }
 
      // These are called in the constructor (by default) and destructor, so you
@@ -96,16 +95,16 @@ struct FolderResourceScheme : ResourceScheme {
     }
 
     FolderResourceScheme (
-        AnyString scheme, Str folder, bool auto_activate = true
+        AnyString n, Str folder, bool auto_activate = true
     ) :
-        ResourceScheme(move(scheme), auto_activate),
+        ResourceScheme(move(n), auto_activate),
         folder(iri::from_fs_path(cat(folder, '/')))
     { }
 
     FolderResourceScheme (
-        AnyString scheme, const IRI& folder, bool auto_activate = true
+        AnyString n, const IRI& folder, bool auto_activate = true
     ) :
-        ResourceScheme(move(scheme), auto_activate),
+        ResourceScheme(move(n), auto_activate),
         folder(folder)
     {
         require(
