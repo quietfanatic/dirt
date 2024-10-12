@@ -244,7 +244,7 @@ NOINLINE
 Block allocate_block (usize size) noexcept {
     i32 sc = get_size_class(size);
     if (sc >= 0) {
-        u32 slot_size = tables.class_sizes[sc];
+        u32 slot_size = class_sizes[sc];
         return allocate_small(global.first_partial_pages[sc], slot_size);
     }
     else [[unlikely]] return allocate_large(size);
@@ -365,7 +365,7 @@ void* reallocate (void* p, usize s) noexcept {
         else return p;
     }
     else {
-        if (s > tables.class_sizes[n_size_classes-1]) {
+        if (s > class_sizes[n_size_classes-1]) {
             return std::realloc(p, s);
         }
         else return p;
@@ -380,9 +380,9 @@ void dump_profile () noexcept {
     u64 tb_c = 0; u64 tb_m = 0;
     for (u32 i = 0; i < n_size_classes; i++) {
         auto& p = profiles[i];
-        u64 s = tables.class_sizes[i];
+        u64 s = class_sizes[i];
         std::fprintf(stderr, "%2u %4u %5zu %5zu %5u %5u %5zu %5zu %5u %5u %7zu %7zu %6zu %6zu\n",
-            i, tables.class_sizes[i],
+            i, class_sizes[i],
             p.pages_picked, p.pages_emptied,
             p.pages_current, p.pages_most,
             p.slots_allocated, p.slots_deallocated,

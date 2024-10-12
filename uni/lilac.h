@@ -152,16 +152,21 @@ struct alignas(64) Tables {
     };
 };
 constexpr Tables tables;
+ // help gcc load table directly instead of referencing tables and adding an
+ // offset
+static constexpr const u16* class_sizes = tables.class_sizes;
+static constexpr const u8* small_classes_by_8 = tables.small_classes_by_8;
+static constexpr const u8* medium_classes_by_div = tables.medium_classes_by_div;
 
 ALWAYS_INLINE constexpr
 i32 get_size_class (usize size) {
-    if (size <= tables.class_sizes[largest_small]) [[likely]] {
-        return tables.small_classes_by_8[
+    if (size <= class_sizes[largest_small]) [[likely]] {
+        return small_classes_by_8[
             u32(size + 7) >> 3
         ];
     }
-    else if (size <= tables.class_sizes[n_size_classes-1]) {
-        return tables.medium_classes_by_div[
+    else if (size <= class_sizes[n_size_classes-1]) {
+        return medium_classes_by_div[
             page_usable_size / u32(size)
         ];
     }
@@ -219,7 +224,7 @@ void* allocate_fixed_size (usize size) noexcept {
     i32 sc = in::get_size_class(size);
     if (sc >= 0) {
         auto& fp = in::global.first_partial_pages[sc];
-        u32 slot_size = in::tables.class_sizes[sc];
+        u32 slot_size = in::class_sizes[sc];
         return in::allocate_small(fp, slot_size).address;
     }
     else [[unlikely]] return in::allocate_large(size).address;
@@ -231,7 +236,7 @@ void deallocate_fixed_size (void* p, usize size) noexcept {
     i32 sc = in::get_size_class(size);
     if (sc >= 0) {
         auto& fp = in::global.first_partial_pages[sc];
-        u32 slot_size = in::tables.class_sizes[sc];
+        u32 slot_size = in::class_sizes[sc];
         in::deallocate_small(p, fp, slot_size);
     }
     else [[unlikely]] in::deallocate_large(p, size);
