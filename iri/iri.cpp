@@ -531,18 +531,17 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
     return_everything: return spec_;
 }
 
-bool scheme_valid (Str scheme) {
+bool scheme_canonical (Str scheme) {
      // Must start with a letter.
     const char* p = scheme.begin();
     const char* end = scheme.end();
     if (p >= end) return false;
     switch (*p++) {
-        case IRI_UPPERCASE: case IRI_LOWERCASE:
-            break;
+        case IRI_LOWERCASE: break;
         default: return false;
     }
     while (p < end) switch (*p++) {
-        case IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT:
+        case IRI_LOWERCASE: case IRI_DIGIT:
         case '+': case '-': case '.':
             break;
         default: return false;

@@ -1,5 +1,8 @@
 #pragma once
 
+namespace iri {
+namespace in {
+
 #define IRI_UPPERCASE \
          'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': \
     case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': \
@@ -71,33 +74,6 @@
 #define IRI_UNRESERVED \
          IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT: \
     case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH
-
-namespace iri {
-
-constexpr Relativity relativity (Str ref) {
-    if (ref.size() == 0) return Relativity::Scheme;
-    switch (ref[0]) {
-        case ':': return Relativity::Scheme;
-        case '/':
-            if (ref.size() > 1 && ref[1] == '/') {
-                return Relativity::Authority;
-            }
-            else return Relativity::AbsolutePath;
-        case '?': return Relativity::Query;
-        case '#': return Relativity::Fragment;
-        default: break;
-    }
-    for (char c : ref.slice(1)) {
-        switch (c) {
-            case ':': return Relativity::Scheme;
-            case '/': case '?': case '#': return Relativity::RelativePath;
-            default: break;
-        }
-    }
-    return Relativity::RelativePath;
-}
-
-namespace in {
 
 struct ConstexprValidator {
     const char* begin;
@@ -306,6 +282,29 @@ struct ConstexprValidator {
 IRI parse_and_canonicalize (Str ref, const IRI& base) noexcept;
 
 } // in
+
+constexpr Relativity relativity (Str ref) {
+    if (ref.size() == 0) return Relativity::Scheme;
+    switch (ref[0]) {
+        case ':': return Relativity::Scheme;
+        case '/':
+            if (ref.size() > 1 && ref[1] == '/') {
+                return Relativity::Authority;
+            }
+            else return Relativity::AbsolutePath;
+        case '?': return Relativity::Query;
+        case '#': return Relativity::Fragment;
+        default: break;
+    }
+    for (char c : ref.slice(1)) {
+        switch (c) {
+            case ':': return Relativity::Scheme;
+            case '/': case '?': case '#': return Relativity::RelativePath;
+            default: break;
+        }
+    }
+    return Relativity::RelativePath;
+}
 
 constexpr IRI::IRI (Str ref, const IRI& base) :
     IRI(std::is_constant_evaluated()

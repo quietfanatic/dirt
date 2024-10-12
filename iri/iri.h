@@ -356,9 +356,8 @@ struct IRI {
  // Force compile-time parsing
 consteval IRI constant (StaticString ref) { return IRI(ref); }
 
- // Verify that this scheme is a valid scheme, without building an IRI out of
- // it.
-bool scheme_valid (Str scheme);
+ // Determine if the scheme name is fully canonical (valid and lowercase).
+bool scheme_canonical (Str scheme);
 
 } // namespace iri
 
