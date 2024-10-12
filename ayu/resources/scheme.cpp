@@ -6,9 +6,7 @@ namespace ayu {
 using namespace in;
 
 void ResourceScheme::activate () const {
-     // Easiest way to validate is just try creating an IRI
-     // TODO: this is obviously incorrect what was I thinking
-    if (!IRI(cat(scheme_name, ":"))) {
+    if (!iri::scheme_valid(scheme_name)) {
         raise(e_ResourceSchemeNameInvalid, scheme_name);
     }
     universe().register_scheme(this);
