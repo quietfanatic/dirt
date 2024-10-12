@@ -74,7 +74,7 @@ int natural_compare (Str a, Str b) noexcept {
     return ap == ae ? -1 : bp == be ? 1 : 0;
 }
 
-u32 count_decimal_digits (u64 v) {
+u32 count_decimal_digits (u64 v) noexcept {
      // There isn't a better way to do this.  You can estimate the digits with
      // some branchless logarithmic math, but you can't really get a precise
      // count that way.  At least we can convert many of the comparisons to
@@ -119,7 +119,7 @@ u32 count_decimal_digits (u64 v) {
     }
 }
 
-char* write_decimal_digits (char* p, u32 count, u64 v) {
+char* write_decimal_digits (char* p, u32 count, u64 v) noexcept {
      // The STL std::to_chars is kinda messy.  It does two digits at a time,
      // which is theoretically faster, but it reads a lookup table and has more
      // instructions and branches, so it's harder on caches.

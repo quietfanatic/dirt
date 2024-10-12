@@ -46,8 +46,9 @@ inline namespace buffers {
                 require(size <= max_capacity);
                 return max_capacity;
             }
-            else if (size <= min) return min;
             else {
+                 // Doing this first allows this to be branchless
+                if (size <= min) size = min;
                  // This should be fast on any modern processor
                 return std::bit_ceil(u32(size));
             }

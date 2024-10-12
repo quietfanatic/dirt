@@ -51,10 +51,10 @@ inline UniqueString ascii_to_lower (Str s) {
  // through 20.  You can also think of this as 1+floor(log10(v)) except it
  // returns 1 for 0 instead of -inf.
 [[gnu::const]]
-u32 count_decimal_digits (u64 v);
+u32 count_decimal_digits (u64 v) noexcept;
 
  // Writes out the decimal form of v.  Count must be the number returned by
  // count_decimal_digits(v).  Returns p + count (the end of the written number).
-char* write_decimal_digits (char* p, u32 count, u64 v);
+char* write_decimal_digits (char* p, u32 count, u64 v) noexcept;
 
 } // namespace uni
