@@ -1,4 +1,4 @@
-#include "tap.h"
+#include "tap-std.h"
 
 #ifdef TAP_SELF_TEST
 #ifndef TAP_DISABLE_TESTS

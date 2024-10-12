@@ -33,12 +33,8 @@ inline bool operator == (RGBA8 a, RGBA8 b) {
 namespace tap {
     template <>
     struct Show<glow::RGBA8> {
-        std::string show (const glow::RGBA8& v) {
-            return "RGBA8("s + std::to_string(v.r)
-                     + ", "s + std::to_string(v.g)
-                     + ", "s + std::to_string(v.b)
-                     + ", "s + std::to_string(v.a)
-                     + ")"s;
+        uni::UniqueString show (const glow::RGBA8& v) {
+            return uni::cat("RGBA(", v.r, ", ", v.g, ", ", v.b, ", ", v.a, ')');
         }
     };
 }

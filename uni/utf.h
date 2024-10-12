@@ -7,7 +7,7 @@
 #include <cstdio>
 
 #include "common.h"
-#include "strings.h"
+#include "arrays.h"
 
 namespace uni {
 

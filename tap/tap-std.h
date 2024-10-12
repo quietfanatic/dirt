@@ -1,6 +1,6 @@
  // A TAP outputting test library for C++
  //
- // This is the version using uni strings and cat()
+ // This is the version using STL strings and operator+
  //
  // Instructions:
  //
@@ -55,17 +55,21 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <cstdarg>
 #include <exception>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <typeinfo>
-#include "../uni/strings.h"
+#include <vector>
 
 #if __has_include(<cxxabi.h>)
 #include <cxxabi.h>
 #endif
 
 namespace tap {
+using namespace std;
 
 ///// TestSet
 
@@ -73,17 +77,15 @@ namespace tap {
 
  // This is the struct you use to declare a set of tests.
 struct TestSet {
-    uni::AnyString name;
-    void(* code )();
      // The constructor will register the test at init-time.
-    TestSet (uni::AnyString name, void(* code )());
+    TestSet (std::string_view name, void(* code )());
 };
 
 #else
 
  // Stub struct for when TAP_DISABLE_TESTS is defined.
 struct TestSet {
-    TestSet (uni::AnyString, void(*)()) { }
+    TestSet (std::string_view, void(*)()) { }
 };
 
 #endif
@@ -99,11 +101,11 @@ void plan (unsigned num_tests);
 void done_testing ();
 
  // Run a test.  If succeeded is true, the test passes, otherwise it fails.
-bool ok (bool succeeded, uni::Str name = "");
+bool ok (bool succeeded, std::string_view name = "");
  // The try_* versions of testing functions fail if the code throws an exception.
  // Otherwise, they behave like the non-try versions with the returned result.
 template <class F>
-bool try_ok (F code, uni::Str name = "");
+bool try_ok (F code, std::string_view name = "");
 
  // Run a test that succeeds if got == expected (with overloaded operator ==).
  // If the test failed, it will try to tell you what it got vs. what it expected.
@@ -115,80 +117,80 @@ bool try_ok (F code, uni::Str name = "");
  // As a special case, you can use is() with const char* and it'll do a strcmp (with
  // NULL checks).
 template <class A, class B>
-bool is (const A& got, const B& expected, uni::Str name = "");
+bool is (const A& got, const B& expected, std::string_view name = "");
 template <class F, class B>
-bool try_is (F code, const B& expected, uni::Str name = "");
+bool try_is (F code, const B& expected, std::string_view name = "");
 
  // Unlike is, isnt isn't that useful, but at least it catches exceptions in the
  // != operator.
 template <class A, class B>
-bool isnt (const A& got, const B& unexpected, uni::Str name = "");
+bool isnt (const A& got, const B& unexpected, std::string_view name = "");
 template <class F, class B>
-bool try_isnt (F code, const B& unexpected, uni::Str name = "");
+bool try_isnt (F code, const B& unexpected, std::string_view name = "");
 
  // Tests that got is within +/- range of expected.
-bool within (double got, double range, double expected, uni::Str name = "");
+bool within (double got, double range, double expected, std::string_view name = "");
 template <class F>
-bool try_within (F code, double range, double expected, uni::Str name = "");
+bool try_within (F code, double range, double expected, std::string_view name = "");
  // Tests that got is within a factor of .001 of expected.
 static inline
-bool about (double got, double expected, uni::Str name = "") {
+bool about (double got, double expected, std::string_view name = "") {
     return within(got, expected*0.001, expected, name);
 }
 template <class F>
-bool try_about (F&& code, double expected, uni::Str name = "") {
+bool try_about (F&& code, double expected, std::string_view name = "") {
     return try_within(std::forward<F>(code), expected*0.001, expected, name);
 }
 
  // Tests that code throws an exception of class Except.  If a different kind of
  // exception is thrown, the test fails.
 template <class E = std::exception, class F>
-bool throws (F code, uni::Str name = "");
+bool throws (F code, std::string_view name = "");
 
  // Like above, but fails if the thrown exception does not == expected.
 template <class E = std::exception, class F>
-bool throws_is (F code, const E& expected, uni::Str name = "");
+bool throws_is (F code, const E& expected, std::string_view name = "");
 
  // Like above, but checks the exception's what() against a string.
 template <class E = std::exception, class F>
-bool throws_what (F code, uni::Str what, uni::Str name = "");
+bool throws_what (F code, std::string_view what, std::string_view name = "");
 
  // Like above, but fails if the thrown exception does not satisfy the predicate
  // 'check' which should take an E and return bool.
 template <class E = std::exception, class F, class P>
-bool throws_check (F code, P check, uni::Str name = "");
+bool throws_check (F code, P check, std::string_view name = "");
 
  // Succeeds if no exception is thrown.
 template <class F>
-bool doesnt_throw (F code, uni::Str name = "");
+bool doesnt_throw (F code, std::string_view name = "");
 
  // Automatically pass a test with this name.  Only resort to this if you can't
  // make your test work with the other testing functions.
-bool pass (uni::Str name = "");
+bool pass (std::string_view name = "");
  // Likewise with fail.
-bool fail (uni::Str name = "");
+bool fail (std::string_view name = "");
 
  // Alias for doesnt_throw
 template <class F>
-bool try_pass (F code, uni::Str name = "") {
+bool try_pass (F code, std::string_view name = "") {
     return doesnt_throw(code, name);
 }
 
  // Mark the next num tests as todo.  You must still run the tests.  If only
  // todo tests fail, the test set is still considered successful.
-void todo (unsigned num, uni::AnyString excuse = "");
+void todo (unsigned num, std::string_view excuse = "");
  // Just todo one test.
-static inline void todo (uni::AnyString excuse = "") {
+static inline void todo (std::string_view excuse = "") {
     todo(1, excuse);
 }
  // The block form marks as todo every test that runs inside it.  It can be safely
 template <class F>
-void todo (uni::AnyString excuse, F code);
+void todo (std::string_view excuse, F code);
 
  // Declare that you've skipped num tests.  You must NOT still run the tests.
-void skip (unsigned num, uni::Str excuse = "");
+void skip (unsigned num, std::string_view excuse = "");
  // Just skip one test.
-static inline void skip (uni::Str excuse = "") {
+static inline void skip (std::string_view excuse = "") {
     skip(1, excuse);
 }
 
@@ -196,7 +198,7 @@ static inline void skip (uni::Str excuse = "") {
 
  // Tap will use this to print strings to stdout.  By default, this is
  //     fwrite(s.data(), 1, s.size(), stdout);
-void set_print (void(*)(uni::Str));
+void set_print (void(*)(std::string_view));
 
  // Convert an arbitrary item to a string.  Feel free to overload this for your
  // own types.  Throwing exceptions from show() may cause duplicate test
@@ -204,17 +206,17 @@ void set_print (void(*)(uni::Str));
  // TODO: allow wholesale replacement of showing for ayu
 template <class T>
 struct Show {
-    uni::UniqueString show (const T&);
+    std::string show (const T&);
 };
 
  // Print a message as diagnostics.  Should not contain newlines.
-void diag (uni::Str message);
+void diag (std::string_view message);
 
 ///// UH-OH
 
  // When everything is wrong and you can't even continue testing.  Immediately
  // fails the whole test set and calls exit(1).
-void BAIL_OUT (uni::Str reason = "");
+void BAIL_OUT (std::string_view reason = "");
 
  // Testing functions normally catch exceptions, but they won't catch ones that
  // inherit from this (unless it's a throws<>() and the exception matches it).
@@ -225,11 +227,11 @@ struct scary_exception : std::exception { };
  // Do this in main to allow command-line testing.  If the command line contains
  // the given flag, a test will be run or tests will be listed, and then the
  // program will exit.
-void allow_testing (int argc, char** argv, uni::Str test_flag = "--test");
+void allow_testing (int argc, char** argv, std::string_view test_flag = "--test");
 
  // To run a test set manually, do this.  It will not exit (unless BAIL_OUT is
  // called).
-void run_test (uni::Str name);
+void run_test (std::string_view name);
  // To list the tests manually, do this.  It will print test set names to stdout.
 void list_tests ();
 
@@ -240,4 +242,4 @@ inline char** argv = nullptr;
 
 }  // namespace tap
 
-#include "tap.inline.h"
+#include "tap-std.inline.h"
