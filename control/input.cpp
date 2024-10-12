@@ -278,6 +278,8 @@ void raise_UnknownInput (Str name) {
     else raise(e_General, cat("Unknown input descriptor: ", name));
 }
 
+ // I don't know why I'm optimizing this so hard, it's only called when
+ // deserializing.
 [[gnu::optimize("-fno-thread-jumps","-fno-split-paths")]]
 Input input_from_string (Str name) {
     if (!name) return Input{};

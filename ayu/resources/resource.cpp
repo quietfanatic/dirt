@@ -20,21 +20,7 @@
 namespace ayu {
 namespace in {
 
-struct ResourceData : Resource {
-    ResourceState state = RS::Unloaded;
-     // These are only used during reachability scanning, but we have extra room
-     // for them here.
-    bool root;
-    bool reachable;
-     // This is also only used during reachability scanning, and we don't have
-     // extra room for it, but storing it externally would require using an
-     // unordered_map (to use a UniqueArray, we need an integer index, but
-     // that's what this itself is).
-    u32 node_id;
-    IRI name;
-    AnyVal value {};
-    ResourceData (const IRI& n) : name(n) { }
-};
+ // ResourceData is in universe.private.h for reasons
 
 [[noreturn, gnu::cold]]
 static void raise_ResourceStateInvalid (StaticString tried, ResourceRef res) {
@@ -196,19 +182,7 @@ SharedResource::SharedResource (const IRI& name) {
     if (!scheme->accepts_iri(name)) {
         raise(e_ResourceNameRejected, name.spec());
     }
-    auto& resources = universe().resources;
-    auto iter = resources.find(name.spec());
-    if (iter != resources.end()) {
-        data = iter->second.data;
-    }
-    else {
-        expect(!data);
-        data = new ResourceData(name);
-         // Be careful about storing the right Str.  Well okay, technically it
-         // doesn't matter since the strings are refcounted and share the same
-         // buffer, but
-        resources.emplace(data->name().spec(), *this);
-    }
+    new (this) SharedResource(universe().get_resource(name));
 }
 
 SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
@@ -225,8 +199,7 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
 void in::delete_Resource_if_unloaded (Resource* res) noexcept {
     auto data = static_cast<ResourceData*>(res);
     if (data->state == RS::Unloaded) {
-        universe().resources.erase(data->name.spec());
-        delete data;
+        universe().delete_resource(res);
     }
 }
 
@@ -339,8 +312,7 @@ static void really_unload (ResourceData* data) {
     else {
         data->value = {};
         if (!data->ref_count) {
-            universe().resources.erase(data->name.spec());
-            delete data;
+            universe().delete_resource(data);
         }
         else data->state = RS::Unloaded;
     }

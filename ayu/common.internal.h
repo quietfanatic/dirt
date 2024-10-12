@@ -72,4 +72,10 @@ bool operator != (const RCP<T, deleter>& a, const RCP<T, deleter>& b) {
     return a.p != b.p;
 }
 
+template <class T>
+struct Hashed {
+    usize hash;
+    T value;
+};
+
 }  // namespace ayu::in

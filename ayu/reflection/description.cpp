@@ -12,13 +12,8 @@
 namespace ayu {
 namespace in {
 
-struct HashedDescription {
-    usize hash;
-    const Description* desc;
-};
-
 struct Registry {
-    UniqueArray<HashedDescription> by_name;
+    UniqueArray<Hashed<const Description*>> by_name;
     bool initted = false;
 };
 
@@ -41,7 +36,7 @@ void init_names () {
     r.initted = true;
     plog("init types begin");
     for (auto& p : r.by_name) {
-        auto n = get_description_name(p.desc);
+        auto n = get_description_name(p.value);
         require(n);
         p.hash = uni::hash(n);
     }
@@ -52,14 +47,14 @@ void init_names () {
     std::qsort(
         r.by_name.data(), r.by_name.size(), sizeof(r.by_name[0]),
         [](const void* aa, const void* bb){
-            auto a = reinterpret_cast<const HashedDescription*>(aa);
-            auto b = reinterpret_cast<const HashedDescription*>(bb);
+            auto a = reinterpret_cast<const Hashed<const Description*>*>(aa);
+            auto b = reinterpret_cast<const Hashed<const Description*>*>(bb);
             if (a->hash != b->hash) [[likely]] {
                  // can't subtract here, it'll overflow
                 return a->hash < b->hash ? -1 : 1;
             }
-            auto an = get_description_name_cached(a->desc);
-            auto bn = get_description_name_cached(b->desc);
+            auto an = get_description_name_cached(a->value);
+            auto bn = get_description_name_cached(b->value);
             if (an.size() == bn.size()) {
                 return std::memcmp(an.data(), bn.data(), an.size());
             }
@@ -88,9 +83,9 @@ const Description* get_description_for_name (Str name) noexcept {
         u32 mid = (top + bottom) / 2;
         auto& e = r.by_name[mid];
         if (e.hash == h) [[unlikely]] {
-            Str n = get_description_name_cached(e.desc);
+            Str n = get_description_name_cached(e.value);
             if (n == name) [[likely]] {
-                return e.desc;
+                return e.value;
             }
             else if (n.size() == name.size()) {
                 (n < name ? bottom : top) = mid;

@@ -6,19 +6,15 @@ namespace ayu {
 using namespace in;
 
 void ResourceScheme::activate () const {
-    auto& schemes = universe().schemes;
      // Easiest way to validate is just try creating an IRI
+     // TODO: this is obviously incorrect what was I thinking
     if (!IRI(cat(scheme_name, ":"))) {
         raise(e_ResourceSchemeNameInvalid, scheme_name);
     }
-    auto [iter, emplaced] = schemes.emplace(scheme_name, this);
-    if (!emplaced) {
-        raise(e_ResourceSchemeNameDuplicate, scheme_name);
-    }
+    universe().register_scheme(this);
 }
 void ResourceScheme::deactivate () const noexcept {
-    auto& schemes = universe().schemes;
-    schemes.erase(scheme_name);
+    universe().unregister_scheme(this);
 }
 
 } using namespace ayu;
