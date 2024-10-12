@@ -3,17 +3,19 @@
 #include "../uni/assertions.h"
 
 namespace iri {
+using namespace in;
 
 static int read_percent (const char* in, const char* end) {
     if (in + 3 > end) [[unlikely]] return -1;
     u8 byte = 0;
     for (int i = 1; i < 3; i++) {
         byte <<= 4;
-        switch (in[i]) {
-            case IRI_DIGIT: byte |= in[i] - '0'; break;
-            case IRI_UPPERHEX: byte |= in[i] - 'A' + 10; break;
-            case IRI_LOWERHEX: byte |= in[i] - 'a' + 10; break;
-            default: [[unlikely]] return -1;
+        char c = in[i];
+        if (c >= '0' && c <= '9') byte |= c - '0';
+        else {
+            c |= 'a' & ~'A';
+            if (c >= 'a' && c <= 'f') byte |= c - 'a' + 10;
+            else [[unlikely]] return -1;
         }
     }
     return byte;
@@ -31,35 +33,31 @@ static char* write_percent (char* out, u8 c) {
 static char* canonicalize_percent (char* out, const char* in, const char* end) {
     int byte = read_percent(in, end);
     if (byte < 0) [[unlikely]] return null;
-    switch (char(byte)) {
-        case IRI_GENDELIM: case IRI_SUBDELIM:
-        case IRI_FORBIDDEN: case IRI_IFFY: case '%':
-            return write_percent(out, byte);
-        default: *out++ = byte; return out;
+    if (char_wants_encode(byte)) {
+        return write_percent(out, byte);
+    }
+    else {
+        *out++ = byte;
+        return out;
     }
 }
 
 UniqueString encode (Str input) noexcept {
-    if (!input) return "";
+    if (!input) [[unlikely]] return "";
     usize cap = input.size();
+    expect(input.begin() < input.end());
     for (auto c : input) {
-        switch (c) {
-            case IRI_GENDELIM: case IRI_SUBDELIM:
-            case IRI_FORBIDDEN: case IRI_IFFY:
-            case '%': cap += 2;
-            default: break;
-        }
+        cap += char_wants_encode(c) * 2;
     }
     require(cap < maximum_length);
+    expect(cap > 0);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
     for (auto c : input) {
-        switch (c) {
-            case IRI_GENDELIM: case IRI_SUBDELIM:
-            case IRI_FORBIDDEN: case IRI_IFFY:
-            case '%': out = write_percent(out, c); break;
-            default: *out++ = c; break;
+        if (char_wants_encode(c)) {
+            out = write_percent(out, c);
         }
+        else *out++ = c;
     }
     UniqueString r;
     r.impl = {u32(out - buf), buf};
@@ -67,12 +65,13 @@ UniqueString encode (Str input) noexcept {
 }
 
 UniqueString decode (Str input) noexcept {
-    if (!input) return "";
+    if (!input) [[unlikely]] return "";
     require(input.size() < maximum_length);
     const char* in = input.begin();
     const char* end = input.end();
     char* buf = SharableBuffer<char>::allocate(input.size());
     char* out = buf;
+    expect(in != end);
     while (in != end) {
         if (*in == '%') {
             int result = read_percent(in, end);
@@ -104,10 +103,7 @@ struct IRIParser {
          // Figure out how much to allocate
         usize cap = input.size();
         for (auto c : input) {
-            switch (c) {
-                case IRI_IFFY: cap += 2; break;
-                default: break;
-            }
+            if (char_behavior(c) == CharProps::Iffy) [[unlikely]] cap += 2;
         }
         expect(cap > 0 && cap <= maximum_length * 3);
          // Now figure out how much we actually need to parse.
@@ -181,16 +177,19 @@ struct IRIParser {
 
     void parse_scheme (char* out, const char* in, const char* in_end) {
          // Must start with a letter.
-        switch (*in) {
-            case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
-            case IRI_LOWERCASE: *out++ = *in++; break;
+        switch (char_scheme_behavior(*in)) {
+            case CharProps::SchemeAlpha:
+                *out++ = *in++ | ('a' & ~'A');
+                break;
             default: return fail(Error::SchemeInvalid);
         }
-        while (in < in_end) switch (*in) {
-            case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
-            case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
+        while (in < in_end) switch (char_scheme_behavior(*in)) {
+            case CharProps::SchemeAlpha:
+                *out++ = *in++ | ('a' & ~'A');
+                break;
+            case CharProps::SchemeOther:
                 *out++ = *in++; break;
-            case ':':
+            case CharProps::SchemeEnd:
                 scheme_end = out - output.begin();
                 *out++ = *in++;
                 if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
@@ -215,29 +214,34 @@ struct IRIParser {
         expect(in + 2 <= in_end && Str(in, 2) == "//");
         *out++ = '/'; *out++ = '/';
         in += 2;
-        while (in < in_end) switch (*in) {
-            case IRI_UPPERCASE: *out++ = *in++ - 'A' + 'a'; break;
-            case IRI_LOWERCASE: case IRI_DIGIT:
-            case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH: case IRI_SUBDELIM:
-            case ':': case '[': case ']': case '@':
-                *out++ = *in++; break;
-            case '/':
+        while (in < in_end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary: {
+                char c = *in++;
+                if (c >= 'A' && c <= 'Z') [[unlikely]] {
+                    c += 'a' - 'A';
+                }
+                *out++ = c;
+                break;
+            }
+            case CharProps::Slash:
                 authority_end = out - output.begin();
                 return parse_absolute_path(out, in, in_end);
-            case '?':
+            case CharProps::Question:
                 authority_end = path_end = out - output.begin();
                 return parse_query(out, in, in_end);
-            case '#':
+            case CharProps::Hash:
                 authority_end = path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
-            case '%':
+            case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
-            case IRI_IFFY:
+            case CharProps::Iffy:
                 out = write_percent(out, *in++); break;
-            default: return fail(Error::AuthorityInvalid);
+            case CharProps::Forbidden:
+                return fail(Error::AuthorityInvalid);
+            default: never();
         }
         authority_end = path_end = query_end = out - output.begin();
         return done(out, in, in_end);
@@ -252,23 +256,23 @@ struct IRIParser {
 
     NOINLINE
     void parse_relative_path (char* out, const char* in, const char* in_end) {
-        while (in < in_end) switch (*in) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE:
-            case IRI_DIGIT: case IRI_SUBDELIM:
-            case IRI_UTF8_HIGH:
-            case '-': case '_': case '~': case ':': case '@': case '.':
-            case '[': case ']':
+        while (in < in_end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
                 *out++ = *in++; break;
-            case '/': case '?': case '#':
+            case CharProps::Slash:
+            case CharProps::Question:
+            case CharProps::Hash:
                 return finish_segment(out, in, in_end);
-            case '%':
+            case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
-            case IRI_IFFY:
+            case CharProps::Iffy:
                 out = write_percent(out, *in++); break;
-            default: return fail(Error::PathInvalid);
+            case CharProps::Forbidden:
+                return fail(Error::PathInvalid);
+            default: never();
         }
         return finish_segment(out, in, in_end);
     }
@@ -308,28 +312,27 @@ struct IRIParser {
         char* out, const char* in, const char* in_end
     ) {
         expect(out[-1] == ':');
-        while (in < in_end) switch (*in) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE:
-            case IRI_DIGIT: case IRI_SUBDELIM:
-            case IRI_UTF8_HIGH:
-            case '-': case '_': case '~': case ':': case '@': case '/':
-            case '[': case ']':
+        while (in < in_end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+            case CharProps::Slash:
                 *out++ = *in++; break;
-            case '?':
+            case CharProps::Question:
                 path_end = out - output.begin();
                 return parse_query(out, in, in_end);
-            case '#':
+            case CharProps::Hash:
                 path_end = query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
-            case '%':
+            case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
-            case IRI_IFFY:
+            case CharProps::Iffy:
                 out = write_percent(out, *in++);
                 break;
-            default: return fail(Error::PathInvalid);
+            case CharProps::Forbidden:
+                return fail(Error::PathInvalid);
+            default: never();
         }
         path_end = query_end = out - output.begin();
         return done(out, in, in_end);
@@ -339,21 +342,24 @@ struct IRIParser {
     void parse_query (char* out, const char* in, const char* in_end) {
         expect(*in == '?');
         *out++ = *in++;
-        while (in < in_end) switch (*in) {
-            case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?': case '[': case ']':
+        while (in < in_end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+            case CharProps::Slash:
+            case CharProps::Question:
                 *out++ = *in++; break;
-            case '#':
+            case CharProps::Hash:
                 query_end = out - output.begin();
                 return parse_fragment(out, in, in_end);
-            case '%':
+            case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
-            case IRI_IFFY:
+            case CharProps::Iffy:
                 out = write_percent(out, *in++); break;
-            default: return fail(Error::QueryInvalid);
+            case CharProps::Forbidden:
+                return fail(Error::QueryInvalid);
+            default: never();
         }
         query_end = out - output.begin();
         return done(out, in, in_end);
@@ -366,22 +372,24 @@ struct IRIParser {
          // Note that a second # is not allowed.  If that happens, it's likely
          // that there is a nested URL with an unescaped fragment, and in that
          // case it's ambiguous how to parse it, so we won't try.
-        while (in < in_end) switch (*in) {
-            case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?': case '[': case ']':
+        while (in < in_end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+            case CharProps::Slash:
+            case CharProps::Question:
                 *out++ = *in++;
                 break;
-            case '%':
+            case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
                 }
                 in += 3; break;
-            case IRI_IFFY:
+            case CharProps::Iffy:
                 out = write_percent(out, *in++);
                 break;
-            default: {
+            case CharProps::Forbidden:
+            case CharProps::Hash:
                 return fail(Error::FragmentInvalid);
-            }
+            default: never();
         }
         return done(out, in, in_end);
     }
@@ -535,15 +543,15 @@ bool scheme_canonical (Str scheme) {
     const char* p = scheme.begin();
     const char* end = scheme.end();
     if (p >= end) return false;
-    switch (*p++) {
-        case IRI_LOWERCASE: break;
-        default: return false;
-    }
-    while (p < end) switch (*p++) {
-        case IRI_LOWERCASE: case IRI_DIGIT:
-        case '+': case '-': case '.':
-            break;
-        default: return false;
+    char c = *p++;
+    if (c >= 'a' && c <= 'z') [[likely]] { }
+    else return false;
+    while (p < end) switch (char_scheme_behavior(*p++)) {
+        case CharProps::SchemeAlpha:
+            if (c >= 'a' && c <= 'z') [[likely]] break;
+            else return false;
+        case CharProps::SchemeOther: break;
+        default: [[unlikely]] return false;
     }
     return true;
 }

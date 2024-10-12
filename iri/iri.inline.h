@@ -1,79 +1,69 @@
 #pragma once
 
+#include <array>
+
 namespace iri {
 namespace in {
 
-#define IRI_UPPERCASE \
-         'A': case 'B': case 'C': case 'D': case 'E': case 'F': case 'G': \
-    case 'H': case 'I': case 'J': case 'K': case 'L': case 'M': case 'N': \
-    case 'O': case 'P': case 'Q': case 'R': case 'S': case 'T': case 'U': \
-    case 'V': case 'W': case 'X': case 'Y': case 'Z'
-#define IRI_LOWERCASE \
-         'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': \
-    case 'h': case 'i': case 'j': case 'k': case 'l': case 'm': case 'n': \
-    case 'o': case 'p': case 'q': case 'r': case 's': case 't': case 'u': \
-    case 'v': case 'w': case 'x': case 'y': case 'z'
-#define IRI_DIGIT \
-         '0': case '1': case '2': case '3': case '4': \
-    case '5': case '6': case '7': case '8': case '9'
-#define IRI_UPPERHEX \
-         'A': case 'B': case 'C': case 'D': case 'E': case 'F'
-#define IRI_LOWERHEX \
-         'a': case 'b': case 'c': case 'd': case 'e': case 'f'
-#define IRI_GENDELIM \
-         ':': case '/': case '?': case '#': case '[': case ']': case '@'
-#define IRI_SUBDELIM \
-         '!': case '$': case '&': case '\'': case '(': case ')': \
-    case '*': case '+': case ',': case ';': case '='
-#define IRI_UNRESERVED_SYMBOL \
-         '-': case '.': case '_': case '~'
-#define IRI_FORBIDDEN \
-         0x00: case 0x01: case 0x02: case 0x03: case 0x04: case 0x05: \
-    case 0x06: case 0x07: case 0x08: case 0x09: case 0x0a: case 0x0b: \
-    case 0x0c: case 0x0d: case 0x0e: case 0x0f: \
-    case 0x10: case 0x11: case 0x12: case 0x13: case 0x14: case 0x15: \
-    case 0x16: case 0x17: case 0x18: case 0x19: case 0x1a: case 0x1b: \
-    case 0x1c: case 0x1d: case 0x1e: case 0x1f: \
-    case 0x20: case 0x7f
-#define IRI_IFFY \
-         '<': case '>': case '"': case '{': case '}': case '|': case '\\': \
-    case '^': case '`'
-#define IRI_UTF8_HIGH \
-         char(0x80): case char(0x81): case char(0x82): case char(0x83): \
-    case char(0x84): case char(0x85): case char(0x86): case char(0x87): \
-    case char(0x88): case char(0x89): case char(0x8a): case char(0x8b): \
-    case char(0x8c): case char(0x8d): case char(0x8e): case char(0x8f): \
-    case char(0x90): case char(0x91): case char(0x92): case char(0x93): \
-    case char(0x94): case char(0x95): case char(0x96): case char(0x97): \
-    case char(0x98): case char(0x99): case char(0x9a): case char(0x9b): \
-    case char(0x9c): case char(0x9d): case char(0x9e): case char(0x9f): \
-    case char(0xa0): case char(0xa1): case char(0xa2): case char(0xa3): \
-    case char(0xa4): case char(0xa5): case char(0xa6): case char(0xa7): \
-    case char(0xa8): case char(0xa9): case char(0xaa): case char(0xab): \
-    case char(0xac): case char(0xad): case char(0xae): case char(0xaf): \
-    case char(0xb0): case char(0xb1): case char(0xb2): case char(0xb3): \
-    case char(0xb4): case char(0xb5): case char(0xb6): case char(0xb7): \
-    case char(0xb8): case char(0xb9): case char(0xba): case char(0xbb): \
-    case char(0xbc): case char(0xbd): case char(0xbe): case char(0xbf): \
-    case char(0xc0): case char(0xc1): case char(0xc2): case char(0xc3): \
-    case char(0xc4): case char(0xc5): case char(0xc6): case char(0xc7): \
-    case char(0xc8): case char(0xc9): case char(0xca): case char(0xcb): \
-    case char(0xcc): case char(0xcd): case char(0xce): case char(0xcf): \
-    case char(0xd0): case char(0xd1): case char(0xd2): case char(0xd3): \
-    case char(0xd4): case char(0xd5): case char(0xd6): case char(0xd7): \
-    case char(0xd8): case char(0xd9): case char(0xda): case char(0xdb): \
-    case char(0xdc): case char(0xdd): case char(0xde): case char(0xdf): \
-    case char(0xe0): case char(0xe1): case char(0xe2): case char(0xe3): \
-    case char(0xe4): case char(0xe5): case char(0xe6): case char(0xe7): \
-    case char(0xe8): case char(0xe9): case char(0xea): case char(0xeb): \
-    case char(0xec): case char(0xed): case char(0xee): case char(0xef): \
-    case char(0xf0): case char(0xf1): case char(0xf2): case char(0xf3): \
-    case char(0xf4): case char(0xf5): case char(0xf6): case char(0xf7): \
-    case char(0xf8): case char(0xf9): case char(0xfa): case char(0xfb): \
-    case char(0xfc): case char(0xfd): case char(0xfe): case char(0xff)
-#define IRI_UNRESERVED \
-         IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT: \
-    case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH
+enum CharProps : u8 {
+    Ordinary = 0,  // Unreserved or subdelim
+    Iffy = 1,  // These are allowed but are canonically encoded
+    Forbidden = 2,  // These are forbidden if not encoded.
+    Slash = 3,
+    Question = 4,
+    Hash = 5,
+    Percent = 6,
+    Behavior = 0x0f,
+
+    SchemeAlpha = 0x10,
+    SchemeOther = 0x20,
+    SchemeEnd = 0x40,  // This probably isn't that useful
+    SchemeBehavior = 0x70,
+
+    WantsEncode = 0x80,  // Don't eagerly decode these
+};
+
+constexpr std::array<u8, 256> char_props = []{
+    std::array<u8, 256> r = {};  // default Ordinary
+    for (u8 c : {
+        '<', '>', '"', '{', '}', '|', '\\', '^', '`'
+    }) r[c] = CharProps::Iffy | CharProps::WantsEncode;
+    for (u8 c : {
+         0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b,
+         0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+         0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x7f
+    }) r[c] = CharProps::Forbidden | CharProps::WantsEncode;
+    r['/'] = CharProps::Slash | CharProps::WantsEncode;
+    r['?'] = CharProps::Question;
+    r['#'] = CharProps::Hash;
+    r['%'] = CharProps::Percent | CharProps::WantsEncode;
+
+    for (u8 c : {
+        ':', '/', '?', '#', '[', ']', '@', '!', '$', '&', '\'', '(', ')', '*',
+        '+', ',', ';', '='
+    }) r[c] |= CharProps::WantsEncode;
+
+    for (u8 c = 'A'; c <= 'Z'; c++) r[c] |= CharProps::SchemeAlpha;
+    for (u8 c = 'a'; c <= 'z'; c++) r[c] |= CharProps::SchemeAlpha;
+    for (u8 c : {
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '.'
+    }) r[c] |= CharProps::SchemeOther;
+    r[':'] |= CharProps::SchemeEnd;
+    return r;
+}();
+
+static constexpr
+u8 char_behavior (char c) {
+    return char_props[u8(c)] & CharProps::Behavior;
+}
+static constexpr
+u8 char_scheme_behavior (char c) {
+    return char_props[u8(c)] & CharProps::SchemeBehavior;
+}
+static constexpr
+bool char_wants_encode (char c) {
+    return char_props[u8(c)] & CharProps::WantsEncode;
+}
 
 struct ConstexprValidator {
     const char* begin;
@@ -98,16 +88,22 @@ struct ConstexprValidator {
     }
 
     constexpr void parse_scheme () {
-        switch (*in) {
-            case IRI_LOWERCASE: in++; break;
-            case IRI_UPPERCASE: ERROR_canonical_scheme_must_be_lowercase();
+        switch (char_scheme_behavior(*in)) {
+            case CharProps::SchemeAlpha:
+                if (*in & ('a' & ~'A')) {
+                    in++; break;
+                }
+                else ERROR_canonical_scheme_must_be_lowercase();
             default: ERROR_invalid_scheme();
         }
-        while (in < end) switch (*in) {
-            case IRI_LOWERCASE: case IRI_DIGIT: case '+': case '-': case '.':
-                in++; break;
-            case IRI_UPPERCASE: ERROR_canonical_scheme_must_be_lowercase();
-            case ':':
+        while (in < end) switch (char_scheme_behavior(*in)) {
+            case CharProps::SchemeAlpha:
+                if (*in & ('a' & ~'A')) {
+                    in++; break;
+                }
+                else ERROR_canonical_scheme_must_be_lowercase();
+            case CharProps::SchemeOther: in++; break;
+            case CharProps::SchemeEnd:
                 scheme_end = in - begin;
                 in++;
                 if (in + 2 <= end && in[0] == '/' && in[1] == '/') {
@@ -127,25 +123,27 @@ struct ConstexprValidator {
 
     constexpr void parse_authority() {
         in += 2;
-        while (in < end) switch (*in) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT:
-            case IRI_UNRESERVED_SYMBOL: case IRI_UTF8_HIGH: case IRI_SUBDELIM:
-            case ':': case '[': case ']': case '@':
+        while (in < end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+                 // TODO: must be lowercase
                 in++; break;
-            case '/':
+            case CharProps::Slash:
                 authority_end = in - begin;
                 return parse_hierarchical_path();
-            case '?':
+            case CharProps::Question:
                 authority_end = path_end = in - begin;
                 return parse_query();
-            case '#':
+            case CharProps::Hash:
                 authority_end = path_end = query_end = in - begin;
                 return parse_fragment();
-            case '%':
+            case CharProps::Percent:
                 validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
-            default: ERROR_invalid_authority();
+            case CharProps::Iffy:
+                ERROR_character_must_canonically_be_percent_encoded();
+            case CharProps::Forbidden:
+                ERROR_invalid_authority();
+            default: never();
         }
         authority_end = path_end = query_end = in - begin;
         return;
@@ -153,28 +151,28 @@ struct ConstexprValidator {
 
     constexpr void parse_hierarchical_path () {
         in++;
-        while (in < end) switch (*in) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE:
-            case IRI_DIGIT: case IRI_SUBDELIM:
-            case IRI_UTF8_HIGH:
-            case '-': case '_': case '~': case ':': case '@': case '.':
+        while (in < end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
                 in++; break;
-            case '/':
+            case CharProps::Slash:
                 validate_segment(in);
                 in++; break;
-            case '?':
+            case CharProps::Question:
                 validate_segment(in);
                 path_end = in - begin;
                 return parse_query();
-            case '#':
+            case CharProps::Hash:
                 validate_segment(in);
                 path_end = query_end = in - begin;
                 return parse_fragment();
-            case '%':
+            case CharProps::Percent:
                 validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
-            default: ERROR_invalid_path();
+            case CharProps::Iffy:
+                ERROR_character_must_canonically_be_percent_encoded();
+            case CharProps::Forbidden:
+                ERROR_invalid_path();
+            default: never();
         }
         validate_segment(in);
         path_end = query_end = in - begin;
@@ -182,22 +180,24 @@ struct ConstexprValidator {
     }
 
     constexpr void parse_nonhierarchical_path () {
-        while (in < end) switch (*in) {
-            case IRI_UPPERCASE: case IRI_LOWERCASE: case IRI_DIGIT:
-            case IRI_SUBDELIM: case IRI_UTF8_HIGH:
-            case '-': case '_': case '~': case ':': case '@': case '/':
+        while (in < end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+            case CharProps::Slash:
                 in++; break;
-            case '?':
+            case CharProps::Question:
                 path_end = in - begin;
                 return parse_query();
-            case '#':
+            case CharProps::Hash:
                 path_end = query_end = in - begin;
                 return parse_fragment();
-            case '%':
+            case CharProps::Percent:
                 validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
-            default: ERROR_invalid_path();
+            case CharProps::Iffy:
+                ERROR_character_must_canonically_be_percent_encoded();
+            case CharProps::Forbidden:
+                ERROR_invalid_path();
+            default: never();
         }
         path_end = query_end = in - begin;
         return;
@@ -205,18 +205,22 @@ struct ConstexprValidator {
 
     constexpr void parse_query () {
         in++;
-        while (in < end) switch (*in) {
-            case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?':
+        while (in < end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+            case CharProps::Slash:
+            case CharProps::Question:
                 in++; break;
-            case '#':
+            case CharProps::Hash:
                 query_end = in - begin;
                 return parse_fragment();
-            case '%':
+            case CharProps::Percent:
                 validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
-            default: ERROR_invalid_query();
+            case CharProps::Iffy:
+                ERROR_character_must_canonically_be_percent_encoded();
+            case CharProps::Forbidden:
+                ERROR_invalid_query();
+            default: never();
         }
         query_end = in - begin;
         return;
@@ -224,16 +228,20 @@ struct ConstexprValidator {
 
     constexpr void parse_fragment () {
         in++;
-        while (in < end) switch (*in) {
-            case IRI_UNRESERVED: case IRI_SUBDELIM:
-            case ':': case '@': case '/': case '?':
-                in++;
-                break;
-            case '%':
+        while (in < end) switch (char_behavior(*in)) {
+            case CharProps::Ordinary:
+            case CharProps::Slash:
+            case CharProps::Question:
+                in++; break;
+            case CharProps::Percent:
                 validate_percent(in, end);
                 in += 3; break;
-            case IRI_IFFY: ERROR_character_must_canonically_be_percent_encoded();
-            default: ERROR_invalid_fragment();
+            case CharProps::Iffy:
+                ERROR_character_must_canonically_be_percent_encoded();
+            case CharProps::Forbidden:
+            case CharProps::Hash:
+                ERROR_invalid_fragment();
+            default: never();
         }
         return;
     }
@@ -243,21 +251,20 @@ struct ConstexprValidator {
         u8 byte = 0;
         for (int i = 1; i < 3; i++) {
             byte <<= 4;
-            switch (in[i]) {
-                case IRI_DIGIT: byte |= in[i] - '0'; break;
-                case IRI_UPPERHEX: byte |= in[i] - 'A' + 10; break;
-                case IRI_LOWERHEX: ERROR_canonical_percent_sequence_must_be_uppercase();
-                default: ERROR_invalid_percent_sequence();
+            char c = in[i];
+            if (c >= '0' && c <= '9') byte |= c - '0';
+            else if (c >= 'A' && c <= 'F') byte |= c - 'A' + 10;
+            else if (c >= 'a' && c <= 'f') {
+                ERROR_canonical_percent_sequence_must_be_uppercase();
             }
+            else ERROR_invalid_percent_sequence();
         }
-        switch (char(byte)) {
-            case IRI_GENDELIM: case IRI_SUBDELIM:
-            case IRI_FORBIDDEN: case IRI_IFFY: return;
-            default: ERROR_character_must_canonically_not_be_percent_encoded();
-        }
+        if (char_wants_encode(byte)) return;
+        else ERROR_character_must_canonically_not_be_percent_encoded();
     }
 
     static constexpr void validate_segment (const char* in) {
+         // The IRI is at least 4 chars so far (like "a://")
         if (Str(in-3, 3) == "/.." || Str(in-2, 2) == "/.") {
             ERROR_canonical_path_cannot_have_dot_or_dotdot();
         }

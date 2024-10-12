@@ -5,6 +5,7 @@
 namespace fs = std::filesystem;
 
 namespace iri {
+using namespace in;
 
 constexpr bool backwards_slashes = fs::path::preferred_separator == '\\';
 
@@ -13,37 +14,45 @@ constexpr bool backwards_slashes = fs::path::preferred_separator == '\\';
 UniqueString encode_path (Str input) noexcept {
     if (!input) return "";
     usize cap = input.size();
-    for (auto c : input) {
-        switch (c) {
-            case IRI_FORBIDDEN: case IRI_IFFY:
-            case '?': case '#': case '%':
-                if (backwards_slashes && c == '\\') break;
-                cap += 2; break;
-            default: break;
-        }
+    for (auto c : input) switch (char_behavior(c)) {
+        case CharProps::Forbidden:
+        case CharProps::Iffy:
+        case CharProps::Question:
+        case CharProps::Hash:
+        case CharProps::Percent:
+            if (backwards_slashes && c == '\\') break;
+            cap += 2; break;
+        case CharProps::Ordinary:
+        case CharProps::Slash:
+            break;
+        default: never();
     }
      // Don't bother failing here
     //require(cap < iri::maximum_length);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
-    for (auto c : input) {
-        switch (c) {
-            case IRI_FORBIDDEN: case IRI_IFFY:
-            case '?': case '#': case '%': {
-                if constexpr (backwards_slashes) {
-                    if (c == '\\') {
-                        *out++ = '/'; break;
-                    }
+    for (auto c : input) switch (char_behavior(c)) {
+        case CharProps::Forbidden:
+        case CharProps::Iffy:
+        case CharProps::Question:
+        case CharProps::Hash:
+        case CharProps::Percent: {
+            if constexpr (backwards_slashes) {
+                if (c == '\\') {
+                    *out++ = '/'; break;
                 }
-                u8 high = u8(c) >> 4;
-                u8 low = u8(c) & 0xf;
-                *out++ = '%';
-                *out++ = high >= 10 ? high - 10 + 'A' : high + '0';
-                *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
-                break;
             }
-            default: *out++ = c; break;
+            u8 high = u8(c) >> 4;
+            u8 low = u8(c) & 0xf;
+            *out++ = '%';
+            *out++ = high >= 10 ? high - 10 + 'A' : high + '0';
+            *out++ = low >= 10 ? low - 10 + 'A' : low + '0';
+            break;
         }
+        case CharProps::Ordinary:
+        case CharProps::Slash:
+            *out++ = c; break;
+        default: never();
     }
     UniqueString r;
     r.impl = {u32(out - buf), buf};
