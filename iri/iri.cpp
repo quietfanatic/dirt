@@ -119,7 +119,7 @@ struct IRIParser {
             }
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_.chop(base.scheme_end + 1);
+                prefix = base.spec_.slice(0, base.scheme_end + 1);
                 scheme_end = base.scheme_end;
                 next = &IRIParser::parse_authority;
                 break;
@@ -128,7 +128,7 @@ struct IRIParser {
                 if (!base || base.nonhierarchical()) {
                     return fail(Error::CouldNotResolve);
                 }
-                prefix = base.spec_.chop(base.authority_end);
+                prefix = base.spec_.slice(0, base.authority_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 next = &IRIParser::parse_absolute_path;
@@ -138,7 +138,7 @@ struct IRIParser {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
                 usize i = base.path_end;
                 while (base.spec_[i-1] != '/') --i;
-                prefix = base.spec_.chop(i);
+                prefix = base.spec_.slice(0, i);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 next = &IRIParser::parse_relative_path;
@@ -146,7 +146,7 @@ struct IRIParser {
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_.chop(base.path_end);
+                prefix = base.spec_.slice(0, base.path_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
@@ -155,7 +155,7 @@ struct IRIParser {
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_.chop(base.query_end);
+                prefix = base.spec_.slice(0, base.query_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
@@ -423,6 +423,9 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
     );
 }
 
+ // It's actually better to match greedily, even if it means overlapping string
+ // comparisons.  The string comparisons always start with a length comparison,
+ // which is likely to terminate them early.
 AnyString IRI::relative_to (const IRI& base) const noexcept {
     u32 tail;
     if (!*this) [[unlikely]] return "";
@@ -430,60 +433,39 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
         if (base.empty()) goto return_everything;
         else [[unlikely]] return "";
     }
-    else if (scheme_end + 1u == spec_.size() ||
-        spec_.slice(0, scheme_end) != base.spec_.slice(0, base.scheme_end)
+    else if (
+        spec_.size() > query_end &&
+        spec_.slice(0, query_end) == base.spec_.slice(0, base.query_end)
     ) {
-         // Schemes are different or we only have a scheme
-        goto return_everything;
+        tail = query_end;
+        goto return_tail;
     }
-    else if (authority_end == spec_.size() ||
-        spec_.slice(scheme_end + 1, authority_end) !=
-        base.spec_.slice(base.scheme_end + 1, base.authority_end)
+    else if (
+        query_end > path_end &&
+        spec_.slice(0, path_end) == base.spec_.slice(0, base.path_end)
     ) {
-         // Authorities are different or authority is the last component.
-        if (authority_end == scheme_end + 1u) {
-             // Wait, we don't even have an authority!
+        tail = path_end;
+        goto return_tail;
+    }
+    else if (
+        path_end > authority_end &&
+        spec_.slice(0, authority_end) == base.spec_.slice(0, base.authority_end)
+    ) {
+        if (spec_[authority_end] != '/' ||
+            base.spec_[base.authority_end] != '/'
+        ) {
+             // Non-hierchical paths can't be chopped any further.
             goto return_everything;
         }
-        else {
-            tail = scheme_end + 1;
-            goto return_tail;
-        }
-    }
-    else if (path_end == authority_end ||
-        spec_[authority_end] != '/' ||
-        base.spec_[authority_end] != '/'
-    ) {
-         // Don't pick apart non-hierarchical paths.
-        if (path_end != query_end) {
-            goto check_query;
-        }
-        else if (query_end != spec_.size()) {
-            goto return_fragment;
-        }
-        else goto return_everything;
-    }
-    else {
-         // Okay now we need to traverse the hierarchical path.  We need to do
-         // this even if the paths are identical, because if there's no query or
-         // fragment, we need to return the last segment of the path.
-
-         // We already know path starts with a /.
+         // Okay now we need to traverse the hierarchical path.
         tail = authority_end + 1;
         u32 i;
         for (i = authority_end + 1; i < path_end && i < base.path_end; i++) {
             if (spec_[i] != base.spec_[i]) goto found_difference;
             else if (spec_[i] == '/') tail = i + 1;
         }
-         // Okay, the paths are identical.  Is there a query or a fragment?
-        if (path_end != query_end) {
-            goto check_query;
-        }
-        else if (query_end != spec_.size()) {
-            goto return_fragment;
-        }
-        else if (tail != path_end) {
-             // Okay no query or fragment, so return the last path segment.
+         // Okay, the paths are identical.  Return the last segment.
+        if (tail != path_end) {
              // BUT if it contains : we need to prepend ./ so it isn't
              // interpreted as a scheme.
             for (usize i = tail; i < path_end; i++) {
@@ -516,27 +498,20 @@ AnyString IRI::relative_to (const IRI& base) const noexcept {
         r.append_expect_capacity(spec_.slice(tail));
         return r;
     }
-    never();
-    check_query:
-    if (query_end == spec_.size() ||
-        spec_.slice(path_end, query_end) !=
-        base.spec_.slice(base.path_end, base.query_end)
+    else if (
+        authority_end >= scheme_end + 3 &&
+        spec_.slice(0, scheme_end + 3) == base.spec_.slice(0, base.scheme_end + 3)
     ) {
-         // Queries are different or no fragment
-        tail = path_end;
+        tail = scheme_end + 1;
         goto return_tail;
     }
-     // Everything up to the fragment is identical.  We can't return nothing, so
-     // return the fragment even if they're the same.
-    return_fragment: tail = query_end;
-     // Bundle these returns together because they do an allocation.
-    return_tail: {
-        expect(spec_.size() < maximum_length);
-        return spec_.slice(tail);
+    else {
+        return_everything:
+        return spec_;
     }
-     // For whatever reason we couldn't make a relative reference so return the
-     // whole thing.
-    return_everything: return spec_;
+    return_tail:
+    expect(spec_.size() < maximum_length);
+    return expect(spec_.slice(tail));
 }
 
 bool scheme_canonical (Str scheme) {
