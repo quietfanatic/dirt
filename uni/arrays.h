@@ -1269,7 +1269,9 @@ struct ArrayInterface {
         else require(false);
     }
      // Nonmutating version of shrink.  Semantically equivalent to
-     // slice(0, new_size), but avoids an allocate_copy for shared arrays.
+     // slice(0, new_size), but avoids an allocate_copy for shared arrays.  If
+     // you only want a Str/Slice, it's better to use .slice(0, new_size)
+     // instead.
     constexpr
     Self chop (usize new_size) const& {
         expect(new_size <= size());

@@ -307,6 +307,11 @@ UniqueArray<AnyString> t36 () {
     return UniqueArray<AnyString>(555, "indestructible");
 }
 
+[[gnu::used]]
+bool t37 (Str a, Str b) {
+    return a == b;
+}
+
 static tap::TestSet tests ("dirt/uni/arrays", []{
     using namespace tap;
     AnyArray<int> a;
