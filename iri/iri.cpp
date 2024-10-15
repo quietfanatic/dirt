@@ -423,94 +423,107 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
     );
 }
 
- // It's actually better to match greedily, even if it means overlapping string
- // comparisons.  The string comparisons always start with a length comparison,
- // which is likely to terminate them early.
+NOINLINE static
+AnyString examine_hierarchical_path (const IRI& self, const IRI& base) {
+    u32 tail = self.authority_end + 1;
+    u32 i;
+    for (
+        i = self.authority_end + 1;
+        i < self.path_end && i < base.path_end;
+        i++
+    ) {
+        if (self.spec_[i] != base.spec_[i]) goto found_difference;
+        else if (self.spec_[i] == '/') tail = i + 1;
+    }
+     // Okay, the paths are identical.  Return the last segment.
+    if (tail != self.path_end) {
+         // BUT if it contains : we need to prepend ./ so it isn't
+         // interpreted as a scheme.
+        for (usize i = tail; i < self.path_end; i++) {
+            if (self.spec_[i] == '/') break;
+            else if (self.spec_[i] == ':') {
+                expect(self.spec_.size() < maximum_length);
+                return cat("./", self.spec_.slice(tail));
+            }
+        }
+        return expect(self.spec_.slice(tail));
+    }
+    else {
+         // The identical paths end in /, what do we do?  Uh.....I think
+         // we're supposed to return . then.
+        return ".";
+    }
+    found_difference:
+     // Okay the paths are different, so count how many extra segments are
+     // in the base, and prepend that many ../s.
+    u32 dotdots = 0;
+    for (; i < base.path_end; i++) {
+        if (base.spec_[i] == '/') dotdots++;
+    }
+    usize cap = dotdots * 3 + (self.spec_.size() - tail);
+    expect(cap < UniqueString::max_size_);
+    auto r = UniqueString(Capacity(cap));
+    for (u32 i = 0; i < dotdots; i++) {
+        r.append_expect_capacity("../");
+    }
+    r.append_expect_capacity(self.spec_.slice(tail));
+    return r;
+}
+
 AnyString IRI::relative_to (const IRI& base) const noexcept {
-    u32 tail;
     if (!*this) [[unlikely]] return "";
     else if (!base) {
-        if (base.empty()) goto return_everything;
+        if (base.empty()) {
+            return_everything:
+            return spec_;
+        }
         else [[unlikely]] return "";
     }
-    else if (
-        spec_.size() > query_end &&
-        spec_.slice(0, query_end) == base.spec_.slice(0, base.query_end)
-    ) {
+     // Instead of doing a string compare per component, find the
+     // first place where the specs are different and then determine which
+     // component that's in.
+     // Can't return nothing, so pretend the last character is always different
+    u32 s = spec_.size() - 1;
+    u32 bs = base.spec_.size();
+    if (bs < s) s = bs;
+    u32 diff;
+    expect(s > 0); // valid IRI is always at least two bytes
+    for (diff = 0; diff < s; diff++) {
+        if (spec_[diff] != base.spec_[diff]) break;
+    }
+     // We don't need to check for the existence of components, because if a
+     // component doesn't exist its size will be 0, so there's no room for diff
+     // to be inside of it (unless it's at the end, but the end won't be
+     // selected because of subtracting 1 from the size above).
+     //
+     // We do need to make sure the base's component starts at the same place so
+     // we don't accidentally think that foo:asdf#bar and foo:asdfqwer#bar are
+     // the same before the #fragment.
+    u32 tail;
+    if (diff >= query_end && base.query_end == query_end) {
         tail = query_end;
         goto return_tail;
     }
-    else if (
-        query_end > path_end &&
-        spec_.slice(0, path_end) == base.spec_.slice(0, base.path_end)
-    ) {
+    else if (diff >= path_end && base.path_end == path_end) {
         tail = path_end;
         goto return_tail;
     }
-    else if (
-        path_end > authority_end &&
-        spec_.slice(0, authority_end) == base.spec_.slice(0, base.authority_end)
-    ) {
+    else if (diff >= authority_end && base.authority_end == authority_end) {
         if (spec_[authority_end] != '/' ||
             base.spec_[base.authority_end] != '/'
         ) {
              // Non-hierchical paths can't be chopped any further.
             goto return_everything;
         }
-         // Okay now we need to traverse the hierarchical path.
-        tail = authority_end + 1;
-        u32 i;
-        for (i = authority_end + 1; i < path_end && i < base.path_end; i++) {
-            if (spec_[i] != base.spec_[i]) goto found_difference;
-            else if (spec_[i] == '/') tail = i + 1;
-        }
-         // Okay, the paths are identical.  Return the last segment.
-        if (tail != path_end) {
-             // BUT if it contains : we need to prepend ./ so it isn't
-             // interpreted as a scheme.
-            for (usize i = tail; i < path_end; i++) {
-                if (spec_[i] == '/') break;
-                else if (spec_[i] == ':') {
-                    expect(spec_.size() < maximum_length);
-                    return cat("./", spec_.slice(tail));
-                }
-            }
-            goto return_tail;
-        }
-        else {
-             // The identical paths end in /, what do we do?  Uh.....I think
-             // we're supposed to return . then.
-            return ".";
-        }
-        found_difference:
-         // Okay the paths are different, so count how many extra segments are
-         // in the base, and prepend that many ../s.
-        u32 dotdots = 0;
-        for (; i < base.path_end; i++) {
-            if (base.spec_[i] == '/') dotdots++;
-        }
-        usize cap = dotdots * 3 + (spec_.size() - tail);
-        expect(cap < UniqueString::max_size_);
-        auto r = UniqueString(Capacity(cap));
-        for (u32 i = 0; i < dotdots; i++) {
-            r.append_expect_capacity("../");
-        }
-        r.append_expect_capacity(spec_.slice(tail));
-        return r;
+         // TODO: reuse diff for this
+        else return examine_hierarchical_path(*this, base);
     }
-    else if (
-        authority_end >= scheme_end + 3 &&
-        spec_.slice(0, scheme_end + 3) == base.spec_.slice(0, base.scheme_end + 3)
-    ) {
-        tail = scheme_end + 1;
+    else if (diff >= scheme_end && base.scheme_end == scheme_end) {
+        tail = scheme_end + 1; // skip the :
         goto return_tail;
     }
-    else {
-        return_everything:
-        return spec_;
-    }
+    else goto return_everything;
     return_tail:
-    expect(spec_.size() < maximum_length);
     return expect(spec_.slice(tail));
 }
 
