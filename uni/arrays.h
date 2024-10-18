@@ -2132,9 +2132,14 @@ constexpr bool operator== (
     usize bs = b.size();
     const T* ad = a.data();
     auto bd = b.data();
-    if (as != bs) return false;
+     // [[likely]] because most string comparisons will be rejected by the size
+     // difference, and this keeps the compiler from overaggrssively hoisting
+     // bits and pieces of memeq outside of loops.
+    if (as != bs) [[likely]] return false;
      // In some cases we could short-circuit if ad == bd, but it's probably not
-     // worth it since it's unlikely to be the case.
+     // worth it since it's unlikely to be the case.  It also technically breaks
+     // the contract since floating point numbers can compare unequal to
+     // themselves.
     if constexpr (
         std::is_scalar_v<T> && !std::is_floating_point_v<T> &&
         ArrayContiguousIteratorFor<decltype(bd), T>
@@ -2166,7 +2171,7 @@ bool operator== (
     usize bs = len - 1;
     const T* ad = a.data();
     const T* bd = b;
-    if (as != bs) return false;
+    if (as != bs) [[likely]] return false;
     if constexpr (std::is_scalar_v<T> && !std::is_floating_point_v<T>) {
          // Apparent it's illegal to pass null to memcmp even if size is 0.
         if (bs == 0) return true;
