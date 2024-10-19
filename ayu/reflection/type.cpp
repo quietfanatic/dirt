@@ -29,52 +29,52 @@ static void raise_TypeCantCast (Type from, Type to) {
 
 } using namespace in;
 
-void Type::default_construct (this Type t, void* target) {
-    auto desc = DescriptionPrivate::get(t);
-    if (!desc->default_construct) raise_TypeCantDefaultConstruct(t);
+void Type::default_construct (void* target) const {
+    auto desc = DescriptionPrivate::get(*this);
+    if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
      // Don't allow constructing objects that can't be destroyed
-    if (!desc->destroy) raise_TypeCantDestroy(t);
+    if (!desc->destroy) raise_TypeCantDestroy(*this);
     desc->default_construct(target);
 }
 
-void Type::destroy (this Type t, Mu* p) {
-    auto desc = DescriptionPrivate::get(t);
-    if (!desc->destroy) raise_TypeCantDestroy(t);
+void Type::destroy (Mu* p) const {
+    auto desc = DescriptionPrivate::get(*this);
+    if (!desc->destroy) raise_TypeCantDestroy(*this);
     desc->destroy(p);
 }
 
-void* Type::allocate (this Type t) noexcept {
-    auto desc = DescriptionPrivate::get(t);
+void* Type::allocate () const noexcept {
+    auto desc = DescriptionPrivate::get(*this);
     void* r = operator new(
         desc->cpp_size, std::align_val_t(desc->cpp_align), std::nothrow
     );
     return expect(r);
 }
 
-void Type::deallocate (this Type t, void* p) noexcept {
-    auto desc = DescriptionPrivate::get(t);
+void Type::deallocate (void* p) const noexcept {
+    auto desc = DescriptionPrivate::get(*this);
     operator delete(p, desc->cpp_size, std::align_val_t(desc->cpp_align));
 }
 
-Mu* Type::default_new (this Type t) {
-    auto desc = DescriptionPrivate::get(t);
+Mu* Type::default_new () const {
+    auto desc = DescriptionPrivate::get(*this);
      // Throw before allocating
-    if (!desc->default_construct) raise_TypeCantDefaultConstruct(t);
-    if (!desc->destroy) raise_TypeCantDestroy(t);
-    void* p = t.allocate();
+    if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
+    if (!desc->destroy) raise_TypeCantDestroy(*this);
+    void* p = allocate();
     desc->default_construct(p);
     return (Mu*)p;
 }
 
-void Type::delete_ (this Type t, Mu* p) {
-    t.destroy(p);
-    t.deallocate(p);
+void Type::delete_ (Mu* p) const {
+    destroy(p);
+    deallocate(p);
 }
 
-Mu* Type::try_upcast_to (this Type from, Type to, Mu* p) {
+Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (!to || !p) return null;
-    if (from == to.remove_readonly()) return p;
-    auto desc = DescriptionPrivate::get(from);
+    if (*this == to.remove_readonly()) return p;
+    auto desc = DescriptionPrivate::get(*this);
 
     if (auto delegate = desc->delegate_acr())
     if (AnyPtr a = delegate->address(*p))
@@ -102,10 +102,10 @@ Mu* Type::try_upcast_to (this Type from, Type to, Mu* p) {
     }
     return null;
 }
-Mu* Type::upcast_to (this Type from, Type to, Mu* p) {
+Mu* Type::upcast_to (Type to, Mu* p) const {
     if (!p) return null;
-    if (Mu* r = from.try_upcast_to(to, p)) return r;
-    else raise_TypeCantCast(from, to);
+    if (Mu* r = try_upcast_to(to, p)) return r;
+    else raise_TypeCantCast(*this, to);
 }
 
 using namespace in;
