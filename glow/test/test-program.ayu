@@ -4,7 +4,8 @@
     }]
     vertex: [glow::Shader {
         type: GL_VERTEX_SHADER
-        source: "#version 140
+        source: "#version 300 es
+            precision highp float;
             uniform float u_screen_rect [4];
             const ivec2 corners [4] = ivec2[4](
                 ivec2(0, 1),
@@ -22,10 +23,11 @@
     }]
     fragment: [glow::Shader {
         type: GL_FRAGMENT_SHADER
-        source: "#version 140
+        source: "#version 300 es
+            precision highp float;
             out vec4 color;
             void main () {
-                color = vec4(30/255.0, 40/255.0, 50/255.0, 60/255.0);
+                color = vec4(30.0/255.0, 40.0/255.0, 50.0/255.0, 60.0/255.0);
             }
         "
     }]

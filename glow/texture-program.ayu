@@ -5,7 +5,8 @@
     vertex: [glow::Shader {
         type: GL_VERTEX_SHADER
         source: "
-            #version 140
+            #version 300 es
+            precision highp float;
 
             uniform float u_screen_rect [4];
             uniform float u_tex_rect [4];
@@ -29,7 +30,8 @@
     fragment: [glow::Shader {
         type: GL_FRAGMENT_SHADER
         source: "
-            #version 140
+            #version 300 es
+            precision highp float;
 
             uniform sampler2D u_tex;
             in vec2 v_tex_coords;
