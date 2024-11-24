@@ -416,7 +416,7 @@ struct Printer {
         r.impl.size = p - begin;
         r.impl.data = begin;
          // Don't waste too much space
-        if (r.impl.size < (end - begin) / 2) r.shrink_to_fit();
+        if (r.impl.size < usize(end - begin) / 2) r.shrink_to_fit();
         begin = null;
         return r;
     }

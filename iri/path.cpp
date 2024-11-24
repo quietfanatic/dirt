@@ -123,7 +123,7 @@ const IRI& program_location () noexcept {
          // string type with something incompatible.
         if (requires { r.spec_.impl.sizex2_with_owned; }) {
             auto& sx2wo = r.spec_.impl.sizex2_with_owned;
-            const_cast<u32&>(sx2wo) &= ~1;
+            const_cast<usize&>(sx2wo) &= ~1;
         }
         delete[] path;
         return r;
