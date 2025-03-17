@@ -11,7 +11,7 @@ into its own repo.  So far there is:
    including array and string classes that are faster than the STL's, a tiny
    callback reference type, modern assertions, and UTF-8/UTF-16 conversion
    routines.
- - iri: A lightweight International Resource Identifier class.
+ - iri: A lightweight International Resource Identifier (Unicode URI) class.
  - ayu: A data language, a C++ reflection and serialization system, and a
    resource management system.
  - geo: A math and geometry library including vectors, ranges, matrixes, and

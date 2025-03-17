@@ -20,6 +20,66 @@ int natural_compare (Str a, Str b) noexcept {
             if (!(*bp >= '0' && *bp <= '9')) {
                  // Unless the number is at the beginning.  It seems to be
                  // expected that filenames starting with numbers come first.
+                return ap == a.begin() ? -1 : 1;
+            }
+             // Skip zeroes
+            auto az = ap;
+            auto bz = bp;
+            while (ap != ae && *ap == '0') ap++;
+            while (bp != be && *bp == '0') bp++;
+             // Capture run of digits
+            auto an = ap;
+            auto bn = bp;
+            while (ap != ae && *ap >= '0' && *ap <= '9') ap++;
+            while (bp != be && *bp >= '0' && *bp <= '9') bp++;
+             // If there are more digits (after zeros), it comes after
+            if (ap - an != bp - bn) {
+                return ap - an < bp - bn ? -1 : 1;
+            }
+             // Otherwise, compare digits in the number
+            while (an != ap) {
+                if (u8(*an) != u8(*bn)) {
+                    return u8(*an) < u8(*bn) ? -1 : 1;
+                }
+                an++; bn++;
+            }
+             // Digits are the same, so if there are more zeros put it after
+            if (ap - az != bp - bz) {
+                return ap - az < bp - bz ? -1 : 1;
+            }
+            if (ap == ae) {
+                return bp == be ? 0 : -1;
+            }
+            else if (bp == be) return 1;
+             // Zeros and digits are the same so continue with nondigits
+            goto nondigit;
+        }
+        else if (*bp >= '0' && *bp <= '9') {
+            return ap == a.begin() ? 1 : -1;
+        }
+
+        nondigit:
+        if (u8(*ap) != u8(*bp)) {
+            return u8(*ap) < u8(*bp) ? -1 : 1;
+        }
+        ap++; bp++;
+    }
+     // Ran out of one side, so whichever has more left comes after
+    return (bp == be) - (ap == ae);
+}
+
+int natural_compare_path (Str a, Str b) noexcept {
+    auto ap = a.begin();
+    auto ae = a.end();
+    auto bp = b.begin();
+    auto be = b.end();
+    while (ap != ae && bp != be) {
+         // If one has a number but not the other, the number comes afterwards.
+         // e.g. image.png before image2.png
+        if (*ap >= '0' && *ap <= '9') {
+            if (!(*bp >= '0' && *bp <= '9')) {
+                 // Unless the number is at the beginning.  It seems to be
+                 // expected that filenames starting with numbers come first.
                 if (ap == a.begin() || ap[-1] == '/' || ap[-1] == '\\') {
                     return -1;
                 }
@@ -65,13 +125,25 @@ int natural_compare (Str a, Str b) noexcept {
         }
 
         nondigit:
+         // Sort / and \ before everything else so that directory names are
+         // sorted properly before their containing filenames.
+        if (*ap == '/') {
+            if (*bp != '/') return -1;
+        }
+        else if (*ap == '\\') {
+            if (*bp != '\\') {
+                return *bp == '/' ? 1 : -1;
+            }
+        }
+        else if (*bp == '/' || *bp == '\\') return 1;
+
         if (u8(*ap) != u8(*bp)) {
             return u8(*ap) < u8(*bp) ? -1 : 1;
         }
         ap++; bp++;
     }
      // Ran out of one side, so whichever has more left comes after
-    return ap == ae ? -1 : bp == be ? 1 : 0;
+    return (bp == be) - (ap == ae);
 }
 
 u32 count_decimal_digits (u64 v) noexcept {
@@ -152,12 +224,17 @@ static tap::TestSet tests ("dirt/uni/text", []{
     is(natural_compare("a9b", "a10b"), -1);
     is(natural_compare("a9b", "ab"), 1, "Numbers come after no numbers");
     is(natural_compare("9a", "a"), -1, "...unless the number is at the beginning");
-    is(natural_compare("a/0a", "a/a"), -1, "...or after a /");
+    is(natural_compare_path("a/0a", "a/a"), -1, "...or after a / (_path only)");
     is(natural_compare("a1b", "a01b"), -1, "More zeroes come after less zeroes");
     is(natural_compare("a", "a "), -1, "Longer comes after");
     is(natural_compare("a b", "ab"), -1);
     is(natural_compare("01", "001"), -1);
     is(natural_compare("a", "あ"), -1, "Put unicode after ascii");
+    is(natural_compare("a/b", "a-b/c"), 1, "natural_compare isn't directory-aware");
+    is(natural_compare_path("a/b", "a-b/c"), -1, "natural_compare_path is");
+    is(natural_compare_path("a\\b", "a-b\\c"), -1, "natural_compare_path accepts \\ as separator");
+    is(natural_compare_path("a/b", "a\\b"), -1, "\\ is after /");
+    is(natural_compare_path("v01/a", "v01-v02/a"), -1);
     UniqueString s (5, 0);
     is(count_decimal_digits(52607), 5u, "count_decimal_digits");
     char* p = write_decimal_digits(s.begin(), 5, 52607);

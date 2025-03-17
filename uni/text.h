@@ -15,6 +15,17 @@ inline bool natural_lessthan (Str a, Str b) {
     return natural_compare(a, b) < 0;
 }
 
+ // Like natural_compare, but for file paths.  The technical difference is that
+ // '/' and '\' sort before all other characters.  In practice this means that
+ // means that directories are sorted naturally before their contents.
+ //
+ // natural_compare("a/0", "a-b/0") == 1
+ // natural_compare_path("a/0", "a-b/0") == -1
+int natural_compare_path (Str a, Str b) noexcept;
+inline bool natural_lessthan_path (Str a, Str b) {
+    return natural_compare_path(a, b) < 0;
+}
+
  // Returns -1 if the given char is not [0-9a-fA-F]
 constexpr int from_hex_digit (char c) {
     if (c >= '0' && c <= '9') return c - '0';
