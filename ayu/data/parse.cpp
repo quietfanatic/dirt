@@ -55,6 +55,11 @@ constexpr std::array<u8, 256> char_props = []{
     return r;
 }();
 
+struct SourcePos {
+    u32 line;
+    u32 col;
+};
+
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
 
@@ -374,10 +379,17 @@ struct Parser {
 
     NOINLINE const char* got_array (const char* in, Tree& r) {
         if (!--shallowth) error(in, "Exceeded limit of 200 nested arrays/objects");
-        UniqueArray<Tree> a;
+        const char* start = in;
         in++;  // for the [
         in = skip_ws(in);
+        UniqueArray<Tree> a;
         while (in < end) {
+            if (*in == '}') [[unlikely]] {
+                auto sp = get_source_pos(start);
+                error(in, cat(
+                    "Mismatch between [ at ", sp.line, ':', sp.col, " and }"
+                ));
+            }
             if (*in == ']') {
                 new (&r) Tree(move(a));
                 ++shallowth;
@@ -391,10 +403,17 @@ struct Parser {
 
     NOINLINE const char* got_object (const char* in, Tree& r) {
         if (!--shallowth) error(in, "Exceeded limit of 200 nested arrays/objects");
-        UniqueArray<TreePair> o;
+        const char* start = in;
         in++;  // for the {
         in = skip_ws(in);
+        UniqueArray<TreePair> o;
         while (in < end) {
+            if (*in == ']') [[unlikely]] {
+                auto sp = get_source_pos(start);
+                error(in, cat(
+                    "Mismatch between { at ", sp.line, ':', sp.col, " and ]"
+                ));
+            }
             if (*in == '}') {
                 new (&r) Tree(move(o));
                 ++shallowth;
@@ -540,6 +559,22 @@ struct Parser {
 
 ///// ERRORS
 
+    [[gnu::cold]] NOINLINE
+    SourcePos get_source_pos (const char* p) {
+         // Diagnose line and column number
+         // I'm not sure the col is exactly right
+        u32 line = 1;
+        const char* last_lf = begin - 1;
+        for (const char* p2 = begin; p2 != p; p2++) {
+            if (*p2 == '\n') {
+                line++;
+                last_lf = p2;
+            }
+        }
+        u32 col = p - last_lf;
+        return {line, col};
+    };
+
      // noipa stops noreturn from propagating through and disabling tail call in
      // parse_term
     [[gnu::noipa, gnu::cold]] NOINLINE
@@ -566,19 +601,9 @@ struct Parser {
 
     [[noreturn, gnu::cold]] NOINLINE
     void error (const char* in, Str mess) {
-         // Diagnose line and column number
-         // I'm not sure the col is exactly right
-        u32 line = 1;
-        const char* last_lf = begin - 1;
-        for (const char* p2 = begin; p2 != in; p2++) {
-            if (*p2 == '\n') {
-                line++;
-                last_lf = p2;
-            }
-        }
-        u32 col = in - last_lf;
+        auto pos = get_source_pos(in);
         raise(e_ParseFailed, cat(
-            mess, " at ", filename, ':', line, ':', col
+            mess, " at ", filename, ':', pos.line, ':', pos.col
         ));
     }
 };
