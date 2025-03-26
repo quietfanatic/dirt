@@ -74,6 +74,8 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
 }
 
 UniqueString16 to_utf16 (Str s) noexcept {
+     // TODO: remove local copy, it's usually not worth it, especially with
+     // lilac providing super-fast heap allocation.
      // Buffer is not null-terminated
      // Worst-case inflation is 1 code unit (2 bytes) per byte
     usize buffer_size = s.size();
@@ -153,6 +155,141 @@ UniqueString from_utf16 (Str16 s) noexcept {
          // physical RAM than we write to.
         auto buffer = new char [buffer_size];
         usize len = from_utf16_buffer(buffer, s);
+        auto r = UniqueString(buffer, len);
+        delete[] buffer;
+        return r;
+    }
+}
+
+bool valid_utf8 (Str s) noexcept {
+    const char* end = s.end();
+    for (const char* in = s.begin(); in != end; in++) {
+        u8 b0 = in[0];
+        if (b0 < 0b1000'0000) { }
+        else if (b0 < 0b1100'0000) return false; // Unmatched continuation
+        else if (b0 < 0b1110'0000) {
+            if (end - in < 2) return false;  // Truncated sequence
+            u8 b1 = in[1];
+            if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) return false;
+            u32 c = (b0 & 0b0001'1111) << 6
+                     | (b1 & 0b0011'1111);
+            if (c < 0x80) return false;  // Overlong sequence
+            in += 1;
+        }
+        else if (b0 < 0b1111'0000) {
+            if (end - in < 3) return false;  // Truncated sequence
+            u8 b1 = in[1];
+            if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) return false;
+            u8 b2 = in[2];
+            if (b2 < 0b1000'0000 || b2 >= 0b1100'0000) return false;
+            u32 c = (b0 & 0b0000'1111) << 12
+                     | (b1 & 0b0011'1111) << 6
+                     | (b2 & 0b0011'1111);
+            if (c < 0x800) return false;  // Overlong sequence
+            in += 2;
+        }
+        else if (b0 < 0b1111'1000) {
+            if (end - in < 4) return false; // Truncated sequence
+            u8 b1 = in[1];
+            if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) return false;
+            u8 b2 = in[2];
+            if (b2 < 0b1000'0000 || b2 >= 0b1100'0000) return false;
+            u8 b3 = in[3];
+            if (b3 < 0b1000'0000 || b3 >= 0b1100'0000) return false;
+            u32 c = (b0 & 0b0000'0111) << 18
+                     | (b1 & 0b0011'1111) << 12
+                     | (b2 & 0b0011'1111) << 6
+                     | (b3 & 0b0011'1111);
+            if (c < 0x10000) return false;  // Overlong sequence
+            in += 3;
+        }
+        else return false;
+    }
+    return true;
+}
+
+static usize sanitize_buffer (char* buffer, Str s) noexcept {
+    char* out = buffer;
+    const char* end = s.end();
+    for (const char* in = s.begin(); in != end; in++) {
+        u8 b0 = in[0];
+        if (b0 < 0b1000'0000) {
+            *out++ = b0; // ASCII
+            continue;
+        }
+        else if (b0 < 0b1100'0000) goto invalid; // Unmatched continuation
+        else if (b0 < 0b1110'0000) {
+            if (end - in < 2) goto invalid;  // Truncated sequence
+            u8 b1 = in[1];
+            if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
+            u32 c = (b0 & 0b0001'1111) << 6
+                     | (b1 & 0b0011'1111);
+            if (c < 0x80) goto invalid;  // Overlong sequence
+            *out++ = b0;
+            *out++ = b1;
+            in += 1;
+            continue;
+        }
+        else if (b0 < 0b1111'0000) {
+            if (end - in < 3) goto invalid;  // Truncated sequence
+            u8 b1 = in[1];
+            if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
+            u8 b2 = in[2];
+            if (b2 < 0b1000'0000 || b2 >= 0b1100'0000) goto invalid;
+            u32 c = (b0 & 0b0000'1111) << 12
+                     | (b1 & 0b0011'1111) << 6
+                     | (b2 & 0b0011'1111);
+            if (c < 0x800) goto invalid;  // Overlong sequence
+            *out++ = b0;
+            *out++ = b1;
+            *out++ = b2;
+            in += 2;
+            continue;
+        }
+        else if (b0 < 0b1111'1000) {
+            if (end - in < 4) goto invalid; // Truncated sequence
+            u8 b1 = in[1];
+            if (b1 < 0b1000'0000 || b1 >= 0b1100'0000) goto invalid;
+            u8 b2 = in[2];
+            if (b2 < 0b1000'0000 || b2 >= 0b1100'0000) goto invalid;
+            u8 b3 = in[3];
+            if (b3 < 0b1000'0000 || b3 >= 0b1100'0000) goto invalid;
+            u32 c = (b0 & 0b0000'0111) << 18
+                     | (b1 & 0b0011'1111) << 12
+                     | (b2 & 0b0011'1111) << 6
+                     | (b3 & 0b0011'1111);
+            if (c < 0x10000) goto invalid;  // Overlong sequence
+            *out++ = b0;
+            *out++ = b1;
+            *out++ = b2;
+            *out++ = b3;
+            in += 3;
+            continue;
+        }
+        invalid: {
+             // Pretend the byte is latin-1 and continue
+            *out++ = b0;
+        }
+    }
+    return out - buffer;
+}
+
+UniqueString sanitize_utf8 (Str s) noexcept {
+     // Buffer is not null-terminated
+     // Worst-case inflation is 2 bytes per byte
+    usize buffer_size = s.size() * 2;
+     // We'll say 10k is okay to allocate on the stack
+    if (buffer_size < 10000 / sizeof(char)) {
+        char buffer [buffer_size];
+        usize len = sanitize_buffer(buffer, s);
+        return UniqueString(buffer, len);
+    }
+    else {
+         // Modern virtual memory systems mean that for big enough allocations,
+         // even if we vastly overallocate we won't actually use much more
+         // physical RAM than we write to.
+        auto buffer = new char [buffer_size];
+        usize len = sanitize_buffer(buffer, s);
         auto r = UniqueString(buffer, len);
         delete[] buffer;
         return r;

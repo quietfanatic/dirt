@@ -1,4 +1,8 @@
-// 2d rectangles stored in (left, bottom, right, top) order.
+ // 2D rectangles.  They store the four sides in the order of l, b, t, r.
+ // Unlike many rectangle types, they don't store width and height; those are
+ // calculated.  These rectangles assume a y-up coordinate system.  You can use
+ // them in a y-down coordinate system, but the names "b" and "t" will be
+ // backwards.
 
 #pragma once
 

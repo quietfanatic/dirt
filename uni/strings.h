@@ -80,6 +80,8 @@ struct Caterator {
     constexpr char* write (char* out) const;
 };
 
+// TODO: integer wrapper class that outputs hexadecimal
+
  // Literal suffix for StaticString.  This is usually unnecessary, as raw
  // const char[] arrays are generally treated as static strings by the arrays
  // library.
