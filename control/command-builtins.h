@@ -10,6 +10,9 @@ extern Command echo;
  // (UniqueArray<Statement>) Run multiple commands in a row
 extern Command seq;
 
+ // (Statement, Statement, bool) Alternate between two commands
+extern Command toggle;
+
  // (std::optional<Anystring>) Get help about all commands or a specific
  // command.  NYI
 extern Command help;

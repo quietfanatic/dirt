@@ -4,6 +4,11 @@
 
 namespace control::command {
 
+static void help_ (std::optional<AnyString>) {
+    uni::print_utf8("help is NYI, sorry");
+}
+Command help (help_, "help", "NYI");
+
 static void echo_ (AnyString s) {
     uni::print_utf8(s);
 }
@@ -14,9 +19,11 @@ static void seq_ (const UniqueArray<Statement>& sts) {
 }
 Command seq (seq_, "seq", "Run multiple commands in a row");
 
-static void help_ (std::optional<AnyString>) {
-    uni::print_utf8("help is NYI, sorry");
+static void toggle_ (const Statement& a, const Statement& b, bool& state) {
+    state = !state;
+    if (state) a();
+    else b();
 }
-Command help (help_, "help", "NYI");
+Command toggle (toggle_, "toggle", "Alternate between two commands");
 
 } // namespace control::command
