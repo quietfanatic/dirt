@@ -44,7 +44,9 @@ struct StatementStorageTail<i, Par, Pars...> :
         else return Tail::template member_pointer<n>();
     }
 
-    StatementStorageTail () = default;
+    // Make sure to explicitly empty-construct the members.  With =default,
+    // unspecified arguments can have indeterminate values.
+    StatementStorageTail () : Head(), Tail() { }
     template <class Arg, class... Args>
     StatementStorageTail (Arg&& arg, Args&&... args) :
         Head(std::forward<Arg>(arg)), Tail(std::forward<Args>(args)...)
