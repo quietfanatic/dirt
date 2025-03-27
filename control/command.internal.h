@@ -111,7 +111,7 @@ struct StatementStorageElems {
     auto make (std::index_sequence<is...>) {
         return desc::elems(
              // Command was written in before_from_tree, so ignore it in
-             // from_tree.
+             // from_tree.  TODO: use member here, not base
             desc::elem(
                 desc::template base<StatementStorageBase>(), desc::ignored
             ),

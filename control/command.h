@@ -40,6 +40,8 @@ struct Command : CommandBase {
 
  // The structure you create to use a command.  TODO: creation on the C++ side
  // TODO: more documentation
+ // Note that Statements generally should not be const, because they're allowed
+ // to carry state and modify it.
 struct Statement {
     StatementStorageBase* storage;
 
