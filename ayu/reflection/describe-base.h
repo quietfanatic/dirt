@@ -195,7 +195,8 @@ struct _AYU_DescribeBase {
     static constexpr auto values (Values&&... vs);
      // This is just like values(), but will use the provided compare and assign
      // functions instead of operator== and operator=, so this type doesn't have
-     // to have those operators defined.
+     // to have those operators defined.  The first argument to compare is the
+     // item being serialized, and the second value is the value()'s value.
     template <class... Values>
     static constexpr auto values_custom (
         bool(* compare )(const T&, const T&),
