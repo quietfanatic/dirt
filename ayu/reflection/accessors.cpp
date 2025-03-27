@@ -14,6 +14,13 @@ void MemberAcr0::_access (
     cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
+void FirstBaseAcr0::_access (
+    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
+) {
+    auto self = static_cast<const FirstBaseAcr0*>(acr);
+    cb(AnyPtr(*self->desc, &from), !(self->flags & AcrFlags::Unaddressable));
+}
+
 void RefFuncAcr0::_access (
     const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
@@ -317,7 +324,10 @@ namespace ayu::test {
         int a;
         int b;
     };
-    struct SubThing : Thing {
+    struct Thinger {
+        int d;
+    };
+    struct SubThing : Thing, Thinger {
         int c;
     };
 } using namespace ayu::test;
@@ -325,11 +335,12 @@ namespace ayu::test {
  // Don't actually need any description, we just need these to be usable with
  // AYU
 AYU_DESCRIBE(ayu::test::Thing)
+AYU_DESCRIBE(ayu::test::Thinger)
 AYU_DESCRIBE(ayu::test::SubThing)
 
 static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     using namespace tap;
-    SubThing thing2 {7, 8, 9};
+    SubThing thing2 {7, 8, 9, 10};
 
     BaseAcr2<SubThing, Thing>{}.read(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
@@ -346,6 +357,14 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
         }
     );
     is(thing2.b, 88, "BaseAcr::write");
+    BaseAcr2<SubThing, Thinger>{}.write(reinterpret_cast<Mu&>(thing2),
+        [&](AnyPtr thinger, bool){
+            is(thinger.type, Type::CppType<Thinger>());
+            auto& thr = reinterpret_cast<Thinger&>(*thinger.address);
+            thr.d = 101;
+        }
+    );
+    is(thing2.d, 101, "BaseAcr::write (not first base)");
 
     auto test_addressable = [&](Str type, auto acr){
         Thing t {1, 2};

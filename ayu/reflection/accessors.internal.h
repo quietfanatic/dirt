@@ -226,6 +226,23 @@ struct AccessorWithType : Accessor {
 
 ///// ACCESSOR TYPES
 
+/// member
+
+struct MemberAcr0 : AccessorWithType {
+    using AccessorWithType::AccessorWithType;
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+    static constexpr AcrVT _vt = {&_access};
+};
+template <class From, class To>
+struct MemberAcr2 : MemberAcr0 {
+    using AcrFromType = From;
+    using AcrToType = To;
+    To From::* mp;
+    explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
+        MemberAcr0(&_vt, get_indirect_description<To>(), flags), mp(mp)
+    { }
+};
+
 /// base
 
 template <class From, class To>
@@ -243,20 +260,18 @@ struct BaseAcr2 : Accessor {
     static constexpr AcrVT _vt = {&_access};
 };
 
-/// member
-
-struct MemberAcr0 : AccessorWithType {
+ // Optimization for when base is at the same address as derived
+struct FirstBaseAcr0 : AccessorWithType {
     using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
     static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
-struct MemberAcr2 : MemberAcr0 {
+struct FirstBaseAcr2 : FirstBaseAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    To From::* mp;
-    explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
-        MemberAcr0(&_vt, get_indirect_description<To>(), flags), mp(mp)
+    explicit constexpr FirstBaseAcr2 (AcrFlags flags = {}) :
+        FirstBaseAcr0(&_vt, get_indirect_description<To>(), flags)
     { }
 };
 

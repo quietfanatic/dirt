@@ -240,7 +240,12 @@ template <class B>
 constexpr auto _AYU_DescribeBase<T>::base (
     in::AcrFlags flags
 ) {
-    return in::BaseAcr2<T, B>(flags);
+    if constexpr (
+        static_cast<B*>((T*)null) == null
+    ) {
+        return in::FirstBaseAcr2<T, B>(flags);
+    }
+    else return in::BaseAcr2<T, B>(flags);
 }
 template <class T>
 template <class M>
