@@ -97,6 +97,8 @@ struct Printer {
         }
         bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
         if (hex) {
+             // std::to_chars is bulky for decimal, but it's better than I can
+             // program for hexadecimal.
             *p++ = '0'; *p++ = 'x';
             auto [ptr, ec] = std::to_chars(
                 p, p+16, u64(v), 16
@@ -157,6 +159,7 @@ struct Printer {
             *p++ = '0';
             *p++ = 'x';
         }
+         // Not even gonna try beating the stdlib's floating point to_chars.
         auto [ptr, ec] = std::to_chars(
             p, p+24, v, hex
                 ? std::chars_format::hex
@@ -224,7 +227,6 @@ struct Printer {
     NOINLINE
     char* print_string_nojson (char* p, Str s, const Tree* t) {
         if (s == "") return pstr(p, "\"\"");
-        if (s == "--") return pstr(p, "\"--\"");
         if (s == "null") return pstr(p, "\"null\"");
         if (s == "true") return pstr(p, "\"true\"");
         if (s == "false") return pstr(p, "\"false\"");

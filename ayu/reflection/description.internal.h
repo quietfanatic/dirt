@@ -90,7 +90,8 @@ namespace ayu_desc {
          //
          // It'd be nice to have this be the description itself instead of a
          // pointer to it, but unfortunately you can't have a global cross a
-         // compilation boundary unless its type is fully known.
+         // compilation boundary unless its type is fully known.  At least not
+         // without some very illegal tricks and non-portable linker flags...
         static const ayu::in::Description* const _ayu_description;
     };
 }

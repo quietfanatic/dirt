@@ -28,9 +28,9 @@ struct CommandBase {
 template <auto& f>
 struct Command : CommandBase {
     Command (u32 m, StaticString n, StaticString d) : CommandBase(
-        FunctionInfo<f>::get_call(),
-        ayu::Type::CppType<typename FunctionInfo<f>::Storage>(),
-        n, d, m, FunctionInfo<f>::max
+        CommandCaller<f>::get_call(),
+        ayu::Type::CppType<typename CommandCaller<f>::Storage>(),
+        n, d, m, CommandCaller<f>::max
     ) {
         register_command(this);
     }

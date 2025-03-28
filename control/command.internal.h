@@ -67,10 +67,12 @@ struct StatementStorage :
 
 ///// ANALYZING COMMAND FUNCTIONS
 
+ // This is called CallCommand because it shows up in the backtrace of calling
+ // commands (the command function probably gets inlined into ::call here).
 template <auto& f, class F = decltype(f)>
-struct FunctionInfo;
+struct CommandCaller;
 template <auto& f, class... Pars>
-struct FunctionInfo<f, void(&)(Pars...)> {
+struct CommandCaller<f, void(&)(Pars...)> {
     using Storage = StatementStorage<std::remove_cvref_t<Pars>...>;
     static constexpr u32 max = sizeof...(Pars);
 
@@ -80,6 +82,7 @@ struct FunctionInfo<f, void(&)(Pars...)> {
         Storage* st [[maybe_unused]] = static_cast<Storage*>(storage);
         f(st->*(Storage::template member_pointer<is>())...);
     }
+     // We can't index parameter packs until C++26 >:O
     template <usize... is>
     static constexpr auto get_call_mid (std::index_sequence<is...>) {
         return &call<is...>;
@@ -90,14 +93,14 @@ struct FunctionInfo<f, void(&)(Pars...)> {
 };
 
 //template <auto&, class...>
-//struct FunctionInfoLambda;
+//struct CommandCallerLambda;
 //template <auto& f, class T, class... Pars>
-//struct FunctionInfoLambda<f, void(T::*)(Pars...)> :
-//    FunctionInfo<f, void(&)(Pars...)>
+//struct CommandCallerLambda<f, void(T::*)(Pars...)> :
+//    CommandCaller<f, void(&)(Pars...)>
 //{ };
 //
 //template <auto& f, class T> requires { T::operator(); }
-//struct FunctionInfo<f, T> : FunctionInfoLambda<f, T, &T::operator()> { };
+//struct CommandCaller<f, T> : CommandCallerLambda<f, T, &T::operator()> { };
 
 void register_command (const CommandBase*);
 
