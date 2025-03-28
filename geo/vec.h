@@ -498,17 +498,15 @@ struct std::tuple_element<i, geo::GVec<T, n>> {
     using type = T;
 };
 
-
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
+#include "../uni/strings.h"
 template <class T, uni::usize n>
 struct tap::Show<geo::GVec<T, n>> {
-    std::string show (const geo::GVec<T, n>& v) {
-        std::string r = "[" + std::to_string(v[0]);
-        for (uni::usize i = 1; i < n; i++) {
-            r += ", " + std::to_string(v[i]);
-        }
-        return r + "]";
+    uni::UniqueString show (const geo::GVec<T, n>& v) {
+        return uni::cat('[', uni::Caterator(
+            ", ", n, [&v](uni::usize i){ return v[i]; }
+        ), ']');
     }
 };
 #endif

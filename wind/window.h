@@ -39,6 +39,13 @@ struct Window {
     ~Window();
      // Coerce
     operator SDL_Window* () const { return sdl_window; }
+
+     // Okay I'll add a couple convenience functions.  If these aren't here you
+     // end up implementing them elsewhere.
+    bool is_fullscreen () const;
+    void set_fullscreen (bool);
+    bool is_minimized () const;
+    geo::IVec size () const;
 };
 
 } // namespace wind

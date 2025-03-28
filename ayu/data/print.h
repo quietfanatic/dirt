@@ -34,7 +34,7 @@ void tree_to_file (TreeRef, AnyString filename, PrintOptions opts = {});
 
 template <>
 struct tap::Show<ayu::Tree> {
-    std::string show (const ayu::Tree& t) const {
+    uni::UniqueString show (const ayu::Tree& t) const {
         return tree_to_string(t, ayu::PrintOptions::Compact);
     }
 };

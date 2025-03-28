@@ -51,23 +51,45 @@ Window::~Window () {
     SDL_DestroyWindow(sdl_window);
 }
 
+bool Window::is_fullscreen () const {
+    auto flags = glow::require_sdl(SDL_GetWindowFlags(sdl_window));
+    return flags & (SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_FULLSCREEN);
+}
+
+void Window::set_fullscreen (bool fs) {
+    glow::require_sdl(!SDL_SetWindowFullscreen(
+        sdl_window,
+        fs ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0
+    ));
+}
+
+bool Window::is_minimized () const {
+    auto flags = glow::require_sdl(SDL_GetWindowFlags(sdl_window));
+    return flags & SDL_WINDOW_MINIMIZED;
+}
+
+geo::IVec Window::size () const {
+    int w, h;
+    SDL_GL_GetDrawableSize(sdl_window, &w, &h);
+    expect(w > 0 && h > 0);
+    return {w, h};
+}
+
 } using namespace wind;
 
 AYU_DESCRIBE(wind::Window,
     attrs(
-        attr("title", mixed_funcs<std::string>(
+        attr("title", value_funcs<AnyString>(
             [](const Window& window){
-                return std::string(SDL_GetWindowTitle(window));
+                return AnyString(SDL_GetWindowTitle(window));
             },
-            [](Window& window, const std::string& title){
+            [](Window& window, AnyString title){
                 SDL_SetWindowTitle(window, title.c_str());
             }
         ), optional),
         attr("size", value_funcs<geo::IVec>(
             [](const Window& window){
-                int w, h;
-                SDL_GetWindowSize(window, &w, &h);
-                return geo::IVec(w, h);
+                return window.size();
             },
             [](Window& window, geo::IVec size){
                 SDL_SetWindowSize(window, size.x, size.y);
@@ -84,16 +106,14 @@ AYU_DESCRIBE(wind::Window,
         ), optional),
         attr("fullscreen", value_funcs<bool>(
             [](const Window& window) -> bool {
-                auto flags = SDL_GetWindowFlags(window);
-                return flags & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_FULLSCREEN_DESKTOP);
+                return window.is_fullscreen();
             },
             [](Window& window, bool fullscreen){
-                SDL_SetWindowFullscreen(window,
-                    fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0
-                );
+                window.set_fullscreen(fullscreen);
             }
         ), optional),
-         // Putting this last so that everything else will be set first
+         // Put this last so that everything else will be set first before the
+         // window is shown.
         attr("hidden", value_funcs<bool>(
             [](const Window& window) -> bool {
                 return SDL_GetWindowFlags(window) & SDL_WINDOW_HIDDEN;

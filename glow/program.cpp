@@ -23,8 +23,7 @@ void Shader::compile () {
     i32 status = 0; glGetShaderiv(id, GL_COMPILE_STATUS, &status);
     i32 loglen = 0; glGetShaderiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
-         // TODO: Use UniqueString
-        std::string info_log (loglen, 0);
+        auto info_log = UniqueString(Uninitialized(loglen));
         glGetShaderInfoLog(id, loglen, nullptr, info_log.data());
         auto self = this;
         ayu::raise(e_ShaderCompileFailed, cat(
@@ -68,7 +67,7 @@ void Program::link () {
     i32 status = 0; glGetProgramiv(id, GL_LINK_STATUS, &status);
     i32 loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
     if (!status || loglen > 16) {
-        std::string info_log (loglen, 0);
+        auto info_log = UniqueString(Uninitialized(loglen));
         glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
         auto self = this;
         ayu::raise(e_ProgramLinkFailed, cat(
@@ -104,7 +103,7 @@ void Program::validate () {
     glValidateProgram(id);
     i32 status = 0; glGetProgramiv(id, GL_VALIDATE_STATUS, &status);
     i32 loglen = 0; glGetProgramiv(id, GL_INFO_LOG_LENGTH, &loglen);
-    auto info_log = std::string(loglen, 0);
+    auto info_log = UniqueString(Uninitialized(loglen));
     glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
     ayu::dump(status);
     ayu::dump(info_log);
@@ -144,17 +143,17 @@ AYU_DESCRIBE(glow::Shader,
                 }
             }
         )),
-        attr("source", mixed_funcs<std::string>(
+        attr("source", value_funcs<AnyString>(
             [](const Shader& v){
                 require(v.id);
                 i32 len = 0;
                 glGetShaderiv(v.id, GL_SHADER_SOURCE_LENGTH, &len);
-                if (!len) return std::string();
-                std::string r (len-1, 0);
-                glGetShaderSource(v.id, len, null, r.data());
+                if (!len) return AnyString();
+                auto r = AnyString(Uninitialized(len));
+                glGetShaderSource(v.id, len, null, r.mut_data());
                 return r;
             },
-            [](Shader& v, const std::string& s){
+            [](Shader& v, AnyString s){
                 const char* src_p = s.c_str();
                 i32 src_len = s.size();
                 glShaderSource(v.id, 1, &src_p, &src_len);
