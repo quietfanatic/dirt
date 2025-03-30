@@ -131,6 +131,12 @@ IRI location_to_iri (LocationRef) noexcept;
  // plain invalid.
 SharedLocation location_from_iri (const IRI& iri);
 
+ // For convenience I guess
+inline AnyRef reference_from_iri (const IRI& iri) {
+    auto loc = location_from_iri(iri);
+    return reference_from_location(loc);
+}
+
 constexpr ErrorCode e_LocationIRIInvalid = "ayu::e_LocationIRIInvalid";
 
 ///// BASE MANAGEMENT
