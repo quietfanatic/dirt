@@ -12,15 +12,15 @@ namespace in {
 
 struct ResourceLocation : Location {
     SharedResource resource;
-    ResourceLocation (MoveRef<SharedResource> res) :
-        Location(LF::Resource), resource(*move(res))
-    { }
+    ResourceLocation (SharedResource res) :
+        Location(LF::Resource), resource(move(res))
+    { expect(resource); }
 };
 
 } using namespace in;
 
 SharedLocation::SharedLocation (ResourceRef res) noexcept :
-    data(new ResourceLocation(expect(res)))
+    data(new ResourceLocation(res))
 { }
 
 ResourceRef Location::resource () const noexcept {

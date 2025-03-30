@@ -68,8 +68,7 @@ struct SharedLocation {
      // The empty location cannot be transformed into a reference and will
      // null-deref if you try to do anything but boolify it.
     constexpr SharedLocation () { }
-     // Constructs a root location from a Resource.  TODO: Change to
-     // MoveRef<SharedResource>
+     // Constructs a root location from a Resource.
     explicit SharedLocation (ResourceRef) noexcept;
      // Constructs a root location from an anonymous item.  as_iri() will return
      // "anonymous-item:", and reference_from_location will return this
@@ -77,8 +76,8 @@ struct SharedLocation {
     explicit SharedLocation (const AnyRef&) noexcept;
      // Constructs a location based on another one with an added attribute key
      // or element index.
-    SharedLocation (MoveRef<SharedLocation> parent, MoveRef<AnyString> key) noexcept;
-    SharedLocation (MoveRef<SharedLocation> parent, u32 index) noexcept;
+    SharedLocation (SharedLocation parent, AnyString key) noexcept;
+    SharedLocation (SharedLocation parent, u32 index) noexcept;
 
     constexpr explicit operator bool () const { return !!data; }
     const Location& operator* () const { return *data; }

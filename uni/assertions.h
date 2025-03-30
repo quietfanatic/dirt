@@ -15,6 +15,9 @@ T&& require (
  // Either aborts or triggers undefined behavior if the condition isn't true,
  // depending on NDEBUG.  Always evaluates the argument in either case.  If the
  // argument can't be optimized out, check NDEBUG yourself.
+ //
+ // Note that occasionally using this makes optimization worse instead of
+ // better, which seems to be more likely when you use the return value.
 #ifndef NDEBUG
 template <class T> ALWAYS_INLINE static constexpr
 T&& expect (
