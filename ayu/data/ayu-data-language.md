@@ -190,3 +190,9 @@ a colon.
 
 I chose `--` for comments because `//` and `#` can start URLs and `;` looks too
 similar to `:`.  `--` also stands out more than the other alternatives.
+
+Above it was stated that shortcuts are semantically invisible, but technically
+it is possible to detect the usage of shortcuts, because tree nodes are
+reference counted and nodes that were specified with the same shortcut will
+share the same storage.  Trees are immutable, however, so the only way to detect
+this is if you're comparing pointer addresses, which there's no reason to do.

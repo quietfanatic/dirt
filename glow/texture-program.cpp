@@ -27,11 +27,12 @@ void draw_texture (const Texture& tex, const Rect& screen_rect, const Rect& tex_
     require(!!tex);
     require(tex.target == GL_TEXTURE_2D);
 
-    static constexpr iri::IRI program_location (
-        "res:/dirt/glow/texture-program.ayu"
+    static TextureProgram* program = (
+        ayu::track(program),
+        ayu::reference_from_iri(iri::constant(
+            "res:/dirt/glow/texture-program.ayu#program"
+        ))
     );
-    static TextureProgram* program =
-        ayu::ResourceRef(program_location)["program"][1];
     program->use();
 
     glUniform1fv(program->u_screen_rect, 4, &screen_rect.l);

@@ -251,6 +251,15 @@ UniqueArray<SharedResource> loaded_resources () noexcept;
  // You should not call track on an item that is in a resource, because
  // everything in resources is already tracked.  TODO: detect this and
  // debug-assert.
+ //
+ // You can start tracking an item before you assign to it.  A common idiom is
+ // to load a resource and make a static variable point to it like this.
+ //
+ //     static PageProgram* program = (
+ //         ayu::track(program),
+ //         ayu::reference_from_iri("res:/liv/page.ayu#program")
+ //     );
+ //
 template <class T>
 void track (T& v);
 

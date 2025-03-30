@@ -119,6 +119,9 @@ IRI location_to_iri (LocationRef) noexcept;
  //   - Appending /<string> will create a location with an attr key
  //   - Appending +<number> will create a location with an elem index
  //   - Literal / and + must be percent-encoded
+ //   - At the begining of the fragment, "#foo" is shorthand for "#/foo+1".
+ //     This is because a lot of documents are a collection of named typed
+ //     items.
  // So
  //     location_from_iri("foo#/bar+3/qux")
  // is equivalent to
@@ -126,9 +129,8 @@ IRI location_to_iri (LocationRef) noexcept;
  // and calling reference_from_location on that is equivalent to
  //     Resource("foo")["bar"][3]["qux"]
  //
- // Throws if there is anything between the # and the first / or +, or if a + is
- // followed by something that isn't a positive integer, or if the IRI is just
- // plain invalid.
+ // Throws if a + is followed by something that isn't a positive integer, or if
+ // the IRI is just plain invalid.
 SharedLocation location_from_iri (const IRI& iri);
 
  // For convenience I guess
