@@ -150,23 +150,26 @@ inline void save (Slice<ResourceRef> rs, PrintOptions opts = {}) {
  // Attempts to unload the given resources and any resources that are not
  // currently reachable.  Essentially, this does a garbage collection on all
  // loaded resources, with special treatment for resources passed as arguments.
- //   - Resources NOT passed as arguments to unload() are considered reachable
- //     if there are any SharedResource handles pointing to them or if there is
- //     another reachable resource containing a reference to any item inside the
- //     resource.
+ //   - Resources NOT passed as arguments to unload() are considered reachable:
+ //        - if there are any SharedResource handles pointing to them, or
+ //        - if there is another reachable resource containing a reference to any
+ //          item inside them, or
+ //        - if there is a tracked variable containing a reference to one of
+ //          their items.
  //   - Resources passed as arguments to unload() will ignore SharedResource
- //     handles and are only considered reachable through other resources.  If
- //     a resource passed as an argument is found to be reachable, a
- //     ResourceUnloadWouldBreak exception will be thrown, and no resources will
- //     be unloaded.  Thus if unload() completes successfully, all arguments
- //     will be unloaded, and some non-arguments may be unloaded.
+ //     handles and are only considered reachable through other resources and
+ //     tracked variables.  If a resource passed as an argument is found to be
+ //     reachable, a ResourceUnloadWouldBreak exception will be thrown, and no
+ //     resources will be unloaded.  Thus if unload() completes successfully,
+ //     all arguments will be unloaded, and some non-arguments may be unloaded.
  //
  // Calling unload() without any arguments will do a garbage collection run, but
  // without any hard requirements on what resources to unload.
  //
  // If there are resources that have a reference cycle between them, they must
  // be unloaded at the same time (this can be either from being passed as
- // arguments or from having no SharedResource handles pointing to them).
+ // arguments in the same call or from having no SharedResource handles pointing
+ // to them).
  //
  // This operation is fully transactional.  If a recoverable error occurs, no
  // resources will be unloaded.  If called during a ResourceTransaction and the
@@ -178,7 +181,7 @@ inline void unload (ResourceRef r) { unload(Slice<ResourceRef>(&r, 1)); }
 
  // Immediately unloads the resource without checking for reachability.  This is
  // faster, but if there are any references to items in this resource, they will
- // be left dangling.  This can be rolled back by a ResourceTransaction.
+ // be left dangling.  This can still be rolled back by a ResourceTransaction.
 void force_unload (ResourceRef) noexcept;
 inline void force_unload (Slice<ResourceRef> rs) noexcept {
     for (auto& r : rs) force_unload(r);
@@ -188,11 +191,17 @@ inline void force_unload (Slice<ResourceRef> rs) noexcept {
  // the following steps:
  //   1. Moves the resource's old value to a temporary location.
  //   2. Loads a new value for the resource, as if by calling load().
- //   3. Scans other resources for references to this one and updates them to
- //      point to the new value instead of the old one.  If a reference would
- //      become invalid or cannot be updated, the reload is cancelled, the
- //      resource's old value is restored, and ReloadWouldBreak is thrown.
+ //   3. Scans other resources and tracked variables for references to this one
+ //     and updates them to point to the new value instead of the old one.  If a
+ //     reference would become invalid or cannot be updated, the reload is
+ //     cancelled, the resource's old value is restored, and ReloadWouldBreak is
+ //     thrown.
  //   4. Destroys the old value.
+ //
+ // This operation is fully transactional.  If a recoverable exception is thrown
+ // or if a surrounding ResourceTransaction rolls back, then the reload will be
+ // cancelled, the new value will be deleted, and the old value will be
+ // restored.
 void reload (ResourceRef);
  // Reload multiple resources simultaneously.  This may be necessary or simply
  // more efficient if there are reference cycles.
@@ -227,6 +236,28 @@ AnyString resource_filename (const IRI&);
  // resources that are in the process of being loaded or reloaded.
 UniqueArray<SharedResource> loaded_resources () noexcept;
 
+///// TRACKING NON-RESOURCE ITEMS
+
+ // If you want to reference a resource from outside the resource system, you
+ // can tell AYU to track on referencing item (usually a pointer, typically a
+ // global or a function-level static variable), so that it can:
+ //   - update the tracked item if the resource it references is reloaded, and
+ //   - not auto-unload any resources that the tracked item references.
+ //
+ // Resources should not reference a tracked variable.  If they do, they will
+ // become unserializable, because the tracked variable does not have an
+ // associated Location.
+ //
+ // You should not call track on an item that is in a resource, because
+ // everything in resources is already tracked.  TODO: detect this and
+ // debug-assert.
+template <class T>
+void track (T& v);
+
+ // Stop tracking a variable.
+template <class T>
+void untrack (T& v);
+
 ///// RESOURCE ERROR CODES
 
  // Tried to use an invalid IRI as a resource name
@@ -251,5 +282,14 @@ constexpr ErrorCode e_ResourceUnloadWouldBreak = "ayu::e_ResourceUnloadWouldBrea
 constexpr ErrorCode e_ResourceReloadWouldBreak = "ayu::e_ResourceReloadWouldBreak";
  // Failed to delete a resource's source file.
 constexpr ErrorCode e_ResourceRemoveSourceFailed = "ayu::e_ResourceRemoveSourceFailed";
+
+///// INTERNAL
+
+namespace in {
+    void track_ptr (AnyPtr) noexcept;
+    void untrack_ptr (AnyPtr) noexcept;
+}
+template <class T> void track (T& v) { in::track_ptr(&v); }
+template <class T> void untrack (T& v) { in::untrack_ptr(&v); }
 
 } // namespace ayu

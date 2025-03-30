@@ -380,7 +380,7 @@ void unload (Slice<ResourceRef> to_unload) {
          // unloaded.  Everyone can go home.
         return;
     }
-    if (none_root && !universe().globals) {
+    if (none_root && !universe().tracked) {
          // Root set is empty!  We get to skip reachability scanning and just
          // unload everything.
         scan_info.consume([](auto&& info){ really_unload(info.data); });
@@ -410,8 +410,8 @@ void unload (Slice<ResourceRef> to_unload) {
             return false;
         });
     }
-     // Now traverse the graph starting with the globals and roots.
-    for (auto& g : universe().globals) {
+     // Now traverse the graph starting with the tracked items and roots.
+    for (auto& g : universe().tracked) {
         scan_references(
             g, {},
             [&scan_info, refs_to_reses](const AnyRef& item, LocationRef)
@@ -560,8 +560,8 @@ void reload (Slice<ResourceRef> reses) {
                 }
                 return false;
             };
-            for (auto global : universe().globals) {
-                scan_references(global, {}, check_ref);
+            for (auto tracked : universe().tracked) {
+                scan_references(tracked, {}, check_ref);
             }
             for (auto other : others) {
                 scan_resource_references(other, check_ref);
@@ -640,6 +640,35 @@ UniqueArray<SharedResource> loaded_resources () noexcept {
     return r;
 }
 
+///// TRACKED ITEMS
+
+namespace in {
+
+void track_ptr (AnyPtr item) noexcept {
+    expect(item);
+#ifndef NDEBUG
+    for (auto& g : universe().tracked) {
+        expect(g != item);
+    }
+#endif
+    universe().tracked.push_back(item);
+}
+
+void untrack_ptr (AnyPtr item) noexcept {
+    auto& gs = universe().tracked;
+    for (auto& g : gs) {
+        if (g == item) {
+            gs.erase(&g);
+            return;
+        }
+    }
+#ifndef NDEBUG
+    never();
+#endif
+}
+
+} // in
+
 } using namespace ayu;
 
 ///// DESCRIPTIONS
@@ -674,7 +703,6 @@ AYU_DESCRIBE(ayu::ResourceRef,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../test/test-environment.private.h"
-#include "global.h"
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)
 
@@ -813,7 +841,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     load(rec1);
     int* old_p = rec1["ref"][1].get_as<int*>();
     int* global_p = old_p;
-    ayu::global(&global_p);
+    ayu::track(global_p);
 
     doesnt_throw([&]{
         reload(rec2);

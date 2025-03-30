@@ -15,10 +15,9 @@ struct ResourceData : Resource {
      // for them here.
     bool root;
     bool reachable;
-     // This is also only used during reachability scanning, and we don't have
-     // extra room for it, but storing it externally would require using an
-     // unordered_map (to use a UniqueArray, we need an integer index, but
-     // that's what this itself is).
+     // This is also only used during reachability scanning, but storing it
+     // externally would require using an unordered_map (to use a UniqueArray,
+     // we need an integer index, but that's what this itself is).
     u32 node_id;
     IRI name;
     AnyVal value {};
@@ -31,7 +30,7 @@ struct Universe {
      // TODO to prevent this (possibly by leaking the array too).
     UniqueArray<Hashed<ResourceRef>> resources;
     UniqueArray<Hashed<const ResourceScheme*>> schemes;
-    UniqueArray<AnyPtr> globals;
+    UniqueArray<AnyPtr> tracked;
 
     ResourceRef get_resource (const IRI& name) {
         Str spec = expect(name.spec());
