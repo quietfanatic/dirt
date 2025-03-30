@@ -137,9 +137,9 @@ constexpr ErrorCode e_LocationIRIInvalid = "ayu::e_LocationIRIInvalid";
 
  // Get the current base location.  Always a Resource or AnyRef Location.
 LocationRef current_base_location () noexcept;
- // The IRI corresponding to current_base_location().
- // When serializing IRIS with AYU, they will be read and written as relative
- // IRI reference strings, relative to this IRI.
+ // The IRI corresponding to current_base_location().  Will always have an
+ // existing but empty #fragment.  When serializing IRIs with AYU, they will be
+ // read and written as relative IRI reference strings, relative to this IRI.
 IRI current_base_iri () noexcept;
  // Temporarily set loc->root() as the current base location.  This is called in
  // item_to_tree and item_from_tree.

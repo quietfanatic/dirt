@@ -30,18 +30,16 @@ struct ResourceScheme {
 
      // If you want to do some of your own validation besides the standard IRI
      // validation.  If this returns false, UnacceptableResourceName will
-     // be thrown.  The provided IRI will not have a fragment.
-    virtual bool accepts_iri (const IRI& iri) const {
-        return !!iri;
-    }
+     // be thrown.  The provided IRI will always be valid and will not have a
+     // #fragment.
+    virtual bool accepts_name (const IRI&) const { return true; }
      // If you want to limit the allowed top-level types of your resources.
      // This is called when load(), reload(), save(), or set_value() is called
      // on a resource of this scheme, or a resource of this scheme is
      // constructed with a specific provided value.  If this returns false,
      // UnacceptableResourceType will be thrown.
-    virtual bool accepts_type (Type) const {
-        return true;
-    }
+     // TODO: provide name as well
+    virtual bool accepts_type (Type) const { return true; }
      // Turn an IRI into a filename.  If "" is returned, it means there is no
      // valid filename for this IRI.  It is okay to return non-existent
      // filenames.
@@ -83,8 +81,8 @@ struct FolderResourceScheme : ResourceScheme {
      // Must be a file:/ IRI
     IRI folder;
 
-    bool accepts_iri (const IRI& iri) const override {
-        return iri && !iri.has_authority() && !iri.has_query()
+    bool accepts_name (const IRI& iri) const override {
+        return !iri.has_authority() && !iri.has_query()
             && iri.hierarchical();
     }
 

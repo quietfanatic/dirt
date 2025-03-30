@@ -179,7 +179,7 @@ SharedResource::SharedResource (const IRI& name) {
         raise(e_ResourceNameInvalid, name.possibly_invalid_spec());
     }
     auto scheme = universe().require_scheme(name);
-    if (!scheme->accepts_iri(name)) {
+    if (!scheme->accepts_name(name)) {
         raise(e_ResourceNameRejected, name.spec());
     }
     new (this) SharedResource(universe().get_resource(name));
