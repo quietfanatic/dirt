@@ -4,6 +4,8 @@
 
 namespace glow {
 
+ // A type representing a color with 32bpp depth.  If you want to use floats,
+ // you should probably just use a Vec4.
 struct RGBA8 {
     u8 r;
     u8 g;
