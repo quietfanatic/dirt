@@ -62,12 +62,12 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
 
     ImageTexture* tex;
     doesnt_throw([&]{
-        tex = ayu::ResourceRef(IRI("test:/texture-test.ayu"))["texture"][1];
+        tex = ayu::reference_from_iri("test:/texture-test.ayu#texture");
     }, "Can load texture");
 
     ImageTexture* tex2;
     doesnt_throw([&]{
-        tex2 = ayu::ResourceRef(IRI("test:/texture-test.ayu"))["texture2"][1];
+        tex2 = ayu::reference_from_iri("test:/texture-test.ayu#texture2");
     }, "Can load texture from file image");
 
     is(dynamic_cast<FileImage*>(tex2->source.image)->storage, null, "File texture was trimmed");

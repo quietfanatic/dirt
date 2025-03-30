@@ -183,6 +183,10 @@ struct IRI {
         u16 path_end, u16 query_end
     );
 
+     // Consteval implicit coercion from string constants
+    template <usize n>
+    consteval IRI (const char(& spec )[n]) : IRI(StaticString(spec)) { }
+
      // Construct an invalid IRI with the given values for error() and
      // possibly_invalid_spec().  Debug assert or undefined behavior if given
      // Error::NoError or Error::Empty.
@@ -306,16 +310,10 @@ struct IRI {
      // Destruct this object
     constexpr ~IRI ();
 
-     // Comparisons just do string comparisons on the spec
+     // Comparisons just do string comparisons on the spec.
 #define IRI_FRIEND_OP(op) \
     friend constexpr auto operator op (const IRI& a, const IRI& b) { \
         return a.spec_ op b.spec_; \
-    } \
-    friend constexpr auto operator op (const IRI& a, Str b) { \
-        return a.spec_ op b; \
-    } \
-    friend constexpr auto operator op (Str a, const IRI& b) { \
-        return a op b.spec_; \
     }
 #if __cplusplus >= 202002L
     IRI_FRIEND_OP(==)
