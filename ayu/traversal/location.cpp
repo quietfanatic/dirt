@@ -46,7 +46,8 @@ void delete_Location (const Location* p) noexcept {
 } using namespace in;
 
  // It would be nice to be able to use Traversal for this, but this walks
- // upwards and Traversal only walks downwards.
+ // upwards and Traversal only walks downwards.  TODO: what?  That doesn't make
+ // sense, these both walk downwards.
 AnyRef reference_from_location (LocationRef loc) {
     if (!loc) return AnyRef();
     switch (loc->form) {
@@ -66,7 +67,7 @@ AnyRef reference_from_location (LocationRef loc) {
 
 namespace in {
 
-static constexpr IRI anonymous_iri ("ayu-anonymous:");
+static constexpr IRI anonymous_iri = "ayu-anonymous:";
 
 struct LocationToIRI {
     UniqueString fragment;
@@ -153,51 +154,53 @@ SharedLocation location_from_iri (const IRI& iri) {
     if (!iri.has_fragment()) raise(e_LocationIRIInvalid, cat(
         "Location IRI does not have a #fragment: ", iri.spec()
     ));
-     // We could require that the location has a fragment, but instead lets
-     // consider the lack of fragment to be equivalent to an empty fragment.
     auto root_iri = iri.chop_fragment();
-    auto r = root_iri == current_base_iri()
-        ? SharedLocation(current_base_location())
-        : SharedLocation(ResourceRef(root_iri));
+    Str spec = iri.spec();
     Str fragment = iri.fragment();
-    usize i = 0;
-    while (i < fragment.size()) {
-        if (fragment[i] == '/') {
-            usize start = ++i;
+    auto p = fragment.begin();
+    auto end = fragment.end();
+    SharedLocation r;
+    if (root_iri == current_base_iri()) {
+         // Allow addressing an item that isn't necessarily in a resource
+        new (&r) SharedLocation(current_base_location());
+    }
+    else {
+        new (&r) SharedLocation(ResourceRef(root_iri));
+    }
+    if (p < end && *p != '/' && *p != '+') {
+         // #foo is a shortcut for #/foo+1
+        auto start = p;
+        while (
+            p < end && *p != '/' && *p != '+'
+        ) ++p;
+        new (&r) SharedLocation(move(r), iri::decode(Str(start, p)));
+        new (&r) SharedLocation(move(r), 1);
+    }
+    while (p < end) {
+        if (*p == '/') {
+            auto start = ++p;
             while (
-                i < fragment.size() && fragment[i] != '/' && fragment[i] != '+'
-            ) ++i;
-            r = SharedLocation(move(r), iri::decode(fragment.slice(start, i)));
+                p < end && *p != '/' && *p != '+'
+            ) ++p;
+            new (&r) SharedLocation(move(r), iri::decode(Str(start, p)));
         }
-        else if (fragment[i] == '+') {
-            const char* start = fragment.begin() + ++i;
+        else if (*p == '+') {
+            auto start = ++p;
             usize index;
             auto [ptr, ec] = std::from_chars(
                 start, fragment.end(), index
             );
-            if (ptr == start) raise(e_LocationIRIInvalid, cat(
-                iri.spec(), " invalid +index in #fragment"
-            ));
-            i += ptr - start;
-            r = SharedLocation(move(r), index);
+            if (ptr == start) goto invalid_index;
+            p = ptr;
+            new (&r) SharedLocation(move(r), index);
         }
-        else if (i == 0) {
-             // #foo is a shortcut for #/foo+1
-            usize start = i;
-            while (
-                i < fragment.size() && fragment[i] != '/' && fragment[i] != '+'
-            ) ++i;
-            r = SharedLocation(move(r), iri::decode(fragment.slice(start, i)));
-            r = SharedLocation(move(r), 1);
-        }
-        else {
-             // We can get here if there's junk after a number.
-            raise(e_LocationIRIInvalid, cat(
-                iri.spec(), " invalid +index in #fragment"
-            ));
-        }
+        else goto invalid_index; // There's junk after a number.
     }
     return r;
+    invalid_index:
+    raise(e_LocationIRIInvalid, cat(
+        "Invalid +index in #fragment: ", spec
+    ));
 }
 
 static SharedLocation cur_base_location;
