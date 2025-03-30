@@ -3,6 +3,7 @@
 #include <iomanip>
 #include <sstream>
 #include <SDL2/SDL_video.h>
+#include "../uni/io.h"
 
 using namespace std::literals;
 
@@ -36,12 +37,12 @@ void init_gl_functions () noexcept {
     reg.to_init.clear();
 }
 
-void throw_on_glGetError (
+void warn_on_glGetError (
     const char* function_name,
     std::source_location srcloc
-) {
+) noexcept {
     GLenum err = p_glGetError<>();
-    if (err) raise(e_GLError, cat(
+    if (err) uni::warn_utf8(cat(
         "GL error code ", err, " from ", function_name,
         " in ", srcloc.function_name(), " at ", srcloc.file_name(), ':', srcloc.line()
     ));

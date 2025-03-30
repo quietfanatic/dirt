@@ -19,13 +19,10 @@ namespace glow {
     void register_gl_function (void*, const char*) noexcept;
     void init_gl_functions () noexcept;
 
-    constexpr uni::ErrorCode e_GLError = "glow::e_GLError";
-
-     // TODO: warn instead of throwing
-    void throw_on_glGetError (
+    void warn_on_glGetError (
         const char* function_name,
         std::source_location = std::source_location::current()
-    );
+    ) noexcept;
 }
 
  // Build GL API
@@ -70,14 +67,14 @@ namespace glow {
 #ifdef GLOW_TRACE_GL
                 warn_utf8(cat("void ", fname, cat(" ", args)..., "\n"));
 #endif
-                throw_on_glGetError(fname + 2, srcloc);
+                warn_on_glGetError(fname + 2, srcloc);
             }
             else {
                 Ret r = p(args...);
 #ifdef GLOW_TRACE_GL
                 warn_utf8(cat(r, " ", fname, cat(" ", args)..., "\n"));
 #endif
-                throw_on_glGetError(fname + 2, srcloc);
+                warn_on_glGetError(fname + 2, srcloc);
                 return r;
             }
         };
