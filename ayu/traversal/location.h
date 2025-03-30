@@ -133,7 +133,9 @@ IRI location_to_iri (LocationRef) noexcept;
  // the IRI is just plain invalid.
 SharedLocation location_from_iri (const IRI& iri);
 
- // For convenience I guess
+ // Go straight from an IRI to a reference.  If you're using the resource
+ // system, you probably want to use the two-argument form of ayu::track
+ // instead.
 inline AnyRef reference_from_iri (const IRI& iri) {
     auto loc = location_from_iri(iri);
     return reference_from_location(loc);

@@ -14,6 +14,7 @@
  // TODO: see if we can take out these dependencies
 #include "../reflection/anyref.h"
 #include "../reflection/anyval.h"
+#include "../traversal/location.h"
 
 namespace ayu {
 
@@ -251,21 +252,24 @@ UniqueArray<SharedResource> loaded_resources () noexcept;
  // You should not call track on an item that is in a resource, because
  // everything in resources is already tracked.  TODO: detect this and
  // debug-assert.
- //
- // You can start tracking an item before you assign to it.  A common idiom is
- // to load a resource and make a static variable point to it like this.
- //
- //     static PageProgram* program = (
- //         ayu::track(program),
- //         ayu::reference_from_iri("res:/liv/page.ayu#program")
- //     );
- //
 template <class T>
 void track (T& v);
 
  // Stop tracking a variable.
 template <class T>
 void untrack (T& v);
+
+ // It's a common idiom to both track a variable and assign it from an IRI at
+ // the same time.  You can do it like this.
+ //
+ //     static PageProgram* program = ayu::track(
+ //         program, "res:/liv/page.ayu#program"
+ //     );
+template <class T> [[nodiscard]]
+AnyRef track (T& v, const IRI& loc) {
+    track(v);
+    return ayu::reference_from_iri(loc);
+}
 
 ///// RESOURCE ERROR CODES
 
