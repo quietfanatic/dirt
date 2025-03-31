@@ -30,10 +30,10 @@ void Error::add_tag (AnyString name, AnyString value) {
     tags.emplace_back(move(name), move(value));
 }
 
-void raise (ErrorCode code, MoveRef<AnyString> details) {
+void raise_inner (StaticString code, AnyString::Impl details) {
     Error e;
     e.code = code;
-    e.details = *move(details);
+    e.details.impl = details;
     throw e;
 }
 

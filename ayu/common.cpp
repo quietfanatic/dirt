@@ -1,5 +1,6 @@
 #include "common.internal.h"
 
+#include "../iri/iri.h"
 #include "../uni/io.h"
 #include "traversal/to-tree.h"
 #include "traversal/route.h"
@@ -30,7 +31,7 @@ void in::rethrow_with_route (RouteRef rt) {
     try { throw; }
     catch (Error& e) {
         if (!e.get_tag("route")) {
-            e.add_tag("route", item_to_string(&rt));
+            e.add_tag("route", route_to_iri(rt).spec());
         }
         throw e;
     }
@@ -43,7 +44,7 @@ void in::rethrow_with_route (RouteRef rt) {
                 get_demangled_name(typeid(ex)), ": ", ex.what()
             );
         }
-        e.add_tag("route", item_to_string(&rt));
+        e.add_tag("route", route_to_iri(rt).spec());
         e.external = std::current_exception();
         throw e;
     }

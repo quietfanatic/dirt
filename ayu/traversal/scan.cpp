@@ -368,20 +368,6 @@ KeepRouteCache::~KeepRouteCache () {
     }
 }
 
-static PushLikelyRef* first_plr = null;
-
-PushLikelyRef::PushLikelyRef (
-    AnyRef r, MoveRef<SharedRoute> l
-) noexcept :
-    reference(r), route(*move(l)), next(first_plr)
-{
-#ifndef NDEBUG
-    require(reference_from_route(route) == reference);
-#endif
-    first_plr = this;
-}
-PushLikelyRef::~PushLikelyRef () { first_plr = next; }
-
 bool scan_pointers (
     AnyPtr base_item, RouteRef base_rt,
     CallbackRef<bool(AnyPtr, RouteRef)> cb

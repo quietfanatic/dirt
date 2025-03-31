@@ -38,9 +38,11 @@ struct KeepRouteCache {
 };
 
  // While this is alive, if find_pointer() or find_reference() is called with
- // this reference, skip the scanning process and return this route.
+ // this reference, skip the scanning process and return this route.  These must
+ // only be destroyed in first-in-last-out order, which will be fine if you only
+ // construct them on the stack
 struct PushLikelyRef {
-    PushLikelyRef (AnyRef, MoveRef<SharedRoute>) noexcept;
+    PushLikelyRef (AnyRef, SharedRoute) noexcept;
     ~PushLikelyRef ();
 
     AnyRef reference;
@@ -111,5 +113,24 @@ extern bool currently_scanning;
 constexpr ErrorCode e_ReferenceNotFound = "ayu::e_ReferenceNotFound";
  // Tried to start a new scan while there's still a scan going.
 constexpr ErrorCode e_ScanWhileScanning = "ayu::e_ScanWhileScanning";
+
+///// INLINES
+
+inline PushLikelyRef* first_plr = null;
+
+inline PushLikelyRef::PushLikelyRef (
+    AnyRef r, SharedRoute l
+) noexcept :
+    reference(move(r)), route(move(l)), next(first_plr)
+{
+#ifndef NDEBUG
+    require(reference_from_route(route) == reference);
+#endif
+    first_plr = this;
+}
+inline PushLikelyRef::~PushLikelyRef () {
+    expect(first_plr == this);
+    first_plr = next;
+}
 
 } // namespace ayu

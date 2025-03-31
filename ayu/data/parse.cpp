@@ -73,10 +73,10 @@ struct Parser {
 
     const char* end;
     const char* begin;
-    const AnyString& filename;
+    Str filename;
     u32 shallowth;
 
-    Parser (Str s, const AnyString& filename) :
+    Parser (Str s, Str filename) :
         end(s.end()),
         begin(s.begin()),
         filename(filename)
@@ -611,26 +611,24 @@ struct Parser {
 } using namespace in;
 
  // Finally:
-Tree tree_from_string (Str s, const AnyString& filename) {
+Tree tree_from_string (Str s, Str filename) {
     require(s.size() <= AnyString::max_size_);
     return Parser(s, filename).parse();
 }
 
-UniqueArray<Tree> tree_list_from_string (Str s, const AnyString& filename) {
+UniqueArray<Tree> tree_list_from_string (Str s, Str filename) {
     require(s.size() <= AnyString::max_size_);
     return Parser(s, filename).parse_list();
 }
 
-Tree tree_from_file (MoveRef<AnyString> filename_) {
-    auto filename = *move(filename_);
+Tree tree_from_file (AnyString filename) {
     UniqueString s = string_from_file(filename);
-    return tree_from_string(s, move(filename));
+    return tree_from_string(s, filename);
 }
 
-UniqueArray<Tree> tree_list_from_file (MoveRef<AnyString> filename_) {
-    auto filename = *move(filename_);
+UniqueArray<Tree> tree_list_from_file (AnyString filename) {
     UniqueString s = string_from_file(filename);
-    return tree_list_from_string(s, move(filename));
+    return tree_list_from_string(s, filename);
 }
 
 } using namespace ayu;

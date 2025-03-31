@@ -463,8 +463,7 @@ struct Update {
     AnyRef new_ref;
 };
 
-NOINLINE static void reload_commit (MoveRef<UniqueArray<Update>> ups) {
-    auto updates = *move(ups);
+NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
         update.ref_ref.write(
             AccessCB(move(update), [](Update&& update, AnyPtr v, bool){
@@ -475,8 +474,7 @@ NOINLINE static void reload_commit (MoveRef<UniqueArray<Update>> ups) {
     });
 }
 
-NOINLINE static void reload_rollback (MoveRef<UniqueArray<ROV>> rs) {
-    auto rovs = *move(rs);
+NOINLINE static void reload_rollback (UniqueArray<ROV>&& rovs) {
     rovs.consume([](auto&& rov){
         auto data = static_cast<ResourceData*>(rov.res.data.p);
         data->value = move(rov.old_value);
@@ -571,7 +569,11 @@ void reload (Slice<ResourceRef> reses) {
             }
         }
     }
-    catch (...) { reload_rollback(move(rovs)); throw; }
+    catch (...) {
+        reload_rollback(move(rovs));
+        expect(!rovs);
+        throw;
+    }
      // Commit step.  TODO: Update references now and roll them back if
      // necessary
     if (ResourceTransaction::depth) {
@@ -583,16 +585,21 @@ void reload (Slice<ResourceRef> reses) {
             { }
             void commit () noexcept override {
                 reload_commit(move(updates));
+                expect(!updates);
             }
             void rollback () noexcept override {
                 reload_rollback(move(rovs));
+                expect(!rovs);
             }
         };
         ResourceTransaction::add_committer(
             new ReloadCommitter(move(rovs), move(updates))
         );
     }
-    else reload_commit(move(updates));
+    else {
+        reload_commit(move(updates));
+        expect(!updates);
+    }
 }
 
 void rename (ResourceRef old_res, ResourceRef new_res) {
