@@ -9,9 +9,26 @@
 namespace uni {
 
 const char* Error::what () const noexcept {
-    return (what_cache = cat(code, "; ", details)).c_str();
+    what_cache = cat(code, "; ", details);
+    if (tags) {
+        encat(what_cache, Caterator("", tags.size(), [&](usize i){
+            return cat("\n    {", tags[i].first, ": ", tags[i].second, '}');
+        }));
+    }
+    return what_cache.c_str();
 }
 Error::~Error () { }
+
+const AnyString& Error::get_tag (const AnyString& name) {
+    for (auto& [n, v] : tags) {
+        if (n.data() == name.data() || n == name) return v;
+    }
+    static constexpr AnyString empty = "";
+    return empty;
+}
+void Error::add_tag (AnyString name, AnyString value) {
+    tags.emplace_back(move(name), move(value));
+}
 
 void raise (ErrorCode code, MoveRef<AnyString> details) {
     Error e;

@@ -22,19 +22,26 @@ struct Error : std::exception {
     ErrorCode code = null;
      // More information about the error, subject to change.
     AnyString details;
+     // Extra information in name: value format
+    UniqueArray<std::pair<AnyString, AnyString>> tags;
      // If this wrapped a different error, this stores it.  code will be
      // e_External and details will have the CPP type (hopefully demangled) and
      // the what() of the error.
     std::exception_ptr external;
      // A lot of exception handling stuff assumes that the string returned by
-     // what() will never run out of lifetime, so store it here.
+     // what() will last a while, so store it here.
     mutable UniqueString what_cache;
-     // Keep track of whether an AYU traversal location has been added to
-     // details.  TODO: This doesn't really belong here now that this has been
-     // moved here from AYU.
-    bool has_travloc = false;
     [[gnu::cold]] ~Error ();
     const char* what () const noexcept override;
+
+     // Returns the value of the tag, or "" if it doesn't exist.
+    const AnyString& get_tag (const AnyString& name);
+     // Adds the tag (doesn't check if it's already been added)
+    void add_tag (AnyString name, AnyString value);
+     // If you want to prevent duplicate tags, do
+     //     if (!e.get_tag("foo")) {
+     //         e.add_tag("foo", cat("glarch ", barch, " parch"));
+     //     }
 };
 
  // Simple noinline wrapper around construct and throw to reduce code bloat

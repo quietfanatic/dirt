@@ -2,6 +2,7 @@
 
 #include "../uni/io.h"
 #include "traversal/to-tree.h"
+#include "traversal/route.h"
 
 namespace ayu {
 using namespace in;
@@ -22,6 +23,29 @@ void dump_refs (Slice<AnyRef> rs) {
             warn_utf8(r);
             break;
         }
+    }
+}
+
+void in::rethrow_with_route (RouteRef rt) {
+    try { throw; }
+    catch (Error& e) {
+        if (!e.get_tag("route")) {
+            e.add_tag("route", item_to_string(&rt));
+        }
+        throw e;
+    }
+    catch (std::exception& ex) {
+        Error e;
+        e.code = e_External;
+        {
+            DiagnosticSerialization ds;
+            e.details = cat(
+                get_demangled_name(typeid(ex)), ": ", ex.what()
+            );
+        }
+        e.add_tag("route", item_to_string(&rt));
+        e.external = std::current_exception();
+        throw e;
     }
 }
 

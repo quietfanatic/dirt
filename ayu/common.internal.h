@@ -78,4 +78,8 @@ struct Hashed {
     T value;
 };
 
+ // Add a traversal route to the current exception if it doesn't already
+ // have one.
+[[noreturn, gnu::cold]] void rethrow_with_route (RouteRef);
+
 }  // namespace ayu::in

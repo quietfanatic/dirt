@@ -145,7 +145,7 @@ struct TraverseFromTree {
                 }));
             }
             catch (...) {
-                rethrow_with_travloc(op.rt);
+                rethrow_with_route(op.rt);
             }
         });
          // Swizzling might add more swizzle ops; this will happen if we're
@@ -165,7 +165,7 @@ struct TraverseFromTree {
                 }));
             }
             catch (...) {
-                rethrow_with_travloc(op.rt);
+                rethrow_with_route(op.rt);
             }
         });
          // Initting might add more swizzle or init ops.  It'd be weird, but

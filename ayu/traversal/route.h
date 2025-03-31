@@ -161,12 +161,6 @@ struct PushBaseRoute {
     ~PushBaseRoute ();
 };
 
-///// MISC
-
- // Add a traversal location to the current exception if it doesn't already
- // have one.
-[[noreturn, gnu::cold]] void rethrow_with_travloc (RouteRef loc);
-
 } // namespace ayu
 
 #include "route.inline.h"

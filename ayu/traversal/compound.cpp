@@ -405,7 +405,7 @@ AnyRef item_attr (const AnyRef& item, const AnyString& key, RouteRef rt) {
     AnyRef r = TraverseAttr::start(item, key, rt);
     if (!r) {
         try { raise_AttrNotFound(item.type(), key); }
-        catch (...) { rethrow_with_travloc(rt); }
+        catch (...) { rethrow_with_route(rt); }
     }
     return r;
 }
@@ -421,7 +421,7 @@ struct TraverseGetLength {
         u32 len;
         item.read(AccessCB(len, &visit));
         return len;
-    } catch (...) { rethrow_with_travloc(rt); }
+    } catch (...) { rethrow_with_route(rt); }
 
     static
     void visit (u32& len, AnyPtr item, bool) {
@@ -453,7 +453,7 @@ struct TraverseSetLength {
     static
     void start (const AnyRef& item, u32 len, RouteRef rt) try {
         item.read(AccessCB(len, &visit));
-    } catch (...) { rethrow_with_travloc(rt); }
+    } catch (...) { rethrow_with_route(rt); }
 
     NOINLINE static
     void visit (u32& len, AnyPtr item, bool) {
@@ -597,7 +597,7 @@ AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
     AnyRef r = TraverseElem::start(item, index, rt);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
-        catch (...) { rethrow_with_travloc(rt); }
+        catch (...) { rethrow_with_route(rt); }
     }
     return r;
 }
