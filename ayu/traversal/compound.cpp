@@ -289,19 +289,6 @@ void item_set_keys (
 
 ///// ATTR
 
-struct ReturnRefTraversalHead {
-    AnyRef* r;
-};
-
-template <class T = Traversal>
-struct ReturnRefTraversal : ReturnRefTraversalHead, T { };
-
-void return_ref (const Traversal& tr) {
-    auto& trav = static_cast<const ReturnRefTraversal<>&>(tr);
-    expect(!trav.r->acr);
-    trav.to_reference(trav.r);
-}
-
 struct GetAttrTraversalHead {
     const AnyString* get_key;
 };
@@ -499,13 +486,11 @@ struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
 struct TraverseElem {
 
     NOINLINE static
-    AnyRef start (const AnyRef& item, u32 index, RouteRef rt) {
-        AnyRef r;
+    void start (const AnyRef& item, u32 index, RouteRef rt, AnyRef& r) {
         GetElemTraversal<StartTraversal> child;
         child.index = index;
         child.r = &r;
         trav_start<visit>(child, item, rt, AccessMode::Read);
-        return r;
     }
 
     NOINLINE static
@@ -590,11 +575,14 @@ struct TraverseElem {
 AnyRef item_maybe_elem (
     const AnyRef& item, u32 index, RouteRef rt
 ) {
-    return TraverseElem::start(item, index, rt);
+    AnyRef r;
+    TraverseElem::start(item, index, rt, r);
+    return r;
 }
 
 AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
-    AnyRef r = TraverseElem::start(item, index, rt);
+    AnyRef r;
+    TraverseElem::start(item, index, rt, r);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
         catch (...) { rethrow_with_route(rt); }

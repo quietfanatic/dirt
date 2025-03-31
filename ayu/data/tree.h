@@ -101,7 +101,7 @@ struct Tree {
     explicit constexpr Tree (AnyArray<TreePair>, TreeFlags = {});
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
-     // Convenience array/object construction
+     // Convenient array/object construction because initializer_list sucks
     template <class... Args> static constexpr
     Tree array (Args&&... args) {
         return Tree(AnyArray<Tree>::make(std::forward<Args>(args)...));

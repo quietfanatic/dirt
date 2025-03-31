@@ -56,6 +56,8 @@ struct Traversal {
     void wrap_exception () const;
 };
 
+///// TRAVERSAL SUFFIXES
+
 struct StartTraversal : Traversal {
     const AnyRef* reference;
     RouteRef route;
@@ -93,6 +95,23 @@ struct ContiguousElemTraversal : PtrTraversal {
     DataFunc<Mu>* func;
     u32 index;
 };
+
+///// COMMON TRAVERSAL PREFIX
+
+struct ReturnRefTraversalHead {
+    AnyRef* r;
+};
+
+template <class T = Traversal>
+struct ReturnRefTraversal : ReturnRefTraversalHead, T { };
+
+inline void return_ref (const Traversal& tr) {
+    auto& trav = static_cast<const ReturnRefTraversal<>&>(tr);
+    expect(!trav.r->acr);
+    trav.to_reference(trav.r);
+}
+
+///// GENERIC TRAVERSAL FUNCTIONS
 
 using VisitFunc = void(const Traversal&);
 
