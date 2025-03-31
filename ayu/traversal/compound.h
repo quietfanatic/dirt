@@ -4,7 +4,7 @@
 #pragma once
 
 #include "../common.h"
-#include "location.h"
+#include "route.h"
 
 namespace ayu {
 
@@ -15,22 +15,22 @@ namespace ayu {
 
  // Get a list of the keys in a object-like item.
 AnyArray<AnyString> item_get_keys (
-    const AnyRef&, LocationRef loc = {}
+    const AnyRef&, RouteRef rt = {}
 );
  // Set the keys in an object-like item.  This may clear the entire contents
  // of the item.  If the item only accepts certain attribute keys, this may
  // throw e_AttrMissing or e_AttrRejected.
 void item_set_keys (
     const AnyRef&, AnyArray<AnyString>,
-    LocationRef loc = {}
+    RouteRef rt = {}
 );
  // Get an attribute of an object-like item by its key, or empty AnyRef if
  // the attribute doesn't exist.
 AnyRef item_maybe_attr (
-    const AnyRef&, const AnyString&, LocationRef loc = {});
+    const AnyRef&, const AnyString&, RouteRef rt = {});
  // Throws e_ElemNotFound if the attribute doesn't exist.  Guaranteed not to
  // return an empty or null AnyRef.
-AnyRef item_attr (const AnyRef&, const AnyString&, LocationRef loc = {});
+AnyRef item_attr (const AnyRef&, const AnyString&, RouteRef rt = {});
 
 ///// OPERATIONS FOR ARRAY-LIKE TYPES
  // These use either the elems() descriptor or the keys() and elem_func()
@@ -38,22 +38,22 @@ AnyRef item_attr (const AnyRef&, const AnyString&, LocationRef loc = {});
  // and if that isn't available, they throw e_ElemsNotSupported.
 
  // Get the length of an array-like item.
-u32 item_get_length (const AnyRef&, LocationRef loc = {});
+u32 item_get_length (const AnyRef&, RouteRef rt = {});
  // Set the length of an array-like item.  This may clear some or all of the
  // contents of the item.  If the item only allows certain lengths, this may
  // throw e_WrongLength.
 void item_set_length (
-    const AnyRef&, u32, LocationRef loc = {}
+    const AnyRef&, u32, RouteRef rt = {}
 );
  // Get an element of an array-like item by its index.  Returns an empty
  // AnyRef if the element doesn't exist.
 AnyRef item_maybe_elem (
-    const AnyRef&, u32, LocationRef loc = {}
+    const AnyRef&, u32, RouteRef rt = {}
 );
  // Throws e_ElemNotFound if the element doesn't exist.  Guaranteed not to return
  // an empty or null AnyRef.
 AnyRef item_elem (
-    const AnyRef&, u32, LocationRef loc = {}
+    const AnyRef&, u32, RouteRef rt = {}
 );
 
  // The keys() descriptor of an item produced a type other than

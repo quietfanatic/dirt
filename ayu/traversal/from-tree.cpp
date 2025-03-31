@@ -15,13 +15,13 @@ struct SwizzleOp {
      // This can't be TreeRef because the referenced Tree could go away after a
      // nested from_tree is called with DelaySwizzle
     Tree tree;
-    SharedLocation loc;
+    SharedRoute rt;
 
     ALWAYS_INLINE
     SwizzleOp (
-        SwizzleFunc<Mu>* f, AnyRef&& i, const Tree& t, SharedLocation&& l
+        SwizzleFunc<Mu>* f, AnyRef&& i, const Tree& t, SharedRoute&& l
     ) noexcept :
-        f(f), item(move(i)), tree(t), loc(move(l))
+        f(f), item(move(i)), tree(t), rt(move(l))
     { }
      // Allow optimized reallocation
     ALWAYS_INLINE
@@ -34,14 +34,14 @@ struct InitOp {
     InitFunc<Mu>* f;
     double priority;
     AnyRef item;
-    SharedLocation loc;
+    SharedRoute rt;
 
      // This being noexcept allows UniqueArray::emplace to be smaller
     ALWAYS_INLINE
     InitOp (
-        InitFunc<Mu>* f, double p, AnyRef&& i, SharedLocation&& l
+        InitFunc<Mu>* f, double p, AnyRef&& i, SharedRoute&& l
     ) noexcept :
-        f(f), priority(p), item(move(i)), loc(move(l))
+        f(f), priority(p), item(move(i)), rt(move(l))
     { }
      // Allow optimized reallocation
     ALWAYS_INLINE
@@ -86,7 +86,7 @@ struct TraverseFromTree {
 
     static
     void start (
-        const AnyRef& item, const Tree& tree, LocationRef loc,
+        const AnyRef& item, const Tree& tree, RouteRef rt,
         FromTreeOptions opts
     ) {
         plog("from_tree start");
@@ -98,21 +98,21 @@ struct TraverseFromTree {
         if (!!(opts & FromTreeOptions::DelaySwizzle) && IFTContext::current) {
              // Delay swizzle and inits to the outer item_from_tree call.  Basically
              // this just means keep the current context instead of making a new one.
-            start_without_context(item, tree, loc);
+            start_without_context(item, tree, rt);
         }
-        else start_with_context(item, tree, loc);
+        else start_with_context(item, tree, rt);
         plog("from_tree end");
     }
 
     NOINLINE static
     void start_with_context (
-        const AnyRef& item, const Tree& tree, LocationRef loc
+        const AnyRef& item, const Tree& tree, RouteRef rt
     ) {
          // Start a resource transaction so that dependency loads are all or
          // nothing.
         ResourceTransaction tr;
         IFTContext ctx;
-        start_without_context(item, tree, loc);
+        start_without_context(item, tree, rt);
         do_swizzle_init(ctx);
         expect(!ctx.swizzle_ops.owned());
         expect(!ctx.init_ops.owned());
@@ -120,12 +120,12 @@ struct TraverseFromTree {
 
     NOINLINE static
     void start_without_context (
-        const AnyRef& item, const Tree& tree, LocationRef loc
+        const AnyRef& item, const Tree& tree, RouteRef rt
     ) {
-        PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
+        PushBaseRoute pbl(rt ? rt : RouteRef(SharedRoute(item)));
         FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
-        trav_start<visit>(child, item, loc, AccessMode::Write);
+        trav_start<visit>(child, item, rt, AccessMode::Write);
     }
 
     NOINLINE static
@@ -138,14 +138,14 @@ struct TraverseFromTree {
     void do_swizzle (IFTContext& ctx) {
         expect(ctx.swizzle_ops);
         ctx.swizzle_ops.consume([](SwizzleOp&& op){
-            PushBaseLocation pbl (op.loc);
+            PushBaseRoute pbl (op.rt);
             try {
                 op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
                     op.f(*v.address, op.tree);
                 }));
             }
             catch (...) {
-                rethrow_with_travloc(op.loc);
+                rethrow_with_travloc(op.rt);
             }
         });
          // Swizzling might add more swizzle ops; this will happen if we're
@@ -158,14 +158,14 @@ struct TraverseFromTree {
     void do_init (IFTContext& ctx) {
         expect(ctx.init_ops);
         ctx.init_ops.consume([](InitOp&& op){
-            PushBaseLocation pbl (op.loc);
+            PushBaseRoute pbl (op.rt);
             try {
                 op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
                     op.f(*v.address);
                 }));
             }
             catch (...) {
-                rethrow_with_travloc(op.loc);
+                rethrow_with_travloc(op.rt);
             }
         });
          // Initting might add more swizzle or init ops.  It'd be weird, but
@@ -718,18 +718,18 @@ struct TraverseFromTree {
 
     NOINLINE static
     void register_swizzle_init (const FromTreeTraversal<>& trav) {
-         // We're duplicating the work to get the ref and loc if there's both a
+         // We're duplicating the work to get the ref and rt if there's both a
          // swizzle and an init, but almost no types are going to have both.
         if (auto swizzle = trav.desc->swizzle()) {
             AnyRef ref;
             trav.to_reference(&ref);
-            SharedLocation loc;
-            trav.to_location(&loc);
+            SharedRoute rt;
+            trav.to_route(&rt);
             IFTContext::current->swizzle_ops.emplace_back(
-                swizzle->f, move(ref), *trav.tree, move(loc)
+                swizzle->f, move(ref), *trav.tree, move(rt)
             );
             expect(!ref.acr);
-            expect(!loc);
+            expect(!rt);
         }
         if (auto init = trav.desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
@@ -739,16 +739,16 @@ struct TraverseFromTree {
             }
             AnyRef ref;
             trav.to_reference(&ref);
-            SharedLocation loc;
-            trav.to_location(&loc);
+            SharedRoute rt;
+            trav.to_route(&rt);
             if (i == init_ops.size()) init_ops.emplace_back(
-                init->f, init->priority, move(ref), move(loc)
+                init->f, init->priority, move(ref), move(rt)
             );
             else init_ops.emplace(i,
-                init->f, init->priority, move(ref), move(loc)
+                init->f, init->priority, move(ref), move(rt)
             );
             expect(!ref.acr);
-            expect(!loc);
+            expect(!rt);
         }
     }
 
@@ -788,10 +788,10 @@ struct TraverseFromTree {
 } using namespace in;
 
 void item_from_tree (
-    const AnyRef& item, const Tree& tree, LocationRef loc,
+    const AnyRef& item, const Tree& tree, RouteRef rt,
     FromTreeOptions opts
 ) {
-    TraverseFromTree::start(item, tree, loc, opts);
+    TraverseFromTree::start(item, tree, rt, opts);
 }
 
 void raise_FromTreeFormRejected (Type t, Form f) {

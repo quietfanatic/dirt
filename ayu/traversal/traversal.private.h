@@ -3,7 +3,7 @@
 #include "../common.h"
 #include "../reflection/accessors.private.h"
 #include "../reflection/descriptors.private.h"
-#include "location.h"
+#include "route.h"
 #include "to-tree.h"
 
 namespace ayu::in {
@@ -14,8 +14,8 @@ namespace ayu::in {
  //      is not addressable, without having to start over from the very
  //      beginning or duplicate work.  This is mainly to support swizzle and
  //      init ops.
- //   2. Track the current location without any heap allocations, but allow
- //      getting an actual heap-allocated Location to the current item if needed
+ //   2. Track the current route without any heap allocations, but allow
+ //      getting an actual heap-allocated Route to the current item if needed
  //      for error reporting.
 enum class TraversalOp : u8 {
     Start,
@@ -51,14 +51,14 @@ struct Traversal {
     Mu* address;
 
     void to_reference (void* r) const noexcept;
-    void to_location (void* r) const noexcept;
+    void to_route (void* r) const noexcept;
     [[noreturn, gnu::cold]]
     void wrap_exception () const;
 };
 
 struct StartTraversal : Traversal {
     const AnyRef* reference;
-    LocationRef location;
+    RouteRef route;
 };
 
 struct AcrTraversal : Traversal {
@@ -112,7 +112,7 @@ void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
  // their callers are prepared to allocate a lot of stack for them.
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
-    StartTraversal& child, const AnyRef& ref, LocationRef loc, AccessMode mode
+    StartTraversal& child, const AnyRef& ref, RouteRef rt, AccessMode mode
 ) try {
     expect(ref);
 
@@ -123,7 +123,7 @@ void trav_start (
         !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
     child.readonly = ref.host.type.readonly();
     child.reference = &ref;
-    child.location = loc;
+    child.route = rt;
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &visit_after_access<visit>
@@ -247,10 +247,10 @@ void trav_delegate (
 
 inline
 void Traversal::wrap_exception () const {
-     // TODO: don't call to_location() if not necessary
-    SharedLocation loc;
-    to_location(&loc);
-    rethrow_with_travloc(loc);
+     // TODO: don't call to_route() if not necessary
+    SharedRoute rt;
+    to_route(&rt);
+    rethrow_with_travloc(rt);
 }
 
 } // namespace ayu::in

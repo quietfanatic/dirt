@@ -27,15 +27,15 @@ struct TraverseToTree {
 
      // NOINLINE this because it generates a lot of code with trav_start
     NOINLINE static
-    Tree start (const AnyRef& item, LocationRef loc) {
+    Tree start (const AnyRef& item, RouteRef rt) {
         plog("to_tree start");
-        PushBaseLocation pbl(loc ? loc : LocationRef(SharedLocation(item)));
-        KeepLocationCache klc;
+        PushBaseRoute pbl(rt ? rt : RouteRef(SharedRoute(item)));
+        KeepRouteCache klc;
         Tree dest;
         ToTreeTraversal<StartTraversal> child;
         child.dest = &dest;
         trav_start<visit>(
-            child, item, loc, AccessMode::Read
+            child, item, rt, AccessMode::Read
         );
         plog("to_tree end");
         return dest;
@@ -346,8 +346,8 @@ struct TraverseToTree {
 
 } using namespace in;
 
-Tree item_to_tree (const AnyRef& item, LocationRef loc) {
-    return TraverseToTree::start(item, loc);
+Tree item_to_tree (const AnyRef& item, RouteRef rt) {
+    return TraverseToTree::start(item, rt);
 }
 
 DiagnosticSerialization::DiagnosticSerialization () {

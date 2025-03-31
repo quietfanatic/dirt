@@ -4,8 +4,8 @@ namespace ayu::in {
 
 static void to_reference_parent_addressable (const Traversal&, void*);
 static void to_reference_chain (const Traversal&, void*);
-static void to_location_start_ref (const Traversal&, void*);
-static void to_location_chain (const Traversal&, void*);
+static void to_route_start_ref (const Traversal&, void*);
+static void to_route_chain (const Traversal&, void*);
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
@@ -99,62 +99,62 @@ void to_reference_chain (const Traversal& trav, void* r) {
 }
 
 NOINLINE
-void Traversal::to_location (void* r) const noexcept {
+void Traversal::to_route (void* r) const noexcept {
     if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
-        if (self.location) new (r) SharedLocation(self.location);
-        else to_location_start_ref(*this, r);
+        if (self.route) new (r) SharedRoute(self.route);
+        else to_route_start_ref(*this, r);
     }
-    else to_location_chain(*this, r);
+    else to_route_chain(*this, r);
 }
 
 NOINLINE static
-void to_location_start_ref (const Traversal& trav, void* r) {
+void to_route_start_ref (const Traversal& trav, void* r) {
     auto& self = static_cast<const StartTraversal&>(trav);
      // This * took a half a day of debugging to add. :(
-    new (r) SharedLocation(*self.reference);
+    new (r) SharedRoute(*self.reference);
 }
 
 NOINLINE static
-void to_location_chain (const Traversal& trav, void* r) {
-    SharedLocation parent_loc;
-    trav.parent->to_location(&parent_loc);
+void to_route_chain (const Traversal& trav, void* r) {
+    SharedRoute parent_rt;
+    trav.parent->to_route(&parent_rt);
     switch (trav.op) {
         case TraversalOp::Delegate: {
-            new (r) SharedLocation(move(parent_loc));
+            new (r) SharedRoute(move(parent_rt));
             return;
         }
         case TraversalOp::Attr: {
             auto& self = static_cast<const AttrTraversal&>(trav);
             if (!!(self.acr->attr_flags & AttrFlags::Include)) {
-                 // Collapse location for an included attribute.
-                new (r) SharedLocation(move(parent_loc));
+                 // Collapse route for an included attribute.
+                new (r) SharedRoute(move(parent_rt));
             }
             else {
-                new (r) SharedLocation(move(parent_loc), *self.key);
+                new (r) SharedRoute(move(parent_rt), *self.key);
             }
             return;
         }
         case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
-            new (r) SharedLocation(move(parent_loc), *self.key);
+            new (r) SharedRoute(move(parent_rt), *self.key);
             return;
         }
          // These three branches can technically be merged, hopefully the
          // compiler does so.
         case TraversalOp::Elem: {
             auto& self = static_cast<const ElemTraversal&>(trav);
-            new (r) SharedLocation(move(parent_loc), self.index);
+            new (r) SharedRoute(move(parent_rt), self.index);
             return;
         }
         case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
-            new (r) SharedLocation(move(parent_loc), self.index);
+            new (r) SharedRoute(move(parent_rt), self.index);
             return;
         }
         case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
-            new (r) SharedLocation(move(parent_loc), self.index);
+            new (r) SharedRoute(move(parent_rt), self.index);
             return;
         }
         default: never();

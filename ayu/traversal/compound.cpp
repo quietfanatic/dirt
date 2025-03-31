@@ -19,12 +19,12 @@ struct GetKeysTraversal : GetKeysTraversalHead, T { };
 struct TraverseGetKeys {
 
     static
-    UniqueArray<AnyString> start (const AnyRef& item, LocationRef loc) {
+    UniqueArray<AnyString> start (const AnyRef& item, RouteRef rt) {
          // TODO: skip traversal if item is addressable and uses computed_attrs
         UniqueArray<AnyString> keys;
         GetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
-        trav_start<visit>(child, item, loc, AccessMode::Read);
+        trav_start<visit>(child, item, rt, AccessMode::Read);
         return keys;
     }
 
@@ -101,9 +101,9 @@ struct TraverseGetKeys {
 
 NOINLINE
 AnyArray<AnyString> item_get_keys (
-    const AnyRef& item, LocationRef loc
+    const AnyRef& item, RouteRef rt
 ) {
-    return TraverseGetKeys::start(item, loc);
+    return TraverseGetKeys::start(item, rt);
 }
 
 ///// SET KEYS
@@ -121,12 +121,12 @@ struct TraverseSetKeys {
 
     static
     void start (
-        const AnyRef& item, AnyArray<AnyString> ks, LocationRef loc
+        const AnyRef& item, AnyArray<AnyString> ks, RouteRef rt
     ) {
         UniqueArray<AnyString> keys = move(ks);
         SetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
-        trav_start<visit_and_verify>(child, item, loc, AccessMode::Read);
+        trav_start<visit_and_verify>(child, item, rt, AccessMode::Read);
     }
 
     static
@@ -282,9 +282,9 @@ struct TraverseSetKeys {
 } using namespace in;
 
 void item_set_keys (
-    const AnyRef& item, AnyArray<AnyString> keys, LocationRef loc
+    const AnyRef& item, AnyArray<AnyString> keys, RouteRef rt
 ) {
-    TraverseSetKeys::start(item, move(keys), loc);
+    TraverseSetKeys::start(item, move(keys), rt);
 }
 
 ///// ATTR
@@ -312,14 +312,14 @@ struct GetAttrTraversal : GetAttrTraversalHead, ReturnRefTraversal<T> { };
 struct TraverseAttr {
     NOINLINE static
     AnyRef start (
-        const AnyRef& item, const AnyString& key, LocationRef loc
+        const AnyRef& item, const AnyString& key, RouteRef rt
     ) {
          // TODO: skip the traversal system if we're using computed attrs
         AnyRef r;
         GetAttrTraversal<StartTraversal> child;
         child.get_key = &key;
         child.r = &r;
-        trav_start<visit>(child, item, loc, AccessMode::Read);
+        trav_start<visit>(child, item, rt, AccessMode::Read);
         return r;
     }
 
@@ -395,17 +395,17 @@ struct TraverseAttr {
 
 NOINLINE
 AnyRef item_maybe_attr (
-    const AnyRef& item, const AnyString& key, LocationRef loc
+    const AnyRef& item, const AnyString& key, RouteRef rt
 ) {
-    return TraverseAttr::start(item, key, loc);
+    return TraverseAttr::start(item, key, rt);
 }
 
 NOINLINE
-AnyRef item_attr (const AnyRef& item, const AnyString& key, LocationRef loc) {
-    AnyRef r = TraverseAttr::start(item, key, loc);
+AnyRef item_attr (const AnyRef& item, const AnyString& key, RouteRef rt) {
+    AnyRef r = TraverseAttr::start(item, key, rt);
     if (!r) {
         try { raise_AttrNotFound(item.type(), key); }
-        catch (...) { rethrow_with_travloc(loc); }
+        catch (...) { rethrow_with_travloc(rt); }
     }
     return r;
 }
@@ -417,11 +417,11 @@ namespace in {
  // This is simple enough we don't need to use the traversal system.
 struct TraverseGetLength {
     static
-    u32 start (const AnyRef& item, LocationRef loc) try {
+    u32 start (const AnyRef& item, RouteRef rt) try {
         u32 len;
         item.read(AccessCB(len, &visit));
         return len;
-    } catch (...) { rethrow_with_travloc(loc); }
+    } catch (...) { rethrow_with_travloc(rt); }
 
     static
     void visit (u32& len, AnyPtr item, bool) {
@@ -441,8 +441,8 @@ struct TraverseGetLength {
 
 } // in
 
-u32 item_get_length (const AnyRef& item, LocationRef loc) {
-    return TraverseGetLength::start(item, loc);
+u32 item_get_length (const AnyRef& item, RouteRef rt) {
+    return TraverseGetLength::start(item, rt);
 }
 
 ///// SET LENGTH
@@ -451,9 +451,9 @@ namespace in {
 
 struct TraverseSetLength {
     static
-    void start (const AnyRef& item, u32 len, LocationRef loc) try {
+    void start (const AnyRef& item, u32 len, RouteRef rt) try {
         item.read(AccessCB(len, &visit));
-    } catch (...) { rethrow_with_travloc(loc); }
+    } catch (...) { rethrow_with_travloc(rt); }
 
     NOINLINE static
     void visit (u32& len, AnyPtr item, bool) {
@@ -477,11 +477,11 @@ struct TraverseSetLength {
 
 } // in
 
-void item_set_length (const AnyRef& item, u32 len, LocationRef loc) {
+void item_set_length (const AnyRef& item, u32 len, RouteRef rt) {
     if (len > AnyArray<Tree>::max_size_) {
         raise_LengthOverflow(len);
     }
-    TraverseSetLength::start(item, len, loc);
+    TraverseSetLength::start(item, len, rt);
 }
 
 ///// ELEM
@@ -499,12 +499,12 @@ struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
 struct TraverseElem {
 
     NOINLINE static
-    AnyRef start (const AnyRef& item, u32 index, LocationRef loc) {
+    AnyRef start (const AnyRef& item, u32 index, RouteRef rt) {
         AnyRef r;
         GetElemTraversal<StartTraversal> child;
         child.index = index;
         child.r = &r;
-        trav_start<visit>(child, item, loc, AccessMode::Read);
+        trav_start<visit>(child, item, rt, AccessMode::Read);
         return r;
     }
 
@@ -588,16 +588,16 @@ struct TraverseElem {
 } // in
 
 AnyRef item_maybe_elem (
-    const AnyRef& item, u32 index, LocationRef loc
+    const AnyRef& item, u32 index, RouteRef rt
 ) {
-    return TraverseElem::start(item, index, loc);
+    return TraverseElem::start(item, index, rt);
 }
 
-AnyRef item_elem (const AnyRef& item, u32 index, LocationRef loc) {
-    AnyRef r = TraverseElem::start(item, index, loc);
+AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
+    AnyRef r = TraverseElem::start(item, index, rt);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
-        catch (...) { rethrow_with_travloc(loc); }
+        catch (...) { rethrow_with_travloc(rt); }
     }
     return r;
 }

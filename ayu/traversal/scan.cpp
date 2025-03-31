@@ -6,7 +6,7 @@
 #include "../reflection/descriptors.private.h"
 #include "../resources/universe.private.h"
 #include "compound.private.h"
-#include "location.h"
+#include "route.h"
 #include "traversal.private.h"
 
 namespace ayu {
@@ -16,7 +16,7 @@ struct ScanContext;
 
 struct ScanTraversalHead {
     ScanContext* context;
-    LocationRef loc;
+    RouteRef rt;
 };
 
 template <class T = Traversal>
@@ -31,8 +31,8 @@ struct TraverseScan {
 
     static
     bool start_pointers (
-        AnyPtr base_item, LocationRef base_loc,
-        CallbackRef<bool(AnyPtr, LocationRef)> cb
+        AnyPtr base_item, RouteRef base_rt,
+        CallbackRef<bool(AnyPtr, RouteRef)> cb
     ) {
         if (currently_scanning) {
             raise(e_ScanWhileScanning,
@@ -45,7 +45,7 @@ struct TraverseScan {
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
                     if (!trav.children_addressable) return;
                     bool done = trav.addressable &&
-                        cb(AnyPtr(trav.desc, trav.address), trav.loc);
+                        cb(AnyPtr(trav.desc, trav.address), trav.rt);
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
                 }
@@ -53,17 +53,17 @@ struct TraverseScan {
         };
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
-        child.loc = base_loc;
+        child.rt = base_rt;
         child.collapse_optional = false;
-        trav_start<visit>(child, base_item, base_loc, AccessMode::Read);
+        trav_start<visit>(child, base_item, base_rt, AccessMode::Read);
         currently_scanning = false;
         return ctx.done;
     }
 
     static
     bool start_references (
-        const AnyRef& base_item, LocationRef base_loc,
-        CallbackRef<bool(const AnyRef&, LocationRef)> cb
+        const AnyRef& base_item, RouteRef base_rt,
+        CallbackRef<bool(const AnyRef&, RouteRef)> cb
     ) {
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
@@ -71,7 +71,7 @@ struct TraverseScan {
                     bool done; {
                         AnyRef ref;
                         trav.to_reference(&ref);
-                        done = cb(ref, trav.loc);
+                        done = cb(ref, trav.rt);
                     }
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
@@ -80,9 +80,9 @@ struct TraverseScan {
         };
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
-        child.loc = base_loc;
+        child.rt = base_rt;
         child.collapse_optional = false;
-        trav_start<visit>(child, base_item, base_loc, AccessMode::Read);
+        trav_start<visit>(child, base_item, base_rt, AccessMode::Read);
         currently_scanning = false;
         return ctx.done;
     }
@@ -126,23 +126,23 @@ struct TraverseScan {
             auto attr = attrs->attr(i);
              // Not discarding invisible attrs for scan purposes.
             auto acr = attr->acr();
-            SharedLocation child_loc;
+            SharedRoute child_rt;
              // TODO: verify that the child item is object-like.
             ScanTraversal<AttrTraversal> child;
             child.context = trav.context;
             if (!!(acr->attr_flags & AttrFlags::Include)) {
                  // Behave as though all included attrs are included (collapse
-                 // the location segment for the included attr).
-                child.loc = trav.loc;
+                 // the route segment for the included attr).
+                child.rt = trav.rt;
             }
             else {
-                child_loc = SharedLocation(trav.loc, attr->key);
-                child.loc = child_loc;
+                child_rt = SharedRoute(trav.rt, attr->key);
+                child.rt = child_rt;
             }
             child.collapse_optional =
                 !!(acr->attr_flags & AttrFlags::CollapseOptional);
             trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
-            child_loc = {};
+            child_rt = {};
             if (child.context->done) [[unlikely]] return;
         }
     }
@@ -167,10 +167,10 @@ struct TraverseScan {
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.desc, key);
-            auto child_loc = SharedLocation(trav.loc, key);
+            auto child_rt = SharedRoute(trav.rt, key);
             ScanTraversal<ComputedAttrTraversal> child;
             child.context = trav.context;
-            child.loc = child_loc;
+            child.rt = child_rt;
             child.collapse_optional = false;
             trav_computed_attr<visit>(
                 child, trav, ref, f, key, AccessMode::Read
@@ -186,18 +186,18 @@ struct TraverseScan {
         for (u32 i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
-            SharedLocation child_loc;
+            SharedRoute child_rt;
             ScanTraversal<ElemTraversal> child;
             child.context = trav.context;
             if (trav.collapse_optional) [[unlikely]] {
                  // It'd be weird to specify collapse_optional when the child
                  // item uses non-computed elems, but it's valid.  TODO: assert
                  // that there aren't multiple elems?
-                child.loc = trav.loc;
+                child.rt = trav.rt;
             }
             else {
-                child_loc = SharedLocation(trav.loc, i);
-                child.loc = child_loc;
+                child_rt = SharedRoute(trav.rt, i);
+                child.rt = child_rt;
             }
             child.collapse_optional = false;
              // TODO: verify that the child item is array-like.
@@ -217,21 +217,21 @@ struct TraverseScan {
         for (u32 i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.desc, i);
-            SharedLocation child_loc;
+            SharedRoute child_rt;
             ScanTraversal<ComputedElemTraversal> child;
             child.context = trav.context;
             if (trav.collapse_optional) {
-                child.loc = trav.loc;
+                child.rt = trav.rt;
             }
             else {
-                child_loc = SharedLocation(trav.loc, i);
-                child.loc = child_loc;
+                child_rt = SharedRoute(trav.rt, i);
+                child.rt = child_rt;
             }
             child.collapse_optional = false;
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Read
             );
-            child_loc = {};
+            child_rt = {};
             if (child.context->done) [[unlikely]] return;
         }
     }
@@ -247,21 +247,21 @@ struct TraverseScan {
         auto f = trav.desc->contiguous_elems()->f;
         auto ptr = f(*trav.address);
         for (u32 i = 0; i < len; i++) {
-            SharedLocation child_loc;
+            SharedRoute child_rt;
             ScanTraversal<ContiguousElemTraversal> child;
             child.context = trav.context;
             child.collapse_optional = false;
             if (trav.collapse_optional) {
-                child.loc = trav.loc;
+                child.rt = trav.rt;
             }
             else {
-                child_loc = SharedLocation(trav.loc, i);
-                child.loc = child_loc;
+                child_rt = SharedRoute(trav.rt, i);
+                child.rt = child_rt;
             }
             trav_contiguous_elem<visit>(
                 child, trav, ptr, f, i, AccessMode::Read
             );
-            child_loc = {};
+            child_rt = {};
             if (child.context->done) [[unlikely]] return;
             ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
         }
@@ -271,7 +271,7 @@ struct TraverseScan {
     void use_delegate (const ScanTraversal<>& trav) {
         ScanTraversal<DelegateTraversal> child;
         child.context = trav.context;
-        child.loc = trav.loc;
+        child.rt = trav.rt;
         child.collapse_optional = trav.collapse_optional;
         expect(trav.desc->delegate_offset);
         auto acr = trav.desc->delegate_acr();
@@ -281,50 +281,50 @@ struct TraverseScan {
 
  // Store a typed AnyPtr instead of a Mu* because items at the same address
  // with different types are different items.
-static UniqueArray<Pair<AnyPtr, SharedLocation>> location_cache;
-static bool have_location_cache = false;
-static u32 keep_location_cache_count = 0;
+static UniqueArray<Pair<AnyPtr, SharedRoute>> route_cache;
+static bool have_route_cache = false;
+static u32 keep_route_cache_count = 0;
 
 NOINLINE // Noinline the slow path to make the callback leaner
-bool realloc_cache (auto& cache, AnyPtr ptr, LocationRef loc) {
+bool realloc_cache (auto& cache, AnyPtr ptr, RouteRef rt) {
     cache.reserve_plenty(cache.size() + 1);
-    expect(loc);
-    cache.emplace_back_expect_capacity(ptr, loc);
+    expect(rt);
+    cache.emplace_back_expect_capacity(ptr, rt);
     return false;
 }
 
-bool get_location_cache () {
-    if (!keep_location_cache_count) return false;
-    if (!have_location_cache) {
-        plog("Generate location cache begin");
-        location_cache.reserve(256);
-        scan_universe_pointers(CallbackRef<bool(AnyPtr, LocationRef)>(
-            location_cache, [](auto& cache, AnyPtr ptr, LocationRef loc)
+bool get_route_cache () {
+    if (!keep_route_cache_count) return false;
+    if (!have_route_cache) {
+        plog("Generate route cache begin");
+        route_cache.reserve(256);
+        scan_universe_pointers(CallbackRef<bool(AnyPtr, RouteRef)>(
+            route_cache, [](auto& cache, AnyPtr ptr, RouteRef rt)
         {
              // We're deliberately ignoring the case where the same typed
              // pointer turns up twice in the data tree.  If this happens, we're
              // probably dealing with some sort of shared_ptr-like situation,
-             // and in that case it shouldn't matter which location gets cached.
+             // and in that case it shouldn't matter which route gets cached.
              // It could theoretically be a problem if the pointers differ in
              // readonlyness, but that should probably never happen.
             expect(cache.owned());
             if (cache.size() < cache.capacity()) {
-                expect(loc);
-                cache.emplace_back_expect_capacity(ptr, loc);
+                expect(rt);
+                cache.emplace_back_expect_capacity(ptr, rt);
                 return false;
             }
-            else return realloc_cache(cache, ptr, loc);
+            else return realloc_cache(cache, ptr, rt);
         }));
-        plog("Generate location cache sort");
+        plog("Generate route cache sort");
          // Disable refcounting while sorting
-        auto uncounted = location_cache.reinterpret<Pair<AnyPtr, LocationRef>>();
+        auto uncounted = route_cache.reinterpret<Pair<AnyPtr, RouteRef>>();
         std::sort(uncounted.begin(), uncounted.end(),
             [](const auto& a, const auto& b){ return a.first < b.first; }
         );
-        have_location_cache = true;
-        plog("Generate location cache end");
+        have_route_cache = true;
+        plog("Generate route cache end");
 #ifdef AYU_PROFILE
-        fprintf(stderr, "Location cache entries: %ld\n", location_cache.size());
+        fprintf(stderr, "Route cache entries: %ld\n", route_cache.size());
 #endif
     }
     return true;
@@ -332,13 +332,13 @@ bool get_location_cache () {
 
  // This optimization interferes with condition move conversion in recent gcc
 [[gnu::optimize("-fno-thread-jumps")]]
-const Pair<AnyPtr, SharedLocation>* search_location_cache (AnyPtr item) {
-    if (!have_location_cache) return null;
+const Pair<AnyPtr, SharedRoute>* search_route_cache (AnyPtr item) {
+    if (!have_route_cache) return null;
     u32 bottom = 0;
-    u32 top = location_cache.size();
+    u32 top = route_cache.size();
     while (top != bottom) {
         u32 mid = (top + bottom) / 2;
-        auto& e = location_cache[mid];
+        auto& e = route_cache[mid];
         if (e.first.address == item.address) {
             usize aa = e.first.type.remove_readonly().data;
             usize bb = item.type.remove_readonly().data;
@@ -358,67 +358,67 @@ const Pair<AnyPtr, SharedLocation>* search_location_cache (AnyPtr item) {
 
 } using namespace in;
 
-KeepLocationCache::KeepLocationCache () noexcept {
-    keep_location_cache_count++;
+KeepRouteCache::KeepRouteCache () noexcept {
+    keep_route_cache_count++;
 }
-KeepLocationCache::~KeepLocationCache () {
-    if (!--keep_location_cache_count) {
-        have_location_cache = false;
-        location_cache.clear();
+KeepRouteCache::~KeepRouteCache () {
+    if (!--keep_route_cache_count) {
+        have_route_cache = false;
+        route_cache.clear();
     }
 }
 
 static PushLikelyRef* first_plr = null;
 
 PushLikelyRef::PushLikelyRef (
-    AnyRef r, MoveRef<SharedLocation> l
+    AnyRef r, MoveRef<SharedRoute> l
 ) noexcept :
-    reference(r), location(*move(l)), next(first_plr)
+    reference(r), route(*move(l)), next(first_plr)
 {
 #ifndef NDEBUG
-    require(reference_from_location(location) == reference);
+    require(reference_from_route(route) == reference);
 #endif
     first_plr = this;
 }
 PushLikelyRef::~PushLikelyRef () { first_plr = next; }
 
 bool scan_pointers (
-    AnyPtr base_item, LocationRef base_loc,
-    CallbackRef<bool(AnyPtr, LocationRef)> cb
+    AnyPtr base_item, RouteRef base_rt,
+    CallbackRef<bool(AnyPtr, RouteRef)> cb
 ) {
-    return TraverseScan::start_pointers(base_item, base_loc, cb);
+    return TraverseScan::start_pointers(base_item, base_rt, cb);
 }
 
 bool scan_references (
-    const AnyRef& base_item, LocationRef base_loc,
-    CallbackRef<bool(const AnyRef&, LocationRef)> cb
+    const AnyRef& base_item, RouteRef base_rt,
+    CallbackRef<bool(const AnyRef&, RouteRef)> cb
 ) {
-    return TraverseScan::start_references(base_item, base_loc, cb);
+    return TraverseScan::start_references(base_item, base_rt, cb);
 }
 
 bool scan_resource_pointers (
-    ResourceRef res, CallbackRef<bool(AnyPtr, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(AnyPtr, RouteRef)> cb
 ) {
     auto& value = res->get_value();
     if (!value) return false;
-    return scan_pointers(value.ptr(), SharedLocation(res), cb);
+    return scan_pointers(value.ptr(), SharedRoute(res), cb);
 }
 
 bool scan_resource_references (
-    ResourceRef res, CallbackRef<bool(const AnyRef&, LocationRef)> cb
+    ResourceRef res, CallbackRef<bool(const AnyRef&, RouteRef)> cb
 ) {
     auto& value = res->get_value();
     if (!value) return false;
-    return scan_references(value.ptr(), SharedLocation(res), cb);
+    return scan_references(value.ptr(), SharedRoute(res), cb);
 }
 
 bool scan_universe_pointers (
-    CallbackRef<bool(AnyPtr, LocationRef)> cb
+    CallbackRef<bool(AnyPtr, RouteRef)> cb
 ) {
-    if (auto loc = current_base_location()) {
-        if (auto ref = loc->reference()) {
+    if (auto rt = current_base_route()) {
+        if (auto ref = rt->reference()) {
             if (auto address = ref->address()) {
-               scan_pointers(address, loc, cb);
+               scan_pointers(address, rt, cb);
             }
         }
     }
@@ -429,16 +429,16 @@ bool scan_universe_pointers (
 }
 
 bool scan_universe_references (
-    CallbackRef<bool(const AnyRef&, LocationRef)> cb
+    CallbackRef<bool(const AnyRef&, RouteRef)> cb
 ) {
      // To allow serializing self-referential data structures that aren't inside
      // a Resource, first scan the currently-being-serialized item, but only if
      // it's not in a Resource (so we don't duplicate work).
      // TODO: Maybe don't do this if the traversal was started by a scan,
      // instead of by a serialize.
-    if (auto loc = current_base_location()) {
-        if (auto ref = loc->reference()) {
-            if (scan_references(*ref, loc, cb)) {
+    if (auto rt = current_base_route()) {
+        if (auto ref = rt->reference()) {
+            if (scan_references(*ref, rt, cb)) {
                 return true;
             }
         }
@@ -449,14 +449,14 @@ bool scan_universe_references (
     return false;
 }
 
-SharedLocation find_pointer (AnyPtr item) {
+SharedRoute find_pointer (AnyPtr item) {
     if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
-        if (AnyRef(item) == plr->reference) return plr->location;
+        if (AnyRef(item) == plr->reference) return plr->route;
     }
-    if (get_location_cache()) {
-        if (auto it = search_location_cache(item)) {
-             // Reject non-readonly pointer to readonly location
+    if (get_route_cache()) {
+        if (auto it = search_route_cache(item)) {
+             // Reject non-readonly pointer to readonly route
             if (it->first.readonly() && !item.readonly()) {
                 [[unlikely]] return {};
             }
@@ -465,13 +465,13 @@ SharedLocation find_pointer (AnyPtr item) {
         return {};
     }
     else {
-        SharedLocation r;
-        scan_universe_pointers([&r, item](AnyPtr p, LocationRef loc){
+        SharedRoute r;
+        scan_universe_pointers([&r, item](AnyPtr p, RouteRef rt){
             if (p == item) {
-                 // If we get a non-readonly pointer to a readonly location,
+                 // If we get a non-readonly pointer to a readonly route,
                  // reject it, but also don't keep searching.
                 if (p.readonly() && !item.readonly()) [[unlikely]] return true;
-                new (&r) SharedLocation(loc);
+                new (&r) SharedRoute(rt);
                 return true;
             }
             return false;
@@ -480,15 +480,15 @@ SharedLocation find_pointer (AnyPtr item) {
     }
 }
 
-SharedLocation find_reference (const AnyRef& item) {
+SharedRoute find_reference (const AnyRef& item) {
     if (!item) return {};
     for (auto plr = first_plr; plr; plr = plr->next) {
-        if (item == plr->reference) return plr->location;
+        if (item == plr->reference) return plr->route;
     }
-    if (get_location_cache()) {
+    if (get_route_cache()) {
         if (AnyPtr ptr = item.address()) {
              // Addressable! This will be fast.
-            if (auto it = search_location_cache(ptr)) {
+            if (auto it = search_route_cache(ptr)) {
                 if (it->first.readonly() && !item.readonly()) {
                     [[unlikely]] return {};
                 }
@@ -497,19 +497,19 @@ SharedLocation find_reference (const AnyRef& item) {
             return {};
         }
         else {
-             // Not addressable.  First find the host in the location cache.
-            if (auto it = search_location_cache(item.host)) {
+             // Not addressable.  First find the host in the route cache.
+            if (auto it = search_route_cache(item.host)) {
                  // Now search under that host for the actual reference.
-                SharedLocation r;
+                SharedRoute r;
                 scan_references(
                     AnyRef(item.host), it->second,
-                    [&r, &item](const AnyRef& ref, LocationRef loc)
+                    [&r, &item](const AnyRef& ref, RouteRef rt)
                 {
                     if (ref == item) {
                         if (ref.readonly() && !item.readonly()) {
                             [[unlikely]] return true;
                         }
-                        new (&r) SharedLocation(loc);
+                        new (&r) SharedRoute(rt);
                         return true;
                     }
                     else return false;
@@ -520,16 +520,16 @@ SharedLocation find_reference (const AnyRef& item) {
         }
     }
     else {
-         // We don't have the location cache!  Time to do a global search.
-        SharedLocation r;
+         // We don't have the route cache!  Time to do a global search.
+        SharedRoute r;
         scan_universe_references(
-            [&r, &item](const AnyRef& ref, LocationRef loc)
+            [&r, &item](const AnyRef& ref, RouteRef rt)
         {
             if (ref == item) {
                 if (ref.readonly() && !item.readonly()) {
                     [[unlikely]] return true;
                 }
-                new (&r) SharedLocation(loc);
+                new (&r) SharedRoute(rt);
                 return true;
             }
             else return false;
@@ -538,9 +538,9 @@ SharedLocation find_reference (const AnyRef& item) {
     }
 }
 
-SharedLocation pointer_to_location (AnyPtr item) {
+SharedRoute pointer_to_route (AnyPtr item) {
     if (!item) return {};
-    else if (SharedLocation r = find_pointer(item)) {
+    else if (SharedRoute r = find_pointer(item)) {
         return r;
     }
     else raise(e_ReferenceNotFound, cat(
@@ -548,9 +548,9 @@ SharedLocation pointer_to_location (AnyPtr item) {
     ));
 }
 
-SharedLocation reference_to_location (const AnyRef& item) {
+SharedRoute reference_to_route (const AnyRef& item) {
     if (!item) return {};
-    else if (SharedLocation r = find_reference(item)) {
+    else if (SharedRoute r = find_reference(item)) {
         return r;
     }
     else raise(e_ReferenceNotFound, cat(

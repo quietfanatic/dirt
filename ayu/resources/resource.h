@@ -14,7 +14,7 @@
  // TODO: see if we can take out these dependencies
 #include "../reflection/anyref.h"
 #include "../reflection/anyval.h"
-#include "../traversal/location.h"
+#include "../traversal/route.h"
 
 namespace ayu {
 
@@ -247,7 +247,7 @@ UniqueArray<SharedResource> loaded_resources () noexcept;
  //
  // Resources should not reference a tracked variable.  If they do, they will
  // become unserializable, because the tracked variable does not have an
- // associated Location.
+ // associated Route.
  //
  // You should not call track on an item that is in a resource, because
  // everything in resources is already tracked.  TODO: detect this and

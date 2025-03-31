@@ -8,7 +8,7 @@
 #include "../data/parse.h"
 #include "../data/tree.h"
 #include "../reflection/anyref.h"
-#include "location.h"
+#include "route.h"
 
 namespace ayu {
 
@@ -51,17 +51,17 @@ DECLARE_ENUM_BITWISE_OPERATORS(FromTreeOptions)
  // If none of those descriptors are applicable, a CannotFromTree exception will
  // be thrown.
 void item_from_tree (
-    const AnyRef&, const Tree&, LocationRef loc = {},
+    const AnyRef&, const Tree&, RouteRef rt = {},
     FromTreeOptions opts = {}
 );
  // Slight optimization for pointers (the usual case)
 template <class T>
 void item_from_tree (
-    T* item, const Tree& t, LocationRef loc = {},
+    T* item, const Tree& t, RouteRef rt = {},
     FromTreeOptions opts = {}
 ) {
     AnyRef ref = item;
-    item_from_tree(ref, t, loc, opts);
+    item_from_tree(ref, t, rt, opts);
     expect(!ref.acr);
 }
 
@@ -69,34 +69,34 @@ void item_from_tree (
  // item_from_string and item_from_file do not currently allow passing opts
 template <class T>
 void item_from_string (
-    T&& item, Str src, LocationRef loc = {}
+    T&& item, Str src, RouteRef rt = {}
 ) {
     auto tree = tree_from_string(src);
-    return item_from_tree(std::forward<T>(item), tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, rt);
 }
 
 template <class T>
 void item_from_file (
-    T&& item, AnyString filename, LocationRef loc = {}
+    T&& item, AnyString filename, RouteRef rt = {}
 ) {
     auto tree = tree_from_file(move(filename));
-    return item_from_tree(std::forward<T>(item), tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, rt);
 }
 
 template <class T>
 void item_from_list_string (
-    T&& item, Str src, LocationRef loc = {}
+    T&& item, Str src, RouteRef rt = {}
 ) {
     auto tree = Tree(tree_list_from_string(src));
-    return item_from_tree(std::forward<T>(item), tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, rt);
 }
 
 template <class T>
 void item_from_list_file (
-    T&& item, AnyString filename, LocationRef loc = {}
+    T&& item, AnyString filename, RouteRef rt = {}
 ) {
     auto tree = Tree(tree_list_from_file(move(filename)));
-    return item_from_tree(std::forward<T>(item), tree, loc);
+    return item_from_tree(std::forward<T>(item), tree, rt);
 }
 
  // Called item_from_tree on an item that doesn't have any way of doing the

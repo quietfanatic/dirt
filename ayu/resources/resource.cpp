@@ -50,8 +50,8 @@ static void raise_ResourceTypeRejected (
 }
 
 struct Break {
-    SharedLocation from;
-    SharedLocation to;
+    SharedRoute from;
+    SharedRoute to;
 };
 
 [[noreturn, gnu::cold]]
@@ -65,8 +65,8 @@ static void raise_would_break (
     for (usize i = 0; i < breaks->size(); ++i) {
         if (i > 5) break;
         mess = cat(move(mess),
-            "    ", location_to_iri(breaks[i].from).spec(),
-            " -> ", location_to_iri(breaks[i].to).spec(), '\n'
+            "    ", route_to_iri(breaks[i].from).spec(),
+            " -> ", route_to_iri(breaks[i].to).spec(), '\n'
         );
     }
     if (breaks->size() > 5) {
@@ -227,7 +227,7 @@ void load (ResourceRef res) {
         expect(!data->value);
         data->value = AnyVal(tnt.type);
         item_from_tree(
-            data->value.ptr(), tnt.tree, SharedLocation(res),
+            data->value.ptr(), tnt.tree, SharedRoute(res),
             FromTreeOptions::DelaySwizzle
         );
     }
@@ -255,7 +255,7 @@ void save (ResourceRef res, PrintOptions opts) {
         raise_ResourceStateInvalid("save", res);
     }
 
-    KeepLocationCache klc;
+    KeepRouteCache klc;
     if (!data->value) {
         raise_ResourceValueEmpty("save", res);
     }
@@ -264,10 +264,10 @@ void save (ResourceRef res, PrintOptions opts) {
         raise_ResourceTypeRejected("save", res, data->value.type);
     }
     auto filename = scheme->get_file(data->name);
-     // Do type and value separately, because the Location refers to the value,
+     // Do type and value separately, because the Route refers to the value,
      // not the whole AnyVal.
     auto type_tree = item_to_tree(&data->value.type);
-    auto value_tree = item_to_tree(data->value.ptr(), SharedLocation(res));
+    auto value_tree = item_to_tree(data->value.ptr(), SharedRoute(res));
     auto contents = tree_to_string(
         Tree::array(move(type_tree), move(value_tree)), opts
     );
@@ -389,13 +389,13 @@ void unload (Slice<ResourceRef> to_unload) {
      // Collect as much info as we can from one scan.  Unfortunately we can't
      // traverse the data graph directly, because finding out what Resource a
      // AnyRef points to requires a full scan itself.  We don't have to cache as
-     // much data as reference_to_location though; we only need to keep track of
-     // the Location's root, not the whole Location itself.
+     // much data as reference_to_route though; we only need to keep track of
+     // the Route's root, not the whole Route itself.
     auto refs_to_reses = std::unordered_map<AnyRef, ResourceData*>();
     for (auto& info : scan_info) {
          // TODO: Don't generate locations if we're throwing them away
         scan_resource_references(info.data,
-            [&refs_to_reses, &info](const AnyRef& item, LocationRef)
+            [&refs_to_reses, &info](const AnyRef& item, RouteRef)
         {
              // Don't need to enumerate references for resources in the root
              // set, because they start out reachable.
@@ -414,7 +414,7 @@ void unload (Slice<ResourceRef> to_unload) {
     for (auto& g : universe().tracked) {
         scan_references(
             g, {},
-            [&scan_info, refs_to_reses](const AnyRef& item, LocationRef)
+            [&scan_info, refs_to_reses](const AnyRef& item, RouteRef)
         {
             if (item.type() == Type::CppType<AnyRef>()) {
                 reach_reference(scan_info, refs_to_reses, item);
@@ -512,7 +512,7 @@ void reload (Slice<ResourceRef> reses) {
             data->value = AnyVal(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
-            item_from_tree(data->value.ptr(), tnt.tree, SharedLocation(res));
+            item_from_tree(data->value.ptr(), tnt.tree, SharedRoute(res));
             data->state = RS::Loaded;
         }
          // Verify step
@@ -531,12 +531,12 @@ void reload (Slice<ResourceRef> reses) {
          // If we're reloading everything, no need to do any scanning.
         if (others) {
              // First build mapping of old refs to locations
-            std::unordered_map<AnyRef, SharedLocation> old_refs;
+            std::unordered_map<AnyRef, SharedRoute> old_refs;
             for (auto& rov : rovs) {
                 scan_references(
-                    rov.old_value.ptr(), SharedLocation(rov.res),
-                    [&old_refs](const AnyRef& ref, LocationRef loc) {
-                        old_refs.emplace(ref, loc);
+                    rov.old_value.ptr(), SharedRoute(rov.res),
+                    [&old_refs](const AnyRef& ref, RouteRef rt) {
+                        old_refs.emplace(ref, rt);
                         return false;
                     }
                 );
@@ -544,7 +544,7 @@ void reload (Slice<ResourceRef> reses) {
              // Then build set of ref-refs to update.
             UniqueArray<Break> breaks;
             auto check_ref =
-                [&updates, &old_refs, &breaks](AnyRef ref_ref, LocationRef loc)
+                [&updates, &old_refs, &breaks](AnyRef ref_ref, RouteRef rt)
             {
                  // TODO: check for AnyPtr as well?
                 if (ref_ref.type() != Type::CppType<AnyRef>()) return false;
@@ -552,11 +552,11 @@ void reload (Slice<ResourceRef> reses) {
                 auto iter = old_refs.find(ref);
                 if (iter == old_refs.end()) return false;
                 try {
-                    AnyRef new_ref = reference_from_location(iter->second);
+                    AnyRef new_ref = reference_from_route(iter->second);
                     updates.emplace_back(move(ref_ref), move(new_ref));
                 }
                 catch (std::exception&) {
-                    breaks.emplace_back(loc, iter->second);
+                    breaks.emplace_back(rt, iter->second);
                 }
                 return false;
             };
@@ -762,30 +762,30 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         tree_from_file(resource_filename(output->name()));
     }, "Can't open file after calling remove_source");
     doesnt_throw([&]{ remove_source(output->name()); }, "Can call remove_source twice");
-    SharedLocation loc;
+    SharedRoute rt;
     doesnt_throw([&]{
-        item_from_string(&loc, cat('"', input->name().spec(), "#/bar+1\""));
-    }, "Can read location from tree");
+        item_from_string(&rt, cat('"', input->name().spec(), "#/bar+1\""));
+    }, "Can read route from tree");
     AnyRef ref;
     doesnt_throw([&]{
-        ref = reference_from_location(loc);
-    }, "reference_from_location");
+        ref = reference_from_route(rt);
+    }, "reference_from_route");
     doesnt_throw([&]{
-        is(ref.get_as<std::string>(), "qux", "reference_from_location got correct item");
+        is(ref.get_as<std::string>(), "qux", "reference_from_route got correct item");
     });
     doc = &output->value().as<ayu::Document>();
     ref = output["asdf"][1].address_as<i32>();
     doesnt_throw([&]{
-        loc = reference_to_location(ref);
+        rt = reference_to_route(ref);
     });
-    is(item_to_tree(&loc), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "reference_to_location works");
+    is(item_to_tree(&rt), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "reference_to_route works");
     doc->new_<AnyRef>(output["bar"][1]);
     doesnt_throw([&]{ save(output); }, "save with reference");
     doc->new_<i32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
     is(tree_from_file(resource_filename(output->name())), tree_from_string(
         "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _0:[ayu::AnyRef #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
-    ), "File was saved with correct reference as location");
+    ), "File was saved with correct reference as route");
     throws_code<e_OpenFailed>([&]{
         load(badinput);
     }, "Can't load file with incorrect reference in it");

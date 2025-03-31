@@ -2,7 +2,7 @@
 // std::vector, include the .h file.
 
 #include "../../iri/iri.h"
-#include "../traversal/location.h" // current_base_iri
+#include "../traversal/route.h" // current_base_iri
 #include "describe-base.h"
 
 using namespace ayu;

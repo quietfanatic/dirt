@@ -8,13 +8,13 @@
 #include "../data/print.h"
 #include "../data/tree.h"
 #include "../reflection/anyref.h"
-#include "location.h"
+#include "route.h"
 
 namespace ayu {
 
- // Convert an item to a tree.  The optional location should match the
- // reference's location if provided.  One of the below AYU_DESCRIBE descriptors
- // will be used for this, with earlier ones preferred over later ones:
+ // Convert an item to a tree.  The optional route should match the reference's
+ // route if provided.  One of the below AYU_DESCRIBE descriptors will be used
+ // for this, with earlier ones preferred over later ones:
  //   1. to_tree()
  //   2. values() if any of them match the item
  //   3. whichever of these was declared first in the description:
@@ -25,12 +25,12 @@ namespace ayu {
  //   4. delegate()
  // If none of the above are applicable, a CannotToTree exception will be
  // thrown.
-Tree item_to_tree (const AnyRef&, LocationRef loc = {});
+Tree item_to_tree (const AnyRef&, RouteRef rt = {});
  // Slight optimization for pointers (the usual case)
 template <class T>
-Tree item_to_tree (T* item, LocationRef loc = {}) {
+Tree item_to_tree (T* item, RouteRef rt = {}) {
     AnyRef ref = item;
-    Tree r = item_to_tree(ref, loc);
+    Tree r = item_to_tree(ref, rt);
      // This is the optimization
     expect(!ref.acr);
     return r;
@@ -51,17 +51,17 @@ struct DiagnosticSerialization {
 template <class T>
 UniqueString item_to_string (
     T&& item, PrintOptions opts = {},
-    LocationRef loc = {}
+    RouteRef rt = {}
 ) {
-    Tree t = item_to_tree(std::forward<T>(item), loc);
+    Tree t = item_to_tree(std::forward<T>(item), rt);
     return tree_to_string(t, opts);
 }
 template <class T>
 void item_to_file (
     T&& item, AnyString filename,
-    PrintOptions opts = {}, LocationRef loc = {}
+    PrintOptions opts = {}, RouteRef rt = {}
 ) {
-    Tree t = item_to_tree(std::forward<T>(item), loc);
+    Tree t = item_to_tree(std::forward<T>(item), rt);
     return tree_to_file(t, move(filename), opts);
 }
 

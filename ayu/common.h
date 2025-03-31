@@ -28,10 +28,10 @@ struct Resource;
 struct SharedResource;
 struct ResourceRef;
 
- // traversal/location.h
-struct Location;
-struct SharedLocation;
-struct LocationRef;
+ // traversal/refpath.h
+struct Route;
+struct SharedRoute;
+struct RouteRef;
 
  // reflection/type.h
 struct Type;

@@ -23,7 +23,7 @@ inline void plog (const char*) { }
  // Predeclare some private classes
 struct DocumentData;
 struct Description;
-void delete_Location (const Location*) noexcept;
+void delete_Route (const Route*) noexcept;
 void delete_Resource_if_unloaded (Resource*) noexcept;
 
  // Intrusive reference counting
