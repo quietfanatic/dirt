@@ -26,26 +26,23 @@ struct Transaction {
     Transaction () { depth++; }
     ~Transaction () { if (!--depth) finish(); }
 
-    static auto& committers () {
-        static UniqueArray<std::unique_ptr<Committer>> r;
-        return r;
-    }
+    static UniqueArray<std::unique_ptr<Committer>> committers;
 
     static void add_committer (Committer*&& co) {
-        committers().emplace_back(move(co));
+        committers.emplace_back(move(co));
     }
 
      // Manually commit.  All current committers will be cleared, but the
      // current transaction will still be active until the last Transaction
      // object is destroyed.  You probably don't want to call this ever.
     static void commit () {
-        committers().consume([](auto&& co) { co->commit(); });
+        committers.consume([](auto&& co) { co->commit(); });
     }
      // Manually rollback.  You probably don't want to call this unless you're
      // about to end the Transaction and know it should fail, but don't want to
      // incur the overhead of throwing an exception.
     static void rollback () {
-        committers().consume_reverse([](auto&& co) { co->rollback(); });
+        committers.consume_reverse([](auto&& co) { co->rollback(); });
     }
 
      // Manually either commit or rollback, depending on whether there's an
@@ -58,5 +55,7 @@ struct Transaction {
 };
 template <class T>
 u32 Transaction<T>::depth = 0;
+template <class T>
+UniqueArray<std::unique_ptr<Committer>> Transaction<T>::committers;
 
 } // uni

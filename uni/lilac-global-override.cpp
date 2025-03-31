@@ -27,9 +27,10 @@ ALWAYS_INLINE void operator delete[] (void* p, const std::nothrow_t&) noexcept {
     uni::lilac::deallocate_unknown_size(p);
 }
  // Compiler warns if you override unsized delete without overriding sized
- // delete as well.  However, depending on the design of both the application
- // and the libraries it uses, the passed size may be incorrect, so it should be
- // ignored.
+ // delete as well.  However, because the standard library ignores the size,
+ // some applications and libraries pass an incorrect size, so sadly it must be
+ // ignored.  (This most commonly happens when deleting a derived object through
+ // a pointer to base).
 ALWAYS_INLINE void operator delete (void* p, uni::usize) noexcept {
     uni::lilac::deallocate_unknown_size(p);
 }
