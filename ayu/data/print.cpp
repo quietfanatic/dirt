@@ -434,17 +434,17 @@ static void validate_print_options (PrintOptions opts) {
 
 } using namespace in;
 
-UniqueString tree_to_string (TreeRef t, PrintOptions opts) {
+UniqueString tree_to_string (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & O::Pretty)) opts |= O::Compact;
     Printer printer (opts);
-    return printer.print(*t);
+    return printer.print(t);
 }
 
-void tree_to_file (TreeRef t, AnyString filename, PrintOptions opts) {
+void tree_to_file (const Tree& t, AnyString filename, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & O::Compact)) opts |= O::Pretty;
-    auto output = Printer(opts).print(*t);
+    auto output = Printer(opts).print(t);
     string_to_file(output, move(filename));
 }
 

@@ -3,12 +3,12 @@ namespace ayu {
 namespace in {
 
 NOINLINE
-void delete_Tree_data (TreeRef) noexcept;
+void delete_Tree_data (Tree&) noexcept;
 
 [[noreturn]]
-void raise_TreeWrongForm (TreeRef, Form);
+void raise_TreeWrongForm (const Tree&, Form);
 [[noreturn]]
-void raise_TreeCantRepresent (StaticString, TreeRef);
+void raise_TreeCantRepresent (StaticString, const Tree&);
 
 } // in
 

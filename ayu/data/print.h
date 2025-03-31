@@ -20,12 +20,12 @@ enum class PrintOptions {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(PrintOptions)
 
-UniqueString tree_to_string (TreeRef, PrintOptions opts = {});
+UniqueString tree_to_string (const Tree&, PrintOptions opts = {});
  // TODO: tree_to_list_string
 
 constexpr ErrorCode e_PrintOptionsInvalid = "ayu::e_PrintOptionsInvalid";
 
-void tree_to_file (TreeRef, AnyString filename, PrintOptions opts = {});
+void tree_to_file (const Tree&, AnyString filename, PrintOptions opts = {});
 
 } // namespace ayu
 

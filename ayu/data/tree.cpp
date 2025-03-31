@@ -7,47 +7,47 @@ namespace ayu {
 namespace in {
 
 NOINLINE
-void delete_Tree_data (TreeRef t) noexcept {
+void delete_Tree_data (Tree& t) noexcept {
      // Manually delete all the elements.  We can't call UniqueArray<*>'s
      // destructor because we've already run the reference count down to 0, and
      // it debug-asserts that the reference count is 1.
-    expect(t->meta & 1);
-    switch (t->form) {
+    expect(t.meta & 1);
+    switch (t.form) {
         case Form::String: {
-            SharableBuffer<const char>::deallocate(t->data.as_char_ptr);
+            SharableBuffer<const char>::deallocate(t.data.as_char_ptr);
             break;
         }
         case Form::Array: {
-            for (auto& e : Slice<Tree>(*t)) {
+            for (auto& e : Slice<Tree>(t)) {
                 e.~Tree();
             }
-            SharableBuffer<const Tree>::deallocate(t->data.as_array_ptr);
+            SharableBuffer<const Tree>::deallocate(t.data.as_array_ptr);
             break;
         }
         case Form::Object: {
-            for (auto& p : Slice<TreePair>(*t)) {
+            for (auto& p : Slice<TreePair>(t)) {
                 p.~TreePair();
             }
-            SharableBuffer<const TreePair>::deallocate(t->data.as_object_ptr);
+            SharableBuffer<const TreePair>::deallocate(t.data.as_object_ptr);
             break;
         }
         case Form::Error: {
-            t->data.as_error_ptr->~exception_ptr();
-            SharableBuffer<const std::exception_ptr>::deallocate(t->data.as_error_ptr);
+            t.data.as_error_ptr->~exception_ptr();
+            SharableBuffer<const std::exception_ptr>::deallocate(t.data.as_error_ptr);
             break;
         }
         default: never();
     }
 }
 
-void raise_TreeWrongForm (TreeRef t, Form form) {
-    if (t->form == Form::Error) std::rethrow_exception(std::exception_ptr(*t));
+void raise_TreeWrongForm (const Tree& t, Form form) {
+    if (t.form == Form::Error) std::rethrow_exception(std::exception_ptr(t));
     else raise(e_TreeWrongForm, cat(
-        "Expected ", item_to_string(&form), " but got ", item_to_string(&t->form)
+        "Expected ", item_to_string(&form), " but got ", item_to_string(&t.form)
     ));
 }
 
-void raise_TreeCantRepresent (StaticString type_name, TreeRef t) {
+void raise_TreeCantRepresent (StaticString type_name, const Tree& t) {
     raise(e_TreeCantRepresent, cat(
         "Can't represent type ", type_name, " with value ", tree_to_string(t)
     ));

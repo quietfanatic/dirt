@@ -8,7 +8,6 @@
 #include "../uni/assertions.h"
 #include "../uni/callback-ref.h"
 #include "../uni/common.h"
-#include "../uni/copy-ref.h"
 #include "../uni/errors.h"
 #include "../uni/strings.h"
 
@@ -47,7 +46,6 @@ struct AnyVal;
 
  // data/tree.h
 struct Tree;
-using TreeRef = CRef<Tree, 16>;
  // Since GCC 12.0, std::pair has extra concept shenanigans that cause weird
  // complicated errors when used with ArrayInterface, so we're throwing it in
  // the trash.

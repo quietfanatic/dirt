@@ -171,8 +171,6 @@ struct Tree {
         const std::exception_ptr* as_error_ptr;
     } data;
 };
- // Make sure earlier CRef<Tree, 16> alias is correct
-static_assert(sizeof(Tree) == sizeof(TreeRef));
 
  // Test for equality.  Trees of different forms are considered unequal.
  //  - Unlike float and double, Tree(NAN) == Tree(NAN).

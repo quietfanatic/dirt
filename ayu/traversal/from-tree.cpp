@@ -12,8 +12,6 @@ namespace in {
 struct SwizzleOp {
     SwizzleFunc<Mu>* f;
     AnyRef item;
-     // This can't be TreeRef because the referenced Tree could go away after a
-     // nested from_tree is called with DelaySwizzle
     Tree tree;
     SharedRoute rt;
 

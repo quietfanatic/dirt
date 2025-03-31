@@ -56,22 +56,23 @@ struct Break {
 
 [[noreturn, gnu::cold]]
 static void raise_would_break (
-    ErrorCode code, CopyRef<UniqueArray<Break>> breaks
+    ErrorCode code, UniqueArray<Break> breaks
 ) {
     UniqueString mess = cat(
         (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
-        "loading resources would break ", breaks->size(), " reference(s): \n"
+        "loading resources would break ", breaks.size(), " reference(s): \n"
     );
-    for (usize i = 0; i < breaks->size(); ++i) {
+    for (usize i = 0; i < breaks.size(); ++i) {
         if (i > 5) break;
         mess = cat(move(mess),
             "    ", route_to_iri(breaks[i].from).spec(),
             " -> ", route_to_iri(breaks[i].to).spec(), '\n'
         );
     }
-    if (breaks->size() > 5) {
-        mess = cat(move(mess), "    ...and ", breaks->size() - 5, " others.\n");
+    if (breaks.size() > 5) {
+        mess = cat(move(mess), "    ...and ", breaks.size() - 5, " others.\n");
     }
+    breaks = {};
     raise(code, move(mess));
 }
 
