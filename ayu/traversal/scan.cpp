@@ -330,7 +330,7 @@ bool get_route_cache () {
     return true;
 }
 
- // This optimization interferes with condition move conversion in recent gcc
+ // This optimization interferes with conditional move conversion in recent gcc
 [[gnu::optimize("-fno-thread-jumps")]]
 const Pair<AnyPtr, SharedRoute>* search_route_cache (AnyPtr item) {
     if (!have_route_cache) return null;

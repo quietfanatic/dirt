@@ -34,7 +34,7 @@ struct TraverseToTree {
         Tree dest;
         ToTreeTraversal<StartTraversal> child;
         child.dest = &dest;
-        trav_start<visit>(
+        trav_start<visit, false>(
             child, item, rt, AccessMode::Read
         );
         plog("to_tree end");
@@ -128,7 +128,7 @@ struct TraverseToTree {
             child.dest = &object.emplace_back_expect_capacity(
                 attr->key, Tree()
             ).second;
-            trav_attr<visit>(
+            trav_attr<visit, false>(
                 child, trav, attr->acr(), attr->key, AccessMode::Read
             );
             child.dest->flags |= child.acr->tree_flags();
@@ -168,6 +168,7 @@ struct TraverseToTree {
                     for (auto& pair : AnyArray<TreePair>(move(value))) {
                         new_object.emplace_back_expect_capacity(pair);
                     }
+                    continue;
                 }
                 else if (!!(flags & AttrFlags::CollapseOptional)) {
                     if (value.form != Form::Array || (value.meta >> 1) > 1) {
@@ -177,25 +178,18 @@ struct TraverseToTree {
                         );
                     }
                     if (auto a = AnyArray<Tree>(move(value))) {
-                        new_object.emplace_back_expect_capacity(
-                            move(key), a[0]
-                        );
+                        new (&value) Tree(move(a[0]));
+                        SharableBuffer<Tree>::deallocate(a.impl.data);
+                        a.impl = {};
                     }
-                    else { } // Drop the attr
+                    else continue; // Drop the attr
                 }
                 else if (const Tree* def = attr->default_value()) {
-                    if (value != *def) {
-                        new_object.emplace_back_expect_capacity(
-                            move(key), move(value)
-                        );
-                    }
-                    else { } // Drop the attr
+                    if (value == *def) continue; // Drop the attr
                 }
-                else {
-                    new_object.emplace_back_expect_capacity(
-                        move(key), move(value)
-                    );
-                }
+                new_object.emplace_back_expect_capacity(
+                    move(key), move(value)
+                );
             }
              // Old object's contents should be fully consumed so skip the
              // destructor loop (but verify in debug mode).
@@ -239,7 +233,7 @@ struct TraverseToTree {
 
             ToTreeTraversal<ComputedAttrTraversal> child;
             child.dest = &value;
-            trav_computed_attr<visit>(
+            trav_computed_attr<visit, false>(
                 child, trav, ref, f, key, AccessMode::Read
             );
         }
@@ -256,7 +250,7 @@ struct TraverseToTree {
             auto acr = elems->elem(i)->acr();
             ToTreeTraversal<ElemTraversal> child;
             child.dest = &array.emplace_back_expect_capacity(Tree());
-            trav_elem<visit>(
+            trav_elem<visit, false>(
                 child, trav, acr, i, AccessMode::Read
             );
             child.dest->flags |= child.acr->tree_flags();
@@ -278,7 +272,7 @@ struct TraverseToTree {
             if (!ref) raise_ElemNotFound(trav.desc, i);
             ToTreeTraversal<ComputedElemTraversal> child;
             child.dest = &array[i];
-            trav_computed_elem<visit>(
+            trav_computed_elem<visit, false>(
                 child, trav, ref, f, i, AccessMode::Read
             );
         }
@@ -301,7 +295,7 @@ struct TraverseToTree {
             for (u32 i = 0; i < array.size(); i++) {
                 ToTreeTraversal<ContiguousElemTraversal> child;
                 child.dest = &array[i];
-                trav_contiguous_elem<visit>(
+                trav_contiguous_elem<visit, false>(
                     child, trav, ptr, f, i, AccessMode::Read
                 );
                 ptr.address = (Mu*)((char*)child.address + child.desc->cpp_size);
@@ -314,7 +308,7 @@ struct TraverseToTree {
     void use_delegate (const ToTreeTraversal<>& trav, const Accessor* acr) {
         ToTreeTraversal<DelegateTraversal> child;
         child.dest = trav.dest;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit, false>(child, trav, acr, AccessMode::Read);
         child.dest->flags |= child.acr->tree_flags();
     }
 

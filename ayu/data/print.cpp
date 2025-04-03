@@ -359,7 +359,7 @@ struct Printer {
                 }
                 p = print_string(p, attr.first, null);
                 p = pchar(p, ':');
-                p = print_tree(p, attr.second, ind + expand);
+                p = print_tree(p, attr.second, ind);
             }
         }
         return pchar(p, '}');
