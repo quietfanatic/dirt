@@ -4,7 +4,7 @@
  //     - a name, which is an IRI that identifies the source
  //     - a value, which is an AnyVal
  //     - a state, which is usually RS::Unloaded or RS::Loaded.
- // Resources can be loaded, reloaded, unloaded, and saved.
+ // You can load, save, unload, and reload resources.
 
 #pragma once
 

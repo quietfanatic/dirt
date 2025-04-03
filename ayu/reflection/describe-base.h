@@ -27,10 +27,10 @@
  // documented later in this file under various sections.  Some of the
  // descriptors take accessors, which define how to read and write a particular
  // property of an item.  All functions given to descriptors and accessors
- // should return the same results for the same items, or undesired behavior may
- // occur.
+ // should be idempotent, returning the same results whenever they are called,
+ // or else undesired behavior may occur.
  //
- // It is possible to declare template ayu descriptions, though it is
+ // It is possible to declare descriptions for template classes, though it is
  // necessarily more complicated.  It requires you to manually specify a
  // function to generate the type name, and the descriptor and accessor
  // functions must be preceded with desc:: because of C++'s name lookup rules in
@@ -161,10 +161,14 @@ struct _AYU_DescribeBase {
      // Specify flags for this type specifically.  Currently there's only one
      // supported flag:
      //   - no_refs_to_children: Forbid other items from referencing child items
-     //     of this type.  This allows the reference-to-location system to skip
-     //     scanning this item.
-     // supported is no_refs_to_children, which forbids other items from
-     // referencing child items of this item.  This
+     //     of this type.  This item itself can still be referenced.  This
+     //     allows the reference-to-location scanning system to save time by
+     //     skipping this item's children.
+     //   - no_refs_from_children: Forbid this item's children from containing
+     //     references.  This is not currently enforced, and is for
+     //     documentation purposes only.  There are some types which will cause
+     //     confusing breakages when they contain references--most notably,
+     //     std::set and std::unordered_set.
     static constexpr auto flags (in::TypeFlags);
 
     ///// DESCRIPTORS FOR ENUM-LIKE TYPES
@@ -758,6 +762,7 @@ struct _AYU_DescribeBase {
     ///// FLAGS AND INTERNAL STUFF
 
     static constexpr in::TypeFlags no_refs_to_children = in::TypeFlags::NoRefsToChildren;
+    static constexpr in::TypeFlags no_refs_from_children = in::TypeFlags::NoRefsFromChildren;
     static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
     static constexpr in::AttrFlags include = in::AttrFlags::Include;
     static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;

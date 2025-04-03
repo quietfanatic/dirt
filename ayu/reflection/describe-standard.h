@@ -18,6 +18,7 @@
 
 #include "../common.h"
 #include "../traversal/compound.h"
+#include "../traversal/to-tree.h"
 #include "../traversal/from-tree.h"
 #include "anyref.h"
 #include "describe-base.h"
@@ -205,6 +206,7 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::map<std::string, T>),
+    desc::flags(desc::no_refs_to_children | desc::no_refs_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::map<std::string, ", ayu::Type::CppType<T>()
@@ -235,67 +237,70 @@ AYU_DESCRIBE_TEMPLATE(
     })
 )
 
- // std::unordered_set
+ // std::unordered_set.  This container does not support references either to or
+ // from any of its children, because of the way that its structure is
+ // determines by its content.  In addition, it requires that elements are
+ // move-constructible, since there is no way to construct them in-place.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unordered_set<T>),
+    desc::flags(desc::no_refs_to_children | desc::no_refs_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::unordered_set<", ayu::Type::CppType<T>()
         );
     }),
-     // This does an extra copy of all the elements, but it's hard to avoid
-     // doing that.
-    desc::delegate(desc::template mixed_funcs<uni::UniqueArray<T>>(
-        [](const std::unordered_set<T>& v) {
-            uni::UniqueArray<T> r; r.reserve(v.size());
-            for (const auto& e : v) {
-                r.emplace_back_expect_capacity(e);
-            }
-            return r;
-        },
-        [](std::unordered_set<T>& v, const uni::UniqueArray<T>& a){
-            v.clear();
-            for (const auto& e : a) {
-                auto [iter, did] = v.emplace(e);
-                if (!did) ayu::raise(ayu::e_General, uni::cat(
-                    "Duplicate element given for ",
-                    ayu::Type::CppType<std::unordered_set<T>>().name()
-                ));
-            }
+    desc::to_tree([](const std::unordered_set<T>& v){
+        uni::UniqueArray<ayu::Tree> a;
+        for (auto& m : v) a.emplace_back(ayu::item_to_tree(&m));
+        return ayu::Tree(a);
+    }),
+    desc::from_tree([](std::unordered_set<T>& v, const ayu::Tree& t){
+        auto a = uni::Slice<ayu::Tree>(t);
+        v.clear();
+        for (auto& e : a) {
+            T tmp;
+            ayu::item_from_tree(&tmp, e);
+            auto [iter, inserted] = v.emplace(std::move(tmp));
+            if (!inserted) ayu::raise(ayu::e_General, uni::cat(
+                "Duplicate element given for ",
+                ayu::Type::CppType<std::unordered_set<T>>().name()
+            ));
         }
-    ))
+    })
 )
 
- // std::set.  Same as std::unordered_set above, but elements will be serialized
- // in sorted order.
+ // std::set.  This container does not support references either to or from any
+ // of its children, because of the way that its structure is determines by its
+ // content.  In addition, it requires that elements are move-constructible,
+ // since there is no way to construct them in-place.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::set<T>),
+    desc::flags(desc::no_refs_to_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::set<", ayu::Type::CppType<T>()
         );
     }),
-    desc::delegate(desc::template mixed_funcs<uni::UniqueArray<T>>(
-        [](const std::set<T>& v) {
-            uni::UniqueArray<T> r; r.reserve(v.size());
-            for (const auto& e : v) {
-                r.emplace_back_expect_capacity(e);
-            }
-            return r;
-        },
-        [](std::set<T>& v, const uni::UniqueArray<T>& a){
-            v.clear();
-            for (const auto& e : a) {
-                auto [iter, did] = v.emplace(e);
-                if (!did) ayu::raise(ayu::e_General, uni::cat(
-                    "Duplicate element given for ",
-                    ayu::Type::CppType<std::set<T>>().name()
-                ));
-            }
+    desc::to_tree([](const std::set<T>& v){
+        uni::UniqueArray<ayu::Tree> a;
+        for (auto& m : v) a.emplace_back(ayu::item_to_tree(&m));
+        return ayu::Tree(a);
+    }),
+    desc::from_tree([](std::set<T>& v, const ayu::Tree& t){
+        auto a = uni::Slice<ayu::Tree>(t);
+        v.clear();
+        for (auto& e : a) {
+            T tmp;
+            ayu::item_from_tree(&tmp, e);
+            auto [iter, inserted] = v.emplace(std::move(tmp));
+            if (!inserted) ayu::raise(ayu::e_General, uni::cat(
+                "Duplicate element given for ",
+                ayu::Type::CppType<std::set<T>>().name()
+            ));
         }
-    ))
+    })
 )
 
  // Raw pointers

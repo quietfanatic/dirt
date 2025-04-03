@@ -45,6 +45,7 @@ struct Traversal {
      // Attr containing this item has collapse_optional set.  This is only used
      // by ScanTraversal; it's just here to save space.
     bool collapse_optional;
+     // Type information but without the readonly bit.
     const DescriptionPrivate* desc;
      // This address is not guaranteed to be permanently valid unless
      // addressable is set.

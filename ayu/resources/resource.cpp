@@ -255,8 +255,6 @@ void save (ResourceRef res, PrintOptions opts) {
     if (data->state != RS::Loaded) {
         raise_ResourceStateInvalid("save", res);
     }
-
-    KeepRouteCache klc;
     if (!data->value) {
         raise_ResourceValueEmpty("save", res);
     }
@@ -267,10 +265,11 @@ void save (ResourceRef res, PrintOptions opts) {
     auto filename = scheme->get_file(data->name);
      // Do type and value separately, because the Route refers to the value,
      // not the whole AnyVal.
-    auto type_tree = item_to_tree(&data->value.type);
+    KeepRouteCache klc;
+    auto type = data->value.type.name();
     auto value_tree = item_to_tree(data->value.ptr(), SharedRoute(res));
     auto contents = tree_to_string(
-        Tree::array(move(type_tree), move(value_tree)), opts
+        Tree::array(Tree(type), move(value_tree)), opts
     );
 
     if (ResourceTransaction::depth) {
@@ -323,6 +322,7 @@ struct ResourceScanInfo {
     ResourceData* data;
     UniqueArray<AnyRef> outgoing_refs;
 };
+ // TODO: replace with binary search
 using RefsToReses = std::unordered_map<AnyRef, ResourceData*>;
 
 static void reach_reference (
