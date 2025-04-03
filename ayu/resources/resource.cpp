@@ -389,12 +389,12 @@ void unload (Slice<ResourceRef> to_unload) {
     }
      // Collect as much info as we can from one scan.  Unfortunately we can't
      // traverse the data graph directly, because finding out what Resource a
-     // AnyRef points to requires a full scan itself.  We don't have to cache as
-     // much data as reference_to_route though; we only need to keep track of
+     // reference points to requires a full scan itself.  We don't have to cache
+     // as much data as reference_to_route though; we only need to keep track of
      // the Route's root, not the whole Route itself.
     auto refs_to_reses = std::unordered_map<AnyRef, ResourceData*>();
     for (auto& info : scan_info) {
-         // TODO: Don't generate locations if we're throwing them away
+         // TODO: Don't generate routes if we're throwing them away
         scan_resource_references(info.data,
             [&refs_to_reses, &info](const AnyRef& item, RouteRef)
         {

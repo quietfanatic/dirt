@@ -328,7 +328,7 @@ AYU_DESCRIBE_TEMPLATE(
             });
         }
         else {
-            return desc::delegate(desc::template assignable<ayu::AnyPtr>());
+            return desc::delegate(desc::template assignable<ayu::AnyRef>());
         }
     }()
 )
