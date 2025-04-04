@@ -272,26 +272,24 @@ void save (ResourceRef res, PrintOptions opts) {
         Tree::array(Tree(type), move(value_tree)), opts
     );
 
+    auto outfile = File(filename, "wb");
     if (ResourceTransaction::depth) {
-        FILE* file = open_file(filename, "wb");
         struct SaveCommitter : Committer {
             AnyString contents;
-            FILE* file;
-            AnyString filename;
-            SaveCommitter (AnyString&& c, FILE* f, AnyString&& n) :
-                contents(move(c)), file(f), filename(move(n))
+            File outfile;
+            SaveCommitter (AnyString&& c, File&& f) :
+                contents(move(c)), outfile(move(f))
             { }
             void commit () noexcept override {
-                string_to_file(contents, file, filename);
-                close_file(file, filename);
+                outfile.write(contents);
             }
         };
         ResourceTransaction::add_committer(
-            new SaveCommitter(move(contents), file, move(filename))
+            new SaveCommitter(move(contents), move(outfile))
         );
     }
     else {
-        string_to_file(contents, filename);
+        outfile.write(contents);
     }
 }
 

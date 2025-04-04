@@ -11,6 +11,7 @@ AYU_DESCRIBE(glow::RGBA8,
     }),
     from_tree([](RGBA8& v, const ayu::Tree& t){
         switch (t.form) {
+             // TODO: convert from #rrggbbaa string
             case ayu::Form::Number: v = RGBA8(u32(t)); break;
             case ayu::Form::Array: {
                 auto a = Slice<ayu::Tree>(t);
