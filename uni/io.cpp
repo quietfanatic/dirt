@@ -23,44 +23,43 @@ void raise_io_error (ErrorCode code, StaticString details, Str filename, int err
 
 ///// FILE IO
 
-File::File (AnyString path, const char* mode) :
-    ansi(fopen_utf8(path.c_str(), mode)),
-    path(move(path))
+File::File (AnyString p, const char* mode) :
+    File(try_open(move(p), mode))
 {
-    expect(mode && mode[0]);
-    if (!ansi) {
-        raise_io_error(e_OpenFailed, "Failed to open ", path, errno);
-    }
+    if (!handle) raise_open_failed();
 }
 
-void File::close_internal (FILE* ansi, Str path) {
-    int res = fclose(ansi);
-    if (res != 0) [[unlikely]] {
-        warn_utf8(cat(
-            "Warning: Failed to close ", path, ": ", strerror(errno), '\n'
-        ));
-    }
+File File::try_open (AnyString p, const char* mode) noexcept {
+    File r;
+    r.path = move(p);
+    r.handle = fopen_utf8(r.path.c_str(), mode);
+    return r;
+}
+
+[[gnu::cold]]
+void File::raise_open_failed (int errnum) const {
+    raise_io_error(e_OpenFailed, "Failed to open ", path, errnum);
 }
 
 UniqueString File::read () {
      // Find how big the file is and preallocate
-    int res = fseek(ansi, 0, SEEK_END);
+    int res = fseek(handle, 0, SEEK_END);
     if (res < 0) {
          // Reading from unseekable files is NYI
         seek_failed:
         raise_io_error(e_ReadFailed, "Failed to fseek ", path, errno);
     }
-    long size = ftell(ansi);
+    long size = ftell(handle);
     if (size < 0) {
         raise_io_error(e_ReadFailed, "Failed to ftell ", path, errno);
     }
     require(usize(size) < AnyString::max_size_);
     auto r = UniqueString(Uninitialized(size));
      // Reset position
-    res = fseek(ansi, 0, SEEK_SET);
+    res = fseek(handle, 0, SEEK_SET);
     if (res < 0) goto seek_failed;
      // Read
-    usize did_read = fread(r.data(), 1, r.size(), ansi);
+    usize did_read = fread(r.data(), 1, r.size(), handle);
     if (did_read != r.size()) {
         raise_io_error(e_ReadFailed, "Failed to read from ", path, errno);
     }
@@ -68,9 +67,19 @@ UniqueString File::read () {
 }
 
 void File::write (Str content) {
-    usize did_write = fwrite(content.data(), 1, content.size(), ansi);
+    usize did_write = fwrite(content.data(), 1, content.size(), handle);
     if (did_write != content.size()) {
         raise_io_error(e_WriteFailed, "Failed to write to ", path, errno);
+    }
+}
+
+void File::close () noexcept {
+    int res = fclose(handle);
+    handle = null;
+    if (res != 0) [[unlikely]] {
+        warn_utf8(cat(
+            "Warning: Failed to close ", path, ": ", strerror(errno), '\n'
+        ));
     }
 }
 
@@ -84,43 +93,54 @@ void string_to_file (Str content, AnyString path) {
 
 ///// DIRECTORY IO
 
-void iterate_dir (AnyString dirname, IterateDirCallback cb) {
-    bool ret = iterate_if_dir_at(AT_FDCWD, move(dirname), cb);
-    if (!ret) {
-        raise_io_error(e_ListDirFailed, "Failed to open directory ", dirname, ENOTDIR);
-    }
+Dir::Dir (AnyString path) :
+    Dir(try_open_at(AT_FDCWD, move(path)))
+{
+    if (!handle) raise_open_failed(errno);
 }
 
-bool iterate_if_dir_at (int parent, AnyString dirname, IterateDirCallback cb) {
-    int fd = openat(parent, dirname.c_str(), O_RDONLY|O_DIRECTORY);
-    if (fd < 0) {
-        int errnum = errno;
-        if (errnum == ENOTDIR) return false;
-        raise_io_error(e_ListDirFailed, "Failed to open directory ", dirname, errnum);
+Dir Dir::try_open_at (int parent_fd, AnyString path) noexcept {
+    Dir r;
+    r.path = move(path);
+    r.parent_fd = parent_fd;
+    r.fd = openat(r.parent_fd, r.path.c_str(), O_RDONLY|O_DIRECTORY);
+    if (r.fd >= 0) {
+        r.handle = fdopendir(r.fd);
     }
-    DIR* dir = fdopendir(fd);
-    if (!dir) {
-        int errnum = errno;
-        raise_io_error(e_ListDirFailed, "Failed to fdopendir directory ", dirname, errnum);
+    else r.handle = null;
+    return r;
+}
+
+void Dir::raise_open_failed (int errnum) const {
+    raise_io_error(e_ListDirFailed, "Failed to open directory ", path, errnum);
+}
+
+UniqueArray<UniqueString> Dir::list () {
+    UniqueArray<UniqueString> r;
+    for (Str child : *this) {
+        r.emplace_back(child);
     }
-    for (;;) {
-        errno = 0;
-        dirent* entry = readdir(dir);
-        if (errno) {
-            int errnum = errno;
-            closedir(dir);
-            raise_io_error(e_ListDirFailed, "Failed to list directory ", dirname, errnum);
-        }
-        if (!entry) break;
-        try {
-            cb(fd, (const char*)entry->d_name);
-        } catch (...) { closedir(dir); throw; }
+    return r;
+}
+
+dirent* Dir::list_one () {
+    errno = 0;
+    dirent* r = readdir(handle);
+    if (errno) {
+        raise_io_error(e_ListDirFailed, "Failed to list directory ", path, errno);
     }
-    if (closedir(dir)) {
-        int errnum = errno;
-        raise_io_error(e_ListDirFailed, "Failed to close directory ", dirname, errnum);
+    return r;
+}
+
+void Dir::close () noexcept {
+    int res = closedir(handle);
+    handle = null;
+    fd = 0;
+    if (res < 0) [[unlikely]] {
+        warn_utf8(cat(
+            "Warning: Failed to close directory ", path, ": ", strerror(errno), '\n'
+        ));
     }
-    return true;
 }
 
 ///// CONSOLE IO
