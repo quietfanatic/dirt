@@ -129,12 +129,13 @@ void load_texture_from_file (u32 target, AnyString filename) {
     auto format = formats[u32(image->pixel_format)];
     if (format.type != FT::Normal) {
          // Nontrivial format, so ask SAIL to convert
-        if (format.type == FT::Indexed) {
-            format = formats[u32(image->palette->pixel_format)];
-        }
         warn_utf8(cat(
-            "Converting from ", ayu::item_to_string(&image->pixel_format)
+            "Converting ", filename, " from ", ayu::item_to_string(&image->pixel_format), '\n'
         ));
+        if (format.type == FT::Indexed) {
+            format.gl_internal_format =
+                formats[u32(image->palette->pixel_format)].gl_internal_format;
+        }
         sail_image* old_image = image;
         res = sail_convert_image(
             old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image
@@ -142,46 +143,71 @@ void load_texture_from_file (u32 target, AnyString filename) {
         sail_destroy_image(old_image);
         if (res != SAIL_OK) raise_LoadImageFailed(filename, res);
     }
-     // Detect greyscale images and unused alpha channels
-//    auto pixels = reinterpret_cast<u8*>(surf->pixels);
-//    if (surf->format->format == SDL_PIXELFORMAT_RGB24) {
-//        bool greyscale = true;
-//        for (i32 y = 0; y < surf->h; y++)
-//        for (i32 x = 0; x < surf->w; x++) {
-//            u8 r = pixels[y * surf->pitch + x*3];
-//            u8 g = pixels[y * surf->pitch + x*3 + 1];
-//            u8 b = pixels[y * surf->pitch + x*3 + 2];
-//            if (r != g || g != b) {
-//                greyscale = false;
-//                goto done_24;
-//            }
-//        }
-//        done_24:;
-//        if (greyscale) internal_format = GL_R8;
-//    }
-//    else if (surf->format->format == SDL_PIXELFORMAT_RGBA32) {
-//        bool greyscale = true;
-//        bool unused_alpha = true;
-//        for (i32 y = 0; y < surf->h; y++)
-//        for (i32 x = 0; x < surf->w; x++) {
-//            u8 r = pixels[y * surf->pitch + x*4];
-//            u8 g = pixels[y * surf->pitch + x*4 + 1];
-//            u8 b = pixels[y * surf->pitch + x*4 + 2];
-//            u8 a = pixels[y * surf->pitch + x*4 + 3];
-//            if (r != g || g != b) {
-//                greyscale = false;
-//                if (!unused_alpha) goto done_32;
-//            }
-//            if (a != 255) {
-//                unused_alpha = false;
-//                if (!greyscale) goto done_32;
-//            }
-//        }
-//        done_32:;
-//        if (greyscale && unused_alpha) internal_format = GL_R8;
-//        else if (greyscale) internal_format = GL_RG8; // G -> A
-//        else if (unused_alpha) internal_format = GL_RGB8;
-//    }
+     // Detect greyscale images and unused alpha channels.  Only bothering to do
+     // it for the most common formats.
+    auto pixels = reinterpret_cast<u8*>(image->pixels);
+    if (image->pixel_format == SAIL_PIXEL_FORMAT_BPP24_RGB
+     || image->pixel_format == SAIL_PIXEL_FORMAT_BPP24_BGR
+    ) {
+        bool greyscale = true;
+        for (u32 y = 0; y < image->height; y++)
+        for (u32 x = 0; x < image->width; x++) {
+            u8 r = pixels[y * image->bytes_per_line + x*3];
+            u8 g = pixels[y * image->bytes_per_line + x*3 + 1];
+            u8 b = pixels[y * image->bytes_per_line + x*3 + 2];
+            if (r != g || g != b) {
+                greyscale = false;
+                goto done_24;
+            }
+        }
+        done_24:;
+        if (greyscale) {
+            warn_utf8(cat(
+                "Reducing ", filename, " from 3 channels to 1", '\n'
+            ));
+            format.gl_internal_format = GL_R8;
+        }
+    }
+    else if (image->pixel_format == SAIL_PIXEL_FORMAT_BPP32_RGBA
+          || image->pixel_format == SAIL_PIXEL_FORMAT_BPP32_BGRA
+    ) {
+        bool greyscale = true;
+        bool unused_alpha = true;
+        for (u32 y = 0; y < image->height; y++)
+        for (u32 x = 0; x < image->width; x++) {
+            u8 r = pixels[y * image->bytes_per_line + x*4];
+            u8 g = pixels[y * image->bytes_per_line + x*4 + 1];
+            u8 b = pixels[y * image->bytes_per_line + x*4 + 2];
+            u8 a = pixels[y * image->bytes_per_line + x*4 + 3];
+            if (r != g || g != b) {
+                greyscale = false;
+                if (!unused_alpha) goto done_32;
+            }
+            if (a != 255) {
+                unused_alpha = false;
+                if (!greyscale) goto done_32;
+            }
+        }
+        done_32:;
+        if (greyscale && unused_alpha) {
+            warn_utf8(cat(
+                "Reducing ", filename, " from 4 channels to 1\n"
+            ));
+            format.gl_internal_format = GL_R8;
+        }
+        else if (greyscale) {
+            warn_utf8(cat(
+                "Reducing ", filename, " from 4 channels to 2\n"
+            ));
+            format.gl_internal_format = GL_RG8; // G -> A
+        }
+        else if (unused_alpha) {
+            warn_utf8(cat(
+                "Reducing ", filename, " from 4 channels to 3\n"
+            ));
+            format.gl_internal_format = GL_RGB8;
+        }
+    }
      // Now upload texture
     require(image->width > 0 && image->height > 0);
      // Look out!  SDL and OpenGL expect rows to be aligned to 4 bytes, but SAIL
