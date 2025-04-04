@@ -121,4 +121,15 @@ struct SubImage {
 constexpr ayu::ErrorCode e_SubImageBoundsNotProper = "glow::SubImageBoundsNotProper";
 constexpr ayu::ErrorCode e_SubImageOutOfBounds = "glow::SubImageOutOfBounds";
 
+ // Don't use lilac for these allocations, because they're almost guaranteed to
+ // be so large they get passed on to malloc anyway (they'd have to be smaller
+ // than 24x24 to use the small-size allocator).  Also, libsail uses
+ // malloc/free internally, so matching that allows us to steal its buffers.
+inline UniqueImage::UniqueImage (IVec s) noexcept :
+    size((require(area(s) >= 0), s)),
+    pixels((RGBA8*)std::malloc(area(size) * sizeof(RGBA8)))
+{ }
+
+inline UniqueImage::~UniqueImage () { std::free(pixels); }
+
 }

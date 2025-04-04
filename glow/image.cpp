@@ -5,16 +5,6 @@
 
 namespace glow {
 
- // Don't use lilac for these allocations, because they're almost guaranteed to
- // be so large they get passed on to malloc anyway (they'd have to be smaller
- // than 24x24 to use the small-size allocator).
-UniqueImage::UniqueImage (IVec s) noexcept :
-    size((require(area(s) >= 0), s)),
-    pixels((RGBA8*)std::malloc(area(size) * sizeof(RGBA8)))
-{ }
-
-UniqueImage::~UniqueImage () { std::free(pixels); }
-
 void SubImage::validate () {
     if (bounds != GINF) {
         if (!proper(bounds)) ayu::raise(

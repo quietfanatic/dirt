@@ -333,7 +333,7 @@ AYU_DESCRIBE_TEMPLATE(
     }()
 )
 
- // Raw arrays T[n] - I can't believe this works
+ // Raw arrays T[n].  I can't believe this works.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(T[n]),
@@ -351,7 +351,8 @@ AYU_DESCRIBE_TEMPLATE(
 
  // Special case for char[n], mainly to allow string literals to be passed to
  // ayu::dump without surprising behavior.  Note that the deserialization from
- // string WILL NOT NUL-TERMINATE the char[n].
+ // string must be given exactly n characters and !WILL NOT NUL-TERMINATE! the
+ // char[n].
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(char[n]),
@@ -367,6 +368,8 @@ AYU_DESCRIBE_TEMPLATE(
         if (tree.form == ayu::Form::String) {
             auto s = uni::Str(tree);
             if (s.size() != n) {
+                 // This might not be exactly the right error code, since it's
+                 // meant for arrays, not strings.
                 ayu::raise_LengthRejected(
                     ayu::Type::CppType<char[n]>(), n, n, s.size()
                 );

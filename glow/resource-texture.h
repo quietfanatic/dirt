@@ -1,4 +1,4 @@
-// A super basic image type loaded through SDL_image and sent directly to an
+// A super basic image type loaded from a resource file and sent directly to an
 // OpenGL texture.  The image pixels do not stay in CPU memory.  Does not
 // support mipmaps (please set filtering to a non-mipmap mode).
 
