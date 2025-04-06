@@ -27,18 +27,16 @@ struct TraverseToTree {
 
      // NOINLINE this because it generates a lot of code with trav_start
     NOINLINE static
-    Tree start (const AnyRef& item, RouteRef rt) {
+    void start (Tree& r, const AnyRef& item, RouteRef rt) {
         plog("to_tree start");
         PushBaseRoute pbl(rt ? rt : RouteRef(SharedRoute(item)));
         KeepRouteCache klc;
-        Tree dest;
         ToTreeTraversal<StartTraversal> child;
-        child.dest = &dest;
+        child.dest = &r;
         trav_start<visit, false>(
             child, item, rt, AccessMode::Read
         );
         plog("to_tree end");
-        return dest;
     }
 
 ///// PICK STRATEGY
@@ -341,7 +339,32 @@ struct TraverseToTree {
 } using namespace in;
 
 Tree item_to_tree (const AnyRef& item, RouteRef rt) {
-    return TraverseToTree::start(item, rt);
+    Tree r;
+    TraverseToTree::start(r, item, rt);
+    return r;
+}
+void in::ptr_to_tree (Tree& r, AnyPtr item, RouteRef rt) {
+    AnyRef ref = item;
+    TraverseToTree::start(r, ref, rt);
+    expect(!ref.acr);
+}
+
+UniqueString item_to_string (
+    const AnyRef& item, PrintOptions opts, RouteRef rt
+) {
+    Tree t;
+    TraverseToTree::start(t, item, rt);
+    return tree_to_string(t, opts);
+}
+
+void in::ptr_to_string (UniqueString& r, AnyPtr item, PrintOptions opts, RouteRef rt) {
+    Tree t;
+    {
+        AnyRef ref = item;
+        TraverseToTree::start(t, ref, rt);
+        expect(!ref.acr);
+    }
+    new (&r) UniqueString(tree_to_string(t, opts));
 }
 
 DiagnosticSerialization::DiagnosticSerialization () {

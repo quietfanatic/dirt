@@ -7,13 +7,13 @@ namespace glow {
 
 void SubImage::validate () {
     if (bounds != GINF) {
-        if (!proper(bounds)) ayu::raise(
+        if (!proper(bounds)) raise(
             e_SubImageBoundsNotProper, ayu::item_to_string(&bounds)
         );
         if (image) {
             auto data = image->Image_data();
             if (!contains(data.bounds(), bounds)) {
-                ayu::raise(e_SubImageOutOfBounds, cat(
+                raise(e_SubImageOutOfBounds, cat(
                     "SubImage is out of bounds of image at ",
                     ayu::item_to_string(image),
                     "\n    Image size: ", ayu::item_to_string(&data.size),

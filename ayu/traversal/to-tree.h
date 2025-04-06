@@ -28,13 +28,7 @@ namespace ayu {
 Tree item_to_tree (const AnyRef&, RouteRef rt = {});
  // Slight optimization for pointers (the usual case)
 template <class T>
-Tree item_to_tree (T* item, RouteRef rt = {}) {
-    AnyRef ref = item;
-    Tree r = item_to_tree(ref, rt);
-     // This is the optimization
-    expect(!ref.acr);
-    return r;
-}
+Tree item_to_tree (T* item, RouteRef rt = {});
 
  // While this object is alive, if an exception is thrown while serializing an
  // item (and that exception is described to AYU), then the exception will be
@@ -47,23 +41,18 @@ struct DiagnosticSerialization {
     ~DiagnosticSerialization ();
 };
 
- // Shortcuts
+///// Shortcuts
+
+UniqueString item_to_string (
+    const AnyRef& item, PrintOptions opts = {},
+    RouteRef rt = {}
+);
 template <class T>
 UniqueString item_to_string (
-    T&& item, PrintOptions opts = {},
-    RouteRef rt = {}
-) {
-    Tree t = item_to_tree(std::forward<T>(item), rt);
-    return tree_to_string(t, opts);
-}
-template <class T>
-void item_to_file (
-    T&& item, AnyString filename,
-    PrintOptions opts = {}, RouteRef rt = {}
-) {
-    Tree t = item_to_tree(std::forward<T>(item), rt);
-    return tree_to_file(t, move(filename), opts);
-}
+    T* item, PrintOptions opts = {}, RouteRef rt = {}
+);
+
+///// Error codes
 
  // Called item_to_tree on an item that has no way of doing the to_tree
  // operation.  item_to_tree can also throw errors with the error codes in
@@ -73,4 +62,25 @@ constexpr ErrorCode e_ToTreeNotSupported = "ayu::e_ToTreeNotSupported";
  // given tree did not match any of its values.
 constexpr ErrorCode e_ToTreeValueNotFound = "ayu::e_ToTreeValueNotFound";
 
-} // namespace ayu
+///// Inlines
+
+namespace in {
+    void ptr_to_tree (Tree&, AnyPtr, RouteRef);
+    void ptr_to_string (UniqueString&, AnyPtr, PrintOptions, RouteRef);
+} // in
+
+template <class T>
+Tree item_to_tree (T* item, RouteRef rt) {
+    Tree r;
+    in::ptr_to_tree(r, item, rt);
+    return r;
+}
+
+template <class T>
+UniqueString item_to_string (T* item, PrintOptions opts, RouteRef rt) {
+    UniqueString r;
+    in::ptr_to_string(r, item, opts, rt);
+    return r;
+}
+
+} // ayu
