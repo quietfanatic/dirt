@@ -5,20 +5,30 @@
 
 namespace glow {
 
+[[noreturn, gnu::cold]]
+void raise_SubImageBoundsNotProper (const SubImage& self) {
+    raise(e_SubImageBoundsNotProper, ayu::item_to_string(&self.bounds));
+}
+
+[[noreturn, gnu::cold]]
+void raise_SubImageOutOfBounds (const SubImage& self, IVec size) {
+    raise(e_SubImageOutOfBounds, cat(
+        "SubImage is out of bounds of image at ",
+        ayu::item_to_string(self.image),
+        "\n    Image size: ", ayu::item_to_string(&size),
+        "\n    SubImage bounds: ", ayu::item_to_string(&self.bounds)
+    ));
+}
+
 void SubImage::validate () {
     if (bounds != GINF) {
-        if (!proper(bounds)) raise(
-            e_SubImageBoundsNotProper, ayu::item_to_string(&bounds)
-        );
+        if (!proper(bounds)) {
+            raise_SubImageBoundsNotProper(*this);
+        }
         if (image) {
             auto data = image->Image_data();
             if (!contains(data.bounds(), bounds)) {
-                raise(e_SubImageOutOfBounds, cat(
-                    "SubImage is out of bounds of image at ",
-                    ayu::item_to_string(image),
-                    "\n    Image size: ", ayu::item_to_string(&data.size),
-                    "\n    SubImage bounds: ", ayu::item_to_string(&bounds)
-                ));
+                raise_SubImageOutOfBounds(*this, data.size);
             }
         }
     }
