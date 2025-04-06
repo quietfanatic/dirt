@@ -60,9 +60,8 @@ void item_from_tree (
     T* item, const Tree& t, RouteRef rt = {},
     FromTreeOptions opts = {}
 ) {
-    AnyRef ref = item;
-    item_from_tree(ref, t, rt, opts);
-    expect(!ref.acr);
+    in::FakeRef fake {.ref = item};
+    item_from_tree(fake.ref, t, rt, opts);
 }
 
  // Shortcuts
@@ -76,26 +75,10 @@ void item_from_string (
 }
 
 template <class T>
-void item_from_file (
-    T&& item, AnyString filename, RouteRef rt = {}
-) {
-    auto tree = tree_from_file(move(filename));
-    return item_from_tree(std::forward<T>(item), tree, rt);
-}
-
-template <class T>
 void item_from_list_string (
     T&& item, Str src, RouteRef rt = {}
 ) {
     auto tree = Tree(tree_list_from_string(src));
-    return item_from_tree(std::forward<T>(item), tree, rt);
-}
-
-template <class T>
-void item_from_list_file (
-    T&& item, AnyString filename, RouteRef rt = {}
-) {
-    auto tree = Tree(tree_list_from_file(move(filename)));
     return item_from_tree(std::forward<T>(item), tree, rt);
 }
 

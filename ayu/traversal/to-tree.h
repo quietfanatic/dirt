@@ -64,23 +64,17 @@ constexpr ErrorCode e_ToTreeValueNotFound = "ayu::e_ToTreeValueNotFound";
 
 ///// Inlines
 
-namespace in {
-    void ptr_to_tree (Tree&, AnyPtr, RouteRef);
-    void ptr_to_string (UniqueString&, AnyPtr, PrintOptions, RouteRef);
-} // in
-
 template <class T>
 Tree item_to_tree (T* item, RouteRef rt) {
     Tree r;
-    in::ptr_to_tree(r, item, rt);
-    return r;
+    in::FakeRef fake {.ref = item};
+    return item_to_tree(fake.ref, rt);
 }
 
 template <class T>
 UniqueString item_to_string (T* item, PrintOptions opts, RouteRef rt) {
-    UniqueString r;
-    in::ptr_to_string(r, item, opts, rt);
-    return r;
+    in::FakeRef fake {.ref = item};
+    return item_to_string(fake.ref, opts, rt);
 }
 
 } // ayu

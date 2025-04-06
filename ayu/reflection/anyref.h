@@ -277,3 +277,14 @@ struct std::hash<ayu::AnyRef> {
     }
 };
 
+///// CHEATING
+
+namespace ayu::in {
+
+ // Disable destructor for a ref we know doesn't need it
+union FakeRef {
+    AnyRef ref;
+    ~FakeRef () { expect(!ref.acr); }
+};
+
+} // ayu::in
