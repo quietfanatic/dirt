@@ -37,7 +37,7 @@ void raise_inner (StaticString code, AnyString::Impl details) {
     throw e;
 }
 
-[[gnu::cold]] static
+[[gnu::cold, maybe_unused]] static
 auto get_demangled_name (const std::type_info& t) noexcept {
 #if __has_include(<cxxabi.h>)
     int status;
@@ -59,7 +59,11 @@ void unrecoverable_exception (Str when) noexcept {
     } catch (std::exception& e) {
         warn_utf8(cat(
             "ERROR: Unrecoverable exception ", when, ":\n    ",
+#if defined(__GXX_RTTI) || defined(_CPPRTTI)
             get_demangled_name(typeid(e)), ": ", e.what()
+#else
+            "(Unknown type name): ", e.what()
+#endif
         ));
         std::terminate();
     } catch (...) {

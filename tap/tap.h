@@ -47,9 +47,12 @@
  //
  // 4. To compile with tests disabled for release, define TAP_DISABLE_TESTS.  If
  //    this is defined, no tests will be registered, and ideally your linker
- //    will discard all testing code.
+ //    will discard all testing code.  You can also define TAP_REMOVE_TESTS
+ //    which completely disables this header.
 
 ///// BOILERPLATE
+
+#ifndef TAP_REMOVE_TESTS
 
 #pragma once
 
@@ -241,3 +244,5 @@ inline char** argv = nullptr;
 }  // namespace tap
 
 #include "tap.inline.h"
+
+#endif

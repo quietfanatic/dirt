@@ -41,7 +41,11 @@ void in::rethrow_with_route (RouteRef rt) {
         {
             DiagnosticSerialization ds;
             e.details = cat(
+#if defined(__GXX_RTTI) || defined(_CPPRTTI)
                 get_demangled_name(typeid(ex)), ": ", ex.what()
+#else
+                "(unknown error type): ", ex.what()
+#endif
             );
         }
         e.add_tag("route", route_to_iri(rt).spec());
