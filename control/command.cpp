@@ -12,9 +12,9 @@ static std::unordered_map<Str, const CommandBase*>& commands_by_name () {
 }
 
 void register_command (const CommandBase* cmd) {
-    auto [iter, emplaced] = commands_by_name().emplace(cmd->name, cmd);
+    auto [iter, emplaced] = commands_by_name().emplace(cmd->name(), cmd);
     if (!emplaced) ayu::raise(e_CommandNameDuplicate, cat(
-        "Duplicate command name ", cmd->name
+        "Duplicate command name ", cmd->name()
     ));
 }
 
@@ -34,7 +34,7 @@ const CommandBase* require_command (Str name) {
 AYU_DESCRIBE(control::StatementStorageBase,
     delegate(mixed_funcs<AnyString>(
         [](const StatementStorageBase& v)->AnyString{
-            return v.command->name;
+            return v.command->name();
         },
         [](StatementStorageBase& v, const AnyString& m){
             v.command = require_command(m);

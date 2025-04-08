@@ -4,26 +4,26 @@
 
 namespace control::command {
 
-static void help_ (const AnyString&) {
+static void help (const AnyString&) {
     uni::print_utf8("help is NYI, sorry");
 }
-Command<help_> help (0, "help", "NYI");
+CONTROL_COMMAND(help, 0, "NYI");
 
-static void echo_ (const AnyString& s) {
+static void echo (const AnyString& s) {
     uni::print_utf8(s);
 }
-Command<echo_> echo (1, "echo", "Print a string to stdout");
+CONTROL_COMMAND(echo, 1, "Print a string to stdout");
 
-static void seq_ (UniqueArray<Statement>& sts) {
+static void seq (UniqueArray<Statement>& sts) {
     for (auto& st : sts) st();
 }
-Command<seq_> seq (1, "seq", "Run multiple commands in a row");
+CONTROL_COMMAND(seq, 1, "Run multiple commands in a row");
 
-static void toggle_ (Statement& a, Statement& b, bool& state) {
+static void toggle (Statement& a, Statement& b, bool& state) {
     state = !state;
     if (state) a();
     else b();
 }
-Command<toggle_> toggle (2, "toggle", "Alternate between two commands");
+CONTROL_COMMAND(toggle, 2, "Alternate between two commands");
 
 } // namespace control::command

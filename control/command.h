@@ -19,8 +19,16 @@ using Function = F;
 struct CommandBase {
     void(* call )(StatementStorageBase*);
     ayu::Type storage_type;
-    StaticString name;
-    StaticString description;
+    const char* name_d;
+    const char* desc_d;
+    u32 name_s;
+    u32 desc_s;
+    constexpr StaticString name () const {
+        return StaticString(name_d, name_s);
+    }
+    constexpr StaticString description () const {
+        return StaticString(desc_d, desc_s);
+    }
     u32 min;
     u32 max;
 };
@@ -30,11 +38,14 @@ struct Command : CommandBase {
     Command (u32 m, StaticString n, StaticString d) : CommandBase(
         CommandCaller<f>::get_call(),
         ayu::Type::CppType<typename CommandCaller<f>::Storage>(),
-        n, d, m, CommandCaller<f>::max
+        n.data(), d.data(), n.size(), d.size(),
+        m, CommandCaller<f>::max
     ) {
         register_command(this);
     }
 };
+
+#define CONTROL_COMMAND(name, min, desc) Command<name> _control_command_##name (min, #name, desc);
 
 ///// STATEMENT
 
