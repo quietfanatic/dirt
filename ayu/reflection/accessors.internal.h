@@ -91,6 +91,7 @@ AccessMode write_to_modify (AccessMode mode) {
     return AccessMode(int(mode) & ~int(AccessMode::Write));
 }
 
+
  // This is the callback passed to access operations.
 using AccessCB = CallbackRef<void(AnyPtr, bool)>;
 
@@ -99,11 +100,22 @@ using AccessCB = CallbackRef<void(AnyPtr, bool)>;
  // instantiations it results in massive code size bloating.
 struct Accessor;
 struct AcrVT {
-    static void default_destroy (Accessor*) noexcept { }
     void(* access )(const Accessor*, AccessMode, Mu&, AccessCB);
-     // Plays role of virtual ~Accessor();
-    void(* destroy_this )(Accessor*) noexcept = &default_destroy;
 };
+
+void delete_Accessor (Accessor*) noexcept;
+
+ // Not quite full type information, but enough to destroy and compare for
+ // equality.
+enum class AccessorStructure : u8 {
+    Flat,
+    Variable,
+    Chain,
+    ChainAttrFunc,
+    ChainElemFunc,
+    ChainDataFunc,
+};
+using AS = AccessorStructure;
 
  // The base class for all accessors.  Try to keep this small.
 struct Accessor {
@@ -117,13 +129,17 @@ struct Accessor {
      // constructing an AnyRef or a ChainAcr with a new Accessor*, don't call
      // inc() on it.
     u16 ref_count = 1;
+    AccessorStructure structure;
     AcrFlags flags = {};
      // These belong on AttrDcr and ElemDcr but we're storing them here to
      //  save space.
     AttrFlags attr_flags = {};
 
-    explicit constexpr Accessor (const AcrVT* vt, AcrFlags f = {}) :
-        vt(vt), flags(f)
+
+    explicit constexpr Accessor (
+        const AcrVT* vt, AccessorStructure s, AcrFlags f = {}
+    ) :
+        vt(vt), structure(s), flags(f)
     { }
 
     TreeFlags tree_flags () const {
@@ -168,14 +184,13 @@ struct Accessor {
         }
     }
     NOINLINE // noinline this so it doesn't make the caller allocate stack space
-    void do_dec () const {
-        if (!--const_cast<u16&>(ref_count)) {
-            vt->destroy_this(const_cast<Accessor*>(this));
-            delete this;
+    void do_dec () {
+        if (!--ref_count) {
+            delete_Accessor(this);
         }
     }
     void dec () const {
-        if (ref_count) [[unlikely]] do_dec();
+        if (ref_count) [[unlikely]] const_cast<Accessor*>(this)->do_dec();
     }
     static void* operator new (usize s) {
         return lilac::allocate_fixed_size(s);
@@ -219,8 +234,9 @@ struct AccessorWithType : Accessor {
      // space.  TODO: actually measure this
     const Description* const* desc;
     explicit constexpr AccessorWithType (
-        const AcrVT* vt, const Description* const* d, AcrFlags f = {}
-    ) : Accessor(vt, f), desc(d)
+        const AcrVT* vt, AccessorStructure s,
+        const Description* const* d, AcrFlags f = {}
+    ) : Accessor(vt, s, f), desc(d)
     { }
 };
 
@@ -239,7 +255,7 @@ struct MemberAcr2 : MemberAcr0 {
     using AcrToType = To;
     To From::* mp;
     explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
-        MemberAcr0(&_vt, get_indirect_description<To>(), flags), mp(mp)
+        MemberAcr0(&_vt, AS::Flat, get_indirect_description<To>(), flags), mp(mp)
     { }
 };
 
@@ -249,7 +265,9 @@ template <class From, class To>
 struct BaseAcr2 : Accessor {
     using AcrFromType = From;
     using AcrToType = To;
-    explicit constexpr BaseAcr2 (AcrFlags flags = {}) : Accessor(&_vt, flags) { }
+    explicit constexpr BaseAcr2 (AcrFlags flags = {}) :
+        Accessor(&_vt, AS::Flat, flags)
+    { }
     static void _access (
         const Accessor* acr, AccessMode, Mu& from, AccessCB cb
     ) {
@@ -271,7 +289,7 @@ struct FirstBaseAcr2 : FirstBaseAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr FirstBaseAcr2 (AcrFlags flags = {}) :
-        FirstBaseAcr0(&_vt, get_indirect_description<To>(), flags)
+        FirstBaseAcr0(&_vt, AS::Flat, get_indirect_description<To>(), flags)
     { }
 };
 
@@ -290,7 +308,7 @@ struct RefFuncAcr2 : RefFuncAcr0 {
     using AcrToType = To;
     To&(* f )(From&);
     explicit constexpr RefFuncAcr2 (To&(* f )(From&), AcrFlags flags = {}) :
-        RefFuncAcr0(&_vt, get_indirect_description<To>(), flags), f(f)
+        RefFuncAcr0(&_vt, AS::Flat, get_indirect_description<To>(), flags), f(f)
     { }
 };
 
@@ -311,7 +329,9 @@ struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
     explicit constexpr ConstRefFuncAcr2 (
         const To&(* f )(const From&), AcrFlags flags = {}
     ) :
-        ConstRefFuncAcr0(&_vt, get_indirect_description<To>(), flags), f(f)
+        ConstRefFuncAcr0(
+            &_vt, AS::Flat, get_indirect_description<To>(), flags
+        ), f(f)
     { }
 };
 
@@ -334,7 +354,7 @@ struct RefFuncsAcr2 : RefFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt, flags), getter(g), setter(s)
+        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt, AS::Flat, flags), getter(g), setter(s)
     { }
 };
 template <class To>
@@ -375,7 +395,10 @@ struct ValueFuncAcr2 : ValueFuncAcr1<To> {
     using AcrToType = To;
     To(* f )(const From&);
     explicit constexpr ValueFuncAcr2 (To(* f )(const From&), AcrFlags flags = {}) :
-        ValueFuncAcr1<To>(&ValueFuncAcr1<To>::_vt, flags | AcrFlags::Readonly),
+        ValueFuncAcr1<To>(
+            &ValueFuncAcr1<To>::_vt, AS::Flat,
+            flags | AcrFlags::Readonly
+        ),
         f(f)
     { }
 };
@@ -408,7 +431,7 @@ struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
         void(* s )(From&, To),
         AcrFlags flags = {}
     ) :
-        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt, flags),
+        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt, AS::Flat, flags),
         getter(g), setter(s)
     { }
 };
@@ -460,7 +483,7 @@ struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt, flags),
+        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt, AS::Flat, flags),
         getter(g), setter(s)
     { }
 };
@@ -495,7 +518,7 @@ struct AssignableAcr2 : Accessor {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr AssignableAcr2 (AcrFlags flags = {}) :
-        Accessor(&_vt, flags)
+        Accessor(&_vt, AS::Flat, flags)
     { }
     static void _access (
         const Accessor*, AccessMode mode, Mu& from_mu, AccessCB cb
@@ -513,20 +536,22 @@ struct AssignableAcr2 : Accessor {
 /// variable
 
 template <class To>
-struct VariableAcr1 : Accessor {
-    using Accessor::Accessor;
+struct VariableAcr1 : AccessorWithType {
+    using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static void _destroy (Accessor*) noexcept;
-    static constexpr AcrVT _vt = {&_access, &_destroy};
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct VariableAcr2 : VariableAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
-    mutable To value;
+    alignas(usize) mutable To value;
      // This ACR cannot be constexpr.
     explicit VariableAcr2 (To&& v, AcrFlags flags = {}) :
-        VariableAcr1<To>(&VariableAcr1<To>::_vt, flags), value(move(v))
+        VariableAcr1<To>(
+            &VariableAcr1<To>::_vt, AS::Variable,
+            get_indirect_description<To>(), flags
+        ), value(move(v))
     { }
 };
 template <class To>
@@ -538,28 +563,25 @@ void VariableAcr1<To>::_access (
      // address but then release this ACR object, invalidating the reference.
     cb(AnyPtr(&self->value), false);
 }
-template <class To>
-void VariableAcr1<To>::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const VariableAcr2<Mu, To>*>(acr);
-    self->~VariableAcr2<Mu, To>();
-}
 
 /// constant
 
 template <class To>
-struct ConstantAcr1 : Accessor {
-    using Accessor::Accessor;
+struct ConstantAcr1 : AccessorWithType {
+    using AccessorWithType::AccessorWithType;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static void _destroy (Accessor*) noexcept;
-    static constexpr AcrVT _vt = {&_access, &_destroy};
+    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct ConstantAcr2 : ConstantAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
-    const To value;
+    alignas(usize) const To value;  // The offset of this MUST match VariableAcr2::value
     explicit constexpr ConstantAcr2 (const To& v, AcrFlags flags = {}) :
-        ConstantAcr1<To>(&ConstantAcr1<To>::_vt, flags | AcrFlags::Readonly),
+        ConstantAcr1<To>(
+            &ConstantAcr1<To>::_vt, AS::Variable,
+            get_indirect_description<To>(),
+            flags | AcrFlags::Readonly),
         value(v)
     { }
 };
@@ -570,11 +592,6 @@ void ConstantAcr1<To>::_access (
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstantAcr2<Mu, To>*>(acr);
     cb(&self->value, false);
-}
-template <class To>
-void ConstantAcr1<To>::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const ConstantAcr2<Mu, To>*>(acr);
-    self->~ConstantAcr2<Mu, To>();
 }
 
 /// constant_pointer
@@ -592,7 +609,9 @@ struct ConstantPtrAcr2 : ConstantPtrAcr0 {
     const To* pointer;
     explicit constexpr ConstantPtrAcr2 (const To* p, AcrFlags flags = {}) :
         ConstantPtrAcr0(
-            &_vt, get_indirect_description<To>(), flags | AcrFlags::Readonly
+            &_vt, AS::Flat,
+            get_indirect_description<To>(),
+            flags | AcrFlags::Readonly
         ), pointer(p)
     { }
 };
@@ -615,7 +634,7 @@ struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
     explicit constexpr AnyRefFuncAcr2 (
         AnyRef(* f )(From&), AcrFlags flags = {}
     ) :
-        AnyRefFuncAcr1(&_vt, flags), f(f)
+        AnyRefFuncAcr1(&_vt, AS::Flat, flags), f(f)
     { }
 };
 
@@ -634,7 +653,7 @@ struct AnyPtrFuncAcr2 : AnyPtrFuncAcr1 {
     explicit constexpr AnyPtrFuncAcr2 (
         AnyPtr(* f )(From&), AcrFlags flags = {}
     ) :
-        AnyPtrFuncAcr1(&_vt, flags), f(f)
+        AnyPtrFuncAcr1(&_vt, AS::Flat, flags), f(f)
     { }
 };
 

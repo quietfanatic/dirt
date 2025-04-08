@@ -73,7 +73,7 @@ struct Type {
      // or CannotDestroy.
     void default_construct (void* target) const;
      // Destory an instance of this type in-place.  The memory will not be
-     // allocated.
+     // deallocated.
     void destroy (Mu*) const;
      // Allocate a buffer appropriate for containing an instance of this type.
      // This uses operator new(size, align, nothrow), so either use

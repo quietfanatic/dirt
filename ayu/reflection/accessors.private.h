@@ -8,11 +8,11 @@ struct ChainAcr : Accessor {
     const Accessor* outer;
     const Accessor* inner;
     explicit ChainAcr (const Accessor* outer, const Accessor* inner) noexcept;
+    ~ChainAcr ();
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static void _destroy (Accessor*) noexcept;
      // Theoretically we could define inverse_address for this, but we'll never
      // need it, since this will never be constructed with an addressable a.
-    static constexpr AcrVT _vt = {&_access, &_destroy};
+    static constexpr AcrVT _vt = {&_access};
 };
 
 struct ChainAttrFuncAcr : Accessor {
@@ -20,11 +20,11 @@ struct ChainAttrFuncAcr : Accessor {
     AttrFunc<Mu>* f;
     AnyString key;
     ChainAttrFuncAcr (const Accessor* o, AttrFunc<Mu>* f, AnyString k) :
-        Accessor(&_vt, o->flags), outer(o), f(f), key(move(k))
+        Accessor(&_vt, AS::ChainAttrFunc, o->flags), outer(o), f(f), key(move(k))
     { outer->inc(); }
+    ~ChainAttrFuncAcr () { outer->dec(); }
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static void _destroy (Accessor* acr) noexcept;
-    static constexpr AcrVT _vt = {&_access, &_destroy};
+    static constexpr AcrVT _vt = {&_access};
 };
 
 struct ChainElemFuncAcr : Accessor {
@@ -32,11 +32,11 @@ struct ChainElemFuncAcr : Accessor {
     ElemFunc<Mu>* f;
     u32 index;
     ChainElemFuncAcr (const Accessor* o, ElemFunc<Mu>* f, u32 i) :
-        Accessor(&_vt, o->flags), outer(o), f(f), index(i)
+        Accessor(&_vt, AS::ChainElemFunc, o->flags), outer(o), f(f), index(i)
     { outer->inc(); }
+    ~ChainElemFuncAcr () { outer->dec(); }
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static void _destroy (Accessor* acr) noexcept;
-    static constexpr AcrVT _vt = {&_access, &_destroy};
+    static constexpr AcrVT _vt = {&_access};
 };
 
 struct ChainDataFuncAcr : Accessor {
@@ -44,11 +44,11 @@ struct ChainDataFuncAcr : Accessor {
     DataFunc<Mu>* f;
     u32 index;
     ChainDataFuncAcr (const Accessor* o, DataFunc<Mu>* f, u32 i) :
-        Accessor(&_vt, o->flags), outer(o), f(f), index(i)
+        Accessor(&_vt, AS::ChainDataFunc, o->flags), outer(o), f(f), index(i)
     { outer->inc(); }
+    ~ChainDataFuncAcr () { outer->dec(); }
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static void _destroy (Accessor* acr) noexcept;
-    static constexpr AcrVT _vt = {&_access, &_destroy};
+    static constexpr AcrVT _vt = {&_access};
 };
 
 } // namespace ayu::in

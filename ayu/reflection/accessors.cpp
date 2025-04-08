@@ -89,7 +89,7 @@ AcrFlags chain_acr_flags (AcrFlags o, AcrFlags i) {
 }
 
 ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
-    Accessor(&_vt, chain_acr_flags(outer->flags, inner->flags)),
+    Accessor(&_vt, AS::Chain, chain_acr_flags(outer->flags, inner->flags)),
     outer(outer), inner(inner)
 { outer->inc(); inner->inc(); }
 
@@ -125,10 +125,8 @@ void ChainAcr::_access (
         })
     );
 }
-void ChainAcr::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const ChainAcr*>(acr);
-    self->inner->dec(); self->outer->dec();
-}
+
+ChainAcr::~ChainAcr () { inner->dec(); outer->dec(); }
 
 void ChainAttrFuncAcr::_access (
     const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
@@ -155,11 +153,6 @@ void ChainAttrFuncAcr::_access (
         })
     );
 }
-void ChainAttrFuncAcr::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const ChainAttrFuncAcr*>(acr);
-    self->outer->dec();
-    self->~ChainAttrFuncAcr();
-}
 
 void ChainElemFuncAcr::_access (
     const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
@@ -185,11 +178,6 @@ void ChainElemFuncAcr::_access (
             );
         })
     );
-}
-void ChainElemFuncAcr::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const ChainElemFuncAcr*>(acr);
-    self->outer->dec();
-    self->~ChainElemFuncAcr();
 }
 
 void ChainDataFuncAcr::_access (
@@ -226,83 +214,114 @@ void ChainDataFuncAcr::_access (
         })
     );
 }
-void ChainDataFuncAcr::_destroy (Accessor* acr) noexcept {
-    auto self = static_cast<const ChainDataFuncAcr*>(acr);
-    self->outer->dec();
-    self->~ChainDataFuncAcr();
+
+void delete_Accessor (Accessor* acr) noexcept {
+    switch (acr->structure) {
+        case AS::Flat: break;
+        case AS::Variable: {
+             // Can't use Mu because it doesn't have a size.  We don't *need* a
+             // size, but C++ does in order to do this operation.  So I guess
+             // use usize instead?  Hope the alignment works out!
+            auto* self = static_cast<VariableAcr2<Mu, usize>*>(acr);
+            Type(*self->desc).delete_((Mu*)&self->value);
+            break;
+        }
+        case AS::Chain: {
+            auto* self = static_cast<ChainAcr*>(acr);
+            delete self;
+            break;
+        }
+        case AS::ChainAttrFunc: {
+            auto* self = static_cast<ChainAttrFuncAcr*>(acr);
+            delete self;
+            break;
+        }
+        case AS::ChainElemFunc: {
+            auto* self = static_cast<ChainElemFuncAcr*>(acr);
+            delete self;
+            break;
+        }
+        case AS::ChainDataFunc: {
+            auto* self = static_cast<ChainDataFuncAcr*>(acr);
+            delete self;
+            break;
+        }
+        default: never();
+    }
 }
 
- // How do we compare dynamically-typed Accessors without adding an extra
- // "compare" virtual method?  Easy, just examine the vtable pointers.  If you
- // didn't want to know, you shouldn't have asked.
 bool operator== (const Accessor& a, const Accessor& b) {
     if (&a == &b) return true;
-    if (a.vt != b.vt) return false;
+    if (a.structure != b.structure) return false;
      // These ACRs are dynamically generated, but have a limited set of types,
      // so we can dissect them and compare their members.
-    if (a.vt == &ChainAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainAcr&>(a);
-        auto& bb = reinterpret_cast<const ChainAcr&>(b);
-        return *aa.outer == *bb.outer && *aa.inner == *bb.inner;
+    switch (a.structure) {
+        case AS::Chain: {
+            auto& aa = reinterpret_cast<const ChainAcr&>(a);
+            auto& bb = reinterpret_cast<const ChainAcr&>(b);
+            return *aa.outer == *bb.outer && *aa.inner == *bb.inner;
+        }
+        case AS::ChainAttrFunc: {
+            auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
+            auto& bb = reinterpret_cast<const ChainAttrFuncAcr&>(b);
+            return *aa.outer == *bb.outer && aa.f == bb.f && aa.key == bb.key;
+        }
+        case AS::ChainElemFunc:  {
+            auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
+            auto& bb = reinterpret_cast<const ChainElemFuncAcr&>(b);
+            return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
+        }
+        case AS::ChainDataFunc:  {
+            auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
+            auto& bb = reinterpret_cast<const ChainDataFuncAcr&>(b);
+            return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
+        }
+         // Other ACRs can have a diverse range of parameterized types, so
+         // comparing their contents is not feasible.  Fortunately, they should
+         // all be statically generated, so if two ACRs refer to the same member
+         // of a type, they should have the same address.
+        default: return false;
     }
-    else if (a.vt == &ChainAttrFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
-        auto& bb = reinterpret_cast<const ChainAttrFuncAcr&>(b);
-        return *aa.outer == *bb.outer && aa.f == bb.f && aa.key == bb.key;
-    }
-    else if (a.vt == &ChainElemFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
-        auto& bb = reinterpret_cast<const ChainElemFuncAcr&>(b);
-        return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
-    }
-    else if (a.vt == &ChainDataFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
-        auto& bb = reinterpret_cast<const ChainDataFuncAcr&>(b);
-        return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
-    }
-     // Other ACRs can have a diverse range of parameterized types, so comparing
-     // their contents is not feasible.  Fortunately, they should all be
-     // statically generated, so if two ACRs refer to the same member of a type,
-     // they should have the same address.
-    else return false;
 }
 
 usize hash_acr (const Accessor& a) {
-    if (a.vt == &ChainAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainAcr&>(a);
-        return hash_combine(hash_acr(*aa.outer), hash_acr(*aa.inner));
+    switch (a.structure) {
+        case AS::Chain: {
+            auto& aa = reinterpret_cast<const ChainAcr&>(a);
+            return hash_combine(hash_acr(*aa.outer), hash_acr(*aa.inner));
+        }
+        case AS::ChainAttrFunc:  {
+            auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
+            return hash_combine(
+                hash_combine(
+                    hash_acr(*aa.outer),
+                    std::hash<AttrFunc<Mu>*>{}(aa.f)
+                ),
+                std::hash<AnyString>{}(aa.key)
+            );
+        }
+        case AS::ChainElemFunc:  {
+            auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
+            return hash_combine(
+                hash_combine(
+                    hash_acr(*aa.outer),
+                    std::hash<ElemFunc<Mu>*>{}(aa.f)
+                ),
+                std::hash<usize>{}(aa.index)
+            );
+        }
+        case AS::ChainDataFunc:  {
+            auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
+            return hash_combine(
+                hash_combine(
+                    hash_acr(*aa.outer),
+                    std::hash<DataFunc<Mu>*>{}(aa.f)
+                ),
+                std::hash<usize>{}(aa.index)
+            );
+        }
+        default: return std::hash<const Accessor*>{}(&a);
     }
-    else if (a.vt == &ChainAttrFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
-        return hash_combine(
-            hash_combine(
-                hash_acr(*aa.outer),
-                std::hash<AttrFunc<Mu>*>{}(aa.f)
-            ),
-            std::hash<AnyString>{}(aa.key)
-        );
-    }
-    else if (a.vt == &ChainElemFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
-        return hash_combine(
-            hash_combine(
-                hash_acr(*aa.outer),
-                std::hash<ElemFunc<Mu>*>{}(aa.f)
-            ),
-            std::hash<usize>{}(aa.index)
-        );
-    }
-    else if (a.vt == &ChainDataFuncAcr::_vt) {
-        auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
-        return hash_combine(
-            hash_combine(
-                hash_acr(*aa.outer),
-                std::hash<DataFunc<Mu>*>{}(aa.f)
-            ),
-            std::hash<usize>{}(aa.index)
-        );
-    }
-    else return std::hash<const Accessor*>{}(&a);
 }
 
 } using namespace ayu::in;
