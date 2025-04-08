@@ -12,10 +12,17 @@ namespace uni {
 
 namespace in {
 
+[[gnu::cold]] NOINLINE static
+void warn_close_failed (StaticString message, Str path) {
+    warn_utf8(cat(
+        message, path, ": ", strerror(errno), '\n'
+    ));
+}
+
 [[noreturn, gnu::cold]] NOINLINE static
-void raise_io_error (ErrorCode code, StaticString details, Str filename, int errnum) {
+void raise_io_error (ErrorCode code, StaticString details, Str path) {
     raise(code, cat(
-        details, filename, ": ", strerror(errnum)
+        details, path, ": ", strerror(errno)
     ));
 }
 
@@ -38,7 +45,8 @@ File File::try_open (AnyString p, const char* mode) noexcept {
 
 [[gnu::cold]]
 void File::raise_open_failed (int errnum) const {
-    raise_io_error(e_OpenFailed, "Failed to open ", path, errnum);
+    errno = errnum;
+    raise_io_error(e_OpenFailed, "Failed to open ", path);
 }
 
 UniqueString File::read () {
@@ -47,11 +55,11 @@ UniqueString File::read () {
     if (res < 0) {
          // Reading from unseekable files is NYI
         seek_failed:
-        raise_io_error(e_ReadFailed, "Failed to fseek ", path, errno);
+        raise_io_error(e_ReadFailed, "Failed to fseek ", path);
     }
     long size = ftell(handle);
     if (size < 0) {
-        raise_io_error(e_ReadFailed, "Failed to ftell ", path, errno);
+        raise_io_error(e_ReadFailed, "Failed to ftell ", path);
     }
     require(usize(size) < AnyString::max_size_);
     auto r = UniqueString(Uninitialized(size));
@@ -61,7 +69,7 @@ UniqueString File::read () {
      // Read
     usize did_read = fread(r.data(), 1, r.size(), handle);
     if (did_read != r.size()) {
-        raise_io_error(e_ReadFailed, "Failed to read from ", path, errno);
+        raise_io_error(e_ReadFailed, "Failed to read from ", path);
     }
     return r;
 }
@@ -69,7 +77,7 @@ UniqueString File::read () {
 void File::write (Str content) {
     usize did_write = fwrite(content.data(), 1, content.size(), handle);
     if (did_write != content.size()) {
-        raise_io_error(e_WriteFailed, "Failed to write to ", path, errno);
+        raise_io_error(e_WriteFailed, "Failed to write to ", path);
     }
 }
 
@@ -77,9 +85,7 @@ void File::close () noexcept {
     int res = fclose(handle);
     handle = null;
     if (res != 0) [[unlikely]] {
-        warn_utf8(cat(
-            "Warning: Failed to close ", path, ": ", strerror(errno), '\n'
-        ));
+        warn_close_failed("Warning: Failed to close ", path);
     }
 }
 
@@ -96,7 +102,7 @@ void string_to_file (Str content, AnyString path) {
 Dir::Dir (AnyString path) :
     Dir(try_open_at(AT_FDCWD, move(path)))
 {
-    if (!handle) raise_open_failed(errno);
+    if (!handle) raise_open_failed();
 }
 
 Dir Dir::try_open_at (int parent_fd, AnyString path) noexcept {
@@ -112,7 +118,8 @@ Dir Dir::try_open_at (int parent_fd, AnyString path) noexcept {
 }
 
 void Dir::raise_open_failed (int errnum) const {
-    raise_io_error(e_ListDirFailed, "Failed to open directory ", path, errnum);
+    errno = errnum;
+    raise_io_error(e_ListDirFailed, "Failed to open directory ", path);
 }
 
 UniqueArray<UniqueString> Dir::list () {
@@ -127,7 +134,7 @@ dirent* Dir::list_one () {
     errno = 0;
     dirent* r = readdir(handle);
     if (errno) {
-        raise_io_error(e_ListDirFailed, "Failed to list directory ", path, errno);
+        raise_io_error(e_ListDirFailed, "Failed to list directory ", path);
     }
     return r;
 }
@@ -137,9 +144,7 @@ void Dir::close () noexcept {
     handle = null;
     fd = 0;
     if (res < 0) [[unlikely]] {
-        warn_utf8(cat(
-            "Warning: Failed to close directory ", path, ": ", strerror(errno), '\n'
-        ));
+        warn_close_failed("Warning: Failed to close directory ", path);
     }
 }
 
