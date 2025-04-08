@@ -92,16 +92,11 @@ AccessMode write_to_modify (AccessMode mode) {
 }
 
 
+struct Accessor;
  // This is the callback passed to access operations.
 using AccessCB = CallbackRef<void(AnyPtr, bool)>;
-
- // Rolling our own vtables.  Using C++'s builtin vtable system pulls in a lot
- // of RTTI information for each class, and when those classes are template
- // instantiations it results in massive code size bloating.
-struct Accessor;
-struct AcrVT {
-    void(* access )(const Accessor*, AccessMode, Mu&, AccessCB);
-};
+ // This is the "virtual function" that accessors use
+using AccessFunc = void(const Accessor*, AccessMode, Mu&, AccessCB);
 
 void delete_Accessor (Accessor*) noexcept;
 
@@ -119,8 +114,7 @@ using AS = AccessorStructure;
 
  // The base class for all accessors.  Try to keep this small.
 struct Accessor {
-    static constexpr AcrVT _vt = {};
-    const AcrVT* vt = &_vt;
+    AccessFunc* access_func;
      // If ref_count is 0, this is a constexpr accessor and it can't be
      // modified.  Yes, this does mean that if an accessor accumulates enough
      // references to overflow the count it won't be deleted.  I doubt you'll
@@ -128,18 +122,17 @@ struct Accessor {
      // constexpr classes.)  Note also that the refcount starts at 1, so when
      // constructing an AnyRef or a ChainAcr with a new Accessor*, don't call
      // inc() on it.
-    u16 ref_count = 1;
+    u32 ref_count = 1;
     AccessorStructure structure;
     AcrFlags flags = {};
      // These belong on AttrDcr and ElemDcr but we're storing them here to
      //  save space.
     AttrFlags attr_flags = {};
 
-
     explicit constexpr Accessor (
-        const AcrVT* vt, AccessorStructure s, AcrFlags f = {}
+        AccessFunc* a, AccessorStructure s, AcrFlags f = {}
     ) :
-        vt(vt), structure(s), flags(f)
+        access_func(a), structure(s), flags(f)
     { }
 
     TreeFlags tree_flags () const {
@@ -154,7 +147,7 @@ struct Accessor {
         if (mode != AccessMode::Read) {
             expect(!(flags & AcrFlags::Readonly));
         }
-        vt->access(this, mode, from, cb);
+        access_func(this, mode, from, cb);
     }
     void read (Mu& from, AccessCB cb) const {
         access(AccessMode::Read, from, cb);
@@ -180,7 +173,7 @@ struct Accessor {
          // Unlikely because most ACRs are constexpr.  This cannot be converted
          // to branchless code because the acr may be in a readonly region.
         if (ref_count) [[unlikely]] {
-            const_cast<u16&>(ref_count)++;
+            const_cast<u32&>(ref_count)++;
         }
     }
     NOINLINE // noinline this so it doesn't make the caller allocate stack space
@@ -214,48 +207,24 @@ constexpr Acr constexpr_acr (Acr a) {
     return a;
 }
 
- // Merge _type virtual functions into one to improve branch target prediction.
- // TODO: we don't have _type any more, do we need this?
-struct AccessorWithType : Accessor {
-     // TODO: This documentation is obsolete, I think we still need the double
-     // indirection, but for a different reason.  Might be worth
-     // re-investigating though.  See also: description.internal.h
-     //
-     // This isn't a plain Type because Type::CppType may not work properly at
-     // global init time, and it isn't a std::type_info* because we still need
-     // to reference Type::CppType<To> to auto-instantiate template descriptions.
-     // We could make this a std::type_info* and manually reference
-     // Type::CppType<To> with the comma operator, but if the description for To
-     // was declared in the same translation unit, Type::CppType<To>() will be
-     // much faster than need_description_for_type_info().
-     //
-     // Wouldn't it save space to put this in the vtable?  No!  Doing so would
-     // require a different vtable for each To type, so it would likely use more
-     // space.  TODO: actually measure this
-    const Description* const* desc;
-    explicit constexpr AccessorWithType (
-        const AcrVT* vt, AccessorStructure s,
-        const Description* const* d, AcrFlags f = {}
-    ) : Accessor(vt, s, f), desc(d)
-    { }
-};
-
 ///// ACCESSOR TYPES
 
 /// member
 
-struct MemberAcr0 : AccessorWithType {
-    using AccessorWithType::AccessorWithType;
+struct MemberAcr0 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct MemberAcr2 : MemberAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
+    const Description* const* desc;
     To From::* mp;
     explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
-        MemberAcr0(&_vt, AS::Flat, get_indirect_description<To>(), flags), mp(mp)
+        MemberAcr0(&_access, AS::Flat, flags),
+        desc(get_indirect_description<To>()),
+        mp(mp)
     { }
 };
 
@@ -265,9 +234,6 @@ template <class From, class To>
 struct BaseAcr2 : Accessor {
     using AcrFromType = From;
     using AcrToType = To;
-    explicit constexpr BaseAcr2 (AcrFlags flags = {}) :
-        Accessor(&_vt, AS::Flat, flags)
-    { }
     static void _access (
         const Accessor* acr, AccessMode, Mu& from, AccessCB cb
     ) {
@@ -275,63 +241,72 @@ struct BaseAcr2 : Accessor {
         To& to = reinterpret_cast<From&>(from);
         cb(AnyPtr(&to), !(acr->flags & AcrFlags::Unaddressable));
     }
-    static constexpr AcrVT _vt = {&_access};
+    explicit constexpr BaseAcr2 (AcrFlags flags = {}) :
+        Accessor(&_access, AS::Flat, flags)
+    { }
 };
 
  // Optimization for when base is at the same address as derived
-struct FirstBaseAcr0 : AccessorWithType {
-    using AccessorWithType::AccessorWithType;
+struct FirstBaseAcr0 : Accessor {
+    const Description* const* desc;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
+    explicit constexpr FirstBaseAcr0 (
+        const Description* const* d, AcrFlags flags = {}
+    ) :
+        Accessor(&_access, AS::Flat, flags),
+        desc(d)
+    { }
 };
 template <class From, class To>
 struct FirstBaseAcr2 : FirstBaseAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr FirstBaseAcr2 (AcrFlags flags = {}) :
-        FirstBaseAcr0(&_vt, AS::Flat, get_indirect_description<To>(), flags)
+        FirstBaseAcr0(get_indirect_description<To>(), flags)
     { }
 };
 
 /// ref_func
 
-struct RefFuncAcr0 : AccessorWithType {
+struct RefFuncAcr0 : Accessor {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
-    using AccessorWithType::AccessorWithType;
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct RefFuncAcr2 : RefFuncAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
+    const Description* const* desc;
     To&(* f )(From&);
     explicit constexpr RefFuncAcr2 (To&(* f )(From&), AcrFlags flags = {}) :
-        RefFuncAcr0(&_vt, AS::Flat, get_indirect_description<To>(), flags), f(f)
+        RefFuncAcr0(&_access, AS::Flat, flags),
+        desc(get_indirect_description<To>()),
+        f(f)
     { }
 };
 
 /// const_ref_func
 
-struct ConstRefFuncAcr0 : AccessorWithType {
+struct ConstRefFuncAcr0 : Accessor {
      // It's the programmer's responsibility to know whether they're
      // allowed to address this reference or not.
-    using AccessorWithType::AccessorWithType;
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
+    const Description* const* desc;
     const To&(* f )(const From&);
     explicit constexpr ConstRefFuncAcr2 (
         const To&(* f )(const From&), AcrFlags flags = {}
     ) :
-        ConstRefFuncAcr0(
-            &_vt, AS::Flat, get_indirect_description<To>(), flags
-        ), f(f)
+        ConstRefFuncAcr0(&_access, AS::Flat, flags),
+        desc(get_indirect_description<To>()),
+        f(f)
     { }
 };
 
@@ -341,7 +316,6 @@ template <class To>
 struct RefFuncsAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct RefFuncsAcr2 : RefFuncsAcr1<To> {
@@ -354,7 +328,8 @@ struct RefFuncsAcr2 : RefFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_vt, AS::Flat, flags), getter(g), setter(s)
+        RefFuncsAcr1<To>(&RefFuncsAcr1<To>::_access, AS::Flat, flags),
+        getter(g), setter(s)
     { }
 };
 template <class To>
@@ -385,9 +360,8 @@ void RefFuncsAcr1<To>::_access (
 
 template <class To>
 struct ValueFuncAcr1 : Accessor {
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
     using Accessor::Accessor;
+    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
 };
 template <class From, class To>
 struct ValueFuncAcr2 : ValueFuncAcr1<To> {
@@ -396,7 +370,7 @@ struct ValueFuncAcr2 : ValueFuncAcr1<To> {
     To(* f )(const From&);
     explicit constexpr ValueFuncAcr2 (To(* f )(const From&), AcrFlags flags = {}) :
         ValueFuncAcr1<To>(
-            &ValueFuncAcr1<To>::_vt, AS::Flat,
+            &ValueFuncAcr1<To>::_access, AS::Flat,
             flags | AcrFlags::Readonly
         ),
         f(f)
@@ -418,7 +392,6 @@ template <class To>
 struct ValueFuncsAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
@@ -431,7 +404,7 @@ struct ValueFuncsAcr2 : ValueFuncsAcr1<To> {
         void(* s )(From&, To),
         AcrFlags flags = {}
     ) :
-        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_vt, AS::Flat, flags),
+        ValueFuncsAcr1<To>(&ValueFuncsAcr1<To>::_access, AS::Flat, flags),
         getter(g), setter(s)
     { }
 };
@@ -470,7 +443,6 @@ template <class To>
 struct MixedFuncsAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
@@ -483,7 +455,7 @@ struct MixedFuncsAcr2 : MixedFuncsAcr1<To> {
         void(* s )(From&, const To&),
         AcrFlags flags = {}
     ) :
-        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_vt, AS::Flat, flags),
+        MixedFuncsAcr1<To>(&MixedFuncsAcr1<To>::_access, AS::Flat, flags),
         getter(g), setter(s)
     { }
 };
@@ -517,9 +489,6 @@ template <class From, class To>
 struct AssignableAcr2 : Accessor {
     using AcrFromType = From;
     using AcrToType = To;
-    explicit constexpr AssignableAcr2 (AcrFlags flags = {}) :
-        Accessor(&_vt, AS::Flat, flags)
-    { }
     static void _access (
         const Accessor*, AccessMode mode, Mu& from_mu, AccessCB cb
     ) {
@@ -530,28 +499,32 @@ struct AssignableAcr2 : Accessor {
         if (mode != AccessMode::Read) from = tmp;
         return;
     }
-    static constexpr AcrVT _vt = {&_access};
+    explicit constexpr AssignableAcr2 (AcrFlags flags = {}) :
+        Accessor(&_access, AS::Flat, flags)
+    { }
 };
 
 /// variable
 
 template <class To>
-struct VariableAcr1 : AccessorWithType {
-    using AccessorWithType::AccessorWithType;
+struct VariableAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct VariableAcr2 : VariableAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
+    const Description* const* desc;
     alignas(usize) mutable To value;
      // This ACR cannot be constexpr.
     explicit VariableAcr2 (To&& v, AcrFlags flags = {}) :
         VariableAcr1<To>(
-            &VariableAcr1<To>::_vt, AS::Variable,
+            &VariableAcr1<To>::_access, AS::Variable,
             get_indirect_description<To>(), flags
-        ), value(move(v))
+        ),
+        desc(get_indirect_description<To>()),
+        value(move(v))
     { }
 };
 template <class To>
@@ -567,21 +540,22 @@ void VariableAcr1<To>::_access (
 /// constant
 
 template <class To>
-struct ConstantAcr1 : AccessorWithType {
-    using AccessorWithType::AccessorWithType;
+struct ConstantAcr1 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From, class To>
 struct ConstantAcr2 : ConstantAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
+    const Description* const* desc;
     alignas(usize) const To value;  // The offset of this MUST match VariableAcr2::value
     explicit constexpr ConstantAcr2 (const To& v, AcrFlags flags = {}) :
         ConstantAcr1<To>(
-            &ConstantAcr1<To>::_vt, AS::Variable,
-            get_indirect_description<To>(),
-            flags | AcrFlags::Readonly),
+            &ConstantAcr1<To>::_access, AS::Variable,
+            flags | AcrFlags::Readonly
+        ),
+        desc(get_indirect_description<To>()),
         value(v)
     { }
 };
@@ -596,23 +570,25 @@ void ConstantAcr1<To>::_access (
 
 /// constant_pointer
 
-struct ConstantPtrAcr0 : AccessorWithType {
-    using AccessorWithType::AccessorWithType;
+struct ConstantPtrAcr0 : Accessor {
+    using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 
 template <class From, class To>
 struct ConstantPtrAcr2 : ConstantPtrAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
+    const Description* const* desc;
     const To* pointer;
     explicit constexpr ConstantPtrAcr2 (const To* p, AcrFlags flags = {}) :
         ConstantPtrAcr0(
-            &_vt, AS::Flat,
+            &_access, AS::Flat,
             get_indirect_description<To>(),
             flags | AcrFlags::Readonly
-        ), pointer(p)
+        ),
+        desc(get_indirect_description<To>()),
+        pointer(p)
     { }
 };
 
@@ -624,7 +600,6 @@ struct ConstantPtrAcr2 : ConstantPtrAcr0 {
 struct AnyRefFuncAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From>
 struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
@@ -634,7 +609,7 @@ struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
     explicit constexpr AnyRefFuncAcr2 (
         AnyRef(* f )(From&), AcrFlags flags = {}
     ) :
-        AnyRefFuncAcr1(&_vt, AS::Flat, flags), f(f)
+        AnyRefFuncAcr1(&_access, AS::Flat, flags), f(f)
     { }
 };
 
@@ -643,7 +618,6 @@ struct AnyRefFuncAcr2 : AnyRefFuncAcr1 {
 struct AnyPtrFuncAcr1 : Accessor {
     using Accessor::Accessor;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    static constexpr AcrVT _vt = {&_access};
 };
 template <class From>
 struct AnyPtrFuncAcr2 : AnyPtrFuncAcr1 {
@@ -653,7 +627,7 @@ struct AnyPtrFuncAcr2 : AnyPtrFuncAcr1 {
     explicit constexpr AnyPtrFuncAcr2 (
         AnyPtr(* f )(From&), AcrFlags flags = {}
     ) :
-        AnyPtrFuncAcr1(&_vt, AS::Flat, flags), f(f)
+        AnyPtrFuncAcr1(&_access, AS::Flat, flags), f(f)
     { }
 };
 

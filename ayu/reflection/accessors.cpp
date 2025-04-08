@@ -89,7 +89,7 @@ AcrFlags chain_acr_flags (AcrFlags o, AcrFlags i) {
 }
 
 ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
-    Accessor(&_vt, AS::Chain, chain_acr_flags(outer->flags, inner->flags)),
+    Accessor(&_access, AS::Chain, chain_acr_flags(outer->flags, inner->flags)),
     outer(outer), inner(inner)
 { outer->inc(); inner->inc(); }
 
@@ -223,31 +223,32 @@ void delete_Accessor (Accessor* acr) noexcept {
              // size, but C++ does in order to do this operation.  So I guess
              // use usize instead?  Hope the alignment works out!
             auto* self = static_cast<VariableAcr2<Mu, usize>*>(acr);
-            Type(*self->desc).delete_((Mu*)&self->value);
+            Type(*self->desc).destroy((Mu*)&self->value);
             break;
         }
         case AS::Chain: {
             auto* self = static_cast<ChainAcr*>(acr);
-            delete self;
+            self->~ChainAcr();
             break;
         }
         case AS::ChainAttrFunc: {
             auto* self = static_cast<ChainAttrFuncAcr*>(acr);
-            delete self;
+            self->~ChainAttrFuncAcr();
             break;
         }
         case AS::ChainElemFunc: {
             auto* self = static_cast<ChainElemFuncAcr*>(acr);
-            delete self;
+            self->~ChainElemFuncAcr();
             break;
         }
         case AS::ChainDataFunc: {
             auto* self = static_cast<ChainDataFuncAcr*>(acr);
-            delete self;
+            self->~ChainDataFuncAcr();
             break;
         }
         default: never();
     }
+    delete acr;
 }
 
 bool operator== (const Accessor& a, const Accessor& b) {
