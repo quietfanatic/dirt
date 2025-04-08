@@ -12,6 +12,16 @@
 namespace uni::lilac {
 namespace in {
 
+struct alignas(64) Global {
+    Page* first_partial_pages [n_size_classes] = {};
+     // Put less-frequently-used things on the end
+    Page* first_free_page = null;
+    Page* first_untouched_page = null;
+    Page* pool = null;
+    Page* pool_end = null; // We have extra room, may as well cache this
+};
+Global global;
+
 struct alignas(page_size) Page {
      // Note: this must be at offset 0 for a weird optimization
     u32 first_free_slot;
@@ -159,7 +169,9 @@ Block allocate_page (Page*& first_partial, u32 slot_size) noexcept {
 }
 
 NOINLINE
-Block allocate_small (Page*& first_partial, u32 slot_size) noexcept {
+Block allocate_small (u32 size_class) noexcept {
+    Page*& first_partial = in::global.first_partial_pages[size_class];
+    u32 slot_size = in::class_sizes[size_class];
     if (!first_partial) [[unlikely]] {
         return allocate_page(first_partial, slot_size);
     }
@@ -240,19 +252,20 @@ Block allocate_large (usize size) noexcept {
 }
 
 } using namespace in;
+
 NOINLINE
 Block allocate_block (usize size) noexcept {
     i32 sc = get_size_class(size);
     if (sc >= 0) {
-        u32 slot_size = class_sizes[sc];
-        return allocate_small(global.first_partial_pages[sc], slot_size);
+        return allocate_small(sc);
     }
     else [[unlikely]] return allocate_large(size);
 }
 namespace in {
 
 NOINLINE
-void deallocate_small (void* p, Page*& first_partial, u32 slot_size) noexcept {
+void deallocate_small (void* p, u32 size_class) noexcept {
+    u32 slot_size = class_sizes[size_class];
      // Check that we own this pointer
      // This expect causes optimized build to load &global too early
 #ifndef NDEBUG
@@ -285,6 +298,7 @@ void deallocate_small (void* p, Page*& first_partial, u32 slot_size) noexcept {
      // It's possible to do a math trick to merge these branches into one, but
      // it ends up using more instructions even in the likely case.
     if (page->bytes_used == page_overhead) [[unlikely]] {
+        Page*& first_partial = global.first_partial_pages[size_class];
          // Page is empty, take it out of the partial list
         Page* next = page->next_page;
         Page* prev = page->prev_page;
@@ -304,6 +318,7 @@ void deallocate_small (void* p, Page*& first_partial, u32 slot_size) noexcept {
 #endif
     }
     else if (page->bytes_used + slot_size * 2 > page_size) [[unlikely]] {
+        Page*& first_partial = global.first_partial_pages[size_class];
          // Page went from full to partial, so put it on the partial list
         Page* first = first_partial;
         Page* target = first ? first : page;
@@ -334,8 +349,7 @@ void deallocate_unknown_size (void* p) noexcept {
      && (char*)p < (char*)global.pool_end
     ) {
         Page* page = (Page*)((usize)p & ~usize(page_size - 1));
-        Page*& fp = global.first_partial_pages[page->size_class];
-        deallocate_small(p, fp, page->slot_size);
+        deallocate_small(p, page->size_class);
     }
     else [[unlikely]] deallocate_large(p, 0);
 }
