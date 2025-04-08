@@ -5,7 +5,7 @@
 
 namespace uni {
 
-bool CommandResult::command_not_found () {
+bool CommandResult::command_wasnt_found () {
     return WEXITSTATUS(ret) == 127;
 }
 

@@ -7,7 +7,7 @@ namespace uni {
 struct CommandResult {
     UniqueString out;
     int ret;
-    bool command_not_found ();
+    bool command_wasnt_found ();
 };
 
  // Run command through system's command interpreter.
