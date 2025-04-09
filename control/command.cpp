@@ -6,25 +6,25 @@
 
 namespace control {
 
-static std::unordered_map<Str, const CommandBase*>& commands_by_name () {
-    static std::unordered_map<Str, const CommandBase*> r;
+static std::unordered_map<Str, const Command*>& commands_by_name () {
+    static std::unordered_map<Str, const Command*> r;
     return r;
 }
 
-void register_command (const CommandBase* cmd) {
+void register_command (const Command* cmd) {
     auto [iter, emplaced] = commands_by_name().emplace(cmd->name(), cmd);
     if (!emplaced) ayu::raise(e_CommandNameDuplicate, cat(
         "Duplicate command name ", cmd->name()
     ));
 }
 
-const CommandBase* lookup_command (Str name) noexcept {
+const Command* lookup_command (Str name) noexcept {
     auto& by_name = commands_by_name();
     auto iter = by_name.find(name);
     if (iter != by_name.end()) return iter->second;
     else return nullptr;
 }
-const CommandBase* require_command (Str name) {
+const Command* require_command (Str name) {
     if (auto r = lookup_command(name)) return r;
     else ayu::raise(e_CommandNotFound, name);
 }
@@ -64,13 +64,13 @@ AYU_DESCRIBE(control::Statement,
                 " but got ", a.size() - 1, ')'
             ));
         }
-        v.storage = (StatementStorageBase*)command->storage_type.default_new();
+        auto type = ayu::Type(*command->storage_type);
+        v.storage = (StatementStorageBase*)type.default_new();
         v.storage->command = command;
     }),
     delegate(anyptr_func([](Statement& v)->ayu::AnyPtr{
-        return ayu::AnyPtr(
-            v.storage->command->storage_type, (ayu::Mu*)v.storage
-        );
+        auto type = ayu::Type(*v.storage->command->storage_type);
+        return ayu::AnyPtr(type, (ayu::Mu*)v.storage);
     }))
 )
 
@@ -78,10 +78,10 @@ AYU_DESCRIBE(control::Statement,
 #include "../tap/tap.h"
 
 static UniqueArray<int> test_vals;
-static void test_command_ (int a, int b) {
+static void _test_command (int a, int b) {
     test_vals.push_back(a * b);
 }
-static Command<test_command_> test_command (1, "_test_command", "Command for testing, do not use.");
+CONTROL_COMMAND(_test_command, 1, "Command for testing, do not use.");
 
 static tap::TestSet tests ("dirt/control/command", []{
     using namespace tap;

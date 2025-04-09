@@ -9,10 +9,10 @@ using namespace uni;
 
 ///// STATEMENT STORAGE
 
-struct CommandBase;
+struct Command;
 
 struct StatementStorageBase {
-    const CommandBase* command;
+    const Command* command;
 };
 
 template <u32 i, class Par>
@@ -102,7 +102,7 @@ struct CommandCaller<f, void(&)(Pars...)> {
 //template <auto& f, class T> requires { T::operator(); }
 //struct CommandCaller<f, T> : CommandCallerLambda<f, T, &T::operator()> { };
 
-void register_command (const CommandBase*);
+void register_command (const Command*);
 
  // Based on the std::tuple description, but more efficient because
  // StatementStorage supports member pointers.
