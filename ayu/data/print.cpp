@@ -471,7 +471,7 @@ static tap::TestSet tests ("dirt/ayu/data/print", []{
 
     Tree t = tree_from_string(pretty);
 
-    auto test = [](Str got, Str expected, std::string name){
+    auto test = [](Str got, Str expected, Str name){
         if (!is(got, expected, name)) {
             u32 i = 0;
             for (; i < got.size() && i < expected.size(); i++) {
@@ -491,10 +491,10 @@ static tap::TestSet tests ("dirt/ayu/data/print", []{
     };
     test(tree_to_string(t, O::Pretty), pretty, "Pretty");
     test(tree_to_string(t, O::Compact), compact, "Compact");
-    test(tree_to_string(t, O::Pretty|O::Json), pretty_json, "Pretty O::Json");
-    test(tree_to_string(t, O::Compact|O::Json), compact_json, "Compact O::Json");
+    test(tree_to_string(t, O::Pretty|O::Json), pretty_json, "Pretty Json");
+    test(tree_to_string(t, O::Compact|O::Json), compact_json, "Compact Json");
     test(tree_to_string(Tree(1.0)), "1", "Autointification small");
-    test(tree_to_string(Tree(145.0)), "145", "Autointification small");
+    test(tree_to_string(Tree(145.0)), "145", "Autointification large");
 
     done_testing();
 });
