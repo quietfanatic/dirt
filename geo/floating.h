@@ -119,13 +119,13 @@ constexpr SameSizeInt<T> round (T a) {
 template <Floating T>
 constexpr SameSizeInt<T> floor (T a) {
     if (a >= 0) return trunc(a);
-    else return SameSizeInt<T>(-GINF) - trunc(SameSizeInt<T>(-GINF) - a);
+    else return -trunc(-a);
 }
 
  // Round toward positive infinity
 template <Floating T>
 constexpr SameSizeInt<T> ceil (T a) {
-    if (a > 0) return SameSizeInt<T>(GINF) - trunc(SameSizeInt<T>(GINF) - a);
+    if (a > 0) return -trunc(-a);
     else return trunc(a);
 }
 
