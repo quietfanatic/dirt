@@ -1,6 +1,7 @@
 #include "iri.h"
 
 #include "../uni/assertions.h"
+#include "../uni/strings.h"
 
 namespace iri {
 using namespace in;
@@ -542,6 +543,15 @@ bool scheme_canonical (Str scheme) {
         default: [[unlikely]] return false;
     }
     return true;
+}
+
+IRI IRI::add_slash_to_path () const {
+    if (!hierarchical()) return IRI(Error::CouldNotResolve);
+    if (spec_[path_end-1] == '/') return *this;
+    else return IRI(
+        cat(spec_.chop(path_end), '/', spec_.slice(path_end)),
+        scheme_end, authority_end, path_end + 1, query_end + 1
+    );
 }
 
 } using namespace iri;

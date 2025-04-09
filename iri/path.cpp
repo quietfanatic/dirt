@@ -1,5 +1,6 @@
 #include "path.h"
 
+#include "../uni/strings.h"
 #include "../whereami/whereami.h"
 #include <filesystem>
 namespace fs = std::filesystem;

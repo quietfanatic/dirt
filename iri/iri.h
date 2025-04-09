@@ -80,7 +80,7 @@
 #pragma once
 
 #include "../uni/common.h"
-#include "../uni/strings.h"
+#include "../uni/arrays.h"
 
 namespace iri {
 using namespace uni;
@@ -293,11 +293,16 @@ struct IRI {
      // This library does not parse the authority, so if you chop in the middle
      // of the authority, you may produce an invalid authority.
      //
-     // iri.chop(n) is almost the same as IRI(iri.spec().chop(n)), except that
-     // you can't turn the authority's // into a /, because that would change
-     // its meaning.
+     // Other than the above, iri.chop(n) is basically the same as
+     // IRI(iri.spec().chop(n)), but doesn't require a reparse.
     constexpr IRI chop (usize new_size) const;
     constexpr IRI chop (const char* new_end) const;
+
+     // Return a new IRI with a slash after the path if this doesn't have one.
+     // Fails with Error::CouldNotResolve if we don't have a hierarchical path.
+     // Not constexpr because it may have to reallocate, but it won't have to
+     // reparse.
+    IRI add_slash_to_path () const;
 
      // Get an IRI reference that's relative to base, such that
      //     IRI(input.relative_to(base), base) == input
