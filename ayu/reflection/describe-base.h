@@ -51,6 +51,7 @@
 #include "accessors.internal.h"
 #include "anyref.h"
 #include "descriptors.internal.h"
+#include "type.h"
 
 namespace ayu {
 
