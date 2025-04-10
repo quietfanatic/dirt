@@ -116,7 +116,7 @@ void done_testing () {
 }
 
 inline
-bool ok (bool succeeded, uni::Str name) {
+bool ok_bool (bool succeeded, uni::Str name) {
     in::num_tested += 1;
     uni::UniqueString suffix;
     if (in::num_to_todo || in::block_todo) {

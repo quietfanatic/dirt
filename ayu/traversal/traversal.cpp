@@ -12,7 +12,7 @@ static void to_route_chain (const Traversal&, void*);
 NOINLINE
 void Traversal::to_reference (void* r) const noexcept {
     if (addressable) {
-        new (r) AnyRef(Type(desc, readonly), address);
+        new (r) AnyRef(Type(ti, readonly), address);
     }
     else if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
@@ -32,7 +32,7 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
         case TraversalOp::Attr:
         case TraversalOp::Elem: {
             auto& self = static_cast<const AcrTraversal&>(trav);
-            auto type = Type(self.parent->desc, self.parent->readonly);
+            auto type = Type(self.parent->ti, self.parent->readonly);
             new (r) AnyRef(AnyPtr(type, self.parent->address), self.acr);
             return;
         }

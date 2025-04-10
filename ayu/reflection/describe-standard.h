@@ -39,19 +39,16 @@ namespace ayu::in {
     [[gnu::noclone]] NOINLINE inline
     AnyString make_variadic_name (
         StaticString init,
-         // Yes this is the correct number of pointers.
-         // Yes, it is ridiculous.
-         // No, there is no way to make it not ridiculous.
-        Description const* const* const* descs,
+        const Type* types,
         u32 len
     ) noexcept {
         expect(len >= 1);
         return cat(
-            init, Caterator(", ", len, [descs](u32 i){
-                 // This will call get_description_name twice for each desc, but
+            init, Caterator(", ", len, [types](u32 i){
+                 // This will call get_type_name twice for each desc, but
                  // this should still be faster and smaller than caching all the
                  // names in a variable-length array.
-                return expect(Type(*descs[i]).name());
+                return expect(types[i].name());
             }), '>'
         );
     }
@@ -473,8 +470,8 @@ AYU_DESCRIBE_TEMPLATE(
             return "std::tuple<>";
         }
         else {
-            static constexpr const ayu::in::Description* const* descs [] = {
-                ayu::in::get_indirect_description<Ts>()...
+            static constexpr const ayu::Type descs [] = {
+                ayu::Type::CppType<Ts>()...
             };
             return ayu::in::make_variadic_name("std::tuple<", descs, sizeof...(Ts));
         }

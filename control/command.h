@@ -23,7 +23,7 @@ using Function = F;
 
 struct Command {
     void(* call )(StatementStorageBase*);
-    const ayu::in::Description* const* storage_type;
+    const ayu::Type storage_type;
     const char* name_d;
     const char* desc_d;
     u32 name_s;
@@ -38,11 +38,11 @@ struct Command {
     u32 max;
     consteval Command (
         void(* c )(StatementStorageBase*),
-        const ayu::in::Description* const* s,
+        ayu::Type t,
         StaticString n, StaticString d,
         u32 i, u32 a
     ) :
-        call(c), storage_type(s),
+        call(c), storage_type(t),
         name_d(n.data()), desc_d(d.data()),
         name_s(n.size()), desc_s(d.size()),
         min(i), max(a)
@@ -53,7 +53,7 @@ struct Command {
 #define CONTROL_COMMAND(f, min, desc) \
 constexpr control::Command _control_command_##f ( \
     control::CommandCaller<f>::get_call(), \
-    ayu::in::get_indirect_description< \
+    ayu::Type::CppType< \
         typename control::CommandCaller<f>::Storage \
     >(), \
     #f, desc, min, control::CommandCaller<f>::max \
@@ -65,7 +65,7 @@ constexpr control::Command _control_command_##f ( \
 #define CONTROL_COMMAND(f, min, desc) \
 constexpr control::Command _control_command_##f ( \
     control::CommandCaller<f>::get_call(), \
-    ayu::in::get_indirect_description< \
+    ayu::Type::CppType< \
         typename control::CommandCaller<f>::Storage \
     >(), \
     #f, desc, min, control::CommandCaller<f>::max \
@@ -94,8 +94,7 @@ struct Statement {
     }
     constexpr ~Statement () {
         if (storage) {
-            auto type = ayu::Type(*storage->command->storage_type);
-            type.delete_((ayu::Mu*)storage);
+            storage->command->storage_type.delete_((ayu::Mu*)storage);
         }
     }
 

@@ -35,11 +35,11 @@ struct AnyPtr {
      // Returns true only for the typeless empty AnyPtr.
     constexpr bool empty () const { return !!type; }
 
-    constexpr bool readonly () const { return type.readonly(); }
-    constexpr AnyPtr add_readonly () const {
+    bool readonly () const { return type.readonly(); }
+    AnyPtr add_readonly () const {
         return AnyPtr(type.add_readonly(), address);
     }
-    constexpr AnyPtr remove_readonly () const {
+    AnyPtr remove_readonly () const {
         return AnyPtr(type.remove_readonly(), address);
     }
 

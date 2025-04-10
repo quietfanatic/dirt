@@ -111,7 +111,7 @@ struct AnyRef {
     }
 
      // Writing through this reference throws if this is true
-    constexpr bool readonly () const {
+    bool readonly () const {
         bool r = host.type.readonly();
         if (acr) r |= !!(acr->flags & in::AcrFlags::Readonly);
         return r;

@@ -20,8 +20,9 @@ inline void plog (const char* s) {
 inline void plog (const char*) { }
 #endif
 
- // Predeclare some private classes
+ // Predeclare some private classes.  TODO: check if we still need these
 struct DocumentData;
+struct TypeInfo;
 struct Description;
 void delete_Route (const Route*) noexcept;
 void delete_Resource_if_unloaded (Resource*) noexcept;

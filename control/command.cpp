@@ -64,13 +64,14 @@ AYU_DESCRIBE(control::Statement,
                 " but got ", a.size() - 1, ')'
             ));
         }
-        auto type = ayu::Type(*command->storage_type);
-        v.storage = (StatementStorageBase*)type.default_new();
+        v.storage = (StatementStorageBase*)command->storage_type.default_new();
         v.storage->command = command;
     }),
     delegate(anyptr_func([](Statement& v)->ayu::AnyPtr{
-        auto type = ayu::Type(*v.storage->command->storage_type);
-        return ayu::AnyPtr(type, (ayu::Mu*)v.storage);
+        return ayu::AnyPtr(
+            v.storage->command->storage_type,
+            (ayu::Mu*)v.storage
+        );
     }))
 )
 

@@ -77,7 +77,7 @@ struct AnyVal {
     constexpr bool empty () const { return !*this; }
      // Get AnyPtr to the value
     constexpr AnyPtr ptr () { return AnyPtr(type, data); }
-    constexpr AnyPtr readonly_ptr () const { return AnyPtr(type.add_readonly(), data); }
+    AnyPtr readonly_ptr () const { return AnyPtr(type.add_readonly(), data); }
      // Runtime casting
     Mu& as (Type t) {
         return *type.upcast_to(t, data);

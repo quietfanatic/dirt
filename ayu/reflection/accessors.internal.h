@@ -219,11 +219,11 @@ template <class From, class To>
 struct MemberAcr2 : MemberAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
+    Type type;
     To From::* mp;
     explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
         MemberAcr0(&_access, AS::Flat, flags),
-        desc(get_indirect_description<To>()),
+        type(Type::CppType<To>()),
         mp(mp)
     { }
 };
@@ -248,13 +248,10 @@ struct BaseAcr2 : Accessor {
 
  // Optimization for when base is at the same address as derived
 struct FirstBaseAcr0 : Accessor {
-    const Description* const* desc;
+    Type type;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-    explicit constexpr FirstBaseAcr0 (
-        const Description* const* d, AcrFlags flags = {}
-    ) :
-        Accessor(&_access, AS::Flat, flags),
-        desc(d)
+    explicit constexpr FirstBaseAcr0 (Type t, AcrFlags flags = {}) :
+        Accessor(&_access, AS::Flat, flags), type(t)
     { }
 };
 template <class From, class To>
@@ -262,7 +259,7 @@ struct FirstBaseAcr2 : FirstBaseAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr FirstBaseAcr2 (AcrFlags flags = {}) :
-        FirstBaseAcr0(get_indirect_description<To>(), flags)
+        FirstBaseAcr0(Type::CppType<To>(), flags)
     { }
 };
 
@@ -278,11 +275,11 @@ template <class From, class To>
 struct RefFuncAcr2 : RefFuncAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
+    Type type;
     To&(* f )(From&);
     explicit constexpr RefFuncAcr2 (To&(* f )(From&), AcrFlags flags = {}) :
         RefFuncAcr0(&_access, AS::Flat, flags),
-        desc(get_indirect_description<To>()),
+        type(Type::CppType<To>()),
         f(f)
     { }
 };
@@ -299,13 +296,13 @@ template <class From, class To>
 struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
+    Type type;
     const To&(* f )(const From&);
     explicit constexpr ConstRefFuncAcr2 (
         const To&(* f )(const From&), AcrFlags flags = {}
     ) :
         ConstRefFuncAcr0(&_access, AS::Flat, flags),
-        desc(get_indirect_description<To>()),
+        type(Type::CppType<To>()),
         f(f)
     { }
 };
@@ -515,15 +512,15 @@ template <class From, class To>
 struct VariableAcr2 : VariableAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
+    Type type;
     alignas(usize) mutable To value;
      // This ACR cannot be constexpr.
     explicit VariableAcr2 (To&& v, AcrFlags flags = {}) :
         VariableAcr1<To>(
             &VariableAcr1<To>::_access, AS::Variable,
-            get_indirect_description<To>(), flags
+            Type::CppType<To>(), flags
         ),
-        desc(get_indirect_description<To>()),
+        type(Type::CppType<To>()),
         value(move(v))
     { }
 };
@@ -548,14 +545,14 @@ template <class From, class To>
 struct ConstantAcr2 : ConstantAcr1<To> {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
+    Type type;
     alignas(usize) const To value;  // The offset of this MUST match VariableAcr2::value
     explicit constexpr ConstantAcr2 (const To& v, AcrFlags flags = {}) :
         ConstantAcr1<To>(
             &ConstantAcr1<To>::_access, AS::Variable,
             flags | AcrFlags::Readonly
         ),
-        desc(get_indirect_description<To>()),
+        type(Type::CppType<To>()),
         value(v)
     { }
 };
@@ -579,15 +576,15 @@ template <class From, class To>
 struct ConstantPtrAcr2 : ConstantPtrAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
-    const Description* const* desc;
+    Type type;
     const To* pointer;
     explicit constexpr ConstantPtrAcr2 (const To* p, AcrFlags flags = {}) :
         ConstantPtrAcr0(
             &_access, AS::Flat,
-            get_indirect_description<To>(),
+            Type::CppType<To>(),
             flags | AcrFlags::Readonly
         ),
-        desc(get_indirect_description<To>()),
+        type(Type::CppType<To>()),
         pointer(p)
     { }
 };

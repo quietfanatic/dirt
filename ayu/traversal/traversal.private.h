@@ -41,7 +41,7 @@ struct Traversal {
      // After access, |= child.addressable
      // Undefined during to_tree traversals.
     bool children_addressable;
-     // Type can keep track of readonly, but DescriptionPrivate* can't, so keep
+     // Type can keep track of readonly, but TypeInfo* can't, so keep
      // track of it here.  This can go from off to on, but never from on to off.
      // Undefined during to_tree traversals.
     bool readonly;
@@ -49,7 +49,7 @@ struct Traversal {
      // by ScanTraversal; it's just here to save space.
     bool collapse_optional;
      // Type information but without the readonly bit.
-    const DescriptionPrivate* desc;
+    const TypeInfo* ti;
      // This address is not guaranteed to be permanently valid unless
      // addressable is set.
     Mu* address;
@@ -128,7 +128,7 @@ void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
         child.children_addressable |= child.addressable;
         child.readonly |= v.type.readonly();
     }
-    child.desc = DescriptionPrivate::get(v.type);
+    child.ti = v.type.get_info();
     child.address = v.address;
     visit(child);
 }
@@ -207,7 +207,7 @@ void trav_ptr (
         child.children_addressable = parent.children_addressable;
         child.readonly = parent.readonly | ptr.type.readonly();
     }
-    child.desc = DescriptionPrivate::get(ptr.type);
+    child.ti = ptr.type.get_info();
     child.address = ptr.address;
     visit(child);
 }

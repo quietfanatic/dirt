@@ -138,8 +138,8 @@ AYU_DESCRIBE_TEMPLATE(
         }
         else {
              // TODO: read elems for desc names?
-            static constexpr const ayu::in::Description* const* descs [] = {
-                ayu::in::get_indirect_description<Pars>()...
+            static constexpr const ayu::Type descs [] = {
+                ayu::Type::CppType<Pars>()...
             };
             return ayu::in::make_variadic_name(
                 "control::StatementStorage<", descs, sizeof...(Pars)

@@ -14,51 +14,58 @@ namespace ayu {
  //
  // The default value will cause null derefs if you do anything with it.
  //
- // Due to a constellation of unfortunate language rules, Types cannot be
- // constexpr (except the empty Type).  However, they can be constructed at init
- // time, and theoretically with LTO they should be effectively
- // constant-initializable.  You cannot, however, actually use Types for
- // anything before main() starts.
+ // Types can be constructed at constexpr time, but their readonly bit cannot be
+ // set or read.
 struct Type {
      // Uses a tagged pointer; the first bit determines readonly (const), and the rest
      // points to an ayu::in::Description.
-    usize data;
+    union {
+        usize data;
+        const in::TypeInfo* type_info; // Write-only
+    };
 
     constexpr Type () : data(0) { }
      // Construct from internal data
-    constexpr Type (const in::Description* desc, bool readonly = false) :
-        data(reinterpret_cast<usize>(desc) | readonly) { }
-     // Should never throw, and in fact should compile to a single pointer
-     // return.  This cannot be constexpr because get_description_for_cpp_type
-     // may have to cross to a compilation unit where the actual description is
-     // a template specialization that's not visible here.
-    template <class T>
-        requires (!std::is_volatile_v<std::remove_reference_t<T>>)
-    static Type CppType () {
-        return Type(
-            in::get_description_for_cpp_type<
+    constexpr Type (const in::TypeInfo* ti) : type_info(ti) { }
+    Type (const in::TypeInfo* ti, bool readonly) :
+        data(reinterpret_cast<usize>(ti) | readonly)
+    { }
+     // Never throws.  Strips reference info
+    template <class T> requires (
+        !std::is_volatile_v<std::remove_reference_t<T>>
+    ) static constexpr
+    Type CppType () noexcept {
+        if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
+            return Type(
+                in::get_type_info<
+                    std::remove_const_t<std::remove_reference_t<T>>
+                >(),
+                true
+            );
+        }
+        else return Type(
+            in::get_type_info<
                 std::remove_const_t<std::remove_reference_t<T>>
-            >(),
-            std::is_const_v<T>
+            >()
         );
     }
      // Can throw TypeNotFound
     Type (Str name, bool readonly = false) :
-        Type(in::need_description_for_name(name), readonly)
+        Type(in::require_type_for_name(name), readonly)
     { }
 
      // Checks if this is the empty type.
     explicit constexpr operator bool () const { return data & ~1; }
      // Checks if this type is readonly (const).
-    constexpr bool readonly () const { return data & 1; }
+    bool readonly () const { return data & 1; }
      // Add or remove readonly bit
-    constexpr Type add_readonly () const { return Type(get_description(), true); }
-    constexpr Type remove_readonly () const { return Type(get_description(), false); }
+    Type add_readonly () const { return Type(get_info(), true); }
+    Type remove_readonly () const { return Type(get_info(), false); }
 
      // Get human-readable type name (whatever name was registered with
      // AYU_DESCRIBE).  This ignores the readonly bit.
     StaticString name () const {
-        return in::get_description_name(get_description());
+        return in::get_type_name(get_info());
     }
      // Get the sizeof() of this type
     constexpr usize cpp_size () const {
@@ -120,8 +127,11 @@ struct Type {
     }
 
      // Internal
-    constexpr in::Description* get_description () const {
-        return reinterpret_cast<in::Description*>(data & ~1);
+    constexpr in::TypeInfo* get_info () const {
+        return reinterpret_cast<in::TypeInfo*>(data & ~1);
+    }
+    constexpr const in::Description* get_description () const {
+        return get_info()->description;
     }
 };
 

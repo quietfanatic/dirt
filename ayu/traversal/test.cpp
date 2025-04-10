@@ -240,7 +240,7 @@ AYU_DESCRIBE(ayu::test::ChainRefTest,
 
 static tap::TestSet tests ("dirt/ayu/traversal", []{
     using namespace tap;
-    ok(get_description_for_name("ayu::test::MemberTest"), "Description was registered");
+    ok(Type("ayu::test::MemberTest"), "Description was registered");
 
     auto try_to_tree = [](AnyRef item, Str tree, Str name){
         try_is(

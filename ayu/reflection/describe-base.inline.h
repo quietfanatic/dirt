@@ -367,35 +367,33 @@ constexpr auto _AYU_DescribeBase<T>::_ayu_describe (
 #define AYU_DESCRIBE_INSTANTIATE(...)
 #else
 
+#ifdef __GNUC__
+#define AYU_CONSTINIT constinit
+#define AYU_DO_INIT(init) &init
+#else
+#define AYU_CONSTINIT
+#define AYU_DO_INIT(init) init()
+#endif
+
  // Stringify name as early as possible to avoid macro expansion
 #define AYU_DESCRIBE_BEGIN(T) AYU_DESCRIBE_BEGIN_NAME(T, #T)
 #define AYU_DESCRIBE_BEGIN_NAME(T, name_) \
 template <> \
 struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
-    static constexpr auto _ayu_full_description = ayu::_AYU_DescribeBase<T>::_ayu_describe( \
+    static constexpr auto _ayu_description = ayu::_AYU_DescribeBase<T>::_ayu_describe( \
         name(name_)
 
-#if __GNUC__
 #define AYU_DESCRIBE_END(T) \
     ); \
-    static const ayu::in::Description* const _ayu_description; \
+    static ayu::in::TypeInfo _ayu_type_info; \
     [[gnu::constructor]] static void init () { \
-        ayu::in::register_description(_ayu_description); \
+        ayu::in::register_type(&_ayu_type_info); \
     } \
 }; \
-const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description = \
-    (&init, _ayu_full_description.template get<ayu::in::Description>(0));
-#else
-#define AYU_DESCRIBE_END(T) \
-    ); \
-    static const ayu::in::Description* const _ayu_description; \
-}; \
-const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description = \
-    ayu::in::register_description( \
-        _ayu_full_description.template get<ayu::in::Description>(0) \
-    );
-#endif
+AYU_CONSTINIT ayu::in::TypeInfo ayu_desc::_AYU_Describe<T>::_ayu_type_info { \
+    (AYU_DO_INIT(init), _ayu_description.template get<ayu::in::Description>(0)) \
+};
 
 #define AYU_DESCRIBE(T, ...) AYU_DESCRIBE_NAME(T, #T, __VA_ARGS__)
 #define AYU_DESCRIBE_NAME(T, name, ...) \
@@ -410,30 +408,19 @@ AYU_DESCRIBE_END(T)
 template params \
 struct ayu_desc::_AYU_Describe<T> : ayu::_AYU_DescribeBase<T> { \
     using desc = ayu::_AYU_DescribeBase<T>; \
-    static constexpr auto _ayu_full_description = desc::_ayu_describe(
+    static constexpr auto _ayu_description = desc::_ayu_describe(
 
-#if __GNUC__
 #define AYU_DESCRIBE_TEMPLATE_END(params, T) \
     ); \
-    static const ayu::in::Description* const _ayu_description; \
+    static ayu::in::TypeInfo _ayu_type_info; \
     [[gnu::constructor]] static void init () { \
-        ayu::in::register_description(_ayu_description); \
+        ayu::in::register_type(&_ayu_type_info); \
     } \
 }; \
 template params \
-const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description = \
-    (&init, _ayu_full_description.template get<ayu::in::Description>(0));
-#else
-#define AYU_DESCRIBE_TEMPLATE_END(params, T) \
-    ); \
-    static const ayu::in::Description* const _ayu_description; \
-}; \
-template params \
-const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description = \
-    ayu::in::register_description( \
-        _ayu_full_description.template get<ayu::in::Description>(0) \
-    );
-#endif
+AYU_CONSTINIT ayu::in::TypeInfo ayu_desc::_AYU_Describe<T>::_ayu_type_info { \
+    (AYU_DO_INIT(init), _ayu_description.template get<ayu::in::Description>(0)) \
+};
 
 #define AYU_DESCRIBE_ESCAPE(...) __VA_ARGS__
 
@@ -445,7 +432,7 @@ AYU_DESCRIBE_TEMPLATE_END(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
  // Force instantiation.  I can't believe it took me this long to learn that
  // there is an official way to do this.
 #define AYU_DESCRIBE_INSTANTIATE(T) \
-template const ayu::in::Description* const ayu_desc::_AYU_Describe<T>::_ayu_description;
+template ayu::in::TypeInfo ayu_desc::_AYU_Describe<T>::_ayu_type_info;
 
 #define AYU_FRIEND_DESCRIBE(T) \
     friend struct ::ayu_desc::_AYU_Describe<T>;

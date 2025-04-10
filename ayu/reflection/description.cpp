@@ -13,7 +13,7 @@ namespace ayu {
 namespace in {
 
 struct Registry {
-    UniqueArray<Hashed<const Description*>> by_name;
+    UniqueArray<Hashed<const TypeInfo*>> by_name;
     bool initted = false;
 };
 
@@ -23,7 +23,8 @@ static Registry& registry () {
 }
 
 static
-StaticString get_description_name_cached (const Description* desc) {
+StaticString get_type_name_cached (const TypeInfo* ti) {
+    auto desc = ti->description;
     if (!!(desc->flags & DescFlags::NameComputed)) {
         return *desc->computed_name.cache;
     }
@@ -36,7 +37,7 @@ void init_names () {
     r.initted = true;
     plog("init types begin");
     for (auto& p : r.by_name) {
-        auto n = get_description_name(p.value);
+        auto n = get_type_name(p.value);
         require(n);
         p.hash = uni::hash(n);
     }
@@ -47,14 +48,14 @@ void init_names () {
     std::qsort(
         r.by_name.data(), r.by_name.size(), sizeof(r.by_name[0]),
         [](const void* aa, const void* bb){
-            auto a = reinterpret_cast<const Hashed<const Description*>*>(aa);
-            auto b = reinterpret_cast<const Hashed<const Description*>*>(bb);
+            auto a = reinterpret_cast<const Hashed<const TypeInfo*>*>(aa);
+            auto b = reinterpret_cast<const Hashed<const TypeInfo*>*>(bb);
             if (a->hash != b->hash) [[likely]] {
                  // can't subtract here, it'll overflow
                 return a->hash < b->hash ? -1 : 1;
             }
-            auto an = get_description_name_cached(a->value);
-            auto bn = get_description_name_cached(b->value);
+            auto an = get_type_name_cached(a->value);
+            auto bn = get_type_name_cached(b->value);
             if (an.size() == bn.size()) {
                 return std::memcmp(an.data(), bn.data(), an.size());
             }
@@ -64,15 +65,14 @@ void init_names () {
     plog("init types end");
 }
 
-const Description* register_description (const Description* desc) noexcept {
+void register_type (TypeInfo* ti) noexcept {
     require(!registry().initted);
-    registry().by_name.emplace_back(0, desc);
-    return desc;
+    registry().by_name.emplace_back(0, ti);
 }
 
  // in current gcc, this optimization interferes with conditional moves
 [[gnu::optimize("-fno-thread-jumps")]]
-const Description* get_description_for_name (Str name) noexcept {
+const TypeInfo* get_type_for_name (Str name) noexcept {
     auto& r = registry();
     if (!r.initted) [[unlikely]] init_names();
     if (!name) return null;
@@ -83,7 +83,7 @@ const Description* get_description_for_name (Str name) noexcept {
         u32 mid = (top + bottom) / 2;
         auto& e = r.by_name[mid];
         if (e.hash == h) [[unlikely]] {
-            Str n = get_description_name_cached(e.value);
+            Str n = get_type_name_cached(e.value);
             if (n == name) [[likely]] {
                 return e.value;
             }
@@ -101,15 +101,16 @@ const Description* get_description_for_name (Str name) noexcept {
     return null;
 }
 
-const Description* need_description_for_name (Str name) {
-    auto desc = get_description_for_name(name);
-    if (desc) return desc;
+const TypeInfo* require_type_for_name (Str name) {
+    auto ti = get_type_for_name(name);
+    if (ti) return ti;
     else raise(e_TypeNotFound, cat(
         "Did not find type named ", name
     ));
 }
 
-StaticString get_description_name (const Description* desc) noexcept {
+StaticString get_type_name (const TypeInfo* ti) noexcept {
+    auto desc = ti->description;
     if (!!(desc->flags & DescFlags::NameComputed)) {
         auto cache = desc->computed_name.cache;
         if (!*cache) {

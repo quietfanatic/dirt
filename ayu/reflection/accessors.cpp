@@ -10,7 +10,7 @@ void MemberAcr0::_access (
     const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const MemberAcr2<Mu, Mu>*>(acr);
-    AnyPtr ptr (*self->desc, &(from.*(self->mp)));
+    AnyPtr ptr (self->type, &(from.*(self->mp)));
     cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
@@ -18,14 +18,14 @@ void FirstBaseAcr0::_access (
     const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const FirstBaseAcr0*>(acr);
-    cb(AnyPtr(*self->desc, &from), !(self->flags & AcrFlags::Unaddressable));
+    cb(AnyPtr(self->type, &from), !(self->flags & AcrFlags::Unaddressable));
 }
 
 void RefFuncAcr0::_access (
     const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const RefFuncAcr2<Mu, Mu>*>(acr);
-    AnyPtr ptr (*self->desc, &self->f(from));
+    AnyPtr ptr (self->type, &self->f(from));
     cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
@@ -36,7 +36,7 @@ void ConstRefFuncAcr0::_access (
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstRefFuncAcr2<Mu, Mu>*>(acr);
     AnyPtr ptr (
-        Type(*self->desc).add_readonly(),
+        self->type.add_readonly(),
         const_cast<Mu*>(&self->f(from))
     );
     cb(ptr, !(self->flags & AcrFlags::Unaddressable));
@@ -49,7 +49,7 @@ void ConstantPtrAcr0::_access (
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ConstantPtrAcr2<Mu, Mu>*>(acr);
     AnyPtr ptr (
-        Type(*self->desc).add_readonly(),
+        self->type.add_readonly(),
         const_cast<Mu*>(self->pointer)
     );
     cb(ptr, !(self->flags & AcrFlags::Unaddressable));
@@ -223,7 +223,7 @@ void delete_Accessor (Accessor* acr) noexcept {
              // size, but C++ does in order to do this operation.  So I guess
              // use usize instead?  Hope the alignment works out!
             auto* self = static_cast<VariableAcr2<Mu, usize>*>(acr);
-            Type(*self->desc).destroy((Mu*)&self->value);
+            self->type.destroy((Mu*)&self->value);
             break;
         }
         case AS::Chain: {

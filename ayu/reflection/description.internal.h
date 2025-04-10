@@ -74,6 +74,10 @@ struct Description : ComparableAddress {
     u16 delegate_offset = 0;
 };
 
+struct TypeInfo {
+    const ayu::in::Description* description;
+};
+
 } // namespace ayu::in
 
  // I was going to use ayu::desc here but using a nested namespace seems to
@@ -93,27 +97,22 @@ namespace ayu_desc {
          // pointer to it, but unfortunately you can't have a global cross a
          // compilation boundary unless its type is fully known.  At least not
          // without some very illegal tricks and non-portable linker flags...
-        static const ayu::in::Description* const _ayu_description;
+        static const ayu::in::TypeInfo _ayu_type_info;
     };
 }
 
 namespace ayu::in {
-    const Description* register_description (const Description*) noexcept;
-    const Description* get_description_for_name (Str) noexcept;
-    const Description* need_description_for_name (Str);
+    void register_type (TypeInfo*) noexcept;
+    const TypeInfo* get_type_for_name (Str) noexcept;
+    const TypeInfo* require_type_for_name (Str);
 
-    StaticString get_description_name (const Description*) noexcept;
+    StaticString get_type_name (const TypeInfo*) noexcept;
 
     UniqueString get_demangled_name (const std::type_info&) noexcept;
 
     template <class T> requires (!std::is_reference_v<T>)
-    constexpr const Description* const* get_indirect_description () {
-        return &ayu_desc::_AYU_Describe<std::remove_cv_t<T>>::_ayu_description;
-    }
-
-    template <class T> requires (!std::is_reference_v<T>)
-    const Description* get_description_for_cpp_type () {
-        return ayu_desc::_AYU_Describe<std::remove_cv_t<T>>::_ayu_description;
+    constexpr const TypeInfo* get_type_info () {
+        return &ayu_desc::_AYU_Describe<std::remove_cv_t<T>>::_ayu_type_info;
     }
 }
 

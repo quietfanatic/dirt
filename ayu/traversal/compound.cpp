@@ -43,16 +43,17 @@ struct TraverseGetKeys {
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetKeysTraversal<>&>(tr);
-        if (auto acr = trav.desc->keys_acr()) {
+        auto desc = DescriptionPrivate::get(trav.ti);
+        if (auto acr = desc->keys_acr()) {
             use_computed_attrs(trav, acr);
         }
-        else if (auto attrs = trav.desc->attrs()) {
+        else if (auto attrs = desc->attrs()) {
             use_attrs(trav, attrs);
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
+        else if (auto acr = desc->delegate_acr()) {
             use_delegate(trav, acr);
         }
-        else raise_AttrsNotSupported(trav.desc);
+        else raise_AttrsNotSupported(trav.ti);
     }
 
     NOINLINE static
@@ -147,7 +148,8 @@ struct TraverseSetKeys {
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const SetKeysTraversal<>&>(tr);
-        if (auto acr = trav.desc->keys_acr()) {
+        auto desc = DescriptionPrivate::get(trav.ti);
+        if (auto acr = desc->keys_acr()) {
             if (!(acr->flags & AcrFlags::Readonly)) {
                 use_computed_attrs(trav, acr);
             }
@@ -155,20 +157,20 @@ struct TraverseSetKeys {
                 use_computed_attrs_readonly(trav, acr);
             }
         }
-        else if (auto attrs = trav.desc->attrs()) {
+        else if (auto attrs = desc->attrs()) {
             use_attrs(trav, attrs);
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
+        else if (auto acr = desc->delegate_acr()) {
             use_delegate(trav, acr);
         }
-        else raise_AttrsNotSupported(trav.desc);
+        else raise_AttrsNotSupported(trav.ti);
     }
 
     NOINLINE static
     void visit_and_verify (const Traversal& tr) {
         visit(tr);
         auto& trav = static_cast<const SetKeysTraversal<>&>(tr);
-        if (*trav.keys) raise_AttrRejected(trav.desc, (*trav.keys)[0]);
+        if (*trav.keys) raise_AttrRejected(trav.ti, (*trav.keys)[0]);
     }
 
     NOINLINE static
@@ -193,7 +195,7 @@ struct TraverseSetKeys {
             )) {
                  // Allow omitting optional or included attrs
             }
-            else raise_AttrMissing(trav.desc, attr->key);
+            else raise_AttrMissing(trav.ti, attr->key);
         }
          // Then check included attrs
         for (u32 i = 0; i < attrs->n_attrs; i++) {
@@ -251,7 +253,7 @@ struct TraverseSetKeys {
                 for (auto& given : *trav.keys) {
                     if (given == required) goto next_required;
                 }
-                raise_AttrMissing(trav.desc, required);
+                raise_AttrMissing(trav.ti, required);
                 next_required:;
             }
         }
@@ -261,7 +263,7 @@ struct TraverseSetKeys {
                 for (auto& required : keys) {
                     if (required == given) goto next_given;
                 }
-                raise_AttrRejected(trav.desc, given);
+                raise_AttrRejected(trav.ti, given);
                 next_given:;
             }
             never();
@@ -313,16 +315,17 @@ struct TraverseAttr {
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetAttrTraversal<>&>(tr);
-        if (trav.desc->keys_offset) {
+        auto desc = DescriptionPrivate::get(trav.ti);
+        if (desc->keys_offset) {
             return use_computed_attrs(trav);
         }
-        else if (auto attrs = trav.desc->attrs()) {
+        else if (auto attrs = desc->attrs()) {
             return use_attrs(trav, attrs);
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
+        else if (auto acr = desc->delegate_acr()) {
             return use_delegate(trav, acr);
         }
-        else raise_AttrsNotSupported(trav.desc);
+        else raise_AttrsNotSupported(trav.ti);
     }
 
     NOINLINE static
@@ -358,8 +361,9 @@ struct TraverseAttr {
 
     NOINLINE static
     void use_computed_attrs (const GetAttrTraversal<>& trav) {
-        expect(trav.desc->computed_attrs_offset);
-        auto f = trav.desc->computed_attrs()->f;
+        auto desc = DescriptionPrivate::get(trav.ti);
+        expect(desc->computed_attrs_offset);
+        auto f = desc->computed_attrs()->f;
         if (AnyRef ref = f(*trav.address, *trav.get_key)) {
             ReturnRefTraversal<ComputedAttrTraversal> child;
             child.r = trav.r;
@@ -496,21 +500,22 @@ struct TraverseElem {
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetElemTraversal<>&>(tr);
-        if (auto length = trav.desc->length_acr()) {
-            if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
+        auto desc = DescriptionPrivate::get(trav.ti);
+        if (auto length = desc->length_acr()) {
+            if (!!(desc->flags & DescFlags::ElemsContiguous)) {
                 use_contiguous_elems(trav, length);
             }
             else {
                 use_computed_elems(trav);
             }
         }
-        else if (auto elems = trav.desc->elems()) {
+        else if (auto elems = desc->elems()) {
             use_elems(trav, elems);
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
+        else if (auto acr = desc->delegate_acr()) {
             use_delegate(trav, acr);
         }
-        else raise_ElemsNotSupported(trav.desc);
+        else raise_ElemsNotSupported(trav.ti);
     }
 
     NOINLINE static
@@ -526,8 +531,9 @@ struct TraverseElem {
 
     NOINLINE static
     void use_computed_elems (const GetElemTraversal<>& trav) {
-        expect(trav.desc->computed_elems_offset);
-        auto f = trav.desc->computed_elems()->f;
+        auto desc = DescriptionPrivate::get(trav.ti);
+        expect(desc->computed_elems_offset);
+        auto f = desc->computed_elems()->f;
         AnyRef ref = f(*trav.address, trav.index);
         if (!ref) return;
         ReturnRefTraversal<ComputedElemTraversal> child;
@@ -544,10 +550,11 @@ struct TraverseElem {
          // We have to read the length to do bounds checking, making this
          // ironically slower than computed_elems.
         u32 len;
-        read_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
+        read_length_acr(len, AnyPtr(trav.ti, trav.address), length_acr);
         if (trav.index >= len) return;
-        expect(trav.desc->contiguous_elems_offset);
-        auto f = trav.desc->contiguous_elems()->f;
+        auto desc = DescriptionPrivate::get(trav.ti);
+        expect(desc->contiguous_elems_offset);
+        auto f = desc->contiguous_elems()->f;
         AnyPtr ptr = f(*trav.address);
         ptr.address = (Mu*)(
             (char*)ptr.address + trav.index * ptr.type.cpp_size()
