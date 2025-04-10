@@ -3,12 +3,12 @@
 namespace ayu::in {
 
 inline void require_readable_keys (Type t) {
-    if (t.remove_readonly() != Type::CppType<AnyArray<AnyString>>()) {
+    if (t.remove_readonly() != Type::For<AnyArray<AnyString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
 }
 inline void require_writeable_keys (Type t) {
-    if (t != Type::CppType<AnyArray<AnyString>>()) {
+    if (t != Type::For<AnyArray<AnyString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
 }

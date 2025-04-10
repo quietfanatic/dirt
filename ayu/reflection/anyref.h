@@ -143,7 +143,7 @@ struct AnyRef {
         if constexpr (!std::is_const_v<T>) {
             require_writeable();
         }
-        return (T*)address_as(Type::CppType<T>());
+        return (T*)address_as(Type::For<T>());
     }
 
     [[noreturn]] void raise_Unaddressable () const;
@@ -163,7 +163,7 @@ struct AnyRef {
     }
     template <class T>
     T* require_address_as () const {
-        return (T*)require_address_as(Type::CppType<T>());
+        return (T*)require_address_as(Type::For<T>());
     }
 
      // Callback passed to access functions.  The first parameter is a pointer

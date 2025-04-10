@@ -363,13 +363,13 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
 
     BaseAcr2<SubThing, Thing>{}.read(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
-            is(thing.type, Type::CppType<Thing>());
+            is(thing.type, Type::For<Thing>());
             is(reinterpret_cast<Thing&>(*thing.address).b, 8, "BaseAcr::read");
         }
     );
     BaseAcr2<SubThing, Thing>{}.write(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
-            is(thing.type, Type::CppType<Thing>());
+            is(thing.type, Type::For<Thing>());
             auto& th = reinterpret_cast<Thing&>(*thing.address);
             th.a = 77;
             th.b = 88;
@@ -378,7 +378,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     is(thing2.b, 88, "BaseAcr::write");
     BaseAcr2<SubThing, Thinger>{}.write(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thinger, bool){
-            is(thinger.type, Type::CppType<Thinger>());
+            is(thinger.type, Type::For<Thinger>());
             auto& thr = reinterpret_cast<Thinger&>(*thinger.address);
             thr.d = 101;
         }

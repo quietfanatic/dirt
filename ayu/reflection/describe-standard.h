@@ -59,14 +59,14 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::optional<T>),
     desc::computed_name([]{
-        return ayu::in::make_optional_name(ayu::Type::CppType<T>());
+        return ayu::in::make_optional_name(ayu::Type::For<T>());
     }),
     desc::length(desc::template value_funcs<uni::usize>(
         [](const std::optional<T>& v){ return uni::usize(!!v); },
         [](std::optional<T>& v, uni::usize len){
             if (len > 1) {
                 ayu::raise_LengthRejected(
-                    ayu::Type::CppType<std::optional<T>>(), 0, 1, len
+                    ayu::Type::For<std::optional<T>>(), 0, 1, len
                 );
             }
             if (len) v.emplace();
@@ -90,7 +90,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unique_ptr<T>),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "std::unique_ptr<", ayu::Type::CppType<T>()
+            "std::unique_ptr<", ayu::Type::For<T>()
         );
     }),
     desc::length(desc::template value_funcs<uni::usize>(
@@ -98,7 +98,7 @@ AYU_DESCRIBE_TEMPLATE(
         [](std::unique_ptr<T>& v, uni::usize len){
             if (len > 1) {
                 ayu::raise_LengthRejected(
-                    ayu::Type::CppType<std::unique_ptr<T>>(), 0, 1, len
+                    ayu::Type::For<std::unique_ptr<T>>(), 0, 1, len
                 );
             }
             if (len) v = std::make_unique<T>();
@@ -116,7 +116,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(uni::UniqueArray<T>),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "uni::UniqueArray<", ayu::Type::CppType<T>()
+            "uni::UniqueArray<", ayu::Type::For<T>()
         );
     }),
     desc::length(desc::template value_methods<
@@ -131,7 +131,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(uni::AnyArray<T>),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "uni::AnyArray<", ayu::Type::CppType<T>()
+            "uni::AnyArray<", ayu::Type::For<T>()
         );
     }),
     desc::length(desc::template value_methods<
@@ -150,7 +150,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(std::vector<T>),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "std::vector<", ayu::Type::CppType<T>()
+            "std::vector<", ayu::Type::For<T>()
         );
     }),
     desc::length(desc::template value_methods<
@@ -168,7 +168,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unordered_map<std::string, T>),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "std::unordered_map<std::string, ", ayu::Type::CppType<T>()
+            "std::unordered_map<std::string, ", ayu::Type::For<T>()
         );
     }),
     desc::keys(desc::template mixed_funcs<uni::AnyArray<uni::AnyString>>(
@@ -204,7 +204,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::flags(desc::no_refs_to_children | desc::no_refs_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "std::map<std::string, ", ayu::Type::CppType<T>()
+            "std::map<std::string, ", ayu::Type::For<T>()
         );
     }),
     desc::keys(desc::template mixed_funcs<uni::AnyArray<uni::AnyString>>(
@@ -242,7 +242,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::flags(desc::no_refs_to_children | desc::no_refs_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "std::unordered_set<", ayu::Type::CppType<T>()
+            "std::unordered_set<", ayu::Type::For<T>()
         );
     }),
     desc::to_tree([](const std::unordered_set<T>& v){
@@ -259,7 +259,7 @@ AYU_DESCRIBE_TEMPLATE(
             auto [iter, inserted] = v.emplace(std::move(tmp));
             if (!inserted) ayu::raise(ayu::e_General, uni::cat(
                 "Duplicate element given for ",
-                ayu::Type::CppType<std::unordered_set<T>>().name()
+                ayu::Type::For<std::unordered_set<T>>().name()
             ));
         }
     })
@@ -275,7 +275,7 @@ AYU_DESCRIBE_TEMPLATE(
     desc::flags(desc::no_refs_to_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "std::set<", ayu::Type::CppType<T>()
+            "std::set<", ayu::Type::For<T>()
         );
     }),
     desc::to_tree([](const std::set<T>& v){
@@ -292,7 +292,7 @@ AYU_DESCRIBE_TEMPLATE(
             auto [iter, inserted] = v.emplace(std::move(tmp));
             if (!inserted) ayu::raise(ayu::e_General, uni::cat(
                 "Duplicate element given for ",
-                ayu::Type::CppType<std::set<T>>().name()
+                ayu::Type::For<std::set<T>>().name()
             ));
         }
     })
@@ -309,7 +309,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
         else {
             return desc::computed_name([]{
-                return ayu::in::make_pointer_name(ayu::Type::CppType<T>());
+                return ayu::in::make_pointer_name(ayu::Type::For<T>());
             });
         }
     }(),
@@ -334,7 +334,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(T[n]),
     desc::computed_name([]{
         return uni::AnyString(uni::cat(
-            ayu::Type::CppType<T>().name(),
+            ayu::Type::For<T>().name(),
             '[', n, ']'
         ));
     }),
@@ -366,7 +366,7 @@ AYU_DESCRIBE_TEMPLATE(
                  // This might not be exactly the right error code, since it's
                  // meant for arrays, not strings.
                 ayu::raise_LengthRejected(
-                    ayu::Type::CppType<char[n]>(), n, n, s.size()
+                    ayu::Type::For<char[n]>(), n, n, s.size()
                 );
             }
             for (uni::usize i = 0; i < n; i++) {
@@ -377,7 +377,7 @@ AYU_DESCRIBE_TEMPLATE(
             auto a = uni::Slice<ayu::Tree>(tree);
             if (a.size() != n) {
                 ayu::raise_LengthRejected(
-                    ayu::Type::CppType<char[n]>(), n, n, a.size()
+                    ayu::Type::For<char[n]>(), n, n, a.size()
                 );
             }
             for (uni::usize i = 0; i < n; i++) {
@@ -386,7 +386,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
         else {
             ayu::raise_FromTreeFormRejected(
-                ayu::Type::CppType<char[n]>(), tree.form
+                ayu::Type::For<char[n]>(), tree.form
             );
         }
     }),
@@ -403,7 +403,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(std::array<T, n>),
     desc::computed_name([]{
         return uni::AnyString(uni::cat(
-            "std::array<", ayu::Type::CppType<T>().name(),
+            "std::array<", ayu::Type::For<T>().name(),
             ", ", n, '>'
         ));
     }),
@@ -419,8 +419,8 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(std::pair<A, B>),
     desc::computed_name([]{
         return uni::AnyString(uni::cat(
-            "std::pair<", ayu::Type::CppType<A>().name(),
-            ", ", ayu::Type::CppType<B>().name(), '>'
+            "std::pair<", ayu::Type::For<A>().name(),
+            ", ", ayu::Type::For<B>().name(), '>'
         ));
     }),
     desc::elems(
@@ -469,7 +469,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
         else {
             static constexpr const ayu::Type descs [] = {
-                ayu::Type::CppType<Ts>()...
+                ayu::Type::For<Ts>()...
             };
             return ayu::in::make_variadic_name("std::tuple<", descs, sizeof...(Ts));
         }

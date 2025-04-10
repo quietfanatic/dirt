@@ -96,7 +96,7 @@ static TypeAndTree verify_tree_for_scheme (
         }
         return {type, a[1]};
     }
-    else raise_LengthRejected(Type::CppType<AnyVal>(), 2, 2, a.size());
+    else raise_LengthRejected(Type::For<AnyVal>(), 2, 2, a.size());
 }
 
 struct ROV {
@@ -400,7 +400,7 @@ void unload (Slice<ResourceRef> to_unload) {
             if (!info.data->root) {
                 refs_to_reses.emplace(item, info.data);
             }
-            if (item.type() == Type::CppType<AnyRef>()) {
+            if (item.type() == Type::For<AnyRef>()) {
                 if (auto ref = item.get_as<AnyRef>()) {
                     info.outgoing_refs.emplace_back(move(ref));
                 }
@@ -414,7 +414,7 @@ void unload (Slice<ResourceRef> to_unload) {
             g, {},
             [&scan_info, refs_to_reses](const AnyRef& item, RouteRef)
         {
-            if (item.type() == Type::CppType<AnyRef>()) {
+            if (item.type() == Type::For<AnyRef>()) {
                 reach_reference(scan_info, refs_to_reses, item);
             }
             return false;
@@ -465,7 +465,7 @@ NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
         update.ref_ref.write(
             AccessCB(move(update), [](Update&& update, AnyPtr v, bool){
-                expect(v.type == Type::CppType<AnyRef>());
+                expect(v.type == Type::For<AnyRef>());
                 reinterpret_cast<AnyRef&>(*v.address) = move(update.new_ref);
             })
         );
@@ -543,7 +543,7 @@ void reload (Slice<ResourceRef> reses) {
                 [&updates, &old_refs, &breaks](AnyRef ref_ref, RouteRef rt)
             {
                  // TODO: check for AnyPtr as well?
-                if (ref_ref.type() != Type::CppType<AnyRef>()) return false;
+                if (ref_ref.type() != Type::For<AnyRef>()) return false;
                 AnyRef ref = ref_ref.get_as<AnyRef>();
                 auto iter = old_refs.find(ref);
                 if (iter == old_refs.end()) return false;

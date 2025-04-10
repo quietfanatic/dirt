@@ -25,7 +25,7 @@ struct Document {
 
     template <class T, class... Args>
     T* new_ (Args&&... args) {
-        void* p = allocate(Type::CppType<T>());
+        void* p = allocate(Type::For<T>());
         try {
             return new (p) T {std::forward<Args...>(args...)};
         }
@@ -38,7 +38,7 @@ struct Document {
      // This may be linear over the number of items in the document.
     template <class T, class... Args>
     T* new_named (AnyString name, Args&&... args) {
-        void* p = allocate_named(Type::CppType<T>(), move(name));
+        void* p = allocate_named(Type::For<T>(), move(name));
         try {
             return new (p) T (std::forward<Args...>(args...));
         }
@@ -52,7 +52,7 @@ struct Document {
      // Document and that its type is actually T.
     template <class T>
     void delete_ (T* p) {
-        delete_(Type::CppType<T>(), (Mu*)p);
+        delete_(Type::For<T>(), (Mu*)p);
     }
 
     AnyPtr find_with_name (Str) const;

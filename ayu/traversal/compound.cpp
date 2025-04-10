@@ -601,10 +601,10 @@ AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
 void in::read_length_acr_cb (u32& len, AnyPtr v, bool) {
     u64 l;
     Type t = v.type.remove_readonly();
-    if (t == Type::CppType<u32>()) {
+    if (t == Type::For<u32>()) {
         l = reinterpret_cast<const u32&>(*v.address);
     }
-    else if (t == Type::CppType<u64>()) {
+    else if (t == Type::For<u64>()) {
         l = reinterpret_cast<const u64&>(*v.address);
     }
     else raise_LengthTypeInvalid(Type(), t);
@@ -616,10 +616,10 @@ void in::read_length_acr_cb (u32& len, AnyPtr v, bool) {
 
 void in::write_length_acr_cb (u32& len, AnyPtr v, bool) {
     expect(len <= AnyArray<Tree>::max_size_);
-    if (v.type == Type::CppType<u32>()) {
+    if (v.type == Type::For<u32>()) {
         reinterpret_cast<u32&>(*v.address) = len;
     }
-    else if (v.type == Type::CppType<u64>()) {
+    else if (v.type == Type::For<u64>()) {
         reinterpret_cast<u64&>(*v.address) = len;
     }
     else {

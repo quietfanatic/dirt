@@ -17,7 +17,7 @@ AYU_DESCRIBE(glow::RGBA8,
                 auto a = Slice<ayu::Tree>(t);
                 if (a.size() != 4) {
                     ayu::raise_LengthRejected(
-                        ayu::Type::CppType<RGBA8>(), 4, 4, a.size()
+                        ayu::Type::For<RGBA8>(), 4, 4, a.size()
                     );
                 }
                 auto rgbaf = geo::Vec4(
@@ -33,7 +33,7 @@ AYU_DESCRIBE(glow::RGBA8,
                 break;
             }
             default: ayu::raise_FromTreeFormRejected(
-                ayu::Type::CppType<RGBA8>(), t.form
+                ayu::Type::For<RGBA8>(), t.form
             );
         }
     })

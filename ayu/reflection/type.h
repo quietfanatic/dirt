@@ -32,7 +32,7 @@ struct Type {
     template <class T> requires (
         !std::is_volatile_v<std::remove_reference_t<T>>
     ) static constexpr
-    Type CppType () noexcept {
+    Type For () noexcept {
         if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
             return Type(
                 in::get_type_info<
@@ -112,12 +112,12 @@ struct Type {
     Mu* try_upcast_to (Type, Mu*) const;
     template <class T>
     T* try_upcast_to (Mu* p) const {
-        return (T*)try_upcast_to(Type::CppType<T>(), p);
+        return (T*)try_upcast_to(Type::For<T>(), p);
     }
     Mu* upcast_to (Type, Mu*) const;
     template <class T>
     T* upcast_to (Mu* p) const {
-        return (T*)upcast_to(Type::CppType<T>(), p);
+        return (T*)upcast_to(Type::For<T>(), p);
     }
 
      // Internal

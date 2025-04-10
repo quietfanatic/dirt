@@ -351,7 +351,7 @@ AYU_DESCRIBE_TEMPLATE(
         auto computed = []{
             return desc::computed_name([]()->AnyString{
                 return cat("geo::GMat<",
-                    ayu::Type::CppType<T>().name(), ", ",
+                    ayu::Type::For<T>().name(), ", ",
                     std::to_string(cols), ", ",
                     std::to_string(rows), '>'
                 );

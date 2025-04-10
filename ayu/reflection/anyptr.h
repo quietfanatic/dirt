@@ -26,7 +26,7 @@ struct AnyPtr {
     ) explicit (
         std::is_same_v<std::remove_cv_t<T>, AnyPtr> ||
         std::is_same_v<std::remove_cv_t<T>, AnyRef>
-    ) AnyPtr (T* a) : address((Mu*)a), type(Type::CppType<T>()) { }
+    ) AnyPtr (T* a) : address((Mu*)a), type(Type::For<T>()) { }
 
      // Returns false if this AnyPtr is either (typed) null or (typeless)
      // empty.
@@ -60,7 +60,7 @@ struct AnyPtr {
 
     template <class T>
     T* expect_exact () const {
-        expect(type == Type::CppType<T>());
+        expect(type == Type::For<T>());
         return reinterpret_cast<T*>(address);
     }
 

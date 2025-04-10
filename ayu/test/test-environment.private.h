@@ -9,7 +9,7 @@ namespace ayu::test {
     struct TestResourceScheme : FolderResourceScheme {
         using FolderResourceScheme::FolderResourceScheme;
         bool accepts_type (Type type) const override {
-            return type == Type::CppType<Document>();
+            return type == Type::For<Document>();
         }
     };
     struct TestEnvironment {

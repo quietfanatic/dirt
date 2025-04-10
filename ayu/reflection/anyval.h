@@ -39,7 +39,7 @@ struct AnyVal {
      // Construct with arguments.
     template <class T, class... Args>
     static AnyVal make (Args&&... args) {
-        auto type = Type::CppType<T>();
+        auto type = Type::For<T>();
         void* data = type.allocate();
         try {
             new (data) T (std::forward<Args>(args)...);
@@ -53,7 +53,7 @@ struct AnyVal {
      // Move construct from std::unique_ptr
     template <class T>
     AnyVal (std::unique_ptr<T> p) :
-        type(Type::CppType<T>()), data((Mu*)p.release())
+        type(Type::For<T>()), data((Mu*)p.release())
     { }
      // Move assignment
     constexpr AnyVal& operator = (AnyVal&& o) {
@@ -84,13 +84,13 @@ struct AnyVal {
     template <class T>
     std::remove_cvref_t<T>& as () {
         return reinterpret_cast<std::remove_cvref_t<T>&>(
-            as(Type::CppType<std::remove_cvref_t<T>>())
+            as(Type::For<std::remove_cvref_t<T>>())
         );
     }
     template <class T>
     const std::remove_cvref_t<T>& as () const {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
-            as(Type::CppType<std::remove_cvref_t<T>>())
+            as(Type::For<std::remove_cvref_t<T>>())
         );
     }
 
@@ -101,13 +101,13 @@ struct AnyVal {
     template <class T>
     std::remove_cvref_t<T>& as_known () {
         return reinterpret_cast<std::remove_cvref_t<T>&>(
-            as_known(Type::CppType<std::remove_cvref_t<T>>())
+            as_known(Type::For<std::remove_cvref_t<T>>())
         );
     }
     template <class T>
     const std::remove_cvref_t<T>& as_known () const {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
-            as_known(Type::CppType<std::remove_cvref_t<T>>())
+            as_known(Type::For<std::remove_cvref_t<T>>())
         );
     }
 
@@ -115,7 +115,7 @@ struct AnyVal {
     std::unique_ptr<T> to_unique_ptr () && {
         if (empty()) return null;
         auto r = std::unique_ptr<T>(
-            (T*)type.upcast_to(Type::CppType<T>(), data)
+            (T*)type.upcast_to(Type::For<T>(), data)
         );
         type = Type();
         data = null;

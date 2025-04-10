@@ -354,7 +354,7 @@ AYU_DESCRIBE_TEMPLATE(
         else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRect");
         else return desc::computed_name([]()->uni::AnyString{
             return uni::cat(
-                "geo::GRect<", ayu::Type::CppType<T>().name(), '>'
+                "geo::GRect<", ayu::Type::For<T>().name(), '>'
             );
         });
     }(),

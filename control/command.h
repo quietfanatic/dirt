@@ -53,7 +53,7 @@ struct Command {
 #define CONTROL_COMMAND(f, min, desc) \
 constexpr control::Command _control_command_##f ( \
     control::CommandCaller<f>::get_call(), \
-    ayu::Type::CppType< \
+    ayu::Type::For< \
         typename control::CommandCaller<f>::Storage \
     >(), \
     #f, desc, min, control::CommandCaller<f>::max \
@@ -65,7 +65,7 @@ constexpr control::Command _control_command_##f ( \
 #define CONTROL_COMMAND(f, min, desc) \
 constexpr control::Command _control_command_##f ( \
     control::CommandCaller<f>::get_call(), \
-    ayu::Type::CppType< \
+    ayu::Type::For< \
         typename control::CommandCaller<f>::Storage \
     >(), \
     #f, desc, min, control::CommandCaller<f>::max \

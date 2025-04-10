@@ -64,7 +64,7 @@ static void AnyRef_from_tree (AnyRef& v, const Tree& tree) {
         case Form::String: if (!Str(tree)) raise(e_General,
             "Cannot deserialize AnyRef from empty IRI.  To make the null AnyRef, use null."
         ); break;
-        default: raise_FromTreeFormRejected(Type::CppType<AnyRef>(), tree.form);
+        default: raise_FromTreeFormRejected(Type::For<AnyRef>(), tree.form);
     }
     v = AnyRef();
 }
