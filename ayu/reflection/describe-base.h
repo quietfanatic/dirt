@@ -197,7 +197,7 @@ struct _AYU_DescribeBase {
      // an arbitrary matrix to be specified with a list of numbers.
     template <class... Values>
         requires (requires (T v) { v == v; v = v; })
-    static constexpr auto values (Values&&... vs);
+    static constexpr auto values (const Values&... vs);
      // This is just like values(), but will use the provided compare and assign
      // functions instead of operator== and operator=, so this type doesn't have
      // to have those operators defined.  The first argument to compare is the
@@ -206,13 +206,10 @@ struct _AYU_DescribeBase {
     static constexpr auto values_custom (
         bool(* compare )(const T&, const T&),
         void(* assign )(T&, const T&),
-        Values&&... vs
+        const Values&... vs
     );
      // Specify a named value for use in values(...).  The value must be
-     // constexpr copy or move constructible.
-    template <class N>
-        requires (requires (T&& v) { T(move(v)); })
-    static constexpr auto value (const N& name, T&& value);
+     // constexpr copy constructible.
     template <class N>
         requires (requires (const T& v) { T(v); })
     static constexpr auto value (const N& name, const T& value);
@@ -231,7 +228,7 @@ struct _AYU_DescribeBase {
      // specified in the description, not in the order they're provided in the
      // Tree.
     template <class... Attrs>
-    static constexpr auto attrs (Attrs&&... as);
+    static constexpr auto attrs (const Attrs&... as);
      // Specify a single attribute for an object-like type.  When serializing,
      // `key` will be used as the attribute's key, and `accessor`'s read
      // operation will be used to get the attribute's value.  When
@@ -368,7 +365,7 @@ struct _AYU_DescribeBase {
      // deserialized from either an object or an array, and will be serialized
      // using whichever of attrs() and elems() was specified first.
     template <class... Elems>
-    static constexpr auto elems (Elems&&... es);
+    static constexpr auto elems (const Elems&... es);
      // Provide an individual element accessor.  `accessor` must be one of the
      // accessors in the ACCESSORS section or a pointer-to-data-member as a
      // shortcut for the member() accessor.  `flags` can be 0 or any |ed
@@ -617,13 +614,12 @@ struct _AYU_DescribeBase {
         in::AcrFlags = {}
     );
      // This makes a readonly accessor which always returns a constant.  The
-     // provided constant must be constexpr copy or move constructible.  This
-     // accessor is not addressable, though theoretically it could be made to
-     // be.
+     // provided constant must be constexpr copy constructible.  This accessor
+     // is not addressable, though theoretically it could be made to be.
     template <class M>
-        requires (requires (M m) { M(move(m)); })
+        requires (requires (const M& m) { M(m); })
     static constexpr auto constant (
-        M&& v, in::AcrFlags = {}
+        const M& v, in::AcrFlags = {}
     );
      // Makes a readonly accessor which always returns a constant.  The pointed-
      // to constant does not need to be constexpr or even copy-constructible,
@@ -634,9 +630,9 @@ struct _AYU_DescribeBase {
         const M* p, in::AcrFlags = {}
     );
      // Like constant(), but provides read-write access to a variable which is
-     // embedded in the accessor with move().  This accessor is not
-     // constexpr, so it cannot be used directly in an AYU_DESCRIBE block, and
-     // can only be used inside an computed_attrs or computed_elems.  It is not
+     // embedded in the accessor with move().  This accessor is not constexpr,
+     // so it cannot be used directly in an AYU_DESCRIBE block, and can only be
+     // used inside computed_attrs, computed_elems, or anyref_func.  It is not
      // addressable.  There is no corresponding variable_pointer accessor
      // because if you're in an computed_attrs or computed_elems, you can just
      // convert the pointer directly to an ayu::AnyRef instead of using an

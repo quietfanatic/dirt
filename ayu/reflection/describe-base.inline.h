@@ -52,36 +52,19 @@ constexpr auto _AYU_DescribeBase<T>::flags (in::TypeFlags f) {
 template <class T>
 template <class... Values>
     requires (requires (T v) { v == v; v = v; })
-constexpr auto _AYU_DescribeBase<T>::values (Values&&... vs) {
-    return in::ValuesDcrWith<T, Values...>(move(vs)...);
+constexpr auto _AYU_DescribeBase<T>::values (const Values&... vs) {
+    return in::ValuesDcrWith<T, Values...>(vs...);
 }
 template <class T>
 template <class... Values>
 constexpr auto _AYU_DescribeBase<T>::values_custom (
     in::CompareFunc<T>* compare,
     in::AssignFunc<T>* assign,
-    Values&&... vs
+    const Values&... vs
 ) {
     return in::ValuesDcrWith<T, Values...>(
-        compare, assign, move(vs)...
+        compare, assign, vs...
     );
-}
-template <class T>
-template <class N>
-    requires (requires (T&& v) { T(move(v)); })
-constexpr auto _AYU_DescribeBase<T>::value (const N& n, T&& v) {
-     // Be aggressive about converting to StaticString to make sure nothing goes
-     // through the non-constexpr path.
-    Tree name;
-    if constexpr (
-        !requires { Null(n); } &&
-        requires { StaticString(n); }
-    ) {
-        name = Tree(StaticString(n));
-    }
-    else name = Tree(n);
-    name.flags &= ~TreeFlags::ValueIsPtr;
-    return in::ValueDcrWithValue<T>{{{}, name}, move(v)};
 }
  // Forwarding references only work if the template parameter is immediately on
  // the function, not in some outer scope.
@@ -118,8 +101,8 @@ constexpr auto _AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
 
 template <class T>
 template <class... Attrs>
-constexpr auto _AYU_DescribeBase<T>::attrs (Attrs&&... as) {
-    return in::AttrsDcrWith<T, Attrs...>(move(as)...);
+constexpr auto _AYU_DescribeBase<T>::attrs (const Attrs&... as) {
+    return in::AttrsDcrWith<T, Attrs...>(as...);
 }
 template <class T>
 template <class Acr>
@@ -163,8 +146,8 @@ constexpr auto _AYU_DescribeBase<T>::attr_default (
 }
 template <class T>
 template <class... Elems>
-constexpr auto _AYU_DescribeBase<T>::elems (Elems&&... es) {
-    return in::ElemsDcrWith<T, Elems...>(move(es)...);
+constexpr auto _AYU_DescribeBase<T>::elems (const Elems&... es) {
+    return in::ElemsDcrWith<T, Elems...>(es...);
 }
 template <class T>
 template <class Acr>
@@ -313,9 +296,9 @@ constexpr auto _AYU_DescribeBase<T>::assignable (
 
 template <class T>
 template <class M>
-    requires (requires (M m) { M(move(m)); })
+    requires (requires (const M& m) { M(m); })
 constexpr auto _AYU_DescribeBase<T>::constant (
-    M&& v, in::AcrFlags flags
+    const M& v, in::AcrFlags flags
 ) {
     return in::ConstantAcr2<T, M>(move(v), flags);
 }

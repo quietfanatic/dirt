@@ -29,6 +29,8 @@ const Command* require_command (Str name) {
     else ayu::raise(e_CommandNotFound, name);
 }
 
+static constexpr Statement empty_Statement;
+
 } using namespace control;
 
 AYU_DESCRIBE(control::StatementStorageBase,
@@ -50,7 +52,7 @@ AYU_DESCRIBE(control::Statement,
         [](Statement& a, const Statement&){
             a = {};
         },
-        value(ayu::Tree::array(), Statement())
+        value_ptr(ayu::Tree::array(), &empty_Statement)
     ),
     before_from_tree([](Statement& v, const ayu::Tree& t){
         auto a = Slice<ayu::Tree>(t);

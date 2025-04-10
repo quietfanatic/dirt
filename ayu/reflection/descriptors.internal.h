@@ -47,14 +47,14 @@ template <size_t i, class HeadT>
     requires (!std::is_empty_v<HeadT>)
 struct CatHead<i, HeadT> {
     HeadT head;
-    constexpr CatHead (HeadT&& h) : head(move(h)) { }
+    constexpr CatHead (const HeadT& h) : head(h) { }
 };
 template <size_t i, class HeadT>
     requires (std::is_empty_v<HeadT>)
 struct CatHead<i, HeadT> {
      // Ideally this gets discarded by the linker?
     static HeadT head;
-    constexpr CatHead (HeadT&&) { }
+    constexpr CatHead (const HeadT&) { }
 };
 template <size_t i, class HeadT>
     requires (std::is_empty_v<HeadT>)
@@ -69,9 +69,9 @@ struct Cat<HeadT, TailTs...> :
 {
     using Head = CatHead<sizeof...(TailTs), HeadT>;
     using Tail = Cat<TailTs...>;
-    constexpr Cat (HeadT&& h, TailTs&&... t) :
-        Head(move(h)),
-        Tail(move(t)...)
+    constexpr Cat (const HeadT& h, const TailTs&... t) :
+        Head(h),
+        Tail(t...)
     { }
 
     template <class T>
@@ -95,6 +95,20 @@ struct Cat<HeadT, TailTs...> :
     constexpr void for_each (F f) const {
         f(Head::head);
         Tail::template for_each<F>(f);
+    }
+    template <class F>
+    constexpr auto map (F f) const {
+        using NewHeadT = decltype(f(Head::head));
+        using NewTailT = decltype(Tail::template map<F>(f));
+        if constexpr (std::is_void_v<NewHeadT>) {
+            return Tail::template map<F>(f);
+        }
+        else {
+            return Cat<NewHeadT, NewTailT>(
+                f(Head::head),
+                Tail::template map<F>(f)
+            );
+        }
     }
 };
 
@@ -156,7 +170,7 @@ struct AttachedDescriptor : Descriptor<T> {
     }
      // Emit this into the static data
     template <class Self>
-    static constexpr Self make_static (Self&& self) { return std::forward<Self>(self); }
+    static constexpr Self make_static (const Self& self) { return self; }
 };
 template <class T>
 struct DetachedDescriptor : Descriptor<T> {
@@ -251,9 +265,9 @@ template <class T, class... Values>
 struct ValuesDcrWith : ValuesDcr<T> {
     u16 offsets [sizeof...(Values)] {};
     Cat<Values...> values;
-    constexpr ValuesDcrWith (Values&&... vs) :
+    constexpr ValuesDcrWith (const Values&... vs) :
         ValuesDcr<T>{{}, &compare<T>, &assign<T>, sizeof...(Values)},
-        values(move(vs)...)
+        values(vs...)
     {
         for (u32 i = 0; i < sizeof...(Values); i++) {
             offsets[i] = static_cast<const ComparableAddress*>(
@@ -264,10 +278,10 @@ struct ValuesDcrWith : ValuesDcr<T> {
     constexpr ValuesDcrWith (
         bool(* compare )(const T&, const T&),
         void(* assign )(T&, const T&),
-        Values&&... vs
+        const Values&... vs
     ) :
         ValuesDcr<T>{{}, compare, assign, sizeof...(Values)},
-        values(move(vs)...)
+        values(vs...)
     {
         for (u32 i = 0; i < sizeof...(Values); i++) {
             offsets[i] = static_cast<const ComparableAddress*>(
@@ -321,9 +335,9 @@ template <class T, class... Attrs>
 struct AttrsDcrWith : AttrsDcr<T> {
     u16 offsets [sizeof...(Attrs)] {};
     Cat<Attrs...> attrs;
-    constexpr AttrsDcrWith (Attrs&&... as) :
+    constexpr AttrsDcrWith (const Attrs&... as) :
         AttrsDcr<T>{{}, u16(sizeof...(Attrs))},
-        attrs(move(as)...)
+        attrs(as...)
     {
         for (u32 i = 0; i < sizeof...(Attrs); i++) {
             offsets[i] = static_cast<ComparableAddress*>(
@@ -365,9 +379,9 @@ template <class T, class... Elems>
 struct ElemsDcrWith : ElemsDcr<T> {
     u16 offsets [sizeof...(Elems)] {};
     Cat<Elems...> elems;
-    constexpr ElemsDcrWith (Elems&&... es) :
+    constexpr ElemsDcrWith (const Elems&... es) :
         ElemsDcr<T>{{}, u16(sizeof...(Elems))},
-        elems(move(es)...)
+        elems(es...)
     {
         bool have_optional = false;
         bool have_invisible = false;
@@ -480,7 +494,7 @@ using FullDescription = Cat<
 
 template <class T, class... Dcrs>
 constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
-    Dcrs&&... dcrs
+    const Dcrs&... dcrs
 ) {
     using Desc = FullDescription<T, std::remove_cvref_t<Dcrs>...>;
 
@@ -495,7 +509,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
 
     Desc desc (
         DescriptionFor<T>{},
-        std::remove_cvref_t<Dcrs>::make_static(move(dcrs))...
+        std::remove_cvref_t<Dcrs>::make_static(dcrs)...
     );
     auto& header = *desc.template get<DescriptionFor<T>>(0);
     header.cpp_size = sizeof(T);

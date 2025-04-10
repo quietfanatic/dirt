@@ -3,8 +3,11 @@
 #include "anyref.h"
 #include "describe.h"
 
-using namespace ayu;
-using namespace ayu::in;
+namespace ayu {
+namespace in {
+static constexpr AnyVal empty_AnyVal;
+} using namespace in;
+} using namespace ayu;
 
  // We need to use values_custom
 AYU_DESCRIBE(ayu::AnyVal,
@@ -17,7 +20,7 @@ AYU_DESCRIBE(ayu::AnyVal,
             expect(!b);
             a = AnyVal();
         },
-        value(Tree::array(), AnyVal())
+        value_ptr(Tree::array(), &empty_AnyVal)
     ),
     elems(
         elem(value_funcs<Type>(
