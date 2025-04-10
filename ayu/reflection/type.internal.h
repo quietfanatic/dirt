@@ -1,7 +1,7 @@
 #pragma once
-#include "description.internal.h"
 
 namespace ayu::in {
+struct Description;
 
 struct TypeInfo {
     const ayu::in::Description* description;

@@ -7,7 +7,6 @@
  // You can load, save, unload, and reload resources.
 
 #pragma once
-
 #include "../../uni/transaction.h"
 #include "../common.h"
 #include "../data/print.h"

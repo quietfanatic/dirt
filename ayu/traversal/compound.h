@@ -2,7 +2,6 @@
  // traversal system.
 
 #pragma once
-
 #include "../common.h"
 #include "route.h"
 

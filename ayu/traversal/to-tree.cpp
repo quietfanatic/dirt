@@ -1,6 +1,6 @@
 #include "to-tree.h"
 
-#include "../reflection/descriptors.private.h"
+#include "../reflection/description.private.h"
 #include "compound.private.h"
 #include "scan.h"
 #include "traversal.private.h"

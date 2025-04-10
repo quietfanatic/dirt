@@ -43,14 +43,12 @@
  // AnyRef and AnyVal, etc.
 
 #pragma once
-
 #include <type_traits>
-
 #include "../common.h"
 #include "../data/tree.h"
 #include "accessors.internal.h"
 #include "anyref.h"
-#include "descriptors.internal.h"
+#include "description.internal.h"
 #include "type.h"
 
 namespace ayu {

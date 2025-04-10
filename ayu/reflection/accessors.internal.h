@@ -2,9 +2,7 @@
 // in AYU_DESCRIBE descriptions.
 
 #pragma once
-
 #include <typeinfo>
-
 #include "../../uni/lilac.h"
 #include "../common.h"
 #include "../data/tree.h"

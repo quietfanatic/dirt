@@ -1,7 +1,6 @@
 #include "compound.private.h"
-
 #include "../reflection/describe-standard.h"
-#include "../reflection/descriptors.private.h"
+#include "../reflection/description.private.h"
 #include "traversal.private.h"
 
 namespace ayu {

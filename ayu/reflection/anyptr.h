@@ -3,7 +3,6 @@
 //
 // AnyPtrs cannot be constructed until main() starts (except for the typeless
 // empty AnyPtr).
-
 #pragma once
 #include "../../uni/hash.h"
 #include "type.h"

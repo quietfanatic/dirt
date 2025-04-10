@@ -1,7 +1,6 @@
 #include "from-tree.h"
-
 #include <memory>
-#include "../reflection/descriptors.private.h"
+#include "../reflection/description.private.h"
 #include "../resources/resource.h"
 #include "compound.private.h"
 #include "traversal.private.h"

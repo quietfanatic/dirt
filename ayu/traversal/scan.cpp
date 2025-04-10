@@ -1,9 +1,8 @@
 #include "scan.h"
-
 #include <algorithm>
 #include "../reflection/anyptr.h"
 #include "../reflection/anyref.h"
-#include "../reflection/descriptors.private.h"
+#include "../reflection/description.private.h"
 #include "../resources/universe.private.h"
 #include "compound.private.h"
 #include "route.h"

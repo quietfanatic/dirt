@@ -1,7 +1,5 @@
 #pragma once
-
 #include <functional>  // for std::hash
-
 #include "../common.internal.h"
 #include "type.internal.h"
 
@@ -68,13 +66,9 @@ struct Type {
         return in::get_type_name(get_info());
     }
      // Get the sizeof() of this type
-    constexpr usize cpp_size () const {
-        return get_description()->cpp_size;
-    }
+    usize cpp_size () const;
      // Get the alignof() of this type
-    constexpr usize cpp_align () const {
-        return get_description()->cpp_align;
-    }
+    usize cpp_align () const;
      // Construct an instance of this type in-place.  The target must have at
      // least the required size and alignment.  May throw CannotDefaultConstruct
      // or CannotDestroy.

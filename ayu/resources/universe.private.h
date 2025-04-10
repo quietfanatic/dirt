@@ -1,7 +1,6 @@
  // The "Universe" manages the set of loaded resources and related global data.
 
 #pragma once
-
 #include <memory>
 #include "../common.h"
 #include "resource.h"

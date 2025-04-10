@@ -1,5 +1,4 @@
 #pragma once
-
 #include "common.h"
 
 //#define AYU_PROFILE

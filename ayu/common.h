@@ -2,7 +2,6 @@
 // the library.
 
 #pragma once
-
 #include <cstring>
 #include "../uni/arrays.h"
 #include "../uni/assertions.h"

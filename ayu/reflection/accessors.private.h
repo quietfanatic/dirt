@@ -1,6 +1,6 @@
 #pragma once
 #include "accessors.internal.h"
-#include "descriptors.internal.h"
+#include "description.internal.h"
 
 namespace ayu::in {
 

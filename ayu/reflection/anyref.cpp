@@ -1,5 +1,4 @@
 #include "anyref.h"
-
 #include "../../iri/iri.h"
 #include "../traversal/compound.h"
 #include "../traversal/route.h"

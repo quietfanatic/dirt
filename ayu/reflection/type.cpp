@@ -1,13 +1,11 @@
 #include "type.h"
-
 #include <typeindex>
 #if __has_include(<cxxabi.h>)
 #include <cxxabi.h>
 #endif
-
 #include "../../uni/hash.h"
 #include "describe.h"
-#include "descriptors.private.h"
+#include "description.private.h"
 
 namespace ayu {
 namespace in {
@@ -163,6 +161,13 @@ static void raise_TypeCantCast (Type from, Type to) {
 }
 
 } using namespace in;
+
+usize Type::cpp_size () const {
+    return get_description()->cpp_size;
+}
+usize Type::cpp_align () const {
+    return get_description()->cpp_align;
+}
 
 void Type::default_construct (void* target) const {
     auto desc = DescriptionPrivate::get(*this);

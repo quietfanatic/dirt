@@ -9,10 +9,9 @@
 //
 // AnyVals cannot be constructed until main() starts (except for the empty
 // AnyVal).
+
 #pragma once
-
 #include <type_traits>
-
 #include "../common.internal.h"
 #include "anyptr.h"
 #include "type.h"

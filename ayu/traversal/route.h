@@ -20,7 +20,6 @@
 // with the path component of an IRI.
 
 #pragma once
-
 #include "../../uni/lilac.h"
 #include "../common.internal.h"
 #include "../reflection/anyref.h"

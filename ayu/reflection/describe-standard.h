@@ -4,7 +4,6 @@
 // descriptions, include this file.
 
 #pragma once
-
 #include <array>
 #include <map>
 #include <memory>
@@ -15,7 +14,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
 #include "../common.h"
 #include "../traversal/compound.h"
 #include "../traversal/to-tree.h"

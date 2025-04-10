@@ -1,5 +1,4 @@
 #include "document.h"
-
 #include "../../uni/lilac.h"
 #include "../common.h"
 #include "../reflection/anyref.h"

@@ -1,9 +1,8 @@
 #include "common.internal.h"
-
 #include "../iri/iri.h"
 #include "../uni/io.h"
-#include "traversal/to-tree.h"
 #include "traversal/route.h"
+#include "traversal/to-tree.h"
 
 namespace ayu {
 using namespace in;

@@ -1,5 +1,4 @@
 #include "resource.h"
-
 #include "../../iri/iri.h"
 #include "../../uni/io.h"
 #include "../data/parse.h"

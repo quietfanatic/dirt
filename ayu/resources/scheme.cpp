@@ -1,5 +1,4 @@
 #include "scheme.h"
-
 #include "universe.private.h"
 
 namespace ayu {

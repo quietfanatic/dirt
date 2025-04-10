@@ -3,7 +3,6 @@
 // Serialization functions cannot be used until main() starts.
 
 #pragma once
-
 #include "../common.h"
 #include "../data/parse.h"
 #include "../data/tree.h"
