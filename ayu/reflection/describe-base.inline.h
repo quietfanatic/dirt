@@ -351,10 +351,10 @@ constexpr auto AYU_DescribeBase<T>::AYU_describe (
 #else
 
 #ifdef __GNUC__
-#define AYU_CONSTINIT constinit
+#define AYU_DESCRIPTION_CONST constexpr
 #define AYU_DO_INIT(init) &init
 #else
-#define AYU_CONSTINIT
+#define AYU_DESCRIPTION_CONST const
 #define AYU_DO_INIT(init) init()
 #endif
 
@@ -376,7 +376,7 @@ struct AYU_Describe<T> : ayu::AYU_DescribeBase<T> { \
 }; \
 template <> \
 struct AYU_Description<T> : decltype(AYU_Describe<T>::AYU_specification) { }; \
-AYU_CONSTINIT const AYU_Description<T> AYU_Describe<T>::AYU_description { \
+AYU_DESCRIPTION_CONST AYU_Description<T> AYU_Describe<T>::AYU_description { \
     (AYU_DO_INIT(init), AYU_specification) \
 };
 
@@ -405,7 +405,7 @@ struct AYU_Describe<T> : ayu::AYU_DescribeBase<T> { \
 template params \
 struct AYU_Description<T> : decltype(AYU_Describe<T>::AYU_specification) { }; \
 template params \
-AYU_CONSTINIT const AYU_Description<T> AYU_Describe<T>::AYU_description { \
+AYU_DESCRIPTION_CONST AYU_Description<T> AYU_Describe<T>::AYU_description { \
     (AYU_DO_INIT(init), AYU_specification) \
 };
 
