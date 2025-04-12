@@ -11,7 +11,7 @@ namespace ayu {
 namespace in {
 
 struct TypeRegistry {
-    UniqueArray<Hashed<const TypeInfo*>> by_name;
+    UniqueArray<Hashed<const DescriptionPrivate*>> by_name;
     bool initted = false;
 };
 
@@ -22,8 +22,7 @@ static TypeRegistry& registry () {
 }
 
 static
-StaticString get_type_name_cached (const TypeInfo* ti) {
-    auto desc = ti->description;
+StaticString get_type_name_cached (const DescriptionPrivate* desc) {
     if (!!(desc->flags & DescFlags::NameComputed)) {
         return *desc->computed_name.cache;
     }
@@ -36,7 +35,7 @@ void init_names () {
     r.initted = true;
     plog("init types begin");
     for (auto& p : r.by_name) {
-        auto n = get_type_name(p.value);
+        auto n = Type(p.value).name();
         require(n);
         p.hash = uni::hash(n);
     }
@@ -47,8 +46,8 @@ void init_names () {
     std::qsort(
         r.by_name.data(), r.by_name.size(), sizeof(r.by_name[0]),
         [](const void* aa, const void* bb){
-            auto a = reinterpret_cast<const Hashed<const TypeInfo*>*>(aa);
-            auto b = reinterpret_cast<const Hashed<const TypeInfo*>*>(bb);
+            auto a = reinterpret_cast<const Hashed<const DescriptionPrivate*>*>(aa);
+            auto b = reinterpret_cast<const Hashed<const DescriptionPrivate*>*>(bb);
             if (a->hash != b->hash) [[likely]] {
                  // can't subtract here, it'll overflow
                 return a->hash < b->hash ? -1 : 1;
@@ -64,65 +63,9 @@ void init_names () {
     plog("init types end");
 }
 
-void register_type (TypeInfo* ti) noexcept {
+void register_description (const void* desc) noexcept {
     require(!registry().initted);
-    registry().by_name.emplace_back(0, ti);
-}
-
- // in current gcc, this optimization interferes with conditional moves
-[[gnu::optimize("-fno-thread-jumps")]]
-const TypeInfo* get_type_for_name (Str name) noexcept {
-    auto& r = registry();
-    if (!r.initted) [[unlikely]] init_names();
-    if (!name) return null;
-    auto h = uni::hash(name);
-    u32 bottom = 0;
-    u32 top = r.by_name.size();
-    while (bottom != top) {
-        u32 mid = (top + bottom) / 2;
-        auto& e = r.by_name[mid];
-        if (e.hash == h) [[unlikely]] {
-            Str n = get_type_name_cached(e.value);
-            if (n == name) [[likely]] {
-                return e.value;
-            }
-            else if (n.size() == name.size()) {
-                (n < name ? bottom : top) = mid;
-            }
-            else (n.size() < name.size() ? bottom : top) = mid;
-        }
-        else {
-            bool up = e.hash < h;
-            if (up) bottom = mid + 1;
-            if (!up) top = mid;
-        }
-    }
-    return null;
-}
-
-const TypeInfo* require_type_for_name (Str name) {
-    auto ti = get_type_for_name(name);
-    if (ti) return ti;
-    else raise(e_TypeNotFound, cat(
-        "Did not find type named ", name
-    ));
-}
-
-StaticString get_type_name (const TypeInfo* ti) noexcept {
-    auto desc = ti->description;
-    if (!!(desc->flags & DescFlags::NameComputed)) {
-        auto cache = desc->computed_name.cache;
-        if (!*cache) {
-            AnyString s = desc->computed_name.f();
-            *cache = StaticString(s);
-            s.impl = {};
-        }
-        return *cache;
-    }
-    else if (desc->name) { return desc->name; }
-    else {
-        return "!(Unknown Type Name)";
-    }
+    registry().by_name.emplace_back(0, reinterpret_cast<const DescriptionPrivate*>(desc));
 }
 
 UniqueString get_demangled_name (const std::type_info& t) noexcept {
@@ -162,15 +105,70 @@ static void raise_TypeCantCast (Type from, Type to) {
 
 } using namespace in;
 
+ // in current gcc, this optimization interferes with conditional moves
+[[gnu::optimize("-fno-thread-jumps")]]
+Type::Type (Str name, bool readonly) {
+    auto& r = registry();
+    if (!r.initted) [[unlikely]] init_names();
+    if (!name) {
+        ptr = null; return;
+    }
+    auto h = uni::hash(name);
+    u32 bottom = 0;
+    u32 top = r.by_name.size();
+    while (bottom != top) {
+        u32 mid = (top + bottom) / 2;
+        auto& e = r.by_name[mid];
+        if (e.hash == h) [[unlikely]] {
+            Str n = get_type_name_cached(e.value);
+            if (n == name) [[likely]] {
+                ptr = e.value;
+                if (readonly) data |= 1;
+                return;
+            }
+            else if (n.size() == name.size()) {
+                (n < name ? bottom : top) = mid;
+            }
+            else (n.size() < name.size() ? bottom : top) = mid;
+        }
+        else {
+            bool up = e.hash < h;
+            if (up) bottom = mid + 1;
+            if (!up) top = mid;
+        }
+    }
+    raise(e_TypeNotFound, cat(
+        "Did not find type named ", name
+    ));
+}
+
+StaticString Type::name () const noexcept {
+    if (!*this) return "";
+    auto desc = description();
+    if (!!(desc->flags & DescFlags::NameComputed)) {
+        auto cache = desc->computed_name.cache;
+        if (!*cache) {
+            AnyString s = desc->computed_name.f();
+            *cache = StaticString(s);
+            s.impl = {};
+        }
+        return *cache;
+    }
+    else if (desc->name) { return desc->name; }
+    else {
+        return "!(Unknown Type Name)";
+    }
+}
+
 usize Type::cpp_size () const {
-    return get_description()->cpp_size;
+    return description()->cpp_size;
 }
 usize Type::cpp_align () const {
-    return get_description()->cpp_align;
+    return description()->cpp_align;
 }
 
 void Type::default_construct (void* target) const {
-    auto desc = DescriptionPrivate::get(*this);
+    auto desc = description();
     if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
      // Don't allow constructing objects that can't be destroyed
     if (!desc->destroy) raise_TypeCantDestroy(*this);
@@ -178,13 +176,13 @@ void Type::default_construct (void* target) const {
 }
 
 void Type::destroy (Mu* p) const {
-    auto desc = DescriptionPrivate::get(*this);
+    auto desc = description();
     if (!desc->destroy) raise_TypeCantDestroy(*this);
     desc->destroy(p);
 }
 
 void* Type::allocate () const noexcept {
-    auto desc = DescriptionPrivate::get(*this);
+    auto desc = description();
     void* r = operator new(
         desc->cpp_size, std::align_val_t(desc->cpp_align), std::nothrow
     );
@@ -192,12 +190,12 @@ void* Type::allocate () const noexcept {
 }
 
 void Type::deallocate (void* p) const noexcept {
-    auto desc = DescriptionPrivate::get(*this);
+    auto desc = description();
     operator delete(p, desc->cpp_size, std::align_val_t(desc->cpp_align));
 }
 
 Mu* Type::default_new () const {
-    auto desc = DescriptionPrivate::get(*this);
+    auto desc = description();
      // Throw before allocating
     if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
     if (!desc->destroy) raise_TypeCantDestroy(*this);
@@ -214,8 +212,8 @@ void Type::delete_ (Mu* p) const {
 Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (!to || !p) return null;
     if (*this == to.remove_readonly()) return p;
-    auto desc = DescriptionPrivate::get(*this);
 
+    auto desc = description();
     if (auto delegate = desc->delegate_acr())
     if (AnyPtr a = delegate->address(*p))
     if (Mu* b = a.type.try_upcast_to(to, a.address))

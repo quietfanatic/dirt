@@ -81,10 +81,7 @@ struct ElemsDcrPrivate : ElemsDcr<Mu> {
     }
 };
 
-struct DescriptionPrivate : DescriptionFor<Mu> {
-    static const DescriptionPrivate* get (Type t) {
-        return reinterpret_cast<const DescriptionPrivate*>(t.get_description());
-    }
+struct DescriptionPrivate : DescriptionHeaderFor<Mu> {
     const ToTreeDcr<Mu>* to_tree () const {
         return offset_get<ToTreeDcr<Mu>>(this, to_tree_offset);
     }

@@ -13,58 +13,39 @@ namespace ayu {
  // The default value will cause null derefs if you do anything with it.
  //
  // Types can be constructed at constexpr time, but their readonly bit cannot be
- // set or read.
+ // set or read.  They can't be used at compile-time.  If you want to do
+ // compile-time stuff with types...just use C++ types.
 struct Type {
      // Uses a tagged pointer; the first bit determines readonly (const), and the rest
-     // points to an ayu::in::Description.
+     // points to an ayu::in::DescriptionHeader.
     union {
         usize data;
-        const in::TypeInfo* type_info; // Write-only
+        const void* ptr; // For constexpr writes.
     };
 
-    constexpr Type () : data(0) { }
-     // Construct from internal data
-    constexpr Type (const in::TypeInfo* ti) : type_info(ti) { }
-    Type (const in::TypeInfo* ti, bool readonly) :
-        data(reinterpret_cast<usize>(ti) | readonly)
-    { }
-     // Never throws.  Strips reference info
+     // Construct empty type
+    constexpr Type () : ptr(null) { }
+     // Construct from C++ type.  Never throws.  Strips reference info.  Only
+     // constexpr for non-const types.
     template <class T> requires (
         !std::is_volatile_v<std::remove_reference_t<T>>
     ) static constexpr
-    Type For () noexcept {
-        if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
-            return Type(
-                in::get_type_info<
-                    std::remove_const_t<std::remove_reference_t<T>>
-                >(),
-                true
-            );
-        }
-        else return Type(
-            in::get_type_info<
-                std::remove_const_t<std::remove_reference_t<T>>
-            >()
-        );
-    }
-     // Can throw TypeNotFound
-    Type (Str name, bool readonly = false) :
-        Type(in::require_type_for_name(name), readonly)
-    { }
+    Type For () noexcept;
+     // Construct from name.  Can throw TypeNotFound
+    Type (Str name, bool readonly = false);
 
      // Checks if this is the empty type.
     explicit constexpr operator bool () const { return data & ~1; }
      // Checks if this type is readonly (const).
     bool readonly () const { return data & 1; }
      // Add or remove readonly bit
-    Type add_readonly () const { return Type(get_info(), true); }
-    Type remove_readonly () const { return Type(get_info(), false); }
+    Type add_readonly () const { return Type(data | 1); }
+    Type remove_readonly () const { return Type(data & ~1); }
 
      // Get human-readable type name (whatever name was registered with
-     // AYU_DESCRIBE).  This ignores the readonly bit.
-    StaticString name () const {
-        return in::get_type_name(get_info());
-    }
+     // AYU_DESCRIBE).  This ignores the readonly bit.  Returns "" for the empty
+     // type.
+    StaticString name () const noexcept;
      // Get the sizeof() of this type
     usize cpp_size () const;
      // Get the alignof() of this type
@@ -120,29 +101,38 @@ struct Type {
         return (T*)upcast_to(Type::For<T>(), p);
     }
 
-     // Internal
-    constexpr in::TypeInfo* get_info () const {
-        return reinterpret_cast<in::TypeInfo*>(data & ~1);
+     ///// INTERNAL
+
+    const in::DescriptionPrivate* description () const {
+        return reinterpret_cast<const in::DescriptionPrivate*>(data & ~1);
     }
-    constexpr const in::Description* get_description () const {
-        return get_info()->description;
-    }
+    Type (const in::DescriptionHeader* ptr, bool readonly = false) :
+        data(reinterpret_cast<usize>(ptr) | readonly)
+    { }
+     // To avoid the const void* overload from applying to string literals
+    template <usize n>
+    Type (const char(& s )[n]) : Type(Str(s)) { }
+     // Construct from internal data.  Private because they're just too
+     // dangerous.  void* is the only thing you can reinterpret_cast to at
+     // compile time.
+    private:
+    constexpr explicit Type (usize data) : data(data) { }
+    constexpr explicit Type (const void* ptr) : ptr(ptr) { }
 };
 
- // The same type will always have the same description pointer.
+ // The same type will always have the same description pointer.  Compare ptr
+ // instead of data so that this can be constexpr (only the ptr variant can be
+ // written at constexpr time).
 constexpr bool operator == (Type a, Type b) {
-    return a.data == b.data;
+    return a.ptr == b.ptr;
 }
 constexpr bool operator != (Type a, Type b) {
-    return a.data != b.data;
+    return a.ptr != b.ptr;
 }
 constexpr bool operator < (Type a, Type b) {
-    return a.data < b.data;
+    return a.ptr < b.ptr;
 }
 
- // Tried to map a C++ type to an AYU type, but AYU doesn't know about that type
- // (it has no AYU_DESCRIBE description).
-constexpr ErrorCode e_TypeUnknown = "ayu::e_TypeUnknown";
  // Tried to look up a type be name but there is no registered type with that
  // name.
 constexpr ErrorCode e_TypeNotFound = "ayu::e_TypeNotFound";
@@ -163,3 +153,20 @@ struct std::hash<ayu::Type> {
     }
 };
 
+ // This is just too long to put up front
+template <class T> requires (
+    !std::is_volatile_v<std::remove_reference_t<T>>
+) constexpr
+ayu::Type ayu::Type::For () noexcept {
+    if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
+        return Type(
+            reinterpret_cast<const in::DescriptionHeader*>(
+                &AYU_Describe<std::remove_cvref_t<T>>::AYU_description
+            ),
+            true
+        );
+    }
+    else return Type(
+        &AYU_Describe<std::remove_cvref_t<T>>::AYU_description
+    );
+}

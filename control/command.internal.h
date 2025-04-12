@@ -109,7 +109,7 @@ void register_command (const Command*);
 template <class... Pars>
 struct StatementStorageElems {
     using Storage = StatementStorage<Pars...>;
-    using desc = ayu::_AYU_DescribeBase<Storage>;
+    using desc = ayu::AYU_DescribeBase<Storage>;
     template <usize... is> static consteval
     auto make (std::index_sequence<is...>) {
         return desc::elems(

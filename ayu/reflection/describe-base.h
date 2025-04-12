@@ -54,7 +54,7 @@
 namespace ayu {
 
 template <class T>
-struct _AYU_DescribeBase {
+struct AYU_DescribeBase {
     ///// GENERAL-PURPOSE DESCRIPTORS
      // Specifies the name of the type, as it will appear in serialized strings.
      // You do not need to provide this for non-template types, since the
@@ -771,7 +771,7 @@ struct _AYU_DescribeBase {
         in::AcrFlags::PassThroughAddressable;
     static constexpr in::AcrFlags unaddressable = in::AcrFlags::Unaddressable;
     template <class... Dcrs>
-    static constexpr auto _ayu_describe (Dcrs&&... dcrs);
+    static constexpr auto AYU_describe (const Dcrs&... dcrs);
 };
 
 } // namespace ayu

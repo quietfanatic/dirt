@@ -48,7 +48,7 @@ struct Traversal {
      // by ScanTraversal; it's just here to save space.
     bool collapse_optional;
      // Type information but without the readonly bit.
-    const TypeInfo* ti;
+    const DescriptionPrivate* desc;
      // This address is not guaranteed to be permanently valid unless
      // addressable is set.
     Mu* address;
@@ -127,7 +127,7 @@ void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
         child.children_addressable |= child.addressable;
         child.readonly |= v.type.readonly();
     }
-    child.ti = v.type.get_info();
+    child.desc = v.type.description();
     child.address = v.address;
     visit(child);
 }
@@ -206,7 +206,7 @@ void trav_ptr (
         child.children_addressable = parent.children_addressable;
         child.readonly = parent.readonly | ptr.type.readonly();
     }
-    child.ti = ptr.type.get_info();
+    child.desc = ptr.type.description();
     child.address = ptr.address;
     visit(child);
 }

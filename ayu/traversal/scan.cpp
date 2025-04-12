@@ -44,7 +44,7 @@ struct TraverseScan {
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
                     if (!trav.children_addressable) return;
                     bool done = trav.addressable &&
-                        cb(AnyPtr(trav.ti, trav.address), trav.rt);
+                        cb(AnyPtr(trav.desc, trav.address), trav.rt);
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
                 }
@@ -94,35 +94,33 @@ struct TraverseScan {
 
     NOINLINE static
     void after_cb (const ScanTraversal<>& trav) {
-        auto desc = DescriptionPrivate::get(trav.ti);
-        if (!!(desc->type_flags & TypeFlags::NoRefsToChildren)) {
+        if (!!(trav.desc->type_flags & TypeFlags::NoRefsToChildren)) {
             return;
         }
-        if (desc->preference() == DescFlags::PreferObject) {
-            if (desc->keys_offset) {
+        if (trav.desc->preference() == DescFlags::PreferObject) {
+            if (trav.desc->keys_offset) {
                 use_computed_attrs(trav);
             }
             else use_attrs(trav);
         }
-        else if (desc->preference() == DescFlags::PreferArray) {
-            if (desc->length_offset) {
-                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
+        else if (trav.desc->preference() == DescFlags::PreferArray) {
+            if (trav.desc->length_offset) {
+                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
                     use_contiguous_elems(trav);
                 }
                 else use_computed_elems(trav);
             }
             else use_elems(trav);
         }
-        else if (desc->delegate_offset) {
+        else if (trav.desc->delegate_offset) {
             return use_delegate(trav);
         }
     }
 
     NOINLINE static
     void use_attrs (const ScanTraversal<>& trav) {
-        auto desc = DescriptionPrivate::get(trav.ti);
-        expect(desc->attrs_offset);
-        auto attrs = desc->attrs();
+        expect(trav.desc->attrs_offset);
+        auto attrs = trav.desc->attrs();
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
              // Not discarding invisible attrs for scan purposes.
@@ -152,9 +150,8 @@ struct TraverseScan {
     void use_computed_attrs (const ScanTraversal<>& trav) {
          // Get list of keys
         AnyArray<AnyString> keys;
-        auto desc = DescriptionPrivate::get(trav.ti);
-        expect(desc->keys_offset);
-        auto keys_acr = desc->keys_acr();
+        expect(trav.desc->keys_offset);
+        auto keys_acr = trav.desc->keys_acr();
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
@@ -163,12 +160,12 @@ struct TraverseScan {
                 reinterpret_cast<const AnyArray<AnyString>&>(*v.address)
             );
         }));
-        expect(desc->computed_attrs_offset);
-        auto f = desc->computed_attrs()->f;
+        expect(trav.desc->computed_attrs_offset);
+        auto f = trav.desc->computed_attrs()->f;
          // Now scan for each key
         for (auto& key : keys) {
             auto ref = f(*trav.address, key);
-            if (!ref) raise_AttrNotFound(trav.ti, key);
+            if (!ref) raise_AttrNotFound(trav.desc, key);
             auto child_rt = SharedRoute(trav.rt, key);
             ScanTraversal<ComputedAttrTraversal> child;
             child.context = trav.context;
@@ -183,9 +180,8 @@ struct TraverseScan {
 
     NOINLINE static
     void use_elems (const ScanTraversal<>& trav) {
-        auto desc = DescriptionPrivate::get(trav.ti);
-        expect(desc->elems_offset);
-        auto elems = desc->elems();
+        expect(trav.desc->elems_offset);
+        auto elems = trav.desc->elems();
         for (u32 i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
@@ -211,16 +207,15 @@ struct TraverseScan {
 
     NOINLINE static
     void use_computed_elems (const ScanTraversal<>& trav) {
-        auto desc = DescriptionPrivate::get(trav.ti);
         u32 len;
         read_length_acr(
-            len, AnyPtr(trav.ti, trav.address), desc->length_acr()
+            len, AnyPtr(trav.desc, trav.address), trav.desc->length_acr()
         );
-        expect(desc->computed_elems_offset);
-        auto f = desc->computed_elems()->f;
+        expect(trav.desc->computed_elems_offset);
+        auto f = trav.desc->computed_elems()->f;
         for (u32 i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
-            if (!ref) raise_ElemNotFound(trav.ti, i);
+            if (!ref) raise_ElemNotFound(trav.desc, i);
             SharedRoute child_rt;
             ScanTraversal<ComputedElemTraversal> child;
             child.context = trav.context;
@@ -242,14 +237,13 @@ struct TraverseScan {
 
     NOINLINE static
     void use_contiguous_elems (const ScanTraversal<>& trav) {
-        auto desc = DescriptionPrivate::get(trav.ti);
         u32 len;
         read_length_acr(
-            len, AnyPtr(trav.ti, trav.address), desc->length_acr()
+            len, AnyPtr(trav.desc, trav.address), trav.desc->length_acr()
         );
         if (!len) return;
-        expect(desc->contiguous_elems_offset);
-        auto f = desc->contiguous_elems()->f;
+        expect(trav.desc->contiguous_elems_offset);
+        auto f = trav.desc->contiguous_elems()->f;
         auto ptr = f(*trav.address);
         for (u32 i = 0; i < len; i++) {
             SharedRoute child_rt;
@@ -278,9 +272,8 @@ struct TraverseScan {
         child.context = trav.context;
         child.rt = trav.rt;
         child.collapse_optional = trav.collapse_optional;
-        auto desc = DescriptionPrivate::get(trav.ti);
-        expect(desc->delegate_offset);
-        auto acr = desc->delegate_acr();
+        expect(trav.desc->delegate_offset);
+        auto acr = trav.desc->delegate_acr();
         trav_delegate<visit>(child, trav, acr, AccessMode::Read);
     }
 };

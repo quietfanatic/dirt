@@ -437,7 +437,7 @@ namespace ayu::in {
     template <class... Ts>
     struct TupleElems {
         using Tuple = std::tuple<Ts...>;
-        using desc = ayu::_AYU_DescribeBase<Tuple>;
+        using desc = ayu::AYU_DescribeBase<Tuple>;
         template <class T>
         using Getter = T&(*)(Tuple&);
         template <usize... is> static constexpr

@@ -130,13 +130,8 @@ struct AnyRef {
         else return acr->address(*host.address);
     }
      // Can throw TypeCantCast, even if the result is null.
-    constexpr Mu* address_as (Type t) const {
-        if (std::is_constant_evaluated()) {
-            expect(!acr);
-            require(t == host.type || t.remove_readonly() == host.type);
-            return host.address;
-        }
-        else return address().upcast_to(t).address;
+    Mu* address_as (Type t) const {
+        return address().upcast_to(t).address;
     }
     template <class T>
     T* address_as () const {
@@ -153,13 +148,8 @@ struct AnyRef {
         else raise_Unaddressable();
     }
      // Can throw either CannotCoerce or UnaddressableAnyRef
-    constexpr Mu* require_address_as (Type t) const {
-        if (std::is_constant_evaluated()) {
-            expect(!acr);
-            require(t == host.type || t.remove_readonly() == host.type);
-            return host.address;
-        }
-        else return require_address().upcast_to(t).address;
+    Mu* require_address_as (Type t) const {
+        return require_address().upcast_to(t).address;
     }
     template <class T>
     T* require_address_as () const {
