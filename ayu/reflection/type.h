@@ -11,10 +11,6 @@ namespace ayu {
  // volatile types.
  //
  // The default value will cause null derefs if you do anything with it.
- //
- // Types can be constructed at constexpr time, but their readonly bit cannot be
- // set or read.  They can't be used at compile-time.  If you want to do
- // compile-time stuff with types...just use C++ types.
 struct Type {
      // Uses a tagged pointer; the first bit determines readonly (const), and the rest
      // points to an ayu::in::DescriptionHeader.
@@ -25,11 +21,10 @@ struct Type {
 
      // Construct empty type
     constexpr Type () : ptr(null) { }
-     // Construct from C++ type.  Never throws.  Strips reference info.  Only
-     // constexpr for non-const types.
+     // Construct from C++ type.  Never throws.  Strips reference info.
     template <class T> requires (
         !std::is_volatile_v<std::remove_reference_t<T>>
-    ) static constexpr
+    ) static
     Type For () noexcept;
      // Construct from name.  Can throw TypeNotFound
     Type (Str name, bool readonly = false);
@@ -103,6 +98,28 @@ struct Type {
 
      ///// INTERNAL
 
+     // Same as Type::For, but constexpr.  Only works with non-const types, and
+     // some uses of this will cause weird errors like "specialization of ...
+     // after instantiation" or "incomplete type ... used in nested name
+     // specifier".  And what's worse, these errors may only pop up during
+     // optimized builds.
+     //
+     // I believe it is safe to use this in templated contexts or partially
+     // specialized contexts, but not in non-template or fully specialized
+     // contexts.  It may also need to be dependent on a template parameter.
+     //
+     // It is also safe to use this in a translation unit that doesn't have any
+     // AYU_DESCRIBE blocks.
+     //
+     // For maximum safety, always use Type::For unless you absolutely need it
+     // to be constexpr, and if you do use this, test with optimizations enabled
+     // (-O1 is enough).
+    template <class T> requires (
+        !std::is_volatile_v<std::remove_reference_t<T>>
+        && !std::is_const_v<std::remove_reference_t<T>>
+    ) static constexpr
+    Type For_constexpr () noexcept;
+
     const in::DescriptionPrivate* description () const {
         return reinterpret_cast<const in::DescriptionPrivate*>(data & ~1);
     }
@@ -156,17 +173,21 @@ struct std::hash<ayu::Type> {
  // This is just too long to put up front
 template <class T> requires (
     !std::is_volatile_v<std::remove_reference_t<T>>
-) constexpr
+)
 ayu::Type ayu::Type::For () noexcept {
-    if constexpr (std::is_const_v<std::remove_reference_t<T>>) {
-        return Type(
-            reinterpret_cast<const in::DescriptionHeader*>(
-                &AYU_Describe<std::remove_cvref_t<T>>::AYU_description
-            ),
-            true
-        );
-    }
-    else return Type(
+    return Type(
+        reinterpret_cast<const in::DescriptionHeader*>(
+            &AYU_Describe<std::remove_cvref_t<T>>::AYU_description
+        ),
+        std::is_const_v<std::remove_reference_t<T>>
+    );
+}
+template <class T> requires (
+    !std::is_volatile_v<std::remove_reference_t<T>>
+    && !std::is_const_v<std::remove_reference_t<T>>
+) constexpr
+ayu::Type ayu::Type::For_constexpr () noexcept {
+    return Type(
         &AYU_Describe<std::remove_cvref_t<T>>::AYU_description
     );
 }

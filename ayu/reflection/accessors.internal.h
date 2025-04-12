@@ -221,7 +221,7 @@ struct MemberAcr2 : MemberAcr0 {
     To From::* mp;
     explicit constexpr MemberAcr2 (To From::* mp, AcrFlags flags = {}) :
         MemberAcr0(&_access, AS::Flat, flags),
-        type(Type::For<To>()),
+        type(Type::For_constexpr<To>()),
         mp(mp)
     { }
 };
@@ -257,7 +257,7 @@ struct FirstBaseAcr2 : FirstBaseAcr0 {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr FirstBaseAcr2 (AcrFlags flags = {}) :
-        FirstBaseAcr0(Type::For<To>(), flags)
+        FirstBaseAcr0(Type::For_constexpr<To>(), flags)
     { }
 };
 
@@ -277,7 +277,7 @@ struct RefFuncAcr2 : RefFuncAcr0 {
     To&(* f )(From&);
     explicit constexpr RefFuncAcr2 (To&(* f )(From&), AcrFlags flags = {}) :
         RefFuncAcr0(&_access, AS::Flat, flags),
-        type(Type::For<To>()),
+        type(Type::For_constexpr<To>()),
         f(f)
     { }
 };
@@ -300,7 +300,7 @@ struct ConstRefFuncAcr2 : ConstRefFuncAcr0 {
         const To&(* f )(const From&), AcrFlags flags = {}
     ) :
         ConstRefFuncAcr0(&_access, AS::Flat, flags),
-        type(Type::For<To>()),
+        type(Type::For_constexpr<To>()),
         f(f)
     { }
 };
@@ -516,9 +516,9 @@ struct VariableAcr2 : VariableAcr1<To> {
     explicit VariableAcr2 (To&& v, AcrFlags flags = {}) :
         VariableAcr1<To>(
             &VariableAcr1<To>::_access, AS::Variable,
-            Type::For<To>(), flags
+            Type::For_constexpr<To>(), flags
         ),
-        type(Type::For<To>()),
+        type(Type::For_constexpr<To>()),
         value(move(v))
     { }
 };
@@ -550,7 +550,7 @@ struct ConstantAcr2 : ConstantAcr1<To> {
             &ConstantAcr1<To>::_access, AS::Variable,
             flags | AcrFlags::Readonly
         ),
-        type(Type::For<To>()),
+        type(Type::For_constexpr<To>()),
         value(v)
     { }
 };
@@ -579,10 +579,10 @@ struct ConstantPtrAcr2 : ConstantPtrAcr0 {
     explicit constexpr ConstantPtrAcr2 (const To* p, AcrFlags flags = {}) :
         ConstantPtrAcr0(
             &_access, AS::Flat,
-            Type::For<To>(),
+            Type::For_constexpr<To>(),
             flags | AcrFlags::Readonly
         ),
-        type(Type::For<To>()),
+        type(Type::For_constexpr<To>()),
         pointer(p)
     { }
 };
