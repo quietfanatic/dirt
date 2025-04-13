@@ -18,7 +18,7 @@ struct ChainAttrFuncAcr : Accessor {
     AnyString key;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
     ChainAttrFuncAcr (const Accessor* o, AttrFunc<Mu>* f, AnyString k) :
-        Accessor(&_access, AS::ChainAttrFunc, o->flags),
+        Accessor(AF::ChainAttrFunc, &_access, o->flags),
         outer(o), f(f), key(move(k))
     { outer->inc(); }
     ~ChainAttrFuncAcr () { outer->dec(); }
@@ -30,7 +30,7 @@ struct ChainElemFuncAcr : Accessor {
     u32 index;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
     ChainElemFuncAcr (const Accessor* o, ElemFunc<Mu>* f, u32 i) :
-        Accessor(&_access, AS::ChainElemFunc, o->flags),
+        Accessor(AF::ChainElemFunc, &_access, o->flags),
         outer(o), f(f), index(i)
     { outer->inc(); }
     ~ChainElemFuncAcr () { outer->dec(); }
@@ -42,7 +42,7 @@ struct ChainDataFuncAcr : Accessor {
     u32 index;
     static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
     ChainDataFuncAcr (const Accessor* o, DataFunc<Mu>* f, u32 i) :
-        Accessor(&_access, AS::ChainDataFunc, o->flags),
+        Accessor(AF::ChainDataFunc, &_access, o->flags),
         outer(o), f(f), index(i)
     { outer->inc(); }
     ~ChainDataFuncAcr () { outer->dec(); }

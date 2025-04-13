@@ -469,7 +469,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
         else {
             static constexpr const ayu::Type descs [] = {
-                ayu::Type::For<Ts>()...
+                ayu::Type::For_constexpr<Ts>()...
             };
             return ayu::in::make_variadic_name("std::tuple<", descs, sizeof...(Ts));
         }

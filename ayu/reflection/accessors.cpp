@@ -5,59 +5,80 @@
 
 namespace ayu::in {
 
-void MemberAcr0::_access (
-    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
-) {
-    auto self = static_cast<const MemberAcr2<Mu, Mu>*>(acr);
-    AnyPtr ptr (self->type, &(from.*(self->mp)));
-    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
-}
-
-void FirstBaseAcr0::_access (
-    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
-) {
-    auto self = static_cast<const FirstBaseAcr0*>(acr);
-    cb(AnyPtr(self->type, &from), !(self->flags & AcrFlags::Unaddressable));
-}
-
-void RefFuncAcr0::_access (
-    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
-) {
-    auto self = static_cast<const RefFuncAcr2<Mu, Mu>*>(acr);
-    AnyPtr ptr (self->type, &self->f(from));
-    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
-}
-
-void ConstRefFuncAcr0::_access (
-    const Accessor* acr, [[maybe_unused]] AccessMode mode,
-    Mu& from, AccessCB cb
-) {
-    expect(mode == AccessMode::Read);
-    auto self = static_cast<const ConstRefFuncAcr2<Mu, Mu>*>(acr);
-    AnyPtr ptr (
-        self->type.add_readonly(),
-        const_cast<Mu*>(&self->f(from))
+void Accessor::access (AccessMode mode, Mu& from, AccessCB cb) const {
+    expect(mode == AccessMode::Read ||
+           mode == AccessMode::Write ||
+           mode == AccessMode::Modify
     );
-    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
-}
-
-void ConstantPtrAcr0::_access (
-    const Accessor* acr, [[maybe_unused]] AccessMode mode,
-    Mu&, AccessCB cb
-) {
-    expect(mode == AccessMode::Read);
-    auto self = static_cast<const ConstantPtrAcr2<Mu, Mu>*>(acr);
-    AnyPtr ptr (
-        self->type.add_readonly(),
-        const_cast<Mu*>(self->pointer)
-    );
-    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+    if (mode != AccessMode::Read) {
+        expect(!(flags & AcrFlags::Readonly));
+    }
+    switch (form) {
+        case AF::Member: {
+            auto self = static_cast<const MemberAcr<Mu, Mu>*>(this);
+            auto ptr = AnyPtr(self->type, &(from.*(self->mp)));
+            cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+            break;
+        }
+        case AF::FirstBase: {
+            auto self = static_cast<const FirstBaseAcr<Mu, Mu>*>(this);
+            auto ptr = AnyPtr(self->type, &from);
+            cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+            break;
+        }
+        case AF::RefFunc: {
+             // TODO: this probably needs stack so noinline it?
+            auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(this);
+            AnyPtr ptr (self->type, &self->f(from));
+            cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+            break;
+        }
+        case AF::ConstRefFunc: {
+             // TODO: this probably needs stack so noinline it?
+            auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(this);
+             // Constexpr type can't have readonly bit due to Problems
+            AnyPtr ptr (self->type.add_readonly(), &self->f(from));
+            cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+            break;
+        }
+        case AF::Variable: {
+             // Can't instantiate this with a To=Mu, because it has a To
+             // embedded in it.
+            auto self = static_cast<const VariableAcr<Mu, usize>*>(this);
+            cb(AnyPtr(self->type, (Mu*)&self->value), false);
+            break;
+        }
+        case AF::Constant: {
+            auto self = static_cast<const VariableAcr<Mu, usize>*>(this);
+            cb(AnyPtr(self->type.add_readonly(), (Mu*)&self->value), false);
+            break;
+        }
+        case AF::ConstantPtr: {
+            expect(mode == AccessMode::Read);
+            auto self = static_cast<const ConstantPtrAcr<Mu, Mu>*>(this);
+            AnyPtr ptr (
+                self->type.add_readonly(),
+                const_cast<Mu*>(self->pointer)
+            );
+            cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+            break;
+        }
+        case AF::Functive:
+        case AF::Chain:
+        case AF::ChainAttrFunc:
+        case AF::ChainElemFunc:
+        case AF::ChainDataFunc: {
+            access_func(this, mode, from, cb);
+            break;
+        }
+        default: never();
+    }
 }
 
 void AnyRefFuncAcr1::_access (
     const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
-    auto self = static_cast<const AnyRefFuncAcr2<Mu>*>(acr);
+    auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
      // Just pass on the call
     self->f(from).access(mode, cb);
 }
@@ -65,7 +86,7 @@ void AnyRefFuncAcr1::_access (
 void AnyPtrFuncAcr1::_access (
     const Accessor* acr, AccessMode, Mu& from, AccessCB cb
 ) {
-    auto self = static_cast<const AnyPtrFuncAcr2<Mu>*>(acr);
+    auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     cb(self->f(from), !(self->flags & AcrFlags::Unaddressable));
 }
 
@@ -88,7 +109,7 @@ AcrFlags chain_acr_flags (AcrFlags o, AcrFlags i) {
 }
 
 ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
-    Accessor(&_access, AS::Chain, chain_acr_flags(outer->flags, inner->flags)),
+    Accessor(AF::Chain, &_access, chain_acr_flags(outer->flags, inner->flags)),
     outer(outer), inner(inner)
 { outer->inc(); inner->inc(); }
 
@@ -215,32 +236,39 @@ void ChainDataFuncAcr::_access (
 }
 
 void delete_Accessor (Accessor* acr) noexcept {
-    switch (acr->structure) {
-        case AS::Flat: break;
-        case AS::Variable: {
+    switch (acr->form) {
+        case AF::Member:
+        case AF::FirstBase:
+        case AF::RefFunc:
+        case AF::ConstRefFunc:
+        case AF::ConstantPtr:
+        case AF::Functive: break;
+        case AF::Variable:
+        case AF::Constant: {
+            if (!acr->ref_count) break; // Don't try to destruct constexpr object
              // Can't use Mu because it doesn't have a size.  We don't *need* a
              // size, but C++ does in order to do this operation.  So I guess
              // use usize instead?  Hope the alignment works out!
-            auto* self = static_cast<VariableAcr2<Mu, usize>*>(acr);
+            auto* self = static_cast<VariableAcr<Mu, usize>*>(acr);
             self->type.destroy((Mu*)&self->value);
             break;
         }
-        case AS::Chain: {
+        case AF::Chain: {
             auto* self = static_cast<ChainAcr*>(acr);
             self->~ChainAcr();
             break;
         }
-        case AS::ChainAttrFunc: {
+        case AF::ChainAttrFunc: {
             auto* self = static_cast<ChainAttrFuncAcr*>(acr);
             self->~ChainAttrFuncAcr();
             break;
         }
-        case AS::ChainElemFunc: {
+        case AF::ChainElemFunc: {
             auto* self = static_cast<ChainElemFuncAcr*>(acr);
             self->~ChainElemFuncAcr();
             break;
         }
-        case AS::ChainDataFunc: {
+        case AF::ChainDataFunc: {
             auto* self = static_cast<ChainDataFuncAcr*>(acr);
             self->~ChainDataFuncAcr();
             break;
@@ -252,26 +280,26 @@ void delete_Accessor (Accessor* acr) noexcept {
 
 bool operator== (const Accessor& a, const Accessor& b) {
     if (&a == &b) return true;
-    if (a.structure != b.structure) return false;
+    if (a.form != b.form) return false;
      // These ACRs are dynamically generated, but have a limited set of types,
      // so we can dissect them and compare their members.
-    switch (a.structure) {
-        case AS::Chain: {
+    switch (a.form) {
+        case AF::Chain: {
             auto& aa = reinterpret_cast<const ChainAcr&>(a);
             auto& bb = reinterpret_cast<const ChainAcr&>(b);
             return *aa.outer == *bb.outer && *aa.inner == *bb.inner;
         }
-        case AS::ChainAttrFunc: {
+        case AF::ChainAttrFunc: {
             auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainAttrFuncAcr&>(b);
             return *aa.outer == *bb.outer && aa.f == bb.f && aa.key == bb.key;
         }
-        case AS::ChainElemFunc:  {
+        case AF::ChainElemFunc:  {
             auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainElemFuncAcr&>(b);
             return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
         }
-        case AS::ChainDataFunc:  {
+        case AF::ChainDataFunc:  {
             auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainDataFuncAcr&>(b);
             return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
@@ -280,17 +308,19 @@ bool operator== (const Accessor& a, const Accessor& b) {
          // comparing their contents is not feasible.  Fortunately, they should
          // all be statically generated, so if two ACRs refer to the same member
          // of a type, they should have the same address.
+         // TODO: We now have more type information, so we can compare more
+         // types of accessors.
         default: return false;
     }
 }
 
 usize hash_acr (const Accessor& a) {
-    switch (a.structure) {
-        case AS::Chain: {
+    switch (a.form) {
+        case AF::Chain: {
             auto& aa = reinterpret_cast<const ChainAcr&>(a);
             return hash_combine(hash_acr(*aa.outer), hash_acr(*aa.inner));
         }
-        case AS::ChainAttrFunc:  {
+        case AF::ChainAttrFunc:  {
             auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
             return hash_combine(
                 hash_combine(
@@ -300,7 +330,7 @@ usize hash_acr (const Accessor& a) {
                 std::hash<AnyString>{}(aa.key)
             );
         }
-        case AS::ChainElemFunc:  {
+        case AF::ChainElemFunc:  {
             auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
             return hash_combine(
                 hash_combine(
@@ -310,7 +340,7 @@ usize hash_acr (const Accessor& a) {
                 std::hash<usize>{}(aa.index)
             );
         }
-        case AS::ChainDataFunc:  {
+        case AF::ChainDataFunc:  {
             auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
             return hash_combine(
                 hash_combine(
@@ -333,8 +363,8 @@ using namespace ayu;
 namespace ayu::in {
      // For making sure deduction works.  Won't bother making this for other Acrs.
     template <class From, class To>
-    MemberAcr2<From, To> deduce_MemberAcr (To From::* mp) {
-        return MemberAcr2<From, To>{mp};
+    MemberAcr<From, To> deduce_MemberAcr (To From::* mp) {
+        return MemberAcr<From, To>{mp, {}};
     }
 }
 
@@ -361,13 +391,13 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     using namespace tap;
     SubThing thing2 {7, 8, 9, 10};
 
-    BaseAcr2<SubThing, Thing>{}.read(reinterpret_cast<Mu&>(thing2),
+    BaseAcr<SubThing, Thing>{{}}.read(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
             is(thing.type, Type::For<Thing>());
             is(reinterpret_cast<Thing&>(*thing.address).b, 8, "BaseAcr::read");
         }
     );
-    BaseAcr2<SubThing, Thing>{}.write(reinterpret_cast<Mu&>(thing2),
+    BaseAcr<SubThing, Thing>{{}}.write(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
             is(thing.type, Type::For<Thing>());
             auto& th = reinterpret_cast<Thing&>(*thing.address);
@@ -376,7 +406,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
         }
     );
     is(thing2.b, 88, "BaseAcr::write");
-    BaseAcr2<SubThing, Thinger>{}.write(reinterpret_cast<Mu&>(thing2),
+    BaseAcr<SubThing, Thinger>{{}}.write(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thinger, bool){
             is(thinger.type, Type::For<Thinger>());
             auto& thr = reinterpret_cast<Thinger&>(*thinger.address);
@@ -437,20 +467,20 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     };
 
     test_addressable("MemberAcr", deduce_MemberAcr(&Thing::b));
-    test_addressable("RefFuncAcr", RefFuncAcr2<Thing, int>{
-        [](Thing& t)->int&{ return t.b; }
+    test_addressable("RefFuncAcr", RefFuncAcr<Thing, int>{
+        [](Thing& t)->int&{ return t.b; }, {}
     });
-    test_unaddressable("RefFuncsAcr", RefFuncsAcr2<Thing, int>{
+    test_unaddressable("RefFuncsAcr", RefFuncsAcr<Thing, int>{
         [](const Thing& t)->const int&{ return t.b; },
-        [](Thing& t, const int& v){ t.b = v; }
+        [](Thing& t, const int& v){ t.b = v; }, {}
     });
-    test_unaddressable("ValueFuncsAcr", ValueFuncsAcr2<Thing, int>{
+    test_unaddressable("ValueFuncsAcr", ValueFuncsAcr<Thing, int>{
         [](const Thing& t)->int{ return t.b; },
-        [](Thing& t, int v){ t.b = v; }
+        [](Thing& t, int v){ t.b = v; }, {}
     });
-    test_unaddressable("MixedFuncsAcr", MixedFuncsAcr2<Thing, int>{
+    test_unaddressable("MixedFuncsAcr", MixedFuncsAcr<Thing, int>{
         [](const Thing& t)->int{ return t.b; },
-        [](Thing& t, const int& v){ t.b = v; }
+        [](Thing& t, const int& v){ t.b = v; }, {}
     });
     done_testing();
 });

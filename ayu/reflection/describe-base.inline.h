@@ -206,14 +206,14 @@ template <class T2, class M>
 constexpr auto AYU_DescribeBase<T>::member (
     M T2::* mp, in::AcrFlags flags
 ) {
-    return in::MemberAcr2<T, M>(mp, flags);
+    return in::MemberAcr<T, M>(mp, flags);
 }
 template <class T>
 template <class T2, class M>
 constexpr auto AYU_DescribeBase<T>::const_member (
     const M T2::* mp, in::AcrFlags flags
 ) {
-    return in::MemberAcr2<T, M>(
+    return in::MemberAcr<T, M>(
         const_cast<M T::*>(mp), flags | in::AcrFlags::Readonly
     );
 }
@@ -226,9 +226,9 @@ constexpr auto AYU_DescribeBase<T>::base (
     if constexpr (
         static_cast<B*>((T*)null) == null
     ) {
-        return in::FirstBaseAcr2<T, B>(flags);
+        return in::FirstBaseAcr<T, B>(flags);
     }
-    else return in::BaseAcr2<T, B>(flags);
+    else return in::BaseAcr<T, B>(flags);
 }
 template <class T>
 template <class M>
@@ -236,7 +236,7 @@ constexpr auto AYU_DescribeBase<T>::ref_func (
     M&(* f )(T&),
     in::AcrFlags flags
 ) {
-    return in::RefFuncAcr2<T, M>(f, flags);
+    return in::RefFuncAcr<T, M>(f, flags);
 }
 template <class T>
 template <class M>
@@ -244,7 +244,7 @@ constexpr auto AYU_DescribeBase<T>::const_ref_func (
     const M&(* f )(const T&),
     in::AcrFlags flags
 ) {
-    return in::ConstRefFuncAcr2<T, M>(f, flags);
+    return in::ConstRefFuncAcr<T, M>(f, flags);
 }
 template <class T>
 template <class M>
@@ -253,7 +253,7 @@ constexpr auto AYU_DescribeBase<T>::const_ref_funcs (
     void(* s )(T&, const M&),
     in::AcrFlags flags
 ) {
-    return in::RefFuncsAcr2<T, M>(g, s, flags);
+    return in::RefFuncsAcr<T, M>(g, s, flags);
 }
 template <class T>
 template <class M>
@@ -262,7 +262,7 @@ constexpr auto AYU_DescribeBase<T>::value_func (
     M(* f )(const T&),
     in::AcrFlags flags
 ) {
-    return in::ValueFuncAcr2<T, M>(f, flags);
+    return in::ValueFuncAcr<T, M>(f, flags);
 }
 template <class T>
 template <class M>
@@ -272,7 +272,7 @@ constexpr auto AYU_DescribeBase<T>::value_funcs (
     void(* s )(T&, M),
     in::AcrFlags flags
 ) {
-    return in::ValueFuncsAcr2<T, M>(g, s, flags);
+    return in::ValueFuncsAcr<T, M>(g, s, flags);
 }
 template <class T>
 template <class M>
@@ -282,16 +282,17 @@ constexpr auto AYU_DescribeBase<T>::mixed_funcs (
     void(* s )(T&, const M&),
     in::AcrFlags flags
 ) {
-    return in::MixedFuncsAcr2<T, M>(g, s, flags);
+    return in::MixedFuncsAcr<T, M>(g, s, flags);
 }
 
+ // TODO: optimize for pointers
 template <class T>
 template <class M>
     requires (requires (T t, M m) { t = m; m = t; })
 constexpr auto AYU_DescribeBase<T>::assignable (
     in::AcrFlags flags
 ) {
-    return in::AssignableAcr2<T, M>(flags);
+    return in::AssignableAcr<T, M>(flags);
 }
 
 template <class T>
@@ -300,14 +301,14 @@ template <class M>
 constexpr auto AYU_DescribeBase<T>::constant (
     const M& v, in::AcrFlags flags
 ) {
-    return in::ConstantAcr2<T, M>(move(v), flags);
+    return in::ConstantAcr<T, M>(move(v), flags);
 }
 template <class T>
 template <class M>
 constexpr auto AYU_DescribeBase<T>::constant_ptr (
     const M* p, in::AcrFlags flags
 ) {
-    return in::ConstantPtrAcr2<T, M>(p, flags);
+    return in::ConstantPtrAcr<T, M>(p, flags);
 }
 
  // This one is not constexpr, so it is only valid in computed_attrs,
@@ -318,20 +319,20 @@ template <class M>
 auto AYU_DescribeBase<T>::variable (
     M&& v, in::AcrFlags flags
 ) {
-    return in::VariableAcr2<T, M>(move(v), flags);
+    return in::VariableAcr<T, M>(move(v), flags);
 }
 
 template <class T>
 constexpr auto AYU_DescribeBase<T>::anyref_func (
     AnyRef(* f )(T&), in::AcrFlags flags
 ) {
-    return in::AnyRefFuncAcr2<T>(f, flags);
+    return in::AnyRefFuncAcr<T>(f, flags);
 }
 template <class T>
 constexpr auto AYU_DescribeBase<T>::anyptr_func (
     AnyPtr(* f )(T&), in::AcrFlags flags
 ) {
-    return in::AnyPtrFuncAcr2<T>(f, flags);
+    return in::AnyPtrFuncAcr<T>(f, flags);
 }
 
 template <class T>
