@@ -103,9 +103,7 @@ enum class AccessorForm : u8 {
     Member,
     FirstBase, // TODO: replace with Noop
     RefFunc,
-    ConstRefFunc,
     Variable,
-    Constant,
     ConstantPtr,
      // These have access functions.
     Functive, // Miscellaneous functive accessor that doesn't need destructing
@@ -169,6 +167,11 @@ struct Accessor {
         );
         return r;
     }
+
+     // Adjusts flags after getting an address of the variable.
+    static void finish_access (
+        const Accessor*, AccessMode, Mu& to, AccessCB
+    );
 
     void inc () const {
          // Unlikely because most ACRs are constexpr.  This cannot be converted
@@ -276,7 +279,7 @@ struct ConstRefFuncAcr : Accessor {
         const To&(* f )(const From&), AcrFlags flags
     ) :
         Accessor(
-            AF::ConstRefFunc, Type::For_constexpr<To>(),
+            AF::RefFunc, Type::For_constexpr<To>(),
             flags | AcrFlags::Readonly
         ),
         f(f)
@@ -516,7 +519,7 @@ struct ConstantAcr : Accessor {
     alignas(usize) const To value;  // The offset of this MUST match VariableAcr::value
     explicit constexpr ConstantAcr (const To& v, AcrFlags flags) :
         Accessor(
-            AF::Constant, Type::For_constexpr<To>(),
+            AF::Variable, Type::For_constexpr<To>(),
             flags | AcrFlags::Readonly | AcrFlags::Unaddressable
         ),
         value(v)
