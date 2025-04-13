@@ -127,6 +127,13 @@ struct StatementStorageElems {
     }
 };
 
+[[gnu::noclone]] NOINLINE inline
+AnyString make_StatementStorage_name (StaticArray<ayu::Type> descs) {
+    return ayu::in::make_variadic_name(
+        "control::StatementStorage<", descs.data(), descs.size()
+    );
+}
+
 } // namespace control
 
 AYU_DESCRIBE_TEMPLATE(
@@ -141,9 +148,7 @@ AYU_DESCRIBE_TEMPLATE(
             static constexpr const ayu::Type descs [] = {
                 ayu::Type::For_constexpr<Pars>()...
             };
-            return ayu::in::make_variadic_name(
-                "control::StatementStorage<", descs, sizeof...(Pars)
-            );
+            return control::make_StatementStorage_name(uni::StaticArray<ayu::Type>(descs));
         }
     }),
     control::StatementStorageElems<Pars...>::make(
