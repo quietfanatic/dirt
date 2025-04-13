@@ -206,6 +206,9 @@ template <class T2, class M>
 constexpr auto AYU_DescribeBase<T>::member (
     M T2::* mp, in::AcrFlags flags
 ) {
+     // Sadly we can't use NoopAcr to save a word if mp is 0, because we can't
+     // check mp in an if constexpr because it's a parameter, so we can't change
+     // the return type of this function based on it.
     return in::MemberAcr<T, M>(mp, flags);
 }
 template <class T>
@@ -226,7 +229,10 @@ constexpr auto AYU_DescribeBase<T>::base (
     if constexpr (
         static_cast<B*>((T*)null) == null
     ) {
-        return in::FirstBaseAcr<T, B>(flags);
+         // BaseAcr is kinda heavy because it may have to deal with virtual
+         // bases, so if the base is the first base (offset 0), use a special
+         // Acr that doesn't need to store any data.
+        return in::NoopAcr<T, B>(flags);
     }
     else return in::BaseAcr<T, B>(flags);
 }

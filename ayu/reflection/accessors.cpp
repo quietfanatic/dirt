@@ -48,9 +48,11 @@ static void access_ConstantPtr (
     Accessor::finish_access(acr, mode, *const_cast<Mu*>(self->pointer), cb);
 }
 
+ // GCC's jump tables have problems with register allocation, so use our own.
+ // This pathway is called a lot so it's worth optimizing it.
 static constexpr AccessFunc* access_table [10] = {
-    access_Member,
     Accessor::finish_access, // Skip the noop
+    access_Member,
     access_RefFunc,
     access_Variable,
     access_ConstantPtr

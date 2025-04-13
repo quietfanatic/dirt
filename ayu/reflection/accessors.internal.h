@@ -100,8 +100,8 @@ void delete_Accessor (Accessor*) noexcept;
 
 enum class AccessorForm : u8 {
      // These have types.
+    Noop,
     Member,
-    FirstBase, // TODO: replace with Noop
     RefFunc,
     Variable,
     ConstantPtr,
@@ -227,6 +227,16 @@ struct MemberAcr : Accessor {
 
 /// base
 
+ // Optimization for when base is at the same address as derived
+template <class From, class To>
+struct NoopAcr : Accessor {
+    using AcrFromType = From;
+    using AcrToType = To;
+    explicit constexpr NoopAcr (AcrFlags flags) :
+        Accessor(AF::Noop, Type::For_constexpr<To>(), flags)
+    { }
+};
+
 template <class From, class To>
 struct BaseAcr : Accessor {
     using AcrFromType = From;
@@ -240,17 +250,6 @@ struct BaseAcr : Accessor {
     }
     explicit constexpr BaseAcr (AcrFlags flags) :
         Accessor(AF::Functive, &_access, flags)
-    { }
-};
-
- // Optimization for when base is at the same address as derived
- // TODO: rename to noop and use for member at offset 0?
-template <class From, class To>
-struct FirstBaseAcr : Accessor {
-    using AcrFromType = From;
-    using AcrToType = To;
-    explicit constexpr FirstBaseAcr (AcrFlags flags) :
-        Accessor(AF::FirstBase, Type::For_constexpr<To>(), flags)
     { }
 };
 
