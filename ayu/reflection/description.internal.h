@@ -653,7 +653,13 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
              // Allow duplicate name descriptors.  A later one overrides an
              // earlier one.
             have_name = true;
-            header.name = dcr.name;
+            if (dcr.name.size() <= LocalString::max) {
+                header.flags |= DescFlags::NameLocal;
+                header.local_name = LocalString(dcr.name);
+            }
+            else {
+                header.name = dcr.name;
+            }
         }
         else if constexpr (std::is_base_of_v<ComputedNameDcr<T>, Dcr>) {
             if (have_computed_name) {

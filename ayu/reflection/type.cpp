@@ -26,6 +26,9 @@ StaticString get_type_name_cached (const DescriptionPrivate* desc) {
     if (!!(desc->flags & DescFlags::NameComputed)) {
         return *desc->computed_name.cache;
     }
+    else if (!!(desc->flags & DescFlags::NameLocal)) {
+        return StaticString(Str(desc->local_name));
+    }
     else return desc->name;
 }
 
@@ -153,6 +156,9 @@ StaticString Type::name () const noexcept {
             s.impl = {};
         }
         return *cache;
+    }
+    else if (!!(desc->flags & DescFlags::NameLocal)) {
+        return StaticString(Str(desc->local_name));
     }
     else if (desc->name) { return desc->name; }
     else {
