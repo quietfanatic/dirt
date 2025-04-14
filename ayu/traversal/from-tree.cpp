@@ -671,7 +671,7 @@ struct TraverseFromTree {
             expect(trav.tree->form == Form::String);
             expect(value->name.form == Form::String);
             if (Str(*trav.tree) == Str(value->name)) {
-                values->assign(*trav.address, *value->get_value());
+                values->assign.generic(*trav.address, *value->get_value());
                 return finish_item(trav);
             }
         }
@@ -685,7 +685,7 @@ struct TraverseFromTree {
         for (u32 i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
             if (*trav.tree == value->name) {
-                values->assign(*trav.address, *value->get_value());
+                values->assign.generic(*trav.address, *value->get_value());
                 return finish_item(trav);
             }
         }

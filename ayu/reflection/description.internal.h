@@ -135,17 +135,26 @@ template <class T>
 using Destructor = void(T*);
 
 template <class T>
-void default_construct (void* p) { new (p) T; }
+void generic_default_construct (void* p) { new (p) T; }
 template <class T>
-void destroy (T* p) { p->~T(); }
+void generic_destroy (T* p) { p->~T(); }
 
 inline void trivial_default_construct (void*) { }
 inline void trivial_destroy (Mu*) { }
 
 template <class T>
-bool compare (const T& a, const T& b) { return a == b; };
+bool generic_compare (const T& a, const T& b) { return a == b; };
 template <class T>
-void assign (T& a, const T& b) { a = b; }
+void generic_assign (T& a, const T& b) { a = b; }
+
+inline bool trivial_compare_8 (const u8& a, const u8& b) { return a == b; }
+inline bool trivial_compare_16 (const u16& a, const u16& b) { return a == b; }
+inline bool trivial_compare_32 (const u32& a, const u32& b) { return a == b; }
+inline bool trivial_compare_64 (const u64& a, const u64& b) { return a == b; }
+inline void trivial_assign_8 (u8& a, const u8& b) { a = b; }
+inline void trivial_assign_16 (u16& a, const u16& b) { a = b; }
+inline void trivial_assign_32 (u32& a, const u32& b) { a = b; }
+inline void trivial_assign_64 (u64& a, const u64& b) { a = b; }
 
 ///// DESCRIPTION HEADER
 
@@ -257,16 +266,81 @@ template <class T>
 using AssignFunc = void(T&, const T&);
 template <class T>
 struct ValuesDcr : AttachedDescriptor<T> {
-    CompareFunc<T>* compare;
-    AssignFunc<T>* assign;
+    union {
+        CompareFunc<T>* generic;
+        CompareFunc<u8>* trivial_8;
+        CompareFunc<u16>* trivial_16;
+        CompareFunc<u32>* trivial_32;
+        CompareFunc<u64>* trivial_64;
+    } compare;
+    union {
+        AssignFunc<T>* generic;
+        AssignFunc<u8>* trivial_8;
+        AssignFunc<u16>* trivial_16;
+        AssignFunc<u32>* trivial_32;
+        AssignFunc<u64>* trivial_64;
+    } assign;
     u16 n_values;
+    constexpr ValuesDcr (u16 n) : n_values(n) {
+         // Don't consider floating point to be trivially comparable, because
+         // it's not actually trivial (in the other sense) to compare.
+        if constexpr (requires { compare.generic = &operator==; }) {
+            compare.generic = &operator==;
+        }
+        else if (std::is_scalar_v<T> && !std::is_floating_point_v<T>) {
+            if constexpr (requires (const T& a, const T& b) { operator==(a, b); }) {
+                compare.generic = &generic_compare<T>;
+            }
+            else if constexpr (sizeof(T) == 1) {
+                compare.trivial_8 = &trivial_compare_8;
+            }
+            else if constexpr (sizeof(T) == 2) {
+                compare.trivial_16 = &trivial_compare_16;
+            }
+            else if constexpr (sizeof(T) == 4) {
+                compare.trivial_32 = &trivial_compare_32;
+            }
+            else if constexpr (sizeof(T) == 8) {
+                compare.trivial_64 = &trivial_compare_64;
+            }
+            else {
+                compare.generic = &generic_compare<T>;
+            }
+        }
+        else {
+            compare.generic = &generic_compare<T>;
+        }
+        if constexpr (std::is_scalar_v<T> || std::is_trivially_copy_assignable_v<T>) {
+            if constexpr (sizeof(T) == 1) {
+                assign.trivial_8 = trivial_assign_8;
+            }
+            else if constexpr (sizeof(T) == 2) {
+                assign.trivial_16 = trivial_assign_16;
+            }
+            else if constexpr (sizeof(T) == 4) {
+                assign.trivial_32 = trivial_assign_32;
+            }
+            else if constexpr (sizeof(T) == 8) {
+                assign.trivial_64 = trivial_assign_64;
+            }
+            else {
+                assign.generic = &generic_assign<T>;
+            }
+        }
+        else {
+            assign.generic = &generic_assign<T>;
+        }
+    }
+    constexpr ValuesDcr (u16 n, CompareFunc<T>* c, AssignFunc<T>* a) :
+        compare{.generic = c}, assign{.generic = a}, n_values(n)
+    { }
 };
 template <class T, class... Values>
 struct ValuesDcrWith : ValuesDcr<T> {
     u16 offsets [sizeof...(Values)] {};
     Cat<Values...> values;
     constexpr ValuesDcrWith (const Values&... vs) :
-        ValuesDcr<T>{{}, &compare<T>, &assign<T>, sizeof...(Values)},
+        ValuesDcr<T>(sizeof...(Values)),
         values(vs...)
     {
         for (u32 i = 0; i < sizeof...(Values); i++) {
@@ -280,7 +354,7 @@ struct ValuesDcrWith : ValuesDcr<T> {
         void(* assign )(T&, const T&),
         const Values&... vs
     ) :
-        ValuesDcr<T>{{}, compare, assign, sizeof...(Values)},
+        ValuesDcr<T>(sizeof...(Values), compare, assign),
         values(vs...)
     {
         for (u32 i = 0; i < sizeof...(Values); i++) {
@@ -518,7 +592,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         header.default_construct = &trivial_default_construct;
     }
     else if constexpr (requires { new (null) T; }) {
-        header.default_construct = &default_construct<T>;
+        header.default_construct = &generic_default_construct<T>;
     }
     else {
         header.default_construct = null;
@@ -528,7 +602,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     }
      // Make sure to use T& here so that arrays don't decay
     else if constexpr (requires (T& v) { v.~T(); }) {
-        header.destroy = &destroy<T>;
+        header.destroy = &generic_destroy<T>;
     }
     else {
         header.destroy = null;

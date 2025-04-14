@@ -103,7 +103,7 @@ struct TraverseToTree {
     ) {
         for (u32 i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
-            if (values->compare(*trav.address, *value->get_value())) {
+            if (values->compare.generic(*trav.address, *value->get_value())) {
                 new (trav.dest) Tree(value->name);
                 return;
             }
