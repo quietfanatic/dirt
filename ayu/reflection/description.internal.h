@@ -247,12 +247,10 @@ struct ValueDcr : ComparableAddress {
     Tree name;
 };
 
- // Do some weirdness to ensure that the value is right after the name.
- // Using multiple alignas() specifiers picks the strictest (largest) one.
+ // Doesn't currently support objects with alignof larger than Tree
 template <class T>
-struct alignas(T) alignas(Tree) ValueDcrWithValue : ValueDcr<T> {
-    static_assert(alignof(T) <= sizeof(Tree));
-    alignas(T) alignas(Tree) T value;
+struct alignas(Tree) ValueDcrWithValue : ValueDcr<T> {
+    alignas(Tree) T value;
 };
 
 template <class T>

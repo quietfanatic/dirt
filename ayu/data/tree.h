@@ -132,6 +132,8 @@ struct Tree {
      // Warning 1: The returned Str is not NUL-terminated.
      // Warning 2: The Str will be invalidated when this Tree is destructed.
     explicit constexpr operator Str () const;
+     // This AnyString will remain valid though.  It shares the same refcounting
+     // mechanism as Tree.
     explicit constexpr operator AnyString () const&;
     explicit constexpr operator AnyString () &&;
     explicit constexpr operator Slice<Tree> () const;
