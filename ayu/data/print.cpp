@@ -181,7 +181,24 @@ struct Printer {
                 case '\b': esc = 'b'; goto escape;
                 case '\f': esc = 'f'; goto escape;
                 case '\r': esc = 'r'; goto escape;
-                default: *p++ = s[i]; continue;
+                default: {
+                    if (u8(s[i]) < u8(' ')) [[unlikely]] {
+                        if (!!(opts & O::Json)) {
+                            p = reserve(p, 6 + s.size() - i);
+                            *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
+                            *p++ = to_hex_digit(s[i] >> 4);
+                            *p++ = to_hex_digit(s[i] & 0xf);
+                        }
+                        else {
+                            p = reserve(p, 4 + s.size() - i);
+                            *p++ = '\\'; *p++ = 'x';
+                            *p++ = to_hex_digit(s[i] >> 4);
+                            *p++ = to_hex_digit(s[i] & 0xf);
+                        }
+                    }
+                    else *p++ = s[i];
+                    continue;
+                }
             }
             escape:
              // +1 for \, +1 for final "
@@ -206,7 +223,24 @@ struct Printer {
                 case '\n': esc = 'n'; goto escape;
                 case '\r': esc = 'r'; goto escape;
                 case '\t': esc = 't'; goto escape;
-                default: *p++ = s[i]; continue;
+                default: {
+                    if (u8(s[i]) < u8(' ')) [[unlikely]] {
+                        if (!!(opts & O::Json)) {
+                            p = reserve(p, 6 + s.size() - i);
+                            *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
+                            *p++ = to_hex_digit(s[i] >> 4);
+                            *p++ = to_hex_digit(s[i] & 0xf);
+                        }
+                        else {
+                            p = reserve(p, 4 + s.size() - i);
+                            *p++ = '\\'; *p++ = 'x';
+                            *p++ = to_hex_digit(s[i] >> 4);
+                            *p++ = to_hex_digit(s[i] & 0xf);
+                        }
+                    }
+                    else *p++ = s[i];
+                    continue;
+                }
             }
             escape:
              // +1 for \, +1 for final "
@@ -243,7 +277,7 @@ struct Printer {
             default: goto quoted;
         }
 
-        for (auto sp = s.begin(); sp != s.end(); sp++)
+        for (auto sp = s.begin() + 1; sp != s.end(); sp++)
         switch (sp[0]) {
             case ':': {
                 if (sp + 1 != s.end() && sp[1] == ':') {
