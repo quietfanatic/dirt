@@ -178,12 +178,24 @@ i32 get_size_class (usize size) {
 struct Page;
 
 [[nodiscard]]
-Block allocate_small (u32 size_class) noexcept;
+Block allocate_small (Page*& first_partial, u32 slot_size) noexcept;
 [[nodiscard]]
 Block allocate_large (usize size) noexcept;
 [[gnu::nonnull(1)]]
-void deallocate_small (void*, u32 size_class) noexcept;
+void deallocate_small (void*, Page*& first_partial, u32 slot_size) noexcept;
 void deallocate_large (void*, usize size) noexcept;
+
+ // Make the data structures visible so the lookup of first_partial_pages can be
+ // done at compile-time.
+struct alignas(64) Global {
+    Page* first_partial_pages [n_size_classes] = {};
+     // Put less-frequently-used things on the end
+    Page* first_free_page = null;
+    Page* first_untouched_page = null;
+    Page* pool = null;
+    Page* pool_end = null; // We have extra room, may as well cache this
+};
+inline Global global;
 
 } // in
 
@@ -211,7 +223,9 @@ void deallocate (void* p, usize) noexcept {
 void* allocate_fixed_size (usize size) noexcept {
     i32 sc = in::get_size_class(size);
     if (sc >= 0) {
-        return in::allocate_small(sc).address;
+        auto& fp = in::global.first_partial_pages[sc];
+        u32 slot_size = in::class_sizes[sc];
+        return in::allocate_small(fp, slot_size).address;
     }
     else [[unlikely]] return in::allocate_large(size).address;
 }
@@ -221,7 +235,9 @@ void deallocate_fixed_size (void* p, usize size) noexcept {
     expect(p);
     i32 sc = in::get_size_class(size);
     if (sc >= 0) {
-        in::deallocate_small(p, sc);
+        auto& fp = in::global.first_partial_pages[sc];
+        u32 slot_size = in::class_sizes[sc];
+        in::deallocate_small(p, fp, slot_size);
     }
     else [[unlikely]] in::deallocate_large(p, size);
 }
