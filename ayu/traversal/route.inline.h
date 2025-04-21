@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../../uni/indestructible.h"
+
 namespace ayu {
 namespace in {
 
@@ -71,6 +73,25 @@ inline RouteRef Route::root () const noexcept {
     auto r = RouteRef(this);
     while (r->parent()) r = r->parent();
     return r;
+}
+
+inline const IRI& RouteWithIRI::iri () const noexcept {
+    if (!iri_) [[unlikely]] iri_ = route_to_iri(route).chop_fragment();
+    return iri_;
+}
+
+inline Indestructible<RouteWithIRI> current_base_;
+inline const RouteWithIRI& current_base () noexcept {
+    return *current_base_;
+}
+
+inline PushCurrentBase::PushCurrentBase (RouteRef rt) noexcept :
+    old_base(move(*current_base_))
+{
+    new (&*current_base_) RouteWithIRI(rt->root());
+}
+inline PushCurrentBase::~PushCurrentBase () {
+    *current_base_ = move(old_base);
 }
 
 } // ayu

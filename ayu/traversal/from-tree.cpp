@@ -110,7 +110,9 @@ struct TraverseFromTree {
         ResourceTransaction tr;
         IFTContext ctx;
         start_without_context(item, tree, rt);
-        do_swizzle_init(ctx);
+        if (!!(ctx.swizzle_ops) | !!(ctx.init_ops)) {
+            do_swizzle_init(ctx);
+        }
         expect(!ctx.swizzle_ops.owned());
         expect(!ctx.init_ops.owned());
     }
@@ -119,7 +121,7 @@ struct TraverseFromTree {
     void start_without_context (
         const AnyRef& item, const Tree& tree, RouteRef rt
     ) {
-        PushBaseRoute pbl(rt ? rt : RouteRef(SharedRoute(item)));
+        PushCurrentBase pcb(rt ? rt : RouteRef(SharedRoute(item)));
         FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
         trav_start<visit>(child, item, rt, AccessMode::Write);
@@ -127,52 +129,44 @@ struct TraverseFromTree {
 
     NOINLINE static
     void do_swizzle_init (IFTContext& ctx) {
-        if (ctx.swizzle_ops) do_swizzle(ctx);
-        else if (ctx.init_ops) do_init(ctx);
-    }
-
-    NOINLINE static
-    void do_swizzle (IFTContext& ctx) {
-        expect(ctx.swizzle_ops);
-        ctx.swizzle_ops.consume([](SwizzleOp&& op){
-            PushBaseRoute pbl (op.rt);
-            try {
-                op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
-                    op.f(*v.address, op.tree);
-                }));
-            }
-            catch (...) {
-                rethrow_with_route(op.rt);
-            }
-        });
-         // Swizzling might add more swizzle ops; this will happen if we're
-         // swizzling a pointer which points to a separate resource; that
-         // resource will be load()ed in op.f().
-        do_swizzle_init(ctx);
-    }
-
-    NOINLINE static
-    void do_init (IFTContext& ctx) {
-        expect(ctx.init_ops);
-        ctx.init_ops.consume([](InitOp&& op){
-            PushBaseRoute pbl (op.rt);
-            try {
-                op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
-                    op.f(*v.address);
-                }));
-            }
-            catch (...) {
-                rethrow_with_route(op.rt);
-            }
-        });
-         // Initting might add more swizzle or init ops.  It'd be weird, but
-         // it's allowed for an init() to load another resource.
-        do_swizzle_init(ctx);
+        if (ctx.swizzle_ops) {
+            ctx.swizzle_ops.consume([](SwizzleOp&& op){
+                PushCurrentBase pcb (op.rt);
+                try {
+                    op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
+                        op.f(*v.address, op.tree);
+                    }));
+                }
+                catch (...) {
+                    rethrow_with_route(op.rt);
+                }
+            });
+             // Swizzling might add more swizzle ops; this will happen if we're
+             // swizzling a pointer which points to a separate resource; that
+             // resource will be load()ed in op.f().
+            do_swizzle_init(ctx);
+        }
+        else if (ctx.init_ops) {
+            ctx.init_ops.consume([](InitOp&& op){
+                PushCurrentBase pcb (op.rt);
+                try {
+                    op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
+                        op.f(*v.address);
+                    }));
+                }
+                catch (...) {
+                    rethrow_with_route(op.rt);
+                }
+            });
+             // Initting might add more swizzle or init ops.  It'd be weird, but
+             // it's allowed for an init() to load another resource.
+            do_swizzle_init(ctx);
+        }
     }
 
 ///// PICK STRATEGY
 
-    NOINLINE static
+    static // not noinline
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const FromTreeTraversal<>&>(tr);
         if (trav.readonly) {
@@ -267,13 +261,10 @@ struct TraverseFromTree {
          // We need to allocate an array of integers to keep track of claimed
          // keys on objects.  For small (that is, not enormous) objects, we want
          // to allocate on the stack.  Normally you'd use a variable-length
-         // array for this, but it seems that at least on my compiler, VLAs have
-         // a granularity of 4096 bytes and are not very well optimized, so
-         // we're just going to pick a few fixed values for our array size.  The
-         // function stub for allocating stack is very small, so having multiple
-         // of these is cheap.
-         //
-         // TODO: This is probably more complicated than necessary.
+         // array for this, but it seems that at least on my compiler, VLAs are
+         // not very well optimized, so we're just going to pick a few fixed
+         // values for our array size.  The function stub for allocating stack
+         // is very small, so having multiple of these is cheap.
          //
          // There isn't a lot of meaning to these numbers, but they should at
          // least be multiples of 16 (the granularity for stack allocations).
@@ -286,47 +277,46 @@ struct TraverseFromTree {
          // 4096 triggers some extra code on GCC
         constexpr usize stack_capacity_3 = 4080; // 1019 keys
 #endif
-        auto next_list_len = (trav.tree->meta >> 1) + 1;
-        if (next_list_len <= stack_capacity_0 / 4) {
-            use_attrs_stack<stack_capacity_0>(trav, attrs);
+        auto len = trav.tree->meta >> 1;
+        if (len <= stack_capacity_0 / 4 - 1) [[likely]] {
+            use_attrs_stack<stack_capacity_0>(trav, attrs, len);
         }
-        else if (next_list_len <= stack_capacity_1 / 4) {
-            use_attrs_stack<stack_capacity_1>(trav, attrs);
+        else if (len <= stack_capacity_1 / 4 - 1) {
+            use_attrs_stack<stack_capacity_1>(trav, attrs, len);
         }
-        else if (next_list_len <= stack_capacity_2 / 4) {
-            use_attrs_stack<stack_capacity_2>(trav, attrs);
+        else if (len <= stack_capacity_2 / 4 - 1) {
+            use_attrs_stack<stack_capacity_2>(trav, attrs, len);
         }
 #ifdef __linux__
-        else if (next_list_len <= stack_capacity_3 / 4) {
-            use_attrs_stack<stack_capacity_3>(trav, attrs);
+        else if (len <= stack_capacity_3 / 4 - 1) {
+            use_attrs_stack<stack_capacity_3>(trav, attrs, len);
         }
 #endif
         else {
-            use_attrs_heap(trav, attrs, next_list_len);
+            use_attrs_heap(trav, attrs, len);
         }
     }
 
     template <usize capacity> NOINLINE static
     void use_attrs_stack (
-        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
+        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs, u32 len
     ) {
         u32 next_list_buf [capacity / 4];
-        use_attrs_buf(trav, attrs, next_list_buf);
+        use_attrs_buf(trav, attrs, len, next_list_buf);
     }
 
     NOINLINE static
     void use_attrs_heap (
-        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs,
-        u32 next_list_len
+        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs, u32 len
     ) {
-        auto next_list_buf = std::unique_ptr<u32[]>(new u32[next_list_len]);
-        use_attrs_buf(trav, attrs, &next_list_buf[0]);
+        auto next_list_buf = std::unique_ptr<u32[]>(new u32[len+1]);
+        use_attrs_buf(trav, attrs, len, &next_list_buf[0]);
     }
 
     NOINLINE static
     void use_attrs_buf (
         const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs,
-        u32* next_list_buf
+        u32 len, u32* next_list_buf
     ) {
          // Build a linked list of indexes so that we can claim attrs in
          // constant time.  next_list = next_list_buffer + 1, so that:
@@ -352,7 +342,6 @@ struct TraverseFromTree {
          // (Note that using -1 as a sentinel does not reduce the usable array
          // size by 1.  The maximum array tree size is u32(-1), for which
          // u32(-1) is not a valid index.)
-        auto len = trav.tree->meta >> 1;
         for (u32 i = 0; i < len; i++) next_list_buf[i] = i;
         next_list_buf[len] = u32(-1);
 
@@ -382,7 +371,7 @@ struct TraverseFromTree {
         finish_item(trav);
     }
 
-    NOINLINE static
+    static // inlinable
     void claim_attrs (const Traversal& tr) {
         auto& trav = static_cast<const ClaimAttrsTraversal<>&>(tr);
         if (auto keys = trav.desc->keys_acr()) {
@@ -704,7 +693,7 @@ struct TraverseFromTree {
 
 ///// REGISTERING SWIZZLE AND INIT
 
-    NOINLINE static
+    static
     void finish_item (const FromTreeTraversal<>& trav) {
          // Now register swizzle and init ops.  We're doing it now instead of at the
          // beginning to make sure that children get swizzled and initted before
@@ -727,8 +716,6 @@ struct TraverseFromTree {
             IFTContext::current->swizzle_ops.emplace_back(
                 swizzle->f, move(ref), *trav.tree, move(rt)
             );
-            expect(!ref.acr);
-            expect(!rt);
         }
         if (auto init = trav.desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
@@ -746,8 +733,6 @@ struct TraverseFromTree {
             else init_ops.emplace(i,
                 init->f, init->priority, move(ref), move(rt)
             );
-            expect(!ref.acr);
-            expect(!rt);
         }
     }
 

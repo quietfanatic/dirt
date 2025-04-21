@@ -400,7 +400,7 @@ bool scan_resource_references (
 bool scan_universe_pointers (
     CallbackRef<bool(AnyPtr, RouteRef)> cb
 ) {
-    if (auto rt = current_base_route()) {
+    if (auto rt = current_base().route) {
         if (auto ref = rt->reference()) {
             if (auto address = ref->address()) {
                scan_pointers(address, rt, cb);
@@ -421,7 +421,7 @@ bool scan_universe_references (
      // it's not in a Resource (so we don't duplicate work).
      // TODO: Maybe don't do this if the traversal was started by a scan,
      // instead of by a serialize.
-    if (auto rt = current_base_route()) {
+    if (auto rt = current_base().route) {
         if (auto ref = rt->reference()) {
             if (scan_references(*ref, rt, cb)) {
                 return true;

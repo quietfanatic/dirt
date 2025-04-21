@@ -29,7 +29,7 @@ struct TraverseToTree {
     NOINLINE static
     void start (Tree& r, const AnyRef& item, RouteRef rt) {
         plog("to_tree start");
-        PushBaseRoute pbl(rt ? rt : RouteRef(SharedRoute(item)));
+        PushCurrentBase pcb(rt ? rt : RouteRef(SharedRoute(item)));
         KeepRouteCache klc;
         ToTreeTraversal<StartTraversal> child;
         child.dest = &r;
@@ -56,7 +56,7 @@ struct TraverseToTree {
         }
          // Unfortunately this exception handler prevents tail calling from this
          // function, but putting it anywhere else seems to perform worse.
-        catch (...) { if (!wrap_exception(trav)) throw; }
+        catch (...) { wrap_exception(trav); }
     }
 
     NOINLINE static
@@ -327,14 +327,12 @@ struct TraverseToTree {
         ));
     }
 
-     // NOINLINE this so its stack requirements don't get applied to visit()
-    [[gnu::cold]] NOINLINE static
-    bool wrap_exception (const ToTreeTraversal<>& trav) {
+    NOINLINE static
+    void wrap_exception (const ToTreeTraversal<>& trav) {
         if (diagnostic_serialization) {
             new (trav.dest) Tree(std::current_exception());
-            return true;
         }
-        else return false;
+        else throw;
     }
 };
 

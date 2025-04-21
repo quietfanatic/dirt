@@ -20,6 +20,7 @@
 // with the path component of an IRI.
 
 #pragma once
+#include "../../iri/iri.h"
 #include "../../uni/lilac.h"
 #include "../common.internal.h"
 #include "../reflection/anyref.h"
@@ -146,18 +147,27 @@ constexpr ErrorCode e_RouteIRIInvalid = "ayu::e_RouteIRIInvalid";
 
 ///// BASE MANAGEMENT
 
- // Get the current base Route.  Always a Resource or AnyRef Route.
-RouteRef current_base_route () noexcept;
- // The IRI corresponding to current_base_route().  Will always have an
- // existing but empty #fragment.  When serializing IRIs with AYU, they will be
- // read and written as relative IRI reference strings, relative to this IRI.
-IRI current_base_iri () noexcept;
- // Temporarily set loc->root() as the current base route.  This is called in
- // item_to_tree and item_from_tree.
-struct PushBaseRoute {
-    SharedRoute old_base_route;
-    [[nodiscard]] PushBaseRoute (RouteRef) noexcept;
-    ~PushBaseRoute ();
+struct RouteWithIRI {
+    SharedRoute route;
+    mutable IRI iri_;
+    constexpr RouteWithIRI () { }
+    RouteWithIRI (SharedRoute rt) : route(move(rt)) { }
+    const IRI& iri () const noexcept; // lazily call route_to_iri
+};
+
+ // Get the current base.
+ // The route is always a resource or reference route.
+ // The IRI will never have a fragment.  When serializing IRIs with AYU, they
+ // will be read and written as relative IRI reference strings relative to this
+ // IRI.
+const RouteWithIRI& current_base () noexcept;
+
+ // Temporarily set the given route's root() as the current base route.  This is
+ // called in item_to_tree and item_from_tree.
+struct PushCurrentBase {
+    RouteWithIRI old_base;
+    [[nodiscard]] PushCurrentBase (RouteRef) noexcept;
+    ~PushCurrentBase ();
 };
 
 } // namespace ayu

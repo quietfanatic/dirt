@@ -2,7 +2,7 @@
 // std::vector, include the .h file.
 
 #include "../../iri/iri.h"
-#include "../traversal/route.h" // current_base_iri
+#include "../traversal/route.h" // current_base()
 #include "describe-base.h"
 
 using namespace ayu;
@@ -54,9 +54,9 @@ AYU_DESCRIBE(uni::StaticString,
 
 AYU_DESCRIBE(iri::IRI,
     to_tree([](const IRI& v){
-        return Tree(v.relative_to(current_base_iri()));
+        return Tree(v.relative_to(current_base().iri()));
     }),
     from_tree([](IRI& v, const Tree& t){
-        v = IRI(Str(t), current_base_iri());
+        v = IRI(Str(t), current_base().iri());
     })
 )
