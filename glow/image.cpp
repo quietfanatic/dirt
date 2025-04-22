@@ -7,16 +7,15 @@ namespace glow {
 
 [[noreturn, gnu::cold]]
 void raise_SubImageBoundsNotProper (const SubImage& self) {
-    raise(e_SubImageBoundsNotProper, ayu::item_to_string(&self.bounds));
+    raise(e_SubImageBoundsNotProper, ayu::show(&self.bounds));
 }
 
 [[noreturn, gnu::cold]]
 void raise_SubImageOutOfBounds (const SubImage& self, IVec size) {
     raise(e_SubImageOutOfBounds, cat(
-        "SubImage is out of bounds of image at ",
-        ayu::item_to_string(self.image),
-        "\n    Image size: ", ayu::item_to_string(&size),
-        "\n    SubImage bounds: ", ayu::item_to_string(&self.bounds)
+        "SubImage is out of bounds of image at ", ayu::show(self.image),
+        "\n    Image size: ", ayu::show(&size),
+        "\n    SubImage bounds: ", ayu::show(&self.bounds)
     ));
 }
 

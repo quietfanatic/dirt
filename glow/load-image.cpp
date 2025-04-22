@@ -130,7 +130,7 @@ void load_texture_from_file (u32 target, AnyString filename) {
     if (format.type != FT::Normal) {
          // Nontrivial format, so ask SAIL to convert
         warn_utf8(cat(
-            "Converting ", filename, " from ", ayu::item_to_string(&image->pixel_format), '\n'
+            "Converting ", filename, " from ", ayu::show(&image->pixel_format), '\n'
         ));
         if (format.type == FT::Indexed) {
             format.gl_internal_format =
@@ -255,7 +255,7 @@ UniqueImage load_image_from_file (AnyString filename) {
 void in::raise_LoadImageFailed (Str filename, sail_status_t res) {
      // TODO: tag
     raise(e_LoadImageFailed, cat(
-        "Failed to load image from file (", ayu::item_to_string(&res), "): ", filename
+        "Failed to load image from file (", ayu::show(&res), "): ", filename
     ));
 }
 

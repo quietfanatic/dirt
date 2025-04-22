@@ -27,7 +27,7 @@ void Shader::compile () {
         glGetShaderInfoLog(id, loglen, nullptr, info_log.data());
         auto self = this;
         ayu::raise(e_ShaderCompileFailed, cat(
-            "Failed to compile GL shader at ", ayu::item_to_string(&self),
+            "Failed to compile GL shader at ", ayu::show(&self),
             ":\n", info_log
         ));
     }
@@ -71,7 +71,7 @@ void Program::link () {
         glGetProgramInfoLog(id, loglen, nullptr, info_log.data());
         auto self = this;
         ayu::raise(e_ProgramLinkFailed, cat(
-            "Failed to link GL program at ", ayu::item_to_string(&self),
+            "Failed to link GL program at ", ayu::show(&self),
             ":\n", info_log
         ));
     }
@@ -219,8 +219,8 @@ static tap::TestSet tests ("dirt/glow/program", []{
     glReadPixels(0, 0, env.size.x, env.size.y, GL_RGBA, GL_UNSIGNED_BYTE, got_pixels.data());
 
     if (!is(got_pixels, expected_pixels, "Rendered correct image")) {
-        diag(ayu::item_to_string(&got_pixels, ayu::PrintOptions::Compact));
-        diag(ayu::item_to_string(&expected_pixels, ayu::PrintOptions::Compact));
+        diag(ayu::show(&got_pixels, ayu::PrintOptions::Compact));
+        diag(ayu::show(&expected_pixels, ayu::PrintOptions::Compact));
     }
 
     done_testing();

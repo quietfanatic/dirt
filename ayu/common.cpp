@@ -11,16 +11,15 @@ void dump_refs (Slice<AnyRef> rs) {
     switch (rs.size()) {
         case 0: warn_utf8("[]\n"); break;
         case 1: {
-            auto s = item_to_string(rs[0], {}, {}, TTO::EmbedErrors);
-            warn_utf8(cat(move(s), "\n"));
+            warn_utf8(cat(show(rs[0]), "\n"));
             break;
         }
         default: {
             UniqueString r = "[";
-            r.append(item_to_string(rs[0], {}, {}, TTO::EmbedErrors));
+            r.append(show(rs[0]));
             for (u32 i = 1; i < rs.size(); i++) {
                 r.push_back(' ');
-                r.append(item_to_string(rs[i], {}, {}, TTO::EmbedErrors));
+                r.append(show(rs[i]));
             }
             r.append("]\n");
             warn_utf8(r);

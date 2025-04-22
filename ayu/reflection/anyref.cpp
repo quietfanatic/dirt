@@ -15,7 +15,7 @@ void AnyRef::raise_WriteReadonly () const {
         SharedRoute here = reference_to_route(*this);
         raise(e_WriteReadonly, cat(
             "Can't write to readonly reference of type ", type().name(),
-            " at ", item_to_string(&here)
+            " at ", show(&here)
         ));
     }
     catch (std::exception& e) {
@@ -32,7 +32,7 @@ void AnyRef::raise_Unaddressable () const {
         SharedRoute here = reference_to_route(*this);
         raise(e_ReferenceUnaddressable, cat(
             "Can't get address of unaddressable reference of type ", type().name(),
-            " at ", item_to_string(&here)
+            " at ", show(&here)
         ));
     }
     catch (std::exception& e) {

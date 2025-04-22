@@ -111,8 +111,8 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
     for (i32 x = 0; x < env.size.x; x++) {
         if (expected[{x, y}] != got[{x, y}]) {
             match = false;
-            diag(ayu::item_to_string(&expected[{x, y}]));
-            diag(ayu::item_to_string(&got[{x, y}]));
+            diag(ayu::show(&expected[{x, y}]));
+            diag(ayu::show(&got[{x, y}]));
             goto no_match;
         }
     }

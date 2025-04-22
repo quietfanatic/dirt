@@ -781,7 +781,7 @@ void item_from_tree (
 void raise_FromTreeFormRejected (Type t, Form f) {
     raise(e_FromTreeFormRejected, cat(
         "Item of type ", t.name(),
-        " does not support from_tree with a tree of form ", item_to_string(&f)
+        " does not support from_tree with a tree of form ", show(&f)
     ));
 }
 

@@ -56,6 +56,17 @@ UniqueString item_to_string (
     RouteRef rt = {}, ToTreeOptions ttopts = {}
 );
 
+ // item_to_string but noexcept and automatically uses TTO::EmbedErrors.
+UniqueString show (
+    const AnyRef& item, PrintOptions popts = {},
+    RouteRef rt = {}, ToTreeOptions ttopts = {}
+) noexcept;
+template <class T>
+UniqueString show (
+    T* item, PrintOptions popts = {},
+    RouteRef rt = {}, ToTreeOptions ttopts = {}
+) noexcept;
+
 ///// Error codes
 
  // Called item_to_tree on an item that has no way of doing the to_tree
@@ -81,6 +92,14 @@ UniqueString item_to_string (
 ) {
     in::FakeRef fake {.ref = item};
     return item_to_string(fake.ref, popts, rt, ttopts);
+}
+
+template <class T>
+UniqueString show (
+    T* item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
+) noexcept {
+    in::FakeRef fake {.ref = item};
+    return show(fake.ref, popts, rt, ttopts);
 }
 
 } // ayu

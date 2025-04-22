@@ -26,7 +26,7 @@ static void raise_ResourceStateInvalid (StaticString tried, ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
     raise(e_ResourceStateInvalid, cat(
         "Can't ", tried, ' ', data->name.spec(),
-        " when its state is ", item_to_string(&data->state)
+        " when its state is ", show(&data->state)
     ));
 }
 

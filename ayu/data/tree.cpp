@@ -43,7 +43,7 @@ void delete_Tree_data (Tree& t) noexcept {
 void raise_TreeWrongForm (const Tree& t, Form form) {
     if (t.form == Form::Error) std::rethrow_exception(std::exception_ptr(t));
     else raise(e_TreeWrongForm, cat(
-        "Expected ", item_to_string(&form), " but got ", item_to_string(&t.form)
+        "Expected ", show(&form), " but got ", show(&t.form)
     ));
 }
 
