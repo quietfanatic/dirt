@@ -267,7 +267,7 @@ void save (ResourceRef res, PrintOptions opts) {
     KeepRouteCache klc;
     auto type = data->value.type.name();
     auto value_tree = item_to_tree(data->value.ptr(), SharedRoute(res));
-    auto contents = tree_to_string(
+    auto contents = tree_to_string_for_file(
         Tree::array(Tree(type), move(value_tree)), opts
     );
 

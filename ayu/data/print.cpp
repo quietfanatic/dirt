@@ -439,11 +439,9 @@ struct Printer {
         }
     }
 
-    UniqueString print (const Tree& t) {
-        u32 cap = t.form == Form::Array || t.form == Form::Object
-            ? 256 : 32;
+    UniqueString print (const Tree& t, u32 cap) {
         begin = SharableBuffer<char>::allocate_plenty(cap);
-        end = begin + cap;
+        end = begin + SharableBuffer<char>::header(begin)->capacity;
          // Do it
         char* p = print_tree(begin, t, 0);
         if (!!(opts & O::Pretty)) p = pchar(p, '\n');
@@ -451,8 +449,6 @@ struct Printer {
         UniqueString r;
         r.impl.size = p - begin;
         r.impl.data = begin;
-         // Don't waste too much space
-        if (r.impl.size < usize(end - begin) / 2) r.shrink_to_fit();
         begin = null;
         return r;
     }
@@ -472,14 +468,21 @@ UniqueString tree_to_string (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts & O::Pretty)) opts |= O::Compact;
     Printer printer (opts);
-    return printer.print(t);
+    u32 cap = t.form == Form::Array || t.form == Form::Object
+        ? 32 * (t.meta >> 1) : 32;
+    return printer.print(t, cap);
+}
+
+UniqueString tree_to_string_for_file (const Tree& t, PrintOptions opts) {
+    validate_print_options(opts);
+    if (!(opts & O::Compact)) opts |= O::Pretty;
+    Printer printer (opts);
+     // Lilac can't quite fast-allocate a whole 4k page
+    return printer.print(t, 4064);
 }
 
 void tree_to_file (const Tree& t, AnyString filename, PrintOptions opts) {
-    validate_print_options(opts);
-    if (!(opts & O::Compact)) opts |= O::Pretty;
-    auto output = Printer(opts).print(t);
-    string_to_file(output, move(filename));
+    return string_to_file(tree_to_string_for_file(t, opts), move(filename));
 }
 
 } using namespace ayu;
