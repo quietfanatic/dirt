@@ -8,8 +8,6 @@
 namespace ayu {
 namespace in {
 
-static u64 diagnostic_serialization = 0;
-
  // The subtypes in traversal.private.h build the struct to the right (as is
  // normal), so we'll build it to the left instead.
 struct ToTreeTraversalHead {
@@ -27,12 +25,13 @@ struct TraverseToTree {
 
      // NOINLINE this because it generates a lot of code with trav_start
     NOINLINE static
-    void start (Tree& r, const AnyRef& item, RouteRef rt) {
+    void start (Tree& r, const AnyRef& item, RouteRef rt, ToTreeOptions opts) {
         plog("to_tree start");
         PushCurrentBase pcb(rt ? rt : RouteRef(SharedRoute(item)));
         KeepRouteCache klc;
         ToTreeTraversal<StartTraversal> child;
         child.dest = &r;
+        child.embed_errors = !!(opts & TTO::EmbedErrors);
         trav_start<visit, false>(
             child, item, rt, AccessMode::Read
         );
@@ -44,20 +43,30 @@ struct TraverseToTree {
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const ToTreeTraversal<>&>(tr);
-        try {
-             // The majority of items are [[likely]] to be atomic.
-            if (auto to_tree = trav.desc->to_tree()) [[likely]] {
-                use_to_tree(trav, to_tree->f);
-            }
-            else if (auto values = trav.desc->values()) {
-                use_values(trav, values);
-            }
-            else no_value_match(trav);
+        if (trav.embed_errors) {
+            visit_embedding_errors(trav);
         }
-         // Unfortunately this exception handler prevents tail calling from this
-         // function, but putting it anywhere else seems to perform worse.
-        catch (...) { wrap_exception(trav); }
+         // The majority of items are [[likely]] to be atomic.
+        else if (auto to_tree = trav.desc->to_tree()) [[likely]] {
+            use_to_tree(trav, to_tree->f);
+        }
+        else if (auto values = trav.desc->values()) {
+            use_values(trav, values);
+        }
+        else no_value_match(trav);
     }
+
+    NOINLINE static
+    void visit_embedding_errors (const ToTreeTraversal<>& trav) try {
+        if (auto to_tree = trav.desc->to_tree()) [[likely]] {
+            use_to_tree(trav, to_tree->f);
+        }
+        else if (auto values = trav.desc->values()) {
+            use_values(trav, values);
+        }
+        else no_value_match(trav);
+    }
+    catch (...) { wrap_exception(trav); }
 
     NOINLINE static
     void no_value_match (const ToTreeTraversal<>& trav) {
@@ -126,6 +135,7 @@ struct TraverseToTree {
             child.dest = &object.emplace_back_expect_capacity(
                 attr->key, Tree()
             ).second;
+            child.embed_errors = trav.embed_errors;
             trav_attr<visit, false>(
                 child, trav, attr->acr(), attr->key, AccessMode::Read
             );
@@ -231,6 +241,7 @@ struct TraverseToTree {
 
             ToTreeTraversal<ComputedAttrTraversal> child;
             child.dest = &value;
+            child.embed_errors = trav.embed_errors;
             trav_computed_attr<visit, false>(
                 child, trav, ref, f, key, AccessMode::Read
             );
@@ -248,6 +259,7 @@ struct TraverseToTree {
             auto acr = elems->elem(i)->acr();
             ToTreeTraversal<ElemTraversal> child;
             child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.embed_errors = trav.embed_errors;
             trav_elem<visit, false>(
                 child, trav, acr, i, AccessMode::Read
             );
@@ -270,6 +282,7 @@ struct TraverseToTree {
             if (!ref) raise_ElemNotFound(trav.desc, i);
             ToTreeTraversal<ComputedElemTraversal> child;
             child.dest = &array[i];
+            child.embed_errors = trav.embed_errors;
             trav_computed_elem<visit, false>(
                 child, trav, ref, f, i, AccessMode::Read
             );
@@ -293,6 +306,7 @@ struct TraverseToTree {
             for (u32 i = 0; i < array.size(); i++) {
                 ToTreeTraversal<ContiguousElemTraversal> child;
                 child.dest = &array[i];
+                child.embed_errors = trav.embed_errors;
                 trav_contiguous_elem<visit, false>(
                     child, trav, ptr, f, i, AccessMode::Read
                 );
@@ -308,6 +322,7 @@ struct TraverseToTree {
     void use_delegate (const ToTreeTraversal<>& trav, const Accessor* acr) {
         ToTreeTraversal<DelegateTraversal> child;
         child.dest = trav.dest;
+        child.embed_errors = trav.embed_errors;
         trav_delegate<visit, false>(child, trav, acr, AccessMode::Read);
         child.dest->flags |= child.acr->tree_flags();
     }
@@ -329,35 +344,25 @@ struct TraverseToTree {
 
     NOINLINE static
     void wrap_exception (const ToTreeTraversal<>& trav) {
-        if (diagnostic_serialization) {
-            new (trav.dest) Tree(std::current_exception());
-        }
-        else throw;
+        expect(trav.embed_errors);
+        new (trav.dest) Tree(std::current_exception());
     }
 };
 
 } using namespace in;
 
-Tree item_to_tree (const AnyRef& item, RouteRef rt) {
+Tree item_to_tree (const AnyRef& item, RouteRef rt, ToTreeOptions opts) {
     Tree r;
-    TraverseToTree::start(r, item, rt);
+    TraverseToTree::start(r, item, rt, opts);
     return r;
 }
 
 UniqueString item_to_string (
-    const AnyRef& item, PrintOptions opts, RouteRef rt
+    const AnyRef& item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) {
     Tree t;
-    TraverseToTree::start(t, item, rt);
-    return tree_to_string(t, opts);
-}
-
-DiagnosticSerialization::DiagnosticSerialization () {
-    diagnostic_serialization += 1;
-}
-DiagnosticSerialization::~DiagnosticSerialization () {
-    expect(diagnostic_serialization > 0);
-    diagnostic_serialization -= 1;
+    TraverseToTree::start(t, item, rt, ttopts);
+    return tree_to_string(t, popts);
 }
 
 } using namespace ayu;

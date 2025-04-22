@@ -44,9 +44,15 @@ struct Traversal {
      // track of it here.  This can go from off to on, but never from on to off.
      // Undefined during to_tree traversals.
     bool readonly;
-     // Attr containing this item has collapse_optional set.  This is only used
-     // by ScanTraversal; it's just here to save space.
-    bool collapse_optional;
+     // Extra flags only used by certain traversal stacks.
+    union {
+         // Attr containing this item has collapse_optional set.  Only used by
+         // ScanTraversal.
+        bool collapse_optional;
+         // Catch and embed errors instead of throwing them.  Only used by
+         // ToTreeTraversal.
+        bool embed_errors;
+    };
      // Type information but without the readonly bit.
     const DescriptionPrivate* desc;
      // This address is not guaranteed to be permanently valid unless

@@ -32,6 +32,7 @@ enum class FromTreeOptions {
     DelaySwizzle = 1,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(FromTreeOptions)
+using FTO = FromTreeOptions;
 
  // Write to an item from a tree.  If an exception is thrown, the item may be
  // left in an incomplete state, so if you're worried about that, construct a

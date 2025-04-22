@@ -11,6 +11,21 @@
 
 namespace ayu {
 
+ // Flags to change the behavior of item_to_tree and related functions.
+enum class ToTreeOptions {
+     // If an exception is thrown while serializing an item, then the exception
+     // will be caught and reported inline in the serialized output.  For
+     // *_to_tree, it will be wrapped in a Tree of form TreeForm::Error.  For
+     // *_to_string, it will be written as "!(exception's .what() value)".  This
+     // not valid to read back in with *_from_string, so you should only use
+     // this option for diagnostics or human-consumption strings.
+     //
+     // Using this option makes item_to_tree effectively noexcept.
+    EmbedErrors = 1,
+};
+DECLARE_ENUM_BITWISE_OPERATORS(ToTreeOptions);
+using TTO = ToTreeOptions;
+
  // Convert an item to a tree.  The optional route should match the reference's
  // route if provided.  One of the below AYU_DESCRIBE descriptors will be used
  // for this, with earlier ones preferred over later ones:
@@ -24,31 +39,21 @@ namespace ayu {
  //   4. delegate()
  // If none of the above are applicable, a CannotToTree exception will be
  // thrown.
-Tree item_to_tree (const AnyRef&, RouteRef rt = {});
+Tree item_to_tree (const AnyRef&, RouteRef rt = {}, ToTreeOptions opts = {});
  // Slight optimization for pointers (the usual case)
 template <class T>
-Tree item_to_tree (T* item, RouteRef rt = {});
-
- // While this object is alive, if an exception is thrown while serializing an
- // item (and that exception is described to AYU), then the exception will be
- // caught and reported inline in the serialized output.  It will be in a format
- // that is not valid to read back in, so only use it for debugging.
- // Internally, this is used when generating the .what() message for exceptions
- // TODO: replace with a flag
-struct DiagnosticSerialization {
-    [[nodiscard]] DiagnosticSerialization ();
-    ~DiagnosticSerialization ();
-};
+Tree item_to_tree (T* item, RouteRef rt = {}, ToTreeOptions opts = {});
 
 ///// Shortcuts
 
 UniqueString item_to_string (
-    const AnyRef& item, PrintOptions opts = {},
-    RouteRef rt = {}
+    const AnyRef& item, PrintOptions popts = {},
+    RouteRef rt = {}, ToTreeOptions ttopts = {}
 );
 template <class T>
 UniqueString item_to_string (
-    T* item, PrintOptions opts = {}, RouteRef rt = {}
+    T* item, PrintOptions popts = {},
+    RouteRef rt = {}, ToTreeOptions ttopts = {}
 );
 
 ///// Error codes
@@ -64,16 +69,18 @@ constexpr ErrorCode e_ToTreeValueNotFound = "ayu::e_ToTreeValueNotFound";
 ///// Inlines
 
 template <class T>
-Tree item_to_tree (T* item, RouteRef rt) {
+Tree item_to_tree (T* item, RouteRef rt, ToTreeOptions opts) {
     Tree r;
     in::FakeRef fake {.ref = item};
-    return item_to_tree(fake.ref, rt);
+    return item_to_tree(fake.ref, rt, opts);
 }
 
 template <class T>
-UniqueString item_to_string (T* item, PrintOptions opts, RouteRef rt) {
+UniqueString item_to_string (
+    T* item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
+) {
     in::FakeRef fake {.ref = item};
-    return item_to_string(fake.ref, opts, rt);
+    return item_to_string(fake.ref, popts, rt, ttopts);
 }
 
 } // ayu
