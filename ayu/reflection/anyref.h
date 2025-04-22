@@ -241,9 +241,6 @@ constexpr bool operator == (const AnyRef& a, const AnyRef& b) {
     if (!a.acr | !b.acr) return a.acr == b.acr;
     return *a.acr == *b.acr;
 }
-constexpr bool operator != (const AnyRef& a, const AnyRef& b) {
-    return !(a == b);
-}
 
 ///// AnyRef error codes
 

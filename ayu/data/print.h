@@ -24,14 +24,14 @@ DECLARE_ENUM_BITWISE_OPERATORS(PrintOptions)
  // keep the string around for long.  If you're keeping multiple of these around
  // for a long time, you may want to call shrink_to_fit() on them.
 UniqueString tree_to_string (const Tree&, PrintOptions opts = {});
- // TODO: tree_to_list_string
-
-void tree_to_file (const Tree&, AnyString filename, PrintOptions opts = {});
-
  // Like tree_to_string but uses defaults optimized for tree_to_file.
 UniqueString tree_to_string_for_file (const Tree&, PrintOptions opts = {});
+ // calls tree_to_string_for_file and then string_to_file.
+void tree_to_file (const Tree&, AnyString filename, PrintOptions opts = {});
 
 constexpr ErrorCode e_PrintOptionsInvalid = "ayu::e_PrintOptionsInvalid";
+
+ // TODO: tree_to_list_string
 
 } // namespace ayu
 

@@ -69,15 +69,15 @@ struct Type {
      //  - delegate(...)
      //  - attr("name", ..., include)
      //  - elem(..., include)
-     // and recurses through those accessors.  Note also only information
+     // and recurses through those accessors.  Note also that only information
      // provided through AYU_DESCRIBE will be used; C++'s native inheritance
      // system has no influence.
      //
      // try_upcast_to will return null if the requested base class was not found
      // in the derived class's inheritance hierarchy, or if the address of the
      // base class can't be retrieved (goes through value_funcs or some such).
-     // upcast_to will throw CannotCoerce (unless given null, in which case
-     // it will return null).
+     // upcast_to will throw TypeCantCast (unless given null, in which case it
+     // will return null).
      //
      // Finally, casting from non-readonly to readonly types is allowed, but not
      // vice versa.
@@ -104,9 +104,8 @@ struct Type {
      // specifier".  And what's worse, these errors may only pop up during
      // optimized builds.
      //
-     // I believe it is safe to use this in templated contexts or partially
-     // specialized contexts, but not in non-template or fully specialized
-     // contexts.  It may also need to be dependent on a template parameter.
+     // I believe it is safe to use this on a "dependent type".  See
+     // https://en.cppreference.com/w/cpp/language/dependent_name
      //
      // It is also safe to use this in a translation unit that doesn't have any
      // AYU_DESCRIBE blocks.
@@ -140,15 +139,8 @@ struct Type {
  // The same type will always have the same description pointer.  Compare ptr
  // instead of data so that this can be constexpr (only the ptr variant can be
  // written at constexpr time).
-constexpr bool operator == (Type a, Type b) {
-    return a.ptr == b.ptr;
-}
-constexpr bool operator != (Type a, Type b) {
-    return a.ptr != b.ptr;
-}
-constexpr bool operator < (Type a, Type b) {
-    return a.ptr < b.ptr;
-}
+constexpr bool operator == (Type a, Type b) { return a.ptr == b.ptr; }
+constexpr auto operator <=> (Type a, Type b) { return a.ptr <=> b.ptr; }
 
  // Tried to look up a type be name but there is no registered type with that
  // name.

@@ -249,7 +249,6 @@ void load (ResourceRef res) {
 }
 
 void save (ResourceRef res, PrintOptions opts) {
-    if (!(opts & PrintOptions::Compact)) opts |= PrintOptions::Pretty;
     auto data = static_cast<ResourceData*>(res.data);
     if (data->state != RS::Loaded) {
         raise_ResourceStateInvalid("save", res);
@@ -346,7 +345,7 @@ void unload (Slice<ResourceRef> to_unload) {
     auto& resources = universe().resources;
      // TODO: Track how many loaded resources there are to preallocate this.
     auto scan_info = UniqueArray<ResourceScanInfo>(Capacity(resources.size()));
-     // Start out be getting a bit of info about all loaded resources.
+     // Start out by getting a bit of info about all loaded resources.
     bool none_root = true;
     bool all_root = true;
     for (auto& [name, res] : resources) {
@@ -400,11 +399,11 @@ void unload (Slice<ResourceRef> to_unload) {
             if (!info.data->root) {
                 refs_to_reses.emplace(item, info.data);
             }
-            if (item.type() == Type::For<AnyRef>()) {
-                if (auto ref = item.get_as<AnyRef>()) {
-                    info.outgoing_refs.emplace_back(move(ref));
+            item.read([&info](AnyPtr rp, bool){
+                if (rp.type == Type::For<AnyRef>()) {
+                    info.outgoing_refs.emplace_back(*rp.expect_exact<AnyRef>());
                 }
-            }
+            });
             return false;
         });
     }

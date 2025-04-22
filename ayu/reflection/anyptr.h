@@ -78,13 +78,10 @@ constexpr bool operator == (const AnyPtr& a, const AnyPtr& b) {
     return a.address == b.address &&
         a.type.remove_readonly() == b.type.remove_readonly();
 }
-constexpr bool operator != (const AnyPtr& a, const AnyPtr& b) {
-    return !(a == b);
-}
-constexpr bool operator < (const AnyPtr& a, const AnyPtr& b) {
+constexpr auto operator <=> (const AnyPtr& a, const AnyPtr& b) {
     return a.address == b.address
-        ? a.type.remove_readonly() < b.type.remove_readonly()
-        : a.address < b.address;
+        ? a.type.remove_readonly() <=> b.type.remove_readonly()
+        : a.address <=> b.address;
 }
 
 } // namespace ayu

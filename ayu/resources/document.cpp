@@ -187,7 +187,7 @@ void Document::deallocate (void* p) noexcept {
 AYU_DESCRIBE(ayu::Document,
     before_from_tree([](Document& v, const Tree& t){
          // Each of these checked cases should reliably cause an error later
-        if (t.form != Form::Object) return;
+        if (t.form != Form::Object) [[unlikely]] return;
         auto o = Slice<TreePair>(t);
         v = {};
         for (auto& [key, value] : o) {
