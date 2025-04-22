@@ -13,7 +13,8 @@
  //  - Low cache pressure: if the size is known at compile time, usually only
  //    touches 3~4 data cache lines (including object being de/allocated) and
  //    2~4 code cache lines (de/alloc pair).
- //  - Is written in C++ but could be ported to C straightforwardly
+ //  - Is written in C++ but could be ported to C straightforwardly, or even
+ //    assembly.
  // Caveats:
  //  - Singlethreaded only (but possibly fast enough that you could put a mutex
  //    on the entire thing and still compete with an ordinary multithreaded
@@ -24,8 +25,8 @@
  //    other libraries that reserve huge address spaces on 32-bit systems.
  //  - Only 8-byte alignment is guaranteed
  //  - Bad but bounded (and unlikely?) worst-case external fragmentation
- //  - Worst-case internal fragmentation is 50%.  Average for randomly-sized
- //    allocations is probably around 15%.
+ //  - Worst-case internal fragmentation is 50% (1.5x).  Average for
+ //    randomly-sized allocations is probably around 15%.
  //  - Cannot give memory back to the OS (but most allocators can't anyway)
  //  - Very experimental and untested with anything but GCC on Linux x64
  //  - Up to 145k space overhead due to paging granularity
@@ -85,8 +86,8 @@ void deallocate_fixed_size (void*, usize) noexcept;
 void* reallocate (void*, usize) noexcept;
 
  // Like allocate, but also returns the size of the allocated block.  The
- // returned size may be equal to the requsted size, or it may be up to 50%
- // larger.
+ // returned size may be equal to the requested size, or it may be up to 50%
+ // larger (1.5x).
 struct Block {
     void* address;
     usize capacity;
