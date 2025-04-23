@@ -2003,17 +2003,19 @@ struct ArrayInterface {
                 }
             }
             catch (...) {
-                 // Yuck, someone threw an exception in a copy constructor!
-                while (tail_i-- > split) {
-                    dat[shift + tail_i].~T();
-                }
-                while (head_i-- > 0) {
-                    dat[head_i].~T();
-                }
                 if constexpr (
                     ac::is_Unique || std::is_nothrow_copy_constructible_v<T>
                 ) never();
-                else throw;
+                else {
+                     // Yuck, someone threw an exception in a copy constructor!
+                    while (tail_i-- > split) {
+                        dat[shift + tail_i].~T();
+                    }
+                    while (head_i-- > 0) {
+                        dat[head_i].~T();
+                    }
+                    throw;
+                }
             }
             --self.header().ref_count;
         }
