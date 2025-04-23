@@ -27,7 +27,7 @@ struct TraverseToTree {
     NOINLINE static
     void start (Tree& r, const AnyRef& item, RouteRef rt, ToTreeOptions opts) {
         plog("to_tree start");
-        PushCurrentBase pcb(rt ? rt : RouteRef(SharedRoute(item)));
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
         KeepRouteCache klc;
         ToTreeTraversal<StartTraversal> child;
         child.dest = &r;

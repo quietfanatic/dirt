@@ -3,7 +3,6 @@
 #include "../reflection/description.private.h"
 #include "../resources/resource.h"
 #include "compound.private.h"
-#include "scan.h"
 #include "traversal.private.h"
 
 namespace ayu {
@@ -136,23 +135,6 @@ struct TraverseFromTree {
              // it's allowed for an init() to load another resource.
             do_swizzle_init(ctx);
         }
-    }
-
-    [[noreturn]] NOINLINE static
-    void rethrow_with_scanned_route (const AnyRef& base_item) {
-        RouteRef base_rt = current_base().route;
-        AnyRef base_ref = reference_from_route(base_rt);
-        SharedRoute found_rt;
-        try {
-            scan_references_ignoring_no_refs_to_children(
-                base_ref, base_rt,
-                [&](const AnyRef& item, RouteRef rt) {
-                    return item == base_item && (found_rt = rt, true);
-                }
-            );
-        }
-        catch (...) { } // discard exception and leave found_rt blank
-        rethrow_with_route(found_rt);
     }
 
 ///// PICK STRATEGY

@@ -8,19 +8,13 @@
 namespace ayu::in {
 
  // This tracks the decisions that were made during a serialization operation.
- // It has two purposes:
- //   1. Allow creating an AnyRef to the current item in case the current item
- //      is not addressable, without having to start over from the very
- //      beginning or duplicate work.
- //   2. Track the current route without any heap allocations, but allow
- //      getting an actual heap-allocated Route to the current item if needed
- //      for error reporting.
+ // It's primary purpose is to allow creating an AnyRef to the current item in
+ // case the current item is not addressable, but without having to start over
+ // from the beginning, and without requiring any heap allocations otherwise.
 enum class TraversalOp : u8 {
     Start,
-    Delegate,
-    Attr,
+    Acr,
     ComputedAttr,
-    Elem,
     ComputedElem,
     ContiguousElem,
 };
@@ -59,10 +53,12 @@ struct Traversal {
     Mu* address;
 
     void to_reference (void* r) const noexcept;
-    void to_route (void* r) const noexcept;
     [[noreturn, gnu::cold]]
     void wrap_exception () const;
 };
+
+[[noreturn, gnu::cold]]
+void rethrow_with_scanned_route (const AnyRef& item);
 
 ///// TRAVERSAL SUFFIXES
 
@@ -75,19 +71,15 @@ struct AcrTraversal : Traversal {
     const Accessor* acr;
 };
 
+struct DelegateTraversal : AcrTraversal { };
+
+struct AttrTraversal : AcrTraversal { };
+
+struct ElemTraversal : AcrTraversal { };
+
 struct RefTraversal : Traversal { };
 
 struct PtrTraversal : Traversal { };
-
-struct DelegateTraversal : AcrTraversal { };
-
-struct AttrTraversal : AcrTraversal {
-    const StaticString* key;
-};
-
-struct ElemTraversal : AcrTraversal {
-    u32 index;
-};
 
 struct ComputedAttrTraversal : RefTraversal {
     AttrFunc<Mu>* func;
@@ -166,6 +158,7 @@ void trav_acr (
     AcrTraversal& child, const Traversal& parent,
     const Accessor* acr, AccessMode mode
 ) try {
+    child.op = TraversalOp::Acr;
     child.acr = acr;
     child.parent = &parent;
     if constexpr (do_flags) {
@@ -219,11 +212,9 @@ catch (...) { child.wrap_exception(); }
 
 template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
 void trav_attr (
-    AttrTraversal& child, const Traversal& parent,
-    const Accessor* acr, const StaticString& key, AccessMode mode
+    AcrTraversal& child, const Traversal& parent,
+    const Accessor* acr, const StaticString&, AccessMode mode
 ) {
-    child.op = TraversalOp::Attr;
-    child.key = &key;
     trav_acr<visit, do_flags>(child, parent, acr, mode);
 }
 
@@ -244,10 +235,8 @@ void trav_computed_attr (
 template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
 void trav_elem (
     ElemTraversal& child, const Traversal& parent,
-    const Accessor* acr, u32 index, AccessMode mode
+    const Accessor* acr, u32, AccessMode mode
 ) {
-    child.op = TraversalOp::Elem;
-    child.index = index;
     trav_acr<visit, do_flags>(child, parent, acr, mode);
 }
 
@@ -278,7 +267,6 @@ void trav_delegate (
     DelegateTraversal& child, const Traversal& parent,
     const Accessor* acr, AccessMode mode
 ) {
-    child.op = TraversalOp::Delegate;
     trav_acr<visit, do_flags>(child, parent, acr, mode);
 }
 

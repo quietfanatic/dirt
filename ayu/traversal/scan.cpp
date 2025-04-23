@@ -49,6 +49,9 @@ struct TraverseScan {
                 }
             )
         };
+        PushCurrentBase pcb (base_rt ? base_rt : RouteRef(
+            SharedRoute(AnyRef(base_item))
+        ));
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.rt = base_rt;
@@ -87,6 +90,7 @@ struct TraverseScan {
                 cb, ignore_no_refs_to_children ? cbcb_ignore : cbcb
             )
         };
+        PushCurrentBase pcb (base_rt ? base_rt : RouteRef(SharedRoute(base_item)));
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.rt = base_rt;

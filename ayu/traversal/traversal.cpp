@@ -1,11 +1,10 @@
 #include "traversal.private.h"
+#include "scan.h"
 
 namespace ayu::in {
 
 static void to_reference_parent_addressable (const Traversal&, void*);
 static void to_reference_chain (const Traversal&, void*);
-static void to_route_start_ref (const Traversal&, void*);
-static void to_route_chain (const Traversal&, void*);
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
@@ -28,9 +27,7 @@ void Traversal::to_reference (void* r) const noexcept {
 NOINLINE static
 void to_reference_parent_addressable (const Traversal& trav, void* r) {
     switch (trav.op) {
-        case TraversalOp::Delegate:
-        case TraversalOp::Attr:
-        case TraversalOp::Elem: {
+        case TraversalOp::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             auto type = Type(self.parent->desc, self.parent->readonly);
             new (r) AnyRef(AnyPtr(type, self.parent->address), self.acr);
@@ -64,8 +61,7 @@ void to_reference_chain (const Traversal& trav, void* r) {
     AnyRef parent_ref;
     trav.parent->to_reference(&parent_ref);
     switch (trav.op) {
-        case TraversalOp::Attr: case TraversalOp::Elem:
-        case TraversalOp::Delegate: {
+        case TraversalOp::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAcr(
                 parent_ref.acr, self.acr
@@ -97,82 +93,36 @@ void to_reference_chain (const Traversal& trav, void* r) {
     }
 }
 
-NOINLINE
-void Traversal::to_route (void* r) const noexcept {
-    if (op == TraversalOp::Start) {
-        auto& self = static_cast<const StartTraversal&>(*this);
-        if (self.route) new (r) SharedRoute(self.route);
-        else to_route_start_ref(*this, r);
-    }
-    else to_route_chain(*this, r);
-}
-
-NOINLINE static
-void to_route_start_ref (const Traversal& trav, void* r) {
-    auto& self = static_cast<const StartTraversal&>(trav);
-     // This * took a half a day of debugging to add. :(
-    new (r) SharedRoute(*self.reference);
-}
-
-NOINLINE static
-void to_route_chain (const Traversal& trav, void* r) {
-    SharedRoute parent_rt;
-    trav.parent->to_route(&parent_rt);
-    switch (trav.op) {
-        case TraversalOp::Delegate: {
-            new (r) SharedRoute(move(parent_rt));
-            return;
-        }
-        case TraversalOp::Attr: {
-            auto& self = static_cast<const AttrTraversal&>(trav);
-            if (!!(self.acr->attr_flags & AttrFlags::Include)) {
-                 // Collapse route for an included attribute.
-                new (r) SharedRoute(move(parent_rt));
-            }
-            else {
-                new (r) SharedRoute(move(parent_rt), *self.key);
-            }
-            return;
-        }
-        case TraversalOp::ComputedAttr: {
-            auto& self = static_cast<const ComputedAttrTraversal&>(trav);
-            new (r) SharedRoute(move(parent_rt), *self.key);
-            return;
-        }
-         // These three branches can technically be merged, hopefully the
-         // compiler does so.
-        case TraversalOp::Elem: {
-            auto& self = static_cast<const ElemTraversal&>(trav);
-            new (r) SharedRoute(move(parent_rt), self.index);
-            return;
-        }
-        case TraversalOp::ComputedElem: {
-            auto& self = static_cast<const ComputedElemTraversal&>(trav);
-            new (r) SharedRoute(move(parent_rt), self.index);
-            return;
-        }
-        case TraversalOp::ContiguousElem: {
-            auto& self = static_cast<const ContiguousElemTraversal&>(trav);
-            new (r) SharedRoute(move(parent_rt), self.index);
-            return;
-        }
-        default: never();
-    }
-}
-
 void Traversal::wrap_exception () const {
     try { throw; }
     catch (Error& e) {
         if (e.get_tag("ayu::route")) throw;
-        SharedRoute rt;
-        to_route(&rt);
-        rethrow_with_route(rt);
+        AnyRef ref;
+        to_reference(&ref);
+        rethrow_with_scanned_route(ref);
     }
     catch (...) {
-        SharedRoute rt;
-        to_route(&rt);
-        rethrow_with_route(rt);
+        AnyRef ref;
+        to_reference(&ref);
+        rethrow_with_scanned_route(ref);
     }
+}
+
+NOINLINE
+void rethrow_with_scanned_route (const AnyRef& base_item) {
+    RouteRef base_rt = current_base().route;
+    AnyRef base_ref = reference_from_route(base_rt);
+    SharedRoute found_rt;
+    try {
+        scan_references_ignoring_no_refs_to_children(
+            base_ref, base_rt,
+            [&](const AnyRef& item, RouteRef rt) {
+                return item == base_item && (found_rt = rt, true);
+            }
+        );
+    }
+    catch (...) { } // discard exception and leave found_rt blank
+    rethrow_with_route(found_rt);
 }
 
 } // ayu::in

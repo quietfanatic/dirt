@@ -19,6 +19,7 @@ struct TraverseGetKeys {
 
     static
     UniqueArray<AnyString> start (const AnyRef& item, RouteRef rt) {
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
          // TODO: skip traversal if item is addressable and uses computed_attrs
         UniqueArray<AnyString> keys;
         GetKeysTraversal<StartTraversal> child;
@@ -122,6 +123,7 @@ struct TraverseSetKeys {
     void start (
         const AnyRef& item, AnyArray<AnyString> ks, RouteRef rt
     ) {
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
         UniqueArray<AnyString> keys = move(ks);
         SetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
@@ -300,6 +302,7 @@ struct TraverseAttr {
     AnyRef start (
         const AnyRef& item, const AnyString& key, RouteRef rt
     ) {
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
          // TODO: skip the traversal system if we're using computed attrs
         AnyRef r;
         GetAttrTraversal<StartTraversal> child;
@@ -404,6 +407,9 @@ namespace in {
 struct TraverseGetLength {
     static
     u32 start (const AnyRef& item, RouteRef rt) try {
+         // We still need to set current base in case user code is called,
+         // because it's API-visible.
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
         u32 len;
         item.read(AccessCB(len, &visit));
         return len;
@@ -438,6 +444,7 @@ namespace in {
 struct TraverseSetLength {
     static
     void start (const AnyRef& item, u32 len, RouteRef rt) try {
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
         item.read(AccessCB(len, &visit));
     } catch (...) { rethrow_with_route(rt); }
 
@@ -486,6 +493,7 @@ struct TraverseElem {
 
     NOINLINE static
     void start (const AnyRef& item, u32 index, RouteRef rt, AnyRef& r) {
+        PushCurrentBase pcb (rt ? rt : RouteRef(SharedRoute(item)));
         GetElemTraversal<StartTraversal> child;
         child.index = index;
         child.r = &r;
