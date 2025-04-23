@@ -53,6 +53,7 @@ struct Traversal {
          // ToTreeTraversal.
         bool embed_errors;
     };
+    bool ignore_no_refs_to_children; // only used by ScanTraversal
      // Type information but without the readonly bit.
     const DescriptionPrivate* desc;
      // This address is not guaranteed to be permanently valid unless

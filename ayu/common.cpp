@@ -32,7 +32,9 @@ void in::rethrow_with_route (RouteRef rt) {
     try { throw; }
     catch (Error& e) {
         if (!e.get_tag("ayu::route")) {
-            e.add_tag("ayu::route", route_to_iri(rt).spec());
+            UniqueString spec = rt ?
+                route_to_iri(rt).spec() : "!(Could not find route of error)";
+            e.add_tag("ayu::route", spec);
         }
         throw e;
     }

@@ -30,8 +30,7 @@ struct TraverseScan {
 
     static
     bool start_pointers (
-        AnyPtr base_item, RouteRef base_rt,
-        CallbackRef<bool(AnyPtr, RouteRef)> cb
+        AnyPtr base_item, RouteRef base_rt, ScanPointersCB cb
     ) {
         if (currently_scanning) {
             raise(e_ScanWhileScanning,
@@ -61,20 +60,31 @@ struct TraverseScan {
 
     static
     bool start_references (
-        const AnyRef& base_item, RouteRef base_rt,
-        CallbackRef<bool(const AnyRef&, RouteRef)> cb
+        const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb,
+        bool ignore_no_refs_to_children
     ) {
+        using CBCB = void(decltype(cb)&, const ScanTraversal<>&);
+        CBCB* cbcb = [](auto& cb, const ScanTraversal<>& trav) {
+            bool done; {
+                AnyRef ref;
+                trav.to_reference(&ref);
+                done = cb(ref, trav.rt);
+            }
+            if (done) [[unlikely]] trav.context->done = true;
+            else after_cb(trav);
+        };
+        CBCB* cbcb_ignore = [](auto& cb, const ScanTraversal<>& trav) {
+            bool done; {
+                AnyRef ref;
+                trav.to_reference(&ref);
+                done = cb(ref, trav.rt);
+            }
+            if (done) [[unlikely]] trav.context->done = true;
+            else after_cb_ignoring_no_refs_to_children(trav);
+        };
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
-                cb, [](auto& cb, const ScanTraversal<>& trav) {
-                    bool done; {
-                        AnyRef ref;
-                        trav.to_reference(&ref);
-                        done = cb(ref, trav.rt);
-                    }
-                    if (done) [[unlikely]] trav.context->done = true;
-                    else after_cb(trav);
-                }
+                cb, ignore_no_refs_to_children ? cbcb_ignore : cbcb
             )
         };
         ScanTraversal<StartTraversal> child;
@@ -97,6 +107,28 @@ struct TraverseScan {
         if (!!(trav.desc->type_flags & TypeFlags::NoRefsToChildren)) {
             return;
         }
+        if (trav.desc->preference() == DescFlags::PreferObject) {
+            if (trav.desc->keys_offset) {
+                use_computed_attrs(trav);
+            }
+            else use_attrs(trav);
+        }
+        else if (trav.desc->preference() == DescFlags::PreferArray) {
+            if (trav.desc->length_offset) {
+                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
+                    use_contiguous_elems(trav);
+                }
+                else use_computed_elems(trav);
+            }
+            else use_elems(trav);
+        }
+        else if (trav.desc->delegate_offset) {
+            return use_delegate(trav);
+        }
+    }
+
+    NOINLINE static
+    void after_cb_ignoring_no_refs_to_children (const ScanTraversal<>& trav) {
         if (trav.desc->preference() == DescFlags::PreferObject) {
             if (trav.desc->keys_offset) {
                 use_computed_attrs(trav);
@@ -368,38 +400,36 @@ KeepRouteCache::~KeepRouteCache () {
 }
 
 bool scan_pointers (
-    AnyPtr base_item, RouteRef base_rt,
-    CallbackRef<bool(AnyPtr, RouteRef)> cb
+    AnyPtr base_item, RouteRef base_rt, ScanPointersCB cb
 ) {
     return TraverseScan::start_pointers(base_item, base_rt, cb);
 }
 
 bool scan_references (
-    const AnyRef& base_item, RouteRef base_rt,
-    CallbackRef<bool(const AnyRef&, RouteRef)> cb
+    const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
 ) {
-    return TraverseScan::start_references(base_item, base_rt, cb);
+    return TraverseScan::start_references(base_item, base_rt, cb, false);
 }
 
-bool scan_resource_pointers (
-    ResourceRef res, CallbackRef<bool(AnyPtr, RouteRef)> cb
+bool scan_references_ignoring_no_refs_to_children (
+    const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
 ) {
+    return TraverseScan::start_references(base_item, base_rt, cb, true);
+}
+
+bool scan_resource_pointers (ResourceRef res, ScanPointersCB cb) {
     auto& value = res->get_value();
     if (!value) return false;
     return scan_pointers(value.ptr(), SharedRoute(res), cb);
 }
 
-bool scan_resource_references (
-    ResourceRef res, CallbackRef<bool(const AnyRef&, RouteRef)> cb
-) {
+bool scan_resource_references (ResourceRef res, ScanReferencesCB cb) {
     auto& value = res->get_value();
     if (!value) return false;
     return scan_references(value.ptr(), SharedRoute(res), cb);
 }
 
-bool scan_universe_pointers (
-    CallbackRef<bool(AnyPtr, RouteRef)> cb
-) {
+bool scan_universe_pointers (ScanPointersCB cb) {
     if (auto rt = current_base().route) {
         if (auto ref = rt->reference()) {
             if (auto address = ref->address()) {
@@ -413,9 +443,7 @@ bool scan_universe_pointers (
     return false;
 }
 
-bool scan_universe_references (
-    CallbackRef<bool(const AnyRef&, RouteRef)> cb
-) {
+bool scan_universe_references (ScanReferencesCB cb) {
      // To allow serializing self-referential data structures that aren't inside
      // a Resource, first scan the currently-being-serialized item, but only if
      // it's not in a Resource (so we don't duplicate work).

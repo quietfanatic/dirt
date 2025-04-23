@@ -3,22 +3,23 @@
 #include "../reflection/description.private.h"
 #include "../resources/resource.h"
 #include "compound.private.h"
+#include "scan.h"
 #include "traversal.private.h"
 
 namespace ayu {
 namespace in {
 
 struct SwizzleOp {
-    SwizzleFunc<Mu>* f;
+    SharedRoute base;
     AnyRef item;
+    SwizzleFunc<Mu>* f;
     Tree tree;
-    SharedRoute rt;
 
     ALWAYS_INLINE
     SwizzleOp (
-        SwizzleFunc<Mu>* f, AnyRef&& i, const Tree& t, SharedRoute&& l
+        RouteRef b, AnyRef&& i, SwizzleFunc<Mu>* f, const Tree& t
     ) noexcept :
-        f(f), item(move(i)), tree(t), rt(move(l))
+        base(b), item(move(i)), f(f), tree(t)
     { }
      // Allow optimized reallocation
     ALWAYS_INLINE
@@ -28,17 +29,17 @@ struct SwizzleOp {
     }
 };
 struct InitOp {
+    SharedRoute base;
+    AnyRef item;
     InitFunc<Mu>* f;
     double priority;
-    AnyRef item;
-    SharedRoute rt;
 
      // This being noexcept allows UniqueArray::emplace to be smaller
     ALWAYS_INLINE
     InitOp (
-        InitFunc<Mu>* f, double p, AnyRef&& i, SharedRoute&& l
+        RouteRef b, AnyRef&& i, InitFunc<Mu>* f,double p
     ) noexcept :
-        f(f), priority(p), item(move(i)), rt(move(l))
+        base(b), item(move(i)), f(f), priority(p)
     { }
      // Allow optimized reallocation
     ALWAYS_INLINE
@@ -131,14 +132,14 @@ struct TraverseFromTree {
     void do_swizzle_init (IFTContext& ctx) {
         if (ctx.swizzle_ops) {
             ctx.swizzle_ops.consume([](SwizzleOp&& op){
-                PushCurrentBase pcb (op.rt);
+                PushCurrentBase pcb (op.base);
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
                         op.f(*v.address, op.tree);
                     }));
                 }
                 catch (...) {
-                    rethrow_with_route(op.rt);
+                    rethrow_with_scanned_route(op.item);
                 }
             });
              // Swizzling might add more swizzle ops; this will happen if we're
@@ -148,20 +149,34 @@ struct TraverseFromTree {
         }
         else if (ctx.init_ops) {
             ctx.init_ops.consume([](InitOp&& op){
-                PushCurrentBase pcb (op.rt);
+                PushCurrentBase pcb (op.base);
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
                         op.f(*v.address);
                     }));
                 }
                 catch (...) {
-                    rethrow_with_route(op.rt);
+                    rethrow_with_scanned_route(op.item);
                 }
             });
              // Initting might add more swizzle or init ops.  It'd be weird, but
              // it's allowed for an init() to load another resource.
             do_swizzle_init(ctx);
         }
+    }
+
+    [[noreturn]] NOINLINE static
+    void rethrow_with_scanned_route (const AnyRef& base_item) {
+        RouteRef base_rt = current_base().route;
+        AnyRef base_ref = reference_from_route(base_rt);
+        SharedRoute found_rt;
+        scan_references_ignoring_no_refs_to_children(
+            base_ref, base_rt,
+            [&](const AnyRef& item, RouteRef rt) {
+                return item == base_item && (found_rt = rt, true);
+            }
+        );
+        rethrow_with_route(found_rt);
     }
 
 ///// PICK STRATEGY
@@ -706,15 +721,14 @@ struct TraverseFromTree {
 
     NOINLINE static
     void register_swizzle_init (const FromTreeTraversal<>& trav) {
-         // We're duplicating the work to get the ref and rt if there's both a
+         // We're duplicating the work to get the ref if there's both a
          // swizzle and an init, but almost no types are going to have both.
+        RouteRef base = current_base().route;
         if (auto swizzle = trav.desc->swizzle()) {
             AnyRef ref;
             trav.to_reference(&ref);
-            SharedRoute rt;
-            trav.to_route(&rt);
             IFTContext::current->swizzle_ops.emplace_back(
-                swizzle->f, move(ref), *trav.tree, move(rt)
+                base, move(ref), swizzle->f, *trav.tree
             );
         }
         if (auto init = trav.desc->init()) {
@@ -725,13 +739,11 @@ struct TraverseFromTree {
             }
             AnyRef ref;
             trav.to_reference(&ref);
-            SharedRoute rt;
-            trav.to_route(&rt);
             if (i == init_ops.size()) init_ops.emplace_back(
-                init->f, init->priority, move(ref), move(rt)
+                base, move(ref), init->f, init->priority
             );
             else init_ops.emplace(i,
-                init->f, init->priority, move(ref), move(rt)
+                base, move(ref), init->f, init->priority
             );
         }
     }

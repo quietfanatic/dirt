@@ -50,6 +50,9 @@ struct PushLikelyRef {
     PushLikelyRef* next;
 };
 
+using ScanPointersCB = CallbackRef<bool(AnyPtr, RouteRef)>;
+using ScanReferencesCB = CallbackRef<bool(const AnyRef&, RouteRef)>;
+
 ///// Scanning operations
  // You probably don't need to use these directly, but you can if you want.  The
  // route cache does not accelerate these functions.  These currently do a
@@ -68,12 +71,11 @@ struct PushLikelyRef {
  //     route.  If the callback returns true, the scan will be stopped.
  //   returns: true if the callback ever returned true.
 bool scan_pointers (
-    AnyPtr base_item, RouteRef base_rt,
-    CallbackRef<bool(AnyPtr, RouteRef)> cb
+    AnyPtr base_item, RouteRef base_rt, ScanPointersCB cb
 );
 
  // Scans all visible items under the given reference, whether or not they are
- // addressable.
+ // addressable.  Skips items with the no_refs_to_children.
  //   base_item: AnyRef to the item to start scanning at.
  //   base_rt: Route to the base item, or {} if you don't care.
  //   cb: Is called for each item with a reference to it and its route (based
@@ -84,26 +86,22 @@ bool scan_pointers (
  //     route.  If the callback returns true, the scan will be stopped.
  //   returns: true if the callback ever returned true.
 bool scan_references (
-    const AnyRef& base_item, RouteRef base_rt,
-    CallbackRef<bool(const AnyRef&, RouteRef)> cb
+    const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
+);
+
+ // What it says.  This is used internally for error reporting.
+bool scan_references_ignoring_no_refs_to_children (
+    const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
 );
 
  // Scan under a particular resource's data.  The route is automatically
  // determined from the resource's name.  This silently does nothing and returns
  // false if the resource's state is RS::Unloaded.
-bool scan_resource_pointers (
-    ResourceRef res, CallbackRef<bool(AnyPtr, RouteRef)> cb
-);
-bool scan_resource_references (
-    ResourceRef res, CallbackRef<bool(const AnyRef&, RouteRef)> cb
-);
+bool scan_resource_pointers (ResourceRef res, ScanPointersCB cb);
+bool scan_resource_references (ResourceRef res, ScanReferencesCB cb);
  // Scan all loaded resources.
-bool scan_universe_pointers (
-    CallbackRef<bool(AnyPtr, RouteRef)> cb
-);
-bool scan_universe_references (
-    CallbackRef<bool(const AnyRef&, RouteRef)> cb
-);
+bool scan_universe_pointers (ScanPointersCB cb);
+bool scan_universe_references (ScanReferencesCB cb);
 
  // This is true while there is an ongoing scan.  While this is true, you cannot
  // start a new scan.
