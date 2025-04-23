@@ -31,8 +31,8 @@ void dump_refs (Slice<AnyRef> rs) {
 void in::rethrow_with_route (RouteRef rt) {
     try { throw; }
     catch (Error& e) {
-        if (!e.get_tag("route")) {
-            e.add_tag("route", route_to_iri(rt).spec());
+        if (!e.get_tag("ayu::route")) {
+            e.add_tag("ayu::route", route_to_iri(rt).spec());
         }
         throw e;
     }
@@ -48,7 +48,7 @@ void in::rethrow_with_route (RouteRef rt) {
 #endif
             );
         }
-        e.add_tag("route", route_to_iri(rt).spec());
+        e.add_tag("ayu::route", route_to_iri(rt).spec());
         e.external = std::current_exception();
         throw e;
     }

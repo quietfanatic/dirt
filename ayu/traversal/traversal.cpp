@@ -160,4 +160,19 @@ void to_route_chain (const Traversal& trav, void* r) {
     }
 }
 
+void Traversal::wrap_exception () const {
+    try { throw; }
+    catch (Error& e) {
+        if (e.get_tag("ayu::route")) throw;
+        SharedRoute rt;
+        to_route(&rt);
+        rethrow_with_route(rt);
+    }
+    catch (...) {
+        SharedRoute rt;
+        to_route(&rt);
+        rethrow_with_route(rt);
+    }
+}
+
 } // ayu::in

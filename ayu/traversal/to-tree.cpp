@@ -368,7 +368,7 @@ UniqueString item_to_string (
 UniqueString show (
     const AnyRef& item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) noexcept {
-    return item_to_string(item, popts, rt, ttops | TTO::EmbedErrors);
+    return item_to_string(item, popts, rt, ttopts | TTO::EmbedErrors);
 }
 
 } using namespace ayu;

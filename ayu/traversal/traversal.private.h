@@ -283,12 +283,4 @@ void trav_delegate (
     trav_acr<visit, do_flags>(child, parent, acr, mode);
 }
 
-inline
-void Traversal::wrap_exception () const {
-     // TODO: don't call to_route() if not necessary
-    SharedRoute rt;
-    to_route(&rt);
-    rethrow_with_route(rt);
-}
-
 } // namespace ayu::in
