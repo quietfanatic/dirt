@@ -11,8 +11,7 @@ namespace ayu::in {
  // It has two purposes:
  //   1. Allow creating an AnyRef to the current item in case the current item
  //      is not addressable, without having to start over from the very
- //      beginning or duplicate work.  This is mainly to support swizzle and
- //      init ops.
+ //      beginning or duplicate work.
  //   2. Track the current route without any heap allocations, but allow
  //      getting an actual heap-allocated Route to the current item if needed
  //      for error reporting.
@@ -53,7 +52,6 @@ struct Traversal {
          // ToTreeTraversal.
         bool embed_errors;
     };
-    bool ignore_no_refs_to_children; // only used by ScanTraversal
      // Type information but without the readonly bit.
     const DescriptionPrivate* desc;
      // This address is not guaranteed to be permanently valid unless

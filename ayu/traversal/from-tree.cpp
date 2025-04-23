@@ -14,39 +14,12 @@ struct SwizzleOp {
     AnyRef item;
     SwizzleFunc<Mu>* f;
     Tree tree;
-
-    ALWAYS_INLINE
-    SwizzleOp (
-        RouteRef b, AnyRef&& i, SwizzleFunc<Mu>* f, const Tree& t
-    ) noexcept :
-        base(b), item(move(i)), f(f), tree(t)
-    { }
-     // Allow optimized reallocation
-    ALWAYS_INLINE
-    SwizzleOp (SwizzleOp&& o) {
-        std::memcpy((void*)this, &o, sizeof(SwizzleOp));
-        std::memset((void*)&o, 0, sizeof(SwizzleOp));
-    }
 };
 struct InitOp {
     SharedRoute base;
     AnyRef item;
     InitFunc<Mu>* f;
     double priority;
-
-     // This being noexcept allows UniqueArray::emplace to be smaller
-    ALWAYS_INLINE
-    InitOp (
-        RouteRef b, AnyRef&& i, InitFunc<Mu>* f,double p
-    ) noexcept :
-        base(b), item(move(i)), f(f), priority(p)
-    { }
-     // Allow optimized reallocation
-    ALWAYS_INLINE
-    InitOp (InitOp&& o) {
-        std::memcpy((void*)this, &o, sizeof(InitOp));
-        std::memset((void*)&o, 0, sizeof(InitOp));
-    }
 };
 struct IFTContext {
     static IFTContext* current;
@@ -170,12 +143,15 @@ struct TraverseFromTree {
         RouteRef base_rt = current_base().route;
         AnyRef base_ref = reference_from_route(base_rt);
         SharedRoute found_rt;
-        scan_references_ignoring_no_refs_to_children(
-            base_ref, base_rt,
-            [&](const AnyRef& item, RouteRef rt) {
-                return item == base_item && (found_rt = rt, true);
-            }
-        );
+        try {
+            scan_references_ignoring_no_refs_to_children(
+                base_ref, base_rt,
+                [&](const AnyRef& item, RouteRef rt) {
+                    return item == base_item && (found_rt = rt, true);
+                }
+            );
+        }
+        catch (...) { } // discard exception and leave found_rt blank
         rethrow_with_route(found_rt);
     }
 
@@ -725,11 +701,10 @@ struct TraverseFromTree {
          // swizzle and an init, but almost no types are going to have both.
         RouteRef base = current_base().route;
         if (auto swizzle = trav.desc->swizzle()) {
-            AnyRef ref;
-            trav.to_reference(&ref);
-            IFTContext::current->swizzle_ops.emplace_back(
-                base, move(ref), swizzle->f, *trav.tree
+            auto& op = IFTContext::current->swizzle_ops.emplace_back(
+                base, AnyRef(), swizzle->f, *trav.tree
             );
+            trav.to_reference(&op.item);
         }
         if (auto init = trav.desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
@@ -737,14 +712,8 @@ struct TraverseFromTree {
             for (i = init_ops.size(); i > 0; --i) {
                 if (init->priority <= init_ops[i-1].priority) break;
             }
-            AnyRef ref;
-            trav.to_reference(&ref);
-            if (i == init_ops.size()) init_ops.emplace_back(
-                base, move(ref), init->f, init->priority
-            );
-            else init_ops.emplace(i,
-                base, move(ref), init->f, init->priority
-            );
+            auto& op = init_ops.emplace(i, base, AnyRef(), init->f, init->priority);
+            trav.to_reference(&op.item);
         }
     }
 
