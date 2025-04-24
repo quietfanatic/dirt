@@ -168,11 +168,6 @@ struct Accessor {
         return r;
     }
 
-     // Adjusts flags after getting an address of the variable.
-    static void finish_access (
-        const Accessor*, AccessMode, Mu& to, AccessCB
-    );
-
     void inc () const {
          // Unlikely because most ACRs are constexpr.  This cannot be converted
          // to branchless code because the acr may be in a readonly region.

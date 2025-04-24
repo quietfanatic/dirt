@@ -20,6 +20,17 @@ struct InitOp {
     InitFunc<Mu>* f;
     double priority;
 };
+} }
+template <>
+struct uni::arrays::IsTriviallyRelocatableS<ayu::in::SwizzleOp> {
+    static constexpr bool value = true;
+};
+template <>
+struct uni::arrays::IsTriviallyRelocatableS<ayu::in::InitOp> {
+    static constexpr bool value = true;
+};
+namespace ayu { namespace in {
+
 struct IFTContext {
     static IFTContext* current;
     IFTContext* previous;
@@ -104,7 +115,7 @@ struct TraverseFromTree {
     void do_swizzle_init (IFTContext& ctx) {
         if (ctx.swizzle_ops) {
             ctx.swizzle_ops.consume([](SwizzleOp&& op){
-                //expect(!op.base->parent());
+                expect(!op.base->parent());
                 CurrentBase curb (op.base);
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
@@ -122,7 +133,7 @@ struct TraverseFromTree {
         }
         else if (ctx.init_ops) {
             ctx.init_ops.consume([](InitOp&& op){
-                //expect(!op.base->parent());
+                expect(!op.base->parent());
                 CurrentBase curb (op.base);
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
@@ -163,7 +174,11 @@ struct TraverseFromTree {
     void after_before (const FromTreeTraversal<>& trav) {
          // If description has a from_tree, just use that.
         if (auto from_tree = trav.desc->from_tree()) [[likely]] {
-            use_from_tree(trav, from_tree->f);
+             // Check this ahead of time for better tail calling capabilities
+            if (!!trav.desc->swizzle_offset | !!trav.desc->init_offset) {
+                use_from_tree_swizzle_init(trav, from_tree->f);
+            }
+            else from_tree->f(*trav.address, *trav.tree);
         }
          // Now check for values.  Values can be of any tree form now, not just
          // atomic forms.
@@ -219,11 +234,11 @@ struct TraverseFromTree {
 ///// FROM TREE STRATEGY
 
     NOINLINE static
-    void use_from_tree (
+    void use_from_tree_swizzle_init (
         const FromTreeTraversal<>& trav, FromTreeFunc<Mu>* f
     ) {
         f(*trav.address, *trav.tree);
-        finish_item(trav);
+        register_swizzle_init(trav);
     }
 
 ///// OBJECT STRATEGIES

@@ -189,6 +189,7 @@ struct CurrentBase {
     ~CurrentBase () {
         expect(current_base == this);
         current_base = old;
+        expect(route);
     }
 
     mutable IRI iri_; // Lazily generated

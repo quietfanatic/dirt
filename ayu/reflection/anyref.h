@@ -169,13 +169,11 @@ struct AnyRef {
      // be the item itself, or it may be a default-constructed clone which will
      // then be copied to the item.
     void write (AccessCB cb) const {
-        require_writeable();
         access(in::AccessMode::Write, cb);
     }
      // Modify the item.  The item may be modified in-place or it may do a
      // read-modify-write opreration.
     void modify (AccessCB cb) const {
-        require_writeable();
         access(in::AccessMode::Modify, cb);
     }
 

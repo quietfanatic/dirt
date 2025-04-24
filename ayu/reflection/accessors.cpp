@@ -8,8 +8,8 @@ namespace ayu::in {
  // noclone prevents removing unused parameter, which is necessary to match
  // signatures of other functions so they don't have to shuffle registers around
  // before jumping here.
-[[gnu::noclone]] NOINLINE
-void Accessor::finish_access (
+[[gnu::noclone]] NOINLINE static
+void finish_access (
     const Accessor* acr, AccessMode, Mu& to, AccessCB cb
 ) {
     Type t = acr->type;
@@ -22,14 +22,14 @@ static void access_Member (
     const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const MemberAcr<Mu, Mu>*>(acr);
-    Accessor::finish_access(acr, mode, from.*(self->mp), cb);
+    finish_access(acr, mode, from.*(self->mp), cb);
 }
 
 static void access_RefFunc (
     const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
 ) {
     auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(acr);
-    Accessor::finish_access(acr, mode, self->f(from), cb);
+    finish_access(acr, mode, self->f(from), cb);
 }
 
 static void access_Variable (
@@ -38,37 +38,44 @@ static void access_Variable (
      // Can't instantiate this with a To=Mu, because it has a To
      // embedded in it.
     auto self = static_cast<const VariableAcr<Mu, usize>*>(acr);
-    Accessor::finish_access(acr, mode, *(Mu*)&self->value, cb);
+    finish_access(acr, mode, *(Mu*)&self->value, cb);
 }
 
 static void access_ConstantPtr (
     const Accessor* acr, AccessMode mode, Mu&, AccessCB cb
 ) {
     auto self = static_cast<const ConstantPtrAcr<Mu, Mu>*>(acr);
-    Accessor::finish_access(acr, mode, *const_cast<Mu*>(self->pointer), cb);
+    finish_access(acr, mode, *const_cast<Mu*>(self->pointer), cb);
+}
+
+static void access_Functive (
+    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+) {
+    acr->access_func(acr, mode, from, cb);
 }
 
  // GCC's jump tables have problems with register allocation, so use our own.
  // This pathway is called a lot so it's worth optimizing it.
-static constexpr AccessFunc* access_table [10] = {
-    Accessor::finish_access, // Skip the noop
+static constexpr AccessFunc* access_table [] = {
+    finish_access, // Skip the noop
     access_Member,
     access_RefFunc,
     access_Variable,
-    access_ConstantPtr
+    access_ConstantPtr,
+    access_Functive,
+    access_Functive,
+    access_Functive,
+    access_Functive,
+    access_Functive
 };
 
-NOINLINE
 void Accessor::access (AccessMode mode, Mu& from, AccessCB cb) const {
     expect(mode == AccessMode::Read ||
            mode == AccessMode::Write ||
            mode == AccessMode::Modify
     );
     expect(!(flags & AcrFlags::Readonly) || mode == AccessMode::Read);
-    if (u8(form) >= u8(AF::Functive)) {
-        access_func(this, mode, from, cb);
-    }
-    else access_table[u8(form)](this, mode, from, cb);
+    access_table[u8(form)](this, mode, from, cb);
 }
 
 NOINLINE
@@ -137,10 +144,10 @@ bool operator== (const Accessor& a, const Accessor& b) {
         }
          // Other ACRs can have a diverse range of parameterized types, so
          // comparing their contents is not feasible.  Fortunately, they should
-         // all be statically generated, so if two ACRs refer to the same member
-         // of a type, they should have the same address.
-         // TODO: We now have more type information, so we can compare more
-         // types of accessors.
+         // mostly be statically generated, so if two ACRs refer to the same
+         // member of a type, they should have the same address.  TODO: We now
+         // have more type information, so we can compare more types of
+         // accessors.
         default: return false;
     }
 }

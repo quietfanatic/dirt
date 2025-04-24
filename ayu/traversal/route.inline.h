@@ -12,19 +12,22 @@ struct ReferenceRoute : Route {
         Route(RF::Reference), reference(move(ref))
     { expect(reference); }
 };
-struct KeyRoute : Route {
+struct ChildRoute : Route {
     SharedRoute parent;
-    AnyString key;
-    KeyRoute (SharedRoute p, AnyString k) :
-        Route(RF::Key), parent(move(p)), key(move(k))
+    ChildRoute (RouteForm f, SharedRoute p) : Route(f), parent(move(p))
     { expect(parent); }
 };
-struct IndexRoute : Route {
-    SharedRoute parent;
+struct KeyRoute : ChildRoute {
+    AnyString key;
+    KeyRoute (SharedRoute p, AnyString k) :
+        ChildRoute(RF::Key, move(p)), key(move(k))
+    { }
+};
+struct IndexRoute : ChildRoute {
     u32 index;
     IndexRoute (SharedRoute p, u32 i) :
-        Route(RF::Index), parent(move(p)), index(i)
-    { expect(parent); }
+        ChildRoute(RF::Index, move(p)), index(i)
+    { }
 };
 
 };
@@ -40,33 +43,21 @@ inline SharedRoute::SharedRoute (SharedRoute p, u32 i) noexcept :
 { }
 
 inline const AnyRef* Route::reference () const noexcept {
-    switch (form) {
-        case RF::Reference:
-            return &static_cast<const in::ReferenceRoute*>(this)->reference;
-        default: return null;
-    }
+    if (form != RF::Reference) return null;
+    else return &static_cast<const in::ReferenceRoute*>(this)->reference;
 }
 
 inline RouteRef Route::parent () const noexcept {
-    switch (form) {
-        case RF::Key: return static_cast<const in::KeyRoute*>(this)->parent;
-        case RF::Index:
-            return static_cast<const in::IndexRoute*>(this)->parent;
-        default: return {};
-    }
+    if (u8(form) < u8(RF::Key)) return {};
+    else return static_cast<const in::ChildRoute*>(this)->parent;
 }
 inline const AnyString* Route::key () const noexcept {
-    switch (form) {
-        case RF::Key: return &static_cast<const in::KeyRoute*>(this)->key;
-        default: return null;
-    }
+    if (form != RF::Key) return null;
+    else return &static_cast<const in::KeyRoute*>(this)->key;
 }
 inline const u32* Route::index () const noexcept {
-    switch (form) {
-        case RF::Index:
-            return &static_cast<const in::IndexRoute*>(this)->index;
-        default: return null;
-    }
+    if (form != RF::Index) return null;
+    else return &static_cast<const in::IndexRoute*>(this)->index;
 }
 
 inline RouteRef Route::root () const noexcept {

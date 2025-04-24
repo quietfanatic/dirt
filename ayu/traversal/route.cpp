@@ -32,6 +32,7 @@ ResourceRef Route::resource () const noexcept {
 
 namespace in {
 
+ // TODO: make this able to tail call itself
 NOINLINE
 void delete_Route (const Route* p) noexcept {
     switch (p->form) {
