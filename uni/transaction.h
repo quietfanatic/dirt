@@ -24,7 +24,7 @@ struct Transaction {
     static u32 depth;
 
     Transaction () { depth++; }
-    ~Transaction () { if (!--depth) finish(); }
+    ~Transaction () { if (!--depth && committers) finish(); }
 
     static UniqueArray<std::unique_ptr<Committer>> committers;
 

@@ -226,6 +226,15 @@ struct Uninitialized { usize size; };
  // Requests constructing with the given capacity but size 0
 struct Capacity { usize capacity; };
 
+template <class T>
+struct IsTriviallyRelocatableS {
+    static constexpr bool value =
+        std::is_trivially_move_constructible_v<T>
+        && std::is_trivially_destructible_v<T>;
+};
+template <class T>
+concept IsTriviallyRelocatable = IsTriviallyRelocatableS<T>::value;
+
 ///// ARRAY INTERFACE
 // The shared interface for all the array classes
 
@@ -1604,7 +1613,7 @@ struct ArrayInterface {
     void consume (F f) requires (
         ac::is_Unique && requires (T v) { f(move(v)); }
     ) {
-        if (!impl.data) return;
+        if (!impl.size) return;
         T* b = impl.data;
         T* e = impl.data + impl.size;
         impl = {};
@@ -1633,7 +1642,7 @@ struct ArrayInterface {
     void consume_reverse (F f) requires (
         ac::is_Unique && requires (T v) { f(move(v)); }
     ) {
-        if (!impl.data) return;
+        if (!impl.size) return;
         T* b = impl.data;
         T* p = impl.data + impl.size;
         impl = {};
@@ -1893,7 +1902,12 @@ struct ArrayInterface {
             self.remove_ref();
         }
         else if (self.unique()) {
-            try {
+            if (IsTriviallyRelocatable<T>) {
+                dat = (T*)std::memcpy(
+                    (void*)dat, self.impl.data, s * sizeof(T)
+                );
+            }
+            else try {
                 for (usize i = 0; i < s; ++i) {
                     new ((void*)&dat[i]) T(move(self.impl.data[i]));
                     self.impl.data[i].~T();
@@ -1947,7 +1961,16 @@ struct ArrayInterface {
              // We have enough capacity so all we need to do is move the tail.
              // Assume that the move constructor and destructor never throw even
              // if they aren't marked noexcept.
-            try {
+            if constexpr (IsTriviallyRelocatable<T>) {
+                if (auto s = self.size() - split) {
+                    std::memmove(
+                        (void*)(self.impl.data + (split + shift)),
+                        self.impl.data + split,
+                        s * sizeof(T)
+                    );
+                }
+            }
+            else try {
                  // Move elements forward, starting at the back
                 usize i = self.size();
                 while (i-- > split) {
@@ -1970,7 +1993,19 @@ struct ArrayInterface {
         if (self.unique()) {
              // Assume that the move constructor and destructor never throw even
              // if they aren't marked noexcept.
-            try {
+            if constexpr (IsTriviallyRelocatable<T>) {
+                dat = (T*)std::memcpy(
+                    (void*)dat,
+                    self.impl.data,
+                    split * sizeof(T)
+                );
+                std::memcpy(
+                    (void*)(dat + (split + shift)),
+                    self.impl.data + split,
+                    (self.size() - split) * sizeof(T)
+                );
+            }
+            else try {
                 for (usize i = 0; i < split; ++i) {
                     new ((void*)&dat[i]) T(move(self.impl.data[i]));
                     self.impl.data[i].~T();
@@ -1988,6 +2023,19 @@ struct ArrayInterface {
                  // Don't use remove_ref, it'll call the destructors again
                 SharableBuffer<T>::deallocate(self.impl.data);
             }
+        }
+        else if constexpr (std::is_trivially_copy_constructible_v<T>) {
+            dat = (T*)std::memcpy(
+                (void*)dat,
+                self.impl.data,
+                split * sizeof(T)
+            );
+            std::memcpy(
+                (void*)(dat + (split + shift)),
+                self.impl.data + split,
+                (self.size() - split) * sizeof(T)
+            );
+            --self.header().ref_count;
         }
         else if constexpr (std::is_copy_constructible_v<T>) { // Not unique
             usize head_i = 0;
@@ -2051,7 +2099,7 @@ struct ArrayInterface {
                  // specifications, and this algo isn't that important.
                 if constexpr (std::is_trivially_move_assignable_v<T>) {
                     std::memmove(
-                        self.impl.data + offset,
+                        (void*)(self.impl.data + offset),
                         self.impl.data + offset + count,
                         (old_size - offset - count) * sizeof(T)
                     );
@@ -2072,6 +2120,21 @@ struct ArrayInterface {
         else if (old_size - count == 0) {
             --self.header().ref_count;
             return null;
+        }
+        else if constexpr (std::is_trivially_copy_constructible_v<T>) {
+            T* dat = SharableBuffer<T>::allocate(old_size - count);
+            dat = (T*)std::memcpy(
+                (void*)dat,
+                self.impl.data,
+                offset * sizeof(T)
+            );
+            std::memcpy(
+                (void*)(dat + offset),
+                self.impl.data + (offset + count),
+                old_size - (offset + count)
+            );
+            --self.header().ref_count;
+            return dat;
         }
         else if constexpr (std::is_copy_constructible_v<T>) {
              // Not unique, so copy instead of moving

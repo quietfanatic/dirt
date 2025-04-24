@@ -19,7 +19,11 @@ namespace uni {
  //   - ...portability is more important than performance.
  // In other words, use memcmp instead of this. :3
  //
- // Unlike memcmp, you are allowed to pass nullptrs if s == 0.
+ // Unlike memcmp, you are allowed to pass nullptrs if s == 0.  Most memcmp
+ // implementations allow this but the language spec does not.
+ //
+ // Also, be aware that this returns true on equality and false on inequality,
+ // the opposite of memcmp.
 
 constexpr
 bool memeq (const void* a, const void* b, std::size_t s) {
@@ -76,16 +80,16 @@ bool memeq (const void* a, const void* b, std::size_t s) {
          // Do the more complex addressing first so s can be retired
         std::memcpy(&av, ap + s - 4, 4);
         std::memcpy(&bv, bp + s - 4, 4);
-        bool r = av == bv;
+        u32 x = av ^ bv;
         std::memcpy(&av, ap, 4);
         std::memcpy(&bv, bp, 4);
-        return r & (av == bv);
+        return !(x | (av ^ bv));
     }
-    else if (s) {
-         // There isn't really anything satisfying to do here.  This has been
-         // through many iterations.  It's mainly designed for small code size
-         // and minimal register usage and branch predictor pressure rather than
-         // performance.
+    else [[unlikely]] if (s) {
+         // There isn't really anything satisfying to do here.  We're
+         // prioritizing the speed of the longer strings, so here we're more
+         // concerned with register usage, code size, and branch predictor
+         // pressure than speed.
         if (s >= 2) {
             u16 av;
             u16 bv;
@@ -94,12 +98,11 @@ bool memeq (const void* a, const void* b, std::size_t s) {
             if (av != bv) return false;
         }
         return ap[0] == bp[0];
-         // Here's a really cool fully-branchless version.  Unfortunately
-         // the compiler likes to hoist the s-1 and s>>1 calculations out of
-         // loops, making it use too many registers.
-        //return (ap[s>>1] == bp[s>>1])
-        //     & (ap[s-1] == bp[s-1])
-        //     & (ap[0] == bp[0]);
+         // Here's a cool branchless version.  Unfortunately it tends to use
+         // more registers and compiles larger.
+        //return !((ap[s-1] ^ bp[s-1])
+        //       | (ap[s>>1] ^ bp[s>>1])
+        //       | (ap[0] ^ bp[0]));
     }
     else return true;
 }
