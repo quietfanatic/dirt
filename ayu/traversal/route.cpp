@@ -160,9 +160,9 @@ SharedRoute route_from_iri (const IRI& iri) {
     auto p = fragment.begin();
     auto end = fragment.end();
     SharedRoute r;
-    if (root_iri == current_base().iri()) {
+    if (current_base && root_iri == current_base->iri()) {
          // Allow addressing an item that isn't necessarily in a resource
-        new (&r) SharedRoute(current_base().route);
+        new (&r) SharedRoute(current_base->route);
     }
     else {
         new (&r) SharedRoute(ResourceRef(root_iri));
@@ -205,7 +205,7 @@ SharedRoute route_from_iri (const IRI& iri) {
 
 static Tree route_to_tree (const RouteRef& v) {
     auto iri = route_to_iri(v);
-    auto rel = iri.relative_to(current_base().iri());
+    auto rel = iri.relative_to(current_base->iri());
     return Tree(rel);
 }
 
@@ -215,7 +215,7 @@ AYU_DESCRIBE(ayu::SharedRoute,
     to_tree([](const SharedRoute& v){ return route_to_tree(v); }),
     from_tree([](SharedRoute& v, const Tree& t){
         auto rel = Str(t);
-        auto iri = IRI(rel, current_base().iri());
+        auto iri = IRI(rel, current_base->iri());
         v = route_from_iri(iri);
     })
 );

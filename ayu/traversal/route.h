@@ -11,8 +11,8 @@
 // of a AnyRef, explaining how to reach the referend from the root Resource by a
 // chain of item_attr() and item_elem() calls.  In ADT syntax, it looks like
 //
-//     data Route = RootRoute Resource
-//                | RefRoute AnyRef
+//     data Route = ResourceRoute Resource
+//                | ReferenceRoute AnyRef
 //                | KeyRoute Route AnyString
 //                | IndexRoute Route u32
 //
@@ -145,29 +145,54 @@ inline AnyRef reference_from_iri (const IRI& iri) {
 
 constexpr ErrorCode e_RouteIRIInvalid = "ayu::e_RouteIRIInvalid";
 
-///// BASE MANAGEMENT
+///// CURRENT BASE MANAGEMENT
 
-struct RouteWithIRI {
-    SharedRoute route;
-    mutable IRI iri_;
-    constexpr RouteWithIRI () { }
-    RouteWithIRI (SharedRoute rt) : route(move(rt)) { }
-    const IRI& iri () const noexcept; // lazily call route_to_iri
-};
+ // This API is publicly visible but it's probably not very useful to use
+ // directly.
 
- // Get the current base.
- // The route is always a resource or reference route.
- // The IRI will never have a fragment.  When serializing IRIs with AYU, they
- // will be read and written as relative IRI reference strings relative to this
- // IRI.
-const RouteWithIRI& current_base () noexcept;
+ // Similar to web documents, there's a concept of a base IRI.  Relative IRI
+ // reference strings are read and written relative to this base IRI.  The
+ // current base is set whenever a traversal operation happens.  If the
+ // traversal operation is passed a route, the base route is the root of that
+ // route.  If not, it's an anonymous reference route of whatever reference was
+ // passed to the traversal operation.
+struct CurrentBase;
 
- // Temporarily set the given route's root() as the current base route.  This is
- // called in item_to_tree and item_from_tree.
-struct PushCurrentBase {
-    RouteWithIRI old_base;
-    [[nodiscard]] PushCurrentBase (RouteRef) noexcept;
-    ~PushCurrentBase ();
+ // Null if there is no current base.  This will never be null during a
+ // traversal operation, and by extension during any to_tree or from_tree
+ // function.  It is not guaranteed to be non-null during a computed_attr or
+ // computed_elem function, or during any accessor functions, because those
+ // could be called by using AnyRefs, not just during traversals.
+inline const CurrentBase* current_base = null;
+
+struct CurrentBase {
+    SharedRoute route; // Always a Resource Route or Reference Route.
+    const IRI& iri () const noexcept;
+
+     // Creating a CurrentBase object will set the current base to the given
+     // route's root (and its corresponding IRI) and destroying it will revert
+     // the current base to what it was before.  You can have multiple
+     // CurrentBase objects and they act like a stack.  They must be destroying
+     // in reverse order of construction.
+     //
+     // You probably mostly do not want to set the CurrentBase yourself.
+    CurrentBase (RouteRef rt) : route(rt->root()) {
+        old = current_base;
+        current_base = this;
+    }
+    CurrentBase (RouteRef rt, const AnyRef& item) :
+        route(rt ? SharedRoute(rt->root()) : SharedRoute(item))
+    {
+        old = current_base;
+        current_base = this;
+    }
+    ~CurrentBase () {
+        expect(current_base == this);
+        current_base = old;
+    }
+
+    mutable IRI iri_; // Lazily generated
+    const CurrentBase* old;
 };
 
 } // namespace ayu

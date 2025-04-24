@@ -94,7 +94,7 @@ struct TraverseFromTree {
     void start_without_context (
         const AnyRef& item, const Tree& tree, RouteRef rt
     ) {
-        PushCurrentBase pcb(rt ? rt : RouteRef(SharedRoute(item)));
+        CurrentBase curb (rt, item);
         FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
         trav_start<visit>(child, item, rt, AccessMode::Write);
@@ -104,7 +104,8 @@ struct TraverseFromTree {
     void do_swizzle_init (IFTContext& ctx) {
         if (ctx.swizzle_ops) {
             ctx.swizzle_ops.consume([](SwizzleOp&& op){
-                PushCurrentBase pcb (op.base);
+                //expect(!op.base->parent());
+                CurrentBase curb (op.base);
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
                         op.f(*v.address, op.tree);
@@ -121,7 +122,8 @@ struct TraverseFromTree {
         }
         else if (ctx.init_ops) {
             ctx.init_ops.consume([](InitOp&& op){
-                PushCurrentBase pcb (op.base);
+                //expect(!op.base->parent());
+                CurrentBase curb (op.base);
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
                         op.f(*v.address);
@@ -679,12 +681,11 @@ struct TraverseFromTree {
 
     NOINLINE static
     void register_swizzle_init (const FromTreeTraversal<>& trav) {
-         // We're duplicating the work to get the ref if there's both a
-         // swizzle and an init, but almost no types are going to have both.
-        RouteRef base = current_base().route;
+         // We're repeating the to_reference work if there's both a swizzle and
+         // an init, but almost no types are going to have both.
         if (auto swizzle = trav.desc->swizzle()) {
             auto& op = IFTContext::current->swizzle_ops.emplace_back(
-                base, AnyRef(), swizzle->f, *trav.tree
+                current_base->route, AnyRef(), swizzle->f, *trav.tree
             );
             trav.to_reference(&op.item);
         }
@@ -694,7 +695,9 @@ struct TraverseFromTree {
             for (i = init_ops.size(); i > 0; --i) {
                 if (init->priority <= init_ops[i-1].priority) break;
             }
-            auto& op = init_ops.emplace(i, base, AnyRef(), init->f, init->priority);
+            auto& op = init_ops.emplace(
+                i, current_base->route, AnyRef(), init->f, init->priority
+            );
             trav.to_reference(&op.item);
         }
     }

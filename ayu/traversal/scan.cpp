@@ -49,9 +49,7 @@ struct TraverseScan {
                 }
             )
         };
-        PushCurrentBase pcb (base_rt ? base_rt : RouteRef(
-            SharedRoute(AnyRef(base_item))
-        ));
+        CurrentBase curb (base_rt, base_item);
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.rt = base_rt;
@@ -90,7 +88,7 @@ struct TraverseScan {
                 cb, ignore_no_refs_to_children ? cbcb_ignore : cbcb
             )
         };
-        PushCurrentBase pcb (base_rt ? base_rt : RouteRef(SharedRoute(base_item)));
+        CurrentBase curb (base_rt, base_item);
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.rt = base_rt;
@@ -434,11 +432,11 @@ bool scan_resource_references (ResourceRef res, ScanReferencesCB cb) {
 }
 
 bool scan_universe_pointers (ScanPointersCB cb) {
-    if (auto rt = current_base().route) {
-        if (auto ref = rt->reference()) {
-            if (auto address = ref->address()) {
-               scan_pointers(address, rt, cb);
-            }
+    if (current_base) {
+        auto rt = current_base->route;
+        if (auto ref = rt->reference())
+        if (auto address = ref->address()) {
+           scan_pointers(address, rt, cb);
         }
     }
     for (auto& [_, res] : universe().resources) {
@@ -453,11 +451,11 @@ bool scan_universe_references (ScanReferencesCB cb) {
      // it's not in a Resource (so we don't duplicate work).
      // TODO: Maybe don't do this if the traversal was started by a scan,
      // instead of by a serialize.
-    if (auto rt = current_base().route) {
-        if (auto ref = rt->reference()) {
-            if (scan_references(*ref, rt, cb)) {
-                return true;
-            }
+    if (current_base) {
+        auto rt = current_base->route;
+        if (auto ref = rt->reference())
+        if (scan_references(*ref, rt, cb)) {
+            return true;
         }
     }
     for (auto& [_, res] : universe().resources) {
