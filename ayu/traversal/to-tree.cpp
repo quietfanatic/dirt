@@ -223,7 +223,7 @@ struct TraverseToTree {
         keys_acr->read(*trav.address,
             AccessCB(object, [](auto& object, AnyPtr v, bool)
         {
-            require_readable_keys(v.type);
+            require_readable_keys(v.type());
             auto& keys = reinterpret_cast<
                 const AnyArray<AnyString>&
             >(*v.address);

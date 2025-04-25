@@ -122,9 +122,9 @@ void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
     if constexpr (do_flags) {
         child.addressable &= addr;
         child.children_addressable |= child.addressable;
-        child.readonly |= v.type.readonly();
+        child.readonly |= v.readonly();
     }
-    child.desc = v.type.description();
+    child.desc = v.type().description();
     child.address = v.address;
     visit(child);
 }
@@ -143,7 +143,7 @@ void trav_start (
         child.addressable = true;
         child.children_addressable = ref.acr &&
             !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
-        child.readonly = ref.host.type.readonly();
+        child.readonly = ref.host.readonly();
     }
     child.reference = &ref;
     child.route = rt;
@@ -184,7 +184,7 @@ void trav_ref (
         child.addressable = parent.children_addressable;
         child.children_addressable = ref.acr &&
             !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
-        child.readonly = parent.readonly | ref.host.type.readonly();
+        child.readonly = parent.readonly | ref.host.readonly();
     }
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
@@ -202,9 +202,9 @@ void trav_ptr (
     if constexpr (do_flags) {
         child.addressable = parent.children_addressable;
         child.children_addressable = parent.children_addressable;
-        child.readonly = parent.readonly | ptr.type.readonly();
+        child.readonly = parent.readonly | ptr.readonly();
     }
-    child.desc = ptr.type.description();
+    child.desc = ptr.type().description();
     child.address = ptr.address;
     visit(child);
 }

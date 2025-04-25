@@ -17,10 +17,10 @@ void access_Typed (
     const Accessor* acr, Mu& to, AccessCB cb, AccessMode
 ) {
     auto self = static_cast<const TypedAcr*>(acr);
-    Type t = self->type;
-    t.data |= !!(self->flags & AcrFlags::Readonly);
-    bool addressable = !(self->flags & AcrFlags::Unaddressable);
-    cb(AnyPtr(t, &to), addressable);
+    cb(
+        AnyPtr(self->type, &to, !!(self->flags & AcrFlags::Readonly)),
+        !(self->flags & AcrFlags::Unaddressable)
+    );
 }
 
 void access_Member (
@@ -35,10 +35,10 @@ void access_RefFunc (
 ) {
     auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(acr);
     Mu& to = self->f(from);
-    Type t = self->type;
-    t.data |= !!(self->flags & AcrFlags::Readonly);
-    bool addressable = !(self->flags & AcrFlags::Unaddressable);
-    cb(AnyPtr(t, &to), addressable);
+    cb(
+        AnyPtr(self->type, &to, !!(self->flags & AcrFlags::Readonly)),
+        !(self->flags & AcrFlags::Unaddressable)
+    );
 }
 
 void access_ConstantPtr (
@@ -52,7 +52,8 @@ void access_AnyRefFunc (
     const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
-     // Just pass on the call
+     // Just pass on the call.
+     // TODO: propagate readonly bit?
     self->f(from).access(mode, cb);
 }
 
@@ -61,7 +62,7 @@ void access_AnyPtrFunc (
 ) {
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
-    ptr.type.data |= !!(self->flags & AcrFlags::Readonly);
+    ptr.type_i |= !!(self->flags & AcrFlags::Readonly);
     cb(ptr, !(self->flags & AcrFlags::Unaddressable));
 }
 
@@ -185,7 +186,7 @@ void access_ChainDataFunc (
 #endif
             AnyPtr x = frame.self->f(*w.address);
             x.address = (Mu*)(
-                (char*)x.address + frame.self->index * x.type.cpp_size()
+                (char*)x.address + frame.self->index * x.type().cpp_size()
             );
             bool addr = o_addr
                       & !(frame.self->flags & AcrFlags::Unaddressable);
@@ -347,13 +348,13 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
 
     BaseAcr<SubThing, Thing>{{}}.read(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
-            is(thing.type, Type::For<Thing>());
+            is(thing.type(), Type::For<Thing>());
             is(reinterpret_cast<Thing&>(*thing.address).b, 8, "BaseAcr::read");
         }
     );
     BaseAcr<SubThing, Thing>{{}}.write(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thing, bool){
-            is(thing.type, Type::For<Thing>());
+            is(thing.type(), Type::For<Thing>());
             auto& th = reinterpret_cast<Thing&>(*thing.address);
             th.a = 77;
             th.b = 88;
@@ -362,7 +363,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     is(thing2.b, 88, "BaseAcr::write");
     BaseAcr<SubThing, Thinger>{{}}.write(reinterpret_cast<Mu&>(thing2),
         [&](AnyPtr thinger, bool){
-            is(thinger.type, Type::For<Thinger>());
+            is(thinger.type(), Type::For<Thinger>());
             auto& thr = reinterpret_cast<Thinger&>(*thinger.address);
             thr.d = 101;
         }

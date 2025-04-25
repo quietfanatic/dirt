@@ -60,14 +60,15 @@ struct AnyRef {
      // Construct from native pointer.  Explicit for AnyPtr* and AnyRef*,
      // because that's likely to be a mistake.
     template <class T> requires (
-        !std::is_same_v<std::remove_cv_t<T>, void> &&
-        !std::is_same_v<std::remove_cv_t<T>, Mu>
-    ) explicit (
-        std::is_same_v<std::remove_cv_t<T>, AnyPtr> ||
-        std::is_same_v<std::remove_cv_t<T>, AnyRef>
+        Describable<std::remove_const_t<T>>
+    )
+    explicit (
+        std::is_same_v<std::remove_const_t<T>, AnyPtr> ||
+        std::is_same_v<std::remove_const_t<T>, AnyRef>
     ) AnyRef (T* p) : host(p), acr(null) { }
      // Construct from unknown pointer and type
     constexpr AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
+    AnyRef (Type t, Mu* p, bool readonly) : host(t, p, readonly), acr(null) { }
      // For use in attr_func and elem_func.
     template <class From, class Acr> requires (
         std::is_same_v<typename Acr::AcrFromType, From>
@@ -105,12 +106,12 @@ struct AnyRef {
 
      // Get type of referred-to item
     constexpr Type type () const {
-        return address().type;
+        return address().type();
     }
 
      // Writing through this reference throws if this is true
     bool readonly () const {
-        bool r = host.type.readonly();
+        bool r = host.readonly();
         if (acr) r |= !!(acr->flags & in::AcrFlags::Readonly);
         return r;
     }
@@ -124,7 +125,8 @@ struct AnyRef {
         return !acr || !(acr->flags & in::AcrFlags::Unaddressable);
     }
 
-     // Returns typed null if this reference is not addressable.
+     // Returns typed null if this reference is not addressable.  TODO:
+     // propagate readonly from host
     constexpr AnyPtr address () const {
         if (!acr) [[likely]] return host;
         else return acr->address(*host.address);
@@ -133,12 +135,12 @@ struct AnyRef {
     Mu* address_as (Type t) const {
         return address().upcast_to(t).address;
     }
-    template <class T>
+    template <class T> requires (Describable<std::remove_const_t<T>>)
     T* address_as () const {
         if constexpr (!std::is_const_v<T>) {
             require_writeable();
         }
-        return (T*)address_as(Type::For<T>());
+        return (T*)address_as(Type::For<std::remove_const_t<T>>());
     }
 
     [[noreturn]] void raise_Unaddressable () const;
@@ -151,9 +153,12 @@ struct AnyRef {
     Mu* require_address_as (Type t) const {
         return require_address().upcast_to(t).address;
     }
-    template <class T>
+    template <class T> requires (Describable<std::remove_const_t<T>>)
     T* require_address_as () const {
-        return (T*)require_address_as(Type::For<T>());
+        if constexpr (!std::is_const_v<T>) {
+            require_writeable();
+        }
+        return (T*)require_address_as(Type::For<std::remove_const_t<T>>());
     }
 
      // Callback passed to access functions.  The first parameter is a pointer

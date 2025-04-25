@@ -79,7 +79,7 @@ struct TraverseGetKeys {
         keys_acr->read(*trav.address,
             AccessCB(*trav.keys, [](auto& keys, AnyPtr v, bool)
         {
-            require_readable_keys(v.type);
+            require_readable_keys(v.type());
             auto& ks = reinterpret_cast<const AnyArray<AnyString>&>(*v.address);
             for (auto& key : ks) {
                 collect(keys, AnyString(key));
@@ -219,7 +219,7 @@ struct TraverseSetKeys {
         keys_acr->write(*trav.address,
             AccessCB(move(*trav.keys), [](auto&& keys, AnyPtr v, bool)
         {
-            require_writeable_keys(v.type);
+            require_writeable_keys(v.type());
             auto& ks = reinterpret_cast<AnyArray<AnyString>&>(*v.address);
             ks = move(keys);
         }));
@@ -236,7 +236,7 @@ struct TraverseSetKeys {
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
-            require_readable_keys(v.type);
+            require_readable_keys(v.type());
             auto& ks = reinterpret_cast<AnyArray<AnyString>&>(*v.address);
             new (&keys) AnyArray<AnyString>(ks);
         }));
@@ -417,7 +417,7 @@ struct TraverseGetLength {
 
     static
     void visit (u32& len, AnyPtr item, bool) {
-        auto desc = item.type.description();
+        auto desc = item.type().description();
         if (auto acr = desc->length_acr()) {
             read_length_acr(len, item, acr);
         }
@@ -427,7 +427,7 @@ struct TraverseGetLength {
         else if (auto acr = desc->delegate_acr()) {
             acr->read(*item.address, AccessCB(len, &visit));
         }
-        else raise_ElemsNotSupported(item.type);
+        else raise_ElemsNotSupported(item.type());
     }
 };
 
@@ -450,21 +450,21 @@ struct TraverseSetLength {
 
     NOINLINE static
     void visit (u32& len, AnyPtr item, bool) {
-        auto desc = item.type.description();
+        auto desc = item.type().description();
         if (auto acr = desc->length_acr()) {
             write_length_acr(len, item, acr);
         }
         else if (auto elems = desc->elems()) {
             u32 min = elems->chop_flag(AttrFlags::Optional);
             if (len < min || len > elems->n_elems) {
-                raise_LengthRejected(item.type, min, elems->n_elems, len);
+                raise_LengthRejected(item.type(), min, elems->n_elems, len);
             }
         }
         else if (auto acr = desc->delegate_acr()) {
              // TODO: enforce nonreadonly
             acr->modify(*item.address, AccessCB(len, &visit));
         }
-        else raise_ElemsNotSupported(item.type);
+        else raise_ElemsNotSupported(item.type());
     }
 };
 
@@ -557,7 +557,7 @@ struct TraverseElem {
         auto f = trav.desc->contiguous_elems()->f;
         AnyPtr ptr = f(*trav.address);
         ptr.address = (Mu*)(
-            (char*)ptr.address + trav.index * ptr.type.cpp_size()
+            (char*)ptr.address + trav.index * ptr.type().cpp_size()
         );
         ReturnRefTraversal<ContiguousElemTraversal> child;
         child.r = trav.r;
@@ -601,7 +601,7 @@ AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
 
 void in::read_length_acr_cb (u32& len, AnyPtr v, bool) {
     u64 l;
-    Type t = v.type.remove_readonly();
+    Type t = v.type();
     if (t == Type::For<u32>()) {
         l = reinterpret_cast<const u32&>(*v.address);
     }
@@ -617,14 +617,14 @@ void in::read_length_acr_cb (u32& len, AnyPtr v, bool) {
 
 void in::write_length_acr_cb (u32& len, AnyPtr v, bool) {
     expect(len <= AnyArray<Tree>::max_size_);
-    if (v.type == Type::For<u32>()) {
+    if (v.type() == Type::For<u32>()) {
         reinterpret_cast<u32&>(*v.address) = len;
     }
-    else if (v.type == Type::For<u64>()) {
+    else if (v.type() == Type::For<u64>()) {
         reinterpret_cast<u64&>(*v.address) = len;
     }
     else {
-        raise_LengthTypeInvalid(Type(), v.type);
+        raise_LengthTypeInvalid(Type(), v.type());
     }
 }
 

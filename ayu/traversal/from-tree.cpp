@@ -507,7 +507,7 @@ struct TraverseFromTree {
         keys_acr->write(*trav.address,
             AccessCB(move(keys), [](auto&& keys, AnyPtr v, bool)
         {
-            require_writeable_keys(v.type);
+            require_writeable_keys(v.type());
             reinterpret_cast<AnyArray<AnyString>&>(*v.address) = move(keys);
         }));
         expect(!keys.owned());
@@ -523,7 +523,7 @@ struct TraverseFromTree {
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
-            require_readable_keys(v.type);
+            require_readable_keys(v.type());
             new (&keys) AnyArray<AnyString>(
                 reinterpret_cast<AnyArray<AnyString>&>(*v.address)
             );
@@ -632,7 +632,7 @@ struct TraverseFromTree {
                 trav_contiguous_elem<visit>(
                     child, trav, ptr, f, i, AccessMode::Write
                 );
-                ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
+                ptr.address = (Mu*)((char*)ptr.address + ptr.type().cpp_size());
             }
         }
         finish_item(trav);

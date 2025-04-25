@@ -2,8 +2,9 @@
 
 namespace ayu::in {
 
+ // TODO: merge these
 inline void require_readable_keys (Type t) {
-    if (t.remove_readonly() != Type::For<AnyArray<AnyString>>()) {
+    if (t != Type::For<AnyArray<AnyString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
 }
@@ -34,7 +35,7 @@ inline void write_length_acr (
         u32 expected;
         read_length_acr(expected, item, length_acr);
         if (len != expected) {
-            raise_LengthRejected(item.type, expected, expected, len);
+            raise_LengthRejected(item.type(), expected, expected, len);
         }
     }
 }

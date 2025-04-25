@@ -189,7 +189,7 @@ struct TraverseScan {
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, AnyPtr v, bool)
         {
-            require_readable_keys(v.type);
+            require_readable_keys(v.type());
             new (&keys) AnyArray<AnyString>(
                 reinterpret_cast<const AnyArray<AnyString>&>(*v.address)
             );
@@ -296,7 +296,7 @@ struct TraverseScan {
             );
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
-            ptr.address = (Mu*)((char*)ptr.address + ptr.type.cpp_size());
+            ptr.address = (Mu*)((char*)ptr.address + ptr.type().cpp_size());
         }
     }
 
@@ -373,15 +373,15 @@ const Pair<AnyPtr, SharedRoute>* search_route_cache (AnyPtr item) {
         u32 mid = (top + bottom) / 2;
         auto& e = route_cache[mid];
         if (e.first.address == item.address) {
-            usize aa = e.first.type.remove_readonly().data;
-            usize bb = item.type.remove_readonly().data;
+            Type aa = e.first.type();
+            Type bb = item.type();
             if (aa == bb) return &e;
             bool up = aa < bb;
             if (up) bottom = mid + 1;
             if (!up) top = mid;
         }
         else {
-            bool up = (usize)e.first.address < (usize)item.address;
+            bool up = e.first.address < item.address;
             if (up) bottom = mid + 1;
             if (!up) top = mid;
         }
@@ -559,7 +559,7 @@ SharedRoute pointer_to_route (AnyPtr item) {
         return r;
     }
     else raise(e_ReferenceNotFound, cat(
-        "Couldn't locate pointer target of type ", item.type.name()
+        "Couldn't locate pointer target of type ", item.type().name()
     ));
 }
 

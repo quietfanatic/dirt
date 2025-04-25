@@ -172,7 +172,7 @@ void Document::delete_ (Type t, Mu* p) noexcept {
 void Document::delete_named (Str name) {
     AnyPtr p = find_with_name(name);
     if (!p) raise(e_DocumentItemNotFound, name);
-    delete_(p.type, p.address);
+    delete_(p.type(), p.address);
 }
 
 void Document::deallocate (void* p) noexcept {

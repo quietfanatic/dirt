@@ -110,11 +110,12 @@ static void raise_TypeCantCast (Type from, Type to) {
 
  // in current gcc, this optimization interferes with conditional moves
 [[gnu::optimize("-fno-thread-jumps")]]
-Type::Type (Str name, bool readonly) {
+Type::Type (Str name) {
     auto& r = registry();
     if (!r.initted) [[unlikely]] init_names();
     if (!name) {
-        ptr = null; return;
+        data = null;
+        return;
     }
     auto h = uni::hash(name);
     u32 bottom = 0;
@@ -125,8 +126,7 @@ Type::Type (Str name, bool readonly) {
         if (e.hash == h) [[unlikely]] {
             Str n = get_type_name_cached(e.value);
             if (n == name) [[likely]] {
-                ptr = e.value;
-                if (readonly) data |= 1;
+                data = e.value;
                 return;
             }
             else if (n.size() == name.size()) {
@@ -140,7 +140,7 @@ Type::Type (Str name, bool readonly) {
             if (!up) top = mid;
         }
     }
-    raise(e_TypeNotFound, cat(
+    raise(e_TypeNameNotFound, cat(
         "Did not find type named ", name
     ));
 }
@@ -217,12 +217,12 @@ void Type::delete_ (Mu* p) const {
 
 Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (!to || !p) return null;
-    if (*this == to.remove_readonly()) return p;
+    if (*this == to) return p;
 
     auto desc = description();
     if (auto delegate = desc->delegate_acr())
     if (AnyPtr a = delegate->address(*p))
-    if (Mu* b = a.type.try_upcast_to(to, a.address))
+    if (Mu* b = a.type().try_upcast_to(to, a.address))
         return b;
 
     if (!desc->keys_acr())
@@ -231,7 +231,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
         auto acr = attrs->attr(i)->acr();
         if (!!(acr->attr_flags & AttrFlags::Include))
         if (AnyPtr a = acr->address(*p))
-        if (Mu* b = a.type.try_upcast_to(to, a.address))
+        if (Mu* b = a.type().try_upcast_to(to, a.address))
             return b;
     }
 
@@ -241,7 +241,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
         auto acr = elems->elem(i)->acr();
         if (!!(acr->attr_flags & AttrFlags::Include))
         if (AnyPtr a = acr->address(*p))
-        if (Mu* b = a.type.try_upcast_to(to, a.address))
+        if (Mu* b = a.type().try_upcast_to(to, a.address))
             return b;
     }
     return null;
@@ -254,22 +254,17 @@ Mu* Type::upcast_to (Type to, Mu* p) const {
 
 } using namespace ayu;
 
+ // TODO: use to_tree and from_tree
 AYU_DESCRIBE(ayu::Type,
     values(
         value(null, Type())
     ),
     delegate(mixed_funcs<AnyString>(
         [](const Type& v){
-            if (v.readonly()) {
-                return AnyString(cat(" const", v.name()));
-            }
-            else return AnyString(v.name());
+            return AnyString(v.name());
         },
         [](Type& v, const AnyString& m){
-            if (m.substr(m.size() - 6) == " const") {
-                v = Type(m.substr(0, m.size() - 6), true);
-            }
-            else v = Type(m);
+            v = Type(m);
         }
     ))
 )

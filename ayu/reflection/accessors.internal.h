@@ -276,11 +276,15 @@ struct BaseAcr : FunctiveAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static void _access (
-        const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
+        const Accessor* acr, Mu& from, AccessCB cb, AccessMode
     ) {
+        auto self = static_cast<const BaseAcr<From, To>*>(acr);
          // reinterpret then implicit upcast
         To& to = reinterpret_cast<From&>(from);
-        access_Typed(acr, reinterpret_cast<Mu&>(to), cb, mode);
+        cb(
+            AnyPtr(Type::For<To>(), (Mu*)&to, !!(self->flags & AcrFlags::Readonly)),
+            !(self->flags & AcrFlags::Unaddressable)
+        );
     }
     explicit constexpr BaseAcr (AcrFlags flags) :
         FunctiveAcr(AF::Functive, &_access, flags)

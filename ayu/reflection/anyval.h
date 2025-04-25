@@ -4,8 +4,8 @@
 // unlike AnyRef, there is no "null" AnyVal which has type and no value.  If
 // there is a type there is a value, and vice versa.
 //
-// AnyVals can either be statically const (e.g. const AnyVal&) or dynamically
-// const (having a readonly type).  Arguably the latter is not very useful.
+// AnyVals can be statically const (const AnyVal&) but not dynamically const
+// (readonly) like AnyPtr.
 //
 // AnyVals cannot be constructed until main() starts (except for the empty
 // AnyVal).
@@ -76,7 +76,7 @@ struct AnyVal {
     constexpr bool empty () const { return !*this; }
      // Get AnyPtr to the value
     constexpr AnyPtr ptr () { return AnyPtr(type, data); }
-    AnyPtr readonly_ptr () const { return AnyPtr(type.add_readonly(), data); }
+    AnyPtr readonly_ptr () const { return AnyPtr(type, data, true); }
      // Runtime casting
     Mu& as (Type t) {
         return *type.upcast_to(t, data);
