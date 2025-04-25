@@ -2,10 +2,9 @@
 // destructable, and can be casted from and to native pointers.
 //
 // AnyPtr can represent pointers-to-const (called readonly pointers) but not
-// pointers-to-volatile.
-//
-// AnyPtrs cannot be constructed until main() starts (except for the typeless
-// empty AnyPtr).
+// pointers-to-volatile.  The reason it's called readonly is not just because
+// const is a keyword.  It's also because it's considered a property of the
+// AnyPtr, not the thing being pointed to.
 #pragma once
 #include "../../uni/hash.h"
 #include "type.h"
@@ -14,7 +13,7 @@ namespace ayu {
 
 struct AnyPtr {
      // Usually putting metadata before data is faster but for some reason it
-     // appears to work better this way
+     // appears to work better this way.  TODO: reverify this
     Mu* address;
     union {
         const void* type_p;

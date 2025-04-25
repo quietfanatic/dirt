@@ -139,7 +139,7 @@ struct TraverseToTree {
             trav_attr<visit, false>(
                 child, trav, attr->acr(), attr->key, AccessMode::Read
             );
-            child.dest->flags |= child.acr->tree_flags();
+            child.dest->flags |= child.acr->tree_flags;
         }
          // Then if there are included or collapsed attrs, rebuild the object
          // while flattening them.
@@ -263,7 +263,7 @@ struct TraverseToTree {
             trav_elem<visit, false>(
                 child, trav, acr, i, AccessMode::Read
             );
-            child.dest->flags |= child.acr->tree_flags();
+            child.dest->flags |= child.acr->tree_flags;
         }
         new (trav.dest) Tree(move(array));
     }
@@ -324,7 +324,7 @@ struct TraverseToTree {
         child.dest = trav.dest;
         child.embed_errors = trav.embed_errors;
         trav_delegate<visit, false>(child, trav, acr, AccessMode::Read);
-        child.dest->flags |= child.acr->tree_flags();
+        child.dest->flags |= child.acr->tree_flags;
     }
 
 ///// ERRORS

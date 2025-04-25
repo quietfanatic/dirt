@@ -11,6 +11,12 @@ namespace ayu::in {
  // It's primary purpose is to allow creating an AnyRef to the current item in
  // case the current item is not addressable, but without having to start over
  // from the beginning, and without requiring any heap allocations otherwise.
+ //
+ // A Traversal has two dimensions of subtyping.  One is the particular step
+ // being performed (attr, elem, delegate, etc), here called the TraversalOp.
+ // The other one is the overall serialization operation being performed
+ // (to_tree, from_tree, scan, etc).  The latter subtypes attach data to the
+ // beginning of the Traversal, not the end.
 enum class TraversalOp : u8 {
     Start,
     Acr,

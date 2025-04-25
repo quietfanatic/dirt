@@ -26,7 +26,7 @@ enum class Form : u8 {
 
  // Options that control how a Tree is printed.  These do not have any effect on
  // the semantics of the Tree, and they do not affect subtrees.
-enum class TreeFlags : u16 {
+enum class TreeFlags : u8 {
      // For Number: Print the number as hexadecimal.
     PreferHex = 0x1,
      // For Array or Object: When pretty-printing, print this item compactly,
@@ -43,7 +43,7 @@ enum class TreeFlags : u16 {
      // which one takes priority is unspecified.
     PreferExpanded = 0x4,
      // For internal use only.  Ignore this.
-    ValueIsPtr = 0x8000,
+    ValueIsPtr = 0x80,
 
     ValidBits = PreferHex | PreferCompact | PreferExpanded | ValueIsPtr
 };
@@ -51,7 +51,6 @@ DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 
 struct Tree {
     Form form;
-    u8 unused;
      // Only the flags can be modified after construction.
     TreeFlags flags;
 
@@ -159,6 +158,8 @@ struct Tree {
 
     ///// INTERNAL
 
+     // TODO: Use this empty space to unpack meta
+    u16 unused;
      // For Form::Number: 0 = integer, 2 = floating
      // For Form::String|Array|Object|Error: impl.sizex2_with_owned
      // For all types: meta & 1 means we need to refcount.

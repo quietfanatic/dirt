@@ -13,15 +13,15 @@ void raise_TreeCantRepresent (StaticString, const Tree&);
 } // in
 
 constexpr Tree::Tree () :
-    form(Form::Undefined), unused(0), flags(), meta(0), data{.as_i64 = 0}
+    form(Form::Undefined), flags(), unused(0), meta(0), data{.as_i64 = 0}
 { }
 constexpr Tree::Tree (Null, TreeFlags f) :
-    form(Form::Null), unused(0), flags(f), meta(0), data{.as_i64 = 0}
+    form(Form::Null), flags(f), unused(0), meta(0), data{.as_i64 = 0}
 { }
  // Use .as_i64 to write all of data
 template <class T> requires (std::is_same_v<T, bool>)
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Bool), unused(0), flags(f), meta(0), data{.as_bool = v}
+    form(Form::Bool), flags(f), unused(0), meta(0), data{.as_bool = v}
 { }
 template <class T> requires (
     std::is_integral_v<T> &&
@@ -30,28 +30,28 @@ template <class T> requires (
  // Set meta to an even value because we use meta & 1 to see if we need
  // refcounting.
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Number), unused(0), flags(f),
+    form(Form::Number), flags(f), unused(0),
     meta(0), data{.as_i64 = i64(v)}
 { }
 template <class T> requires (std::is_floating_point_v<T>)
 constexpr Tree::Tree (T v, TreeFlags f) :
-    form(Form::Number), unused(0), flags(f),
+    form(Form::Number), flags(f), unused(0),
     meta(2), data{.as_double = v}
 { }
 constexpr Tree::Tree (AnyString v, TreeFlags f) :
-    form(Form::String), unused(0), flags(f),
+    form(Form::String), flags(f), unused(0),
     meta(v.impl.sizex2_with_owned), data{.as_char_ptr = v.impl.data}
 {
     v.impl = {};
 }
 constexpr Tree::Tree (AnyArray<Tree> v, TreeFlags f) :
-    form(Form::Array), unused(0), flags(f),
+    form(Form::Array), flags(f), unused(0),
     meta(v.impl.sizex2_with_owned), data{.as_array_ptr = v.impl.data}
 {
     v.impl = {};
 }
 constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
-    form(Form::Object), unused(0), flags(f),
+    form(Form::Object), flags(f), unused(0),
     meta(v.impl.sizex2_with_owned), data{.as_object_ptr = v.impl.data}
 {
 #ifndef NDEBUG
@@ -64,7 +64,7 @@ constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
     v.impl = {};
 }
 inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
-    form(Form::Error), unused(0), flags(f), meta(), data{}
+    form(Form::Error), flags(f), unused(0), meta(), data{}
 {
     auto e = AnyArray<std::exception_ptr>(1, move(v));
     meta = e.impl.sizex2_with_owned;
@@ -74,8 +74,8 @@ inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
 
 constexpr Tree::Tree (Tree&& o) {
     if (std::is_constant_evaluated()) {
-        form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
-        o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_i64 = 0;
+        form = o.form; flags = o.flags; unused = o.unused; meta = o.meta; data = o.data;
+        o.form = Form::Undefined; o.flags = {}; o.unused = 0; o.meta = 0; o.data.as_i64 = 0;
     }
     else {
         std::memcpy((void*)this, &o, sizeof(Tree));
@@ -83,7 +83,7 @@ constexpr Tree::Tree (Tree&& o) {
     }
 }
 constexpr Tree::Tree (const Tree& o) :
-    form(o.form), unused(o.unused), flags(o.flags), meta(o.meta), data(o.data)
+    form(o.form), flags(o.flags), unused(o.unused), meta(o.meta), data(o.data)
 {
     if (meta & 1) {
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
@@ -95,8 +95,8 @@ constexpr Tree& Tree::operator= (Tree&& o) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }
-    form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
-    o.form = Form::Undefined; o.unused = 0; o.flags = {}; o.meta = 0; o.data.as_i64 = 0;
+    form = o.form; flags = o.flags; unused = o.unused; meta = o.meta; data = o.data;
+    o.form = Form::Undefined; o.flags = {}; o.unused = 0; o.meta = 0; o.data.as_i64 = 0;
     return *this;
 }
 constexpr Tree& Tree::operator= (const Tree& o) {
@@ -104,7 +104,7 @@ constexpr Tree& Tree::operator= (const Tree& o) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }
-    form = o.form; unused = o.unused; flags = o.flags; meta = o.meta; data = o.data;
+    form = o.form; flags = o.flags; unused = o.unused; meta = o.meta; data = o.data;
     if (meta & 1) {
          // data.as_*_ptr should never be null if the refcounted bit is set
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;

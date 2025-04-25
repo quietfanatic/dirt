@@ -14,18 +14,18 @@ namespace ayu::in {
 ///// UNIVERSAL ACCESSOR STUFF
 
 enum class AcrFlags : u8 {
-     // Make TreeFlags-equivalent values the same value for optimization.
-    PreferHex = 0x1,
-    PreferCompact = 0x2,
-    PreferExpanded = 0x4,
-    AllTreeFlags = 0x7,
      // Writes through this accessor will fail.  Attrs and elems with this
      // accessor will not be serialized.
-    Readonly = 0x20,
+    Readonly = 0x1,
      // Children considered addressable even if this item is not addressable.
-    PassThroughAddressable = 0x40,
+    PassThroughAddressable = 0x2,
      // Consider this item unaddressable even if it normally would be
-    Unaddressable = 0x80,
+    Unaddressable = 0x4,
+     // These are only used in the describe API.  They're transferred to actual
+     // TreeFlags when the ACR is written.
+    PreferHex = u8(TreeFlags::PreferHex) << 4,
+    PreferCompact = u8(TreeFlags::PreferCompact) << 4,
+    PreferExpanded = u8(TreeFlags::PreferExpanded) << 4,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AcrFlags)
 
@@ -154,15 +154,15 @@ struct Accessor {
     u32 ref_count = 1;
     AcrForm form;
     AcrFlags flags;
+    TreeFlags tree_flags;
      // These belong on AttrDcr and ElemDcr but we're storing them here to
      // save space.
     AttrFlags attr_flags = {};
 
-    explicit constexpr Accessor (AcrForm s, AcrFlags f) : form(s), flags(f) { }
+    explicit constexpr Accessor (AcrForm s, AcrFlags f) :
+        form(s), flags(f), tree_flags(TreeFlags(u8(f) >> 4))
+    { }
 
-    TreeFlags tree_flags () const {
-        return TreeFlags(flags & AcrFlags::AllTreeFlags);
-    }
 
     void access (AccessMode mode, Mu& from, AccessCB cb) const {
         expect(mode == AccessMode::Read ||
