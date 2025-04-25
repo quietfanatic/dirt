@@ -53,10 +53,15 @@ struct Traversal {
         bool embed_errors;
     };
      // Type information but without the readonly bit.
-    const DescriptionPrivate* desc;
+    Type type;
      // This address is not guaranteed to be permanently valid unless
      // addressable is set.
     Mu* address;
+
+    const DescriptionPrivate* desc () const {
+        return DescriptionPrivate::get(type);
+    }
+    AnyPtr ptr () const { return AnyPtr(type, address, readonly); }
 
     void to_reference (void* r) const noexcept;
     [[noreturn, gnu::cold]]
@@ -130,7 +135,7 @@ void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
         child.children_addressable |= child.addressable;
         child.readonly |= v.readonly();
     }
-    child.desc = v.type().description();
+    child.type = v.type();
     child.address = v.address;
     visit(child);
 }
@@ -210,7 +215,7 @@ void trav_ptr (
         child.children_addressable = parent.children_addressable;
         child.readonly = parent.readonly | ptr.readonly();
     }
-    child.desc = ptr.type().description();
+    child.type = ptr.type();
     child.address = ptr.address;
     visit(child);
 }

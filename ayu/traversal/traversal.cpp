@@ -11,7 +11,7 @@ static void to_reference_chain (const Traversal&, void*);
 NOINLINE
 void Traversal::to_reference (void* r) const noexcept {
     if (addressable) {
-        new (r) AnyRef(AnyPtr(desc, address, readonly));
+        new (r) AnyRef(AnyPtr(type, address, readonly));
     }
     else if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
@@ -30,7 +30,7 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
         case TraversalOp::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             auto ptr = AnyPtr(
-                self.parent->desc, self.parent->address, self.parent->readonly
+                self.parent->type, self.parent->address, self.parent->readonly
             );
             new (r) AnyRef(ptr, self.acr);
             return;
@@ -48,8 +48,9 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
         case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
             auto data = self.func(*self.parent->address);
+            auto desc = DescriptionPrivate::get(trav.type);
             data.address = (Mu*)(
-                (char*)data.address + self.index * trav.desc->cpp_size
+                (char*)data.address + self.index * desc->cpp_size
             );
             new (r) AnyRef(data);
             return;

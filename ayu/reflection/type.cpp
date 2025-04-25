@@ -16,10 +16,7 @@ struct TypeRegistry {
 };
 
  // TODO: constinit
-static TypeRegistry& registry () {
-    static TypeRegistry r;
-    return r;
-}
+static constinit TypeRegistry registry;
 
 static
 StaticString get_type_name_cached (const DescriptionPrivate* desc) {
@@ -34,11 +31,10 @@ StaticString get_type_name_cached (const DescriptionPrivate* desc) {
 
 NOINLINE static
 void init_names () {
-    auto& r = registry();
-    r.initted = true;
+    registry.initted = true;
     plog("init types begin");
-    for (auto& p : r.by_name) {
-        auto n = Type(p.value).name();
+    for (auto& p : registry.by_name) {
+        auto n = Type((const void*)p.value).name();
         require(n);
         p.hash = uni::hash(n);
     }
@@ -47,7 +43,7 @@ void init_names () {
      // callsite, which is overkill for something that'll be called exactly
      // once at init time.
     std::qsort(
-        r.by_name.data(), r.by_name.size(), sizeof(r.by_name[0]),
+        registry.by_name.data(), registry.by_name.size(), sizeof(registry.by_name[0]),
         [](const void* aa, const void* bb){
             auto a = reinterpret_cast<const Hashed<const DescriptionPrivate*>*>(aa);
             auto b = reinterpret_cast<const Hashed<const DescriptionPrivate*>*>(bb);
@@ -67,8 +63,8 @@ void init_names () {
 }
 
 void register_description (const void* desc) noexcept {
-    require(!registry().initted);
-    registry().by_name.emplace_back(0, reinterpret_cast<const DescriptionPrivate*>(desc));
+    require(!registry.initted);
+    registry.by_name.emplace_back(0, reinterpret_cast<const DescriptionPrivate*>(desc));
 }
 
 UniqueString get_demangled_name (const std::type_info& t) noexcept {
@@ -111,18 +107,17 @@ static void raise_TypeCantCast (Type from, Type to) {
  // in current gcc, this optimization interferes with conditional moves
 [[gnu::optimize("-fno-thread-jumps")]]
 Type::Type (Str name) {
-    auto& r = registry();
-    if (!r.initted) [[unlikely]] init_names();
+    if (!registry.initted) [[unlikely]] init_names();
     if (!name) {
         data = null;
         return;
     }
     auto h = uni::hash(name);
     u32 bottom = 0;
-    u32 top = r.by_name.size();
+    u32 top = registry.by_name.size();
     while (bottom != top) {
         u32 mid = (top + bottom) / 2;
-        auto& e = r.by_name[mid];
+        auto& e = registry.by_name[mid];
         if (e.hash == h) [[unlikely]] {
             Str n = get_type_name_cached(e.value);
             if (n == name) [[likely]] {
@@ -147,7 +142,7 @@ Type::Type (Str name) {
 
 StaticString Type::name () const noexcept {
     if (!*this) return "";
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
     if (!!(desc->flags & DescFlags::NameComputed)) {
         auto cache = desc->computed_name.cache;
         if (!*cache) {
@@ -167,14 +162,14 @@ StaticString Type::name () const noexcept {
 }
 
 usize Type::cpp_size () const {
-    return description()->cpp_size;
+    return DescriptionPrivate::get(*this)->cpp_size;
 }
 usize Type::cpp_align () const {
-    return description()->cpp_align;
+    return DescriptionPrivate::get(*this)->cpp_align;
 }
 
 void Type::default_construct (void* target) const {
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
     if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
      // Don't allow constructing objects that can't be destroyed
     if (!desc->destroy) raise_TypeCantDestroy(*this);
@@ -182,13 +177,13 @@ void Type::default_construct (void* target) const {
 }
 
 void Type::destroy (Mu* p) const {
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
     if (!desc->destroy) raise_TypeCantDestroy(*this);
     desc->destroy(p);
 }
 
 void* Type::allocate () const noexcept {
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
     void* r = operator new(
         desc->cpp_size, std::align_val_t(desc->cpp_align), std::nothrow
     );
@@ -196,12 +191,12 @@ void* Type::allocate () const noexcept {
 }
 
 void Type::deallocate (void* p) const noexcept {
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
     operator delete(p, desc->cpp_size, std::align_val_t(desc->cpp_align));
 }
 
 Mu* Type::default_new () const {
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
      // Throw before allocating
     if (!desc->default_construct) raise_TypeCantDefaultConstruct(*this);
     if (!desc->destroy) raise_TypeCantDestroy(*this);
@@ -219,7 +214,7 @@ Mu* Type::try_upcast_to (Type to, Mu* p) const {
     if (!to || !p) return null;
     if (*this == to) return p;
 
-    auto desc = description();
+    auto desc = DescriptionPrivate::get(*this);
     if (auto delegate = desc->delegate_acr())
     if (AnyPtr a = delegate->address(*p))
     if (Mu* b = a.type().try_upcast_to(to, a.address))

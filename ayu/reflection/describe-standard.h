@@ -328,7 +328,8 @@ AYU_DESCRIBE_TEMPLATE(
     }()
 )
 
- // Raw arrays T[n].  I can't believe this works.
+ // Raw arrays T[n].  I can't believe this works.  WARNING: The type name may be
+ // incorrect for multidimensional arrays.  TODO: investigate this.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(T[n]),

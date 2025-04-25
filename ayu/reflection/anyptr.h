@@ -20,7 +20,7 @@ struct AnyPtr {
         usize type_i;
     };
 
-    constexpr AnyPtr (Null n = null) : address(n) { }
+    constexpr AnyPtr (Null n = null) : address(n), type_p(null) { }
     constexpr AnyPtr (Type t, Mu* a) : address(a), type_p(t.data) { expect(t); }
     AnyPtr (Type t, Mu* a, bool readonly) :
         address(a), type_i(reinterpret_cast<usize>(t.data) | readonly)
@@ -57,7 +57,7 @@ struct AnyPtr {
 
     constexpr Type type () const {
         if (std::is_constant_evaluated()) return Type(type_p);
-        else return Type(reinterpret_cast<const void*>(type_i & ~1));
+        else return Type((const void*)(type_i & ~1));
     }
 
     bool readonly () const { return type_i & 1; }

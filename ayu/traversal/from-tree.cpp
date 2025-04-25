@@ -158,7 +158,8 @@ struct TraverseFromTree {
         if (trav.readonly) {
             raise(e_General, "Tried to do from_tree operation on a readonly reference?");
         }
-        if (auto before = trav.desc->before_from_tree()) {
+        auto desc = trav.desc();
+        if (auto before = desc->before_from_tree()) {
             use_before(trav, before->f);
         }
         else after_before(trav);
@@ -173,17 +174,18 @@ struct TraverseFromTree {
     NOINLINE static
     void after_before (const FromTreeTraversal<>& trav) {
          // If description has a from_tree, just use that.
-        if (auto from_tree = trav.desc->from_tree()) [[likely]] {
+        auto desc = trav.desc();
+        if (auto from_tree = desc->from_tree()) [[likely]] {
              // Check this ahead of time for better tail calling capabilities
-            if (!!trav.desc->swizzle_offset | !!trav.desc->init_offset) {
+            if (!!desc->swizzle_offset | !!desc->init_offset) {
                 use_from_tree_swizzle_init(trav, from_tree->f);
             }
             else from_tree->f(*trav.address, *trav.tree);
         }
          // Now check for values.  Values can be of any tree form now, not just
          // atomic forms.
-        else if (auto values = trav.desc->values()) {
-            if (!!(trav.desc->flags & DescFlags::ValuesAllStrings)) {
+        else if (auto values = desc->values()) {
+            if (!!(desc->flags & DescFlags::ValuesAllStrings)) {
                 if (trav.tree->form == Form::String) {
                     use_values_all_strings(trav, values);
                 }
@@ -197,35 +199,36 @@ struct TraverseFromTree {
     NOINLINE static
     void no_match (const FromTreeTraversal<>& trav) {
          // Now the behavior depends on what form of tree we got
+        auto desc = trav.desc();
         if (trav.tree->form == Form::Object) {
-            if (auto keys = trav.desc->keys_acr()) {
+            if (auto keys = desc->keys_acr()) {
                 return use_computed_attrs(trav, keys);
             }
-            else if (auto attrs = trav.desc->attrs()) {
+            else if (auto attrs = desc->attrs()) {
                 return use_attrs(trav, attrs);
             }
              // fallthrough
         }
         else if (trav.tree->form == Form::Array) {
-            if (auto length = trav.desc->length_acr()) {
-                if (!!(trav.desc->flags & DescFlags::ElemsContiguous)) {
+            if (auto length = desc->length_acr()) {
+                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
                     return use_contiguous_elems(trav, length);
                 }
                 else {
                     return use_computed_elems(trav, length);
                 }
             }
-            else if (auto elems = trav.desc->elems()) {
+            else if (auto elems = desc->elems()) {
                 return use_elems(trav, elems);
             }
              // fallthrough
         }
          // Nothing matched, so try delegate
-        if (auto acr = trav.desc->delegate_acr()) {
+        if (auto acr = desc->delegate_acr()) {
             use_delegate(trav, acr);
         }
          // Still nothing?  Allow swizzle with no from_tree.
-        else if (trav.desc->swizzle_offset) {
+        else if (desc->swizzle_offset) {
             register_swizzle_init(trav);
         }
         else fail(trav);
@@ -339,7 +342,7 @@ struct TraverseFromTree {
         if (next_list_buf[0] != u32(-1)) {
             expect(trav.tree->form == Form::Object);
             raise_AttrRejected(
-                trav.desc, trav.tree->data.as_object_ptr[next_list_buf[0]].first
+                trav.type, trav.tree->data.as_object_ptr[next_list_buf[0]].first
             );
         }
     }
@@ -352,8 +355,9 @@ struct TraverseFromTree {
          // allocate a next_list.
         expect(trav.tree->form == Form::Object);
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
-        expect(trav.desc->computed_attrs_offset);
-        auto f = trav.desc->computed_attrs()->f;
+        auto desc = trav.desc();
+        expect(desc->computed_attrs_offset);
+        auto f = desc->computed_attrs()->f;
         expect(trav.tree->form == Form::Object);
         for (auto& pair : Slice<TreePair>(*trav.tree)) {
             write_computed_attr(trav, pair, f);
@@ -364,16 +368,17 @@ struct TraverseFromTree {
     static // inlinable
     void claim_attrs (const Traversal& tr) {
         auto& trav = static_cast<const ClaimAttrsTraversal<>&>(tr);
-        if (auto keys = trav.desc->keys_acr()) {
+        auto desc = trav.desc();
+        if (auto keys = desc->keys_acr()) {
             claim_attrs_use_computed_attrs(trav, trav.next_list, keys);
         }
-        else if (auto attrs = trav.desc->attrs()) {
+        else if (auto attrs = desc->attrs()) {
             claim_attrs_use_attrs(trav, trav.next_list, attrs);
         }
-        else if (auto acr = trav.desc->delegate_acr()) {
+        else if (auto acr = desc->delegate_acr()) {
             claim_attrs_use_delegate(trav, trav.next_list, acr);
         }
-        else raise_AttrsNotSupported(trav.desc);
+        else raise_AttrsNotSupported(trav.type);
     }
 
     NOINLINE static
@@ -435,7 +440,7 @@ struct TraverseFromTree {
                 else if (const Tree* def = attr->default_value()) {
                     child.tree = def;
                 }
-                else raise_AttrMissing(trav.desc, attr->key);
+                else raise_AttrMissing(trav.type, attr->key);
                 trav_attr<visit>(
                     child, trav, attr->acr(), attr->key, AccessMode::Write
                 );
@@ -455,8 +460,9 @@ struct TraverseFromTree {
          // has computed attrs.
         expect(trav.tree->form == Form::Object);
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
-        expect(trav.desc->computed_attrs_offset);
-        auto f = trav.desc->computed_attrs()->f;
+        auto desc = trav.desc();
+        expect(desc->computed_attrs_offset);
+        auto f = desc->computed_attrs()->f;
         u32* prev_next; u32 i;
         for (
             prev_next = &next_list[-1], i = *prev_next;
@@ -540,7 +546,7 @@ struct TraverseFromTree {
                 for (auto& given : object) {
                     if (given.first == required) goto next_required;
                 }
-                raise_AttrMissing(trav.desc, required);
+                raise_AttrMissing(trav.type, required);
                 next_required:;
             }
         }
@@ -550,7 +556,7 @@ struct TraverseFromTree {
                 for (auto& required : keys) {
                     if (required == given.first) goto next_given;
                 }
-                raise_AttrRejected(trav.desc, given.first);
+                raise_AttrRejected(trav.type, given.first);
                 next_given:;
             }
             never();
@@ -563,7 +569,7 @@ struct TraverseFromTree {
     ) {
         auto& [key, value] = pair;
         AnyRef ref = f(*trav.address, key);
-        if (!ref) raise_AttrNotFound(trav.desc, key);
+        if (!ref) raise_AttrNotFound(trav.type, key);
         FromTreeTraversal<ComputedAttrTraversal> child;
         child.tree = &value;
         trav_computed_attr<visit>(child, trav, ref, f, key, AccessMode::Write);
@@ -580,7 +586,7 @@ struct TraverseFromTree {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         if (array.size() < min || array.size() > elems->n_elems) {
-            raise_LengthRejected(trav.desc, min, elems->n_elems, array.size());
+            raise_LengthRejected(trav.type, min, elems->n_elems, array.size());
         }
         for (u32 i = 0; i < array.size(); i++) {
             auto acr = elems->elem(i)->acr();
@@ -599,12 +605,13 @@ struct TraverseFromTree {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
-        write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
-        expect(trav.desc->computed_elems_offset);
-        auto f = trav.desc->computed_elems()->f;
+        write_length_acr(len, trav.ptr(), length_acr);
+        auto desc = trav.desc();
+        expect(desc->computed_elems_offset);
+        auto f = desc->computed_elems()->f;
         for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
-            if (!ref) raise_ElemNotFound(trav.desc, i);
+            if (!ref) raise_ElemNotFound(trav.type, i);
             FromTreeTraversal<ComputedElemTraversal> child;
             child.tree = &array[i];
             trav_computed_elem<visit>(
@@ -621,10 +628,11 @@ struct TraverseFromTree {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
-        write_length_acr(len, AnyPtr(trav.desc, trav.address), length_acr);
+        write_length_acr(len, trav.ptr(), length_acr);
         if (array) {
-            expect(trav.desc->contiguous_elems_offset);
-            auto f = trav.desc->contiguous_elems()->f;
+            auto desc = trav.desc();
+            expect(desc->contiguous_elems_offset);
+            auto f = desc->contiguous_elems()->f;
             auto ptr = f(*trav.address);
             for (u32 i = 0; i < array.size(); i++) {
                 FromTreeTraversal<ContiguousElemTraversal> child;
@@ -688,7 +696,8 @@ struct TraverseFromTree {
          // Now register swizzle and init ops.  We're doing it now instead of at the
          // beginning to make sure that children get swizzled and initted before
          // their parent.
-        if (!!trav.desc->swizzle_offset | !!trav.desc->init_offset) {
+        auto desc = trav.desc();
+        if (!!desc->swizzle_offset | !!desc->init_offset) {
             register_swizzle_init(trav);
         }
          // Done
@@ -698,13 +707,14 @@ struct TraverseFromTree {
     void register_swizzle_init (const FromTreeTraversal<>& trav) {
          // We're repeating the to_reference work if there's both a swizzle and
          // an init, but almost no types are going to have both.
-        if (auto swizzle = trav.desc->swizzle()) {
+        auto desc = trav.desc();
+        if (auto swizzle = desc->swizzle()) {
             auto& op = IFTContext::current->swizzle_ops.emplace_back(
                 current_base->route, AnyRef(), swizzle->f, *trav.tree
             );
             trav.to_reference(&op.item);
         }
-        if (auto init = trav.desc->init()) {
+        if (auto init = desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
             u32 i;
             for (i = init_ops.size(); i > 0; --i) {
@@ -729,23 +739,24 @@ struct TraverseFromTree {
              // it the attention it deserves.
             std::rethrow_exception(std::exception_ptr(*trav.tree));
         }
+        auto desc = trav.desc();
         bool object_rejected = trav.tree->form == Form::Object &&
-            (trav.desc->values() || trav.desc->accepts_array());
+            (desc->values() || desc->accepts_array());
         bool array_rejected = trav.tree->form == Form::Array &&
-            (trav.desc->values() || trav.desc->accepts_object());
+            (desc->values() || desc->accepts_object());
         bool other_rejected =
-            trav.desc->accepts_array() || trav.desc->accepts_object();
+            desc->accepts_array() || desc->accepts_object();
         if (object_rejected || array_rejected || other_rejected) {
-            raise_FromTreeFormRejected(trav.desc, trav.tree->form);
+            raise_FromTreeFormRejected(trav.type, trav.tree->form);
         }
-        else if (trav.desc->values()) {
+        else if (desc->values()) {
             raise(e_FromTreeValueNotFound, cat(
-                "No value for type ", Type(trav.desc).name(),
+                "No value for type ", trav.type.name(),
                 " matches the provided tree ", tree_to_string(*trav.tree)
             ));
         }
         else raise(e_FromTreeNotSupported, cat(
-            "Item of type ", Type(trav.desc).name(), " does not support from_tree."
+            "Item of type ", trav.type.name(), " does not support from_tree."
         ));
     }
 };

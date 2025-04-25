@@ -19,8 +19,7 @@ inline void plog (const char* s) {
 inline void plog (const char*) { }
 #endif
 
- // Predeclare some private classes.  TODO: check if we still need these
-struct DescriptionHeader;
+ // Predeclare some private classes.
 struct DescriptionPrivate;
 struct DocumentData;
 void delete_Route (const Route*) noexcept;

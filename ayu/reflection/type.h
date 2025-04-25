@@ -21,15 +21,27 @@ namespace ayu {
 struct Type {
     const void* data;
 
+    ///// CONSTRUCTION
+
      // Construct empty Type
     constexpr Type () : data(null) { }
 
+     // Construct from internal data (no accidental coercions to void*)
+    template <class T> requires (
+        std::is_void_v<T> || std::is_same_v<T, in::DescriptionPrivate>
+    )
+    constexpr explicit Type (const T* p) : data(p) { }
+
      // Construct from C++ type.  Never throws.
     template <class T> requires (Describable<T>) static
-    Type For () noexcept;
+    Type For () noexcept {
+        return Type((const void*)&AYU_Describe<T>::AYU_description);
+    }
 
      // Construct from name.  Can throw TypeNameNotFound.
-    Type (Str name);
+    explicit Type (Str name);
+
+    ///// INFO
 
      // Checks if this is the empty type.
     explicit constexpr operator bool () const { return data; }
@@ -40,6 +52,9 @@ struct Type {
     usize cpp_size () const;
      // Get the alignof() of this type
     usize cpp_align () const;
+
+    ///// OPERATIONS
+
      // Construct an instance of this type in-place.  The target must have at
      // least the required size and alignment.  May throw CannotDefaultConstruct
      // or CannotDestroy.
@@ -58,6 +73,8 @@ struct Type {
      // Destruct and deallocate and instance of this type.
      // Should be called delete, but, you know
     void delete_ (Mu*) const;
+
+    ///// CASTING
 
      // Cast from derived class to base class.  Does a depth-first search
      // through the derived class's description looking for accessors like:
@@ -88,7 +105,7 @@ struct Type {
         return (T*)upcast_to(Type::For<T>(), p);
     }
 
-     ///// INTERNAL
+    ///// MISC
 
      // Same as Type::For, but constexpr.  Some uses of this will cause weird
      // errors like "specialization of ...  after instantiation" or "incomplete
@@ -105,27 +122,12 @@ struct Type {
      // to be constexpr, and if you do use this, test with optimizations enabled
      // (-O1 is enough).
     template <class T> requires (Describable<T>) static constexpr
-    Type For_constexpr () noexcept;
-
-     // TODO: put this back on DescriptionPrivate
-    const in::DescriptionPrivate* description () const {
-        return reinterpret_cast<const in::DescriptionPrivate*>(data);
+    Type For_constexpr () noexcept {
+        return Type((const void*)&AYU_Describe<T>::AYU_description);
     }
-     // TODO: check if this is still used
-    Type (const in::DescriptionHeader* ptr) : data(ptr) { }
-
-     // To avoid the const void* overload from applying to string literals
-    template <usize n>
-    Type (const char(& s )[n]) : Type(Str(s)) { }
-
-    private:
-    friend struct AnyPtr; // TODO: make this better
-    constexpr explicit Type (const void* ptr) : data(ptr) { }
 };
 
- // The same type will always have the same description pointer.  Compare ptr
- // instead of data so that this can be constexpr (only the ptr variant can be
- // written at constexpr time).
+ // The same type will always have the same description pointer.
 constexpr bool operator == (Type a, Type b) { return a.data == b.data; }
 constexpr auto operator <=> (Type a, Type b) { return a.data <=> b.data; }
 
@@ -148,15 +150,6 @@ struct std::hash<ayu::Type> {
         return hash<const void*>()(t.data);
     }
 };
-
-template <class T> requires (ayu::Describable<T>)
-ayu::Type ayu::Type::For () noexcept {
-    return Type((const void*)&AYU_Describe<T>::AYU_description);
-}
-template <class T> requires (ayu::Describable<T>) constexpr
-ayu::Type ayu::Type::For_constexpr () noexcept {
-    return Type((const void*)&AYU_Describe<T>::AYU_description);
-}
 
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
