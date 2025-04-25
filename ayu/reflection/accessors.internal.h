@@ -63,8 +63,7 @@ DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
  // same method for all of them, and using an enum to differentiate.  This saves
  // a lot of code size, because a lot of ACRs have nearly or exactly the same
  // methods for all access operations.  Even manually demerging identical access
- // methods and storing the same pointer three times in the VT compiles larger
- // than this.
+ // methods and storing the same pointer three times compiles larger than this.
  //
  // Don't worry about these values :3
 enum class AccessMode {
@@ -89,30 +88,59 @@ AccessMode write_to_modify (AccessMode mode) {
     return AccessMode(int(mode) & ~int(AccessMode::Write));
 }
 
-
 struct Accessor;
  // This is the callback passed to access operations.
 using AccessCB = CallbackRef<void(AnyPtr, bool)>;
  // This is the "virtual function" that accessors use
-using AccessFunc = void(const Accessor*, AccessMode, Mu&, AccessCB);
+using AccessFunc = void(const Accessor*, Mu&, AccessCB, AccessMode);
 
 void delete_Accessor (Accessor*) noexcept;
 
-enum class AccessorForm : u8 {
-     // These have types.
+ // Arrange these in rough order of commonality for cachiness
+enum class AcrForm : u8 {
+    Functive, // Miscellaneous functive accessor that doesn't need destructing
     Noop,
     Member,
     RefFunc,
-    Variable,
     ConstantPtr,
-     // These have access functions.
-    Functive, // Miscellaneous functive accessor that doesn't need destructing
+    AnyRefFunc,
+    AnyPtrFunc,
+    Variable,
     Chain,
     ChainAttrFunc,
     ChainElemFunc,
     ChainDataFunc,
 };
-using AF = AccessorForm;
+using AF = AcrForm;
+
+ // Access function lookup table.  GCC's switch-statement jump tables have
+ // issues with register allocation, so we're using our own.
+void access_Functive (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_Typed (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_Member (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_RefFunc (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_ConstantPtr (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_AnyRefFunc (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_AnyPtrFunc (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_Variable (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_Chain (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_ChainAttrFunc (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_ChainElemFunc (const Accessor*, Mu&, AccessCB, AccessMode);
+void access_ChainDataFunc (const Accessor*, Mu&, AccessCB, AccessMode);
+constexpr AccessFunc* access_table [] = {
+    access_Functive,
+    access_Typed,
+    access_Member,
+    access_RefFunc,
+    access_ConstantPtr,
+    access_AnyRefFunc,
+    access_AnyPtrFunc,
+    access_Variable,
+    access_Chain,
+    access_ChainAttrFunc,
+    access_ChainElemFunc,
+    access_ChainDataFunc,
+};
 
  // The base class for all accessors.  Try to keep this small.
 struct Accessor {
@@ -124,29 +152,26 @@ struct Accessor {
      // constructing an AnyRef or a ChainAcr with a new Accessor*, don't call
      // inc() on it.
     u32 ref_count = 1;
-    AccessorForm form;
-    AcrFlags flags = {};
+    AcrForm form;
+    AcrFlags flags;
      // These belong on AttrDcr and ElemDcr but we're storing them here to
      // save space.
     AttrFlags attr_flags = {};
 
-    union {
-        Type type;
-        AccessFunc* access_func;
-    };
-
-    explicit constexpr Accessor (AccessorForm s, AccessFunc* a, AcrFlags f) :
-        form(s), flags(f), access_func(a)
-    { }
-    explicit constexpr Accessor (AccessorForm s, Type t, AcrFlags f) :
-        form(s), flags(f), type(t)
-    { }
+    explicit constexpr Accessor (AcrForm s, AcrFlags f) : form(s), flags(f) { }
 
     TreeFlags tree_flags () const {
         return TreeFlags(flags & AcrFlags::AllTreeFlags);
     }
 
-    void access (AccessMode mode, Mu& from, AccessCB cb) const;
+    void access (AccessMode mode, Mu& from, AccessCB cb) const {
+        expect(mode == AccessMode::Read ||
+               mode == AccessMode::Write ||
+               mode == AccessMode::Modify
+        );
+        expect(!(flags & AcrFlags::Readonly) || mode == AccessMode::Read);
+        access_table[u8(form)](this, from, cb, mode);
+    }
 
     void read (Mu& from, AccessCB cb) const {
         access(AccessMode::Read, from, cb);
@@ -194,6 +219,20 @@ struct Accessor {
     }
 };
 
+struct TypedAcr : Accessor {
+    Type type;
+    explicit constexpr TypedAcr (AcrForm s, Type t, AcrFlags f) :
+        Accessor(s, f), type(t)
+    { }
+};
+
+struct FunctiveAcr : Accessor {
+    AccessFunc* access_func;
+    explicit constexpr FunctiveAcr (AcrForm s, AccessFunc* a, AcrFlags f) :
+        Accessor(s, f), access_func(a)
+    { }
+};
+
  // Yes Accessors are comparable!  Two Accessors are the same if they come from
  // the same place in the same AYU_DESCRIBE block, or if they're dynamically
  // generated from the same inputs.
@@ -211,12 +250,12 @@ constexpr Acr constexpr_acr (Acr a) {
 /// member
 
 template <class From, class To>
-struct MemberAcr : Accessor {
+struct MemberAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     To From::* mp;
     explicit constexpr MemberAcr (To From::* mp, AcrFlags flags) :
-        Accessor(AF::Member, Type::For_constexpr<To>(), flags), mp(mp)
+        TypedAcr(AF::Member, Type::For_constexpr<To>(), flags), mp(mp)
     { }
 };
 
@@ -224,27 +263,27 @@ struct MemberAcr : Accessor {
 
  // Optimization for when base is at the same address as derived
 template <class From, class To>
-struct NoopAcr : Accessor {
+struct NoopAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr NoopAcr (AcrFlags flags) :
-        Accessor(AF::Noop, Type::For_constexpr<To>(), flags)
+        TypedAcr(AF::Noop, Type::For_constexpr<To>(), flags)
     { }
 };
 
 template <class From, class To>
-struct BaseAcr : Accessor {
+struct BaseAcr : FunctiveAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static void _access (
-        const Accessor* acr, AccessMode, Mu& from, AccessCB cb
+        const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
     ) {
          // reinterpret then implicit upcast
         To& to = reinterpret_cast<From&>(from);
-        cb(AnyPtr(&to), !(acr->flags & AcrFlags::Unaddressable));
+        access_Typed(acr, reinterpret_cast<Mu&>(to), cb, mode);
     }
     explicit constexpr BaseAcr (AcrFlags flags) :
-        Accessor(AF::Functive, &_access, flags)
+        FunctiveAcr(AF::Functive, &_access, flags)
     { }
 };
 
@@ -253,26 +292,26 @@ struct BaseAcr : Accessor {
  // It's the programmer's responsibility to know whether they're allowed to
  // address the returned reference or not.
 template <class From, class To>
-struct RefFuncAcr : Accessor {
+struct RefFuncAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     To&(* f )(From&);
     explicit constexpr RefFuncAcr (To&(* f )(From&), AcrFlags flags) :
-        Accessor(AF::RefFunc, Type::For_constexpr<To>(), flags),
+        TypedAcr(AF::RefFunc, Type::For_constexpr<To>(), flags),
         f(f)
     { }
 };
 
 /// const_ref_func
 template <class From, class To>
-struct ConstRefFuncAcr : Accessor {
+struct ConstRefFuncAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     const To&(* f )(const From&);
     explicit constexpr ConstRefFuncAcr (
         const To&(* f )(const From&), AcrFlags flags
     ) :
-        Accessor(
+        TypedAcr(
             AF::RefFunc, Type::For_constexpr<To>(),
             flags | AcrFlags::Readonly
         ),
@@ -283,9 +322,9 @@ struct ConstRefFuncAcr : Accessor {
 /// const_ref_funcs
 
 template <class To>
-struct RefFuncsAcr1 : Accessor {
-    using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+struct RefFuncsAcr1 : FunctiveAcr {
+    using FunctiveAcr::FunctiveAcr;
+    static void _access (const Accessor*, Mu&, AccessCB, AccessMode);
 };
 template <class From, class To>
 struct RefFuncsAcr : RefFuncsAcr1<To> {
@@ -307,7 +346,7 @@ struct RefFuncsAcr : RefFuncsAcr1<To> {
 };
 template <class To>
 void RefFuncsAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const RefFuncsAcr<Mu, To>*>(acr);
     switch (mode) {
@@ -332,9 +371,9 @@ void RefFuncsAcr1<To>::_access (
 /// value_func
 
 template <class To>
-struct ValueFuncAcr1 : Accessor {
-    using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+struct ValueFuncAcr1 : FunctiveAcr {
+    using FunctiveAcr::FunctiveAcr;
+    static void _access (const Accessor*, Mu&, AccessCB, AccessMode);
 };
 template <class From, class To>
 struct ValueFuncAcr : ValueFuncAcr1<To> {
@@ -351,7 +390,7 @@ struct ValueFuncAcr : ValueFuncAcr1<To> {
 };
 template <class To>
 void ValueFuncAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ValueFuncAcr<Mu, To>*>(acr);
@@ -362,9 +401,9 @@ void ValueFuncAcr1<To>::_access (
 /// value_funcs
 
 template <class To>
-struct ValueFuncsAcr1 : Accessor {
-    using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+struct ValueFuncsAcr1 : FunctiveAcr {
+    using FunctiveAcr::FunctiveAcr;
+    static void _access (const Accessor*, Mu&, AccessCB, AccessMode);
 };
 template <class From, class To>
 struct ValueFuncsAcr : ValueFuncsAcr1<To> {
@@ -386,7 +425,7 @@ struct ValueFuncsAcr : ValueFuncsAcr1<To> {
 };
 template <class To>
 void ValueFuncsAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const ValueFuncsAcr<Mu, To>*>(acr);
     switch (mode) {
@@ -416,9 +455,9 @@ void ValueFuncsAcr1<To>::_access (
 /// mixed_funcs
 
 template <class To>
-struct MixedFuncsAcr1 : Accessor {
-    using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
+struct MixedFuncsAcr1 : FunctiveAcr {
+    using FunctiveAcr::FunctiveAcr;
+    static void _access (const Accessor*, Mu&, AccessCB, AccessMode);
 };
 template <class From, class To>
 struct MixedFuncsAcr : MixedFuncsAcr1<To> {
@@ -440,7 +479,7 @@ struct MixedFuncsAcr : MixedFuncsAcr1<To> {
 };
 template <class To>
 void MixedFuncsAcr1<To>::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const MixedFuncsAcr<Mu, To>*>(acr);
     switch (mode) {
@@ -465,11 +504,11 @@ void MixedFuncsAcr1<To>::_access (
 /// assignable
 
 template <class From, class To>
-struct AssignableAcr : Accessor {
+struct AssignableAcr : FunctiveAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static void _access (
-        const Accessor*, AccessMode mode, Mu& from_mu, AccessCB cb
+        const Accessor*, Mu& from_mu, AccessCB cb, AccessMode mode
     ) {
         From& from = reinterpret_cast<From&>(from_mu);
         To tmp;
@@ -479,14 +518,14 @@ struct AssignableAcr : Accessor {
         return;
     }
     explicit constexpr AssignableAcr (AcrFlags flags) :
-        Accessor(AF::Functive, &_access, flags | AcrFlags::Unaddressable)
+        FunctiveAcr(AF::Functive, &_access, flags | AcrFlags::Unaddressable)
     { }
 };
 
 /// variable
 
 template <class From, class To>
-struct VariableAcr : Accessor {
+struct VariableAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static_assert(alignof(To) <= alignof(usize));
@@ -495,7 +534,7 @@ struct VariableAcr : Accessor {
      // This ACR cannot be addressable, because then chaining may take the
      // address but then release this ACR object, invalidating the reference.
     explicit VariableAcr (To&& v, AcrFlags flags) :
-        Accessor(
+        TypedAcr(
             AF::Variable, Type::For_constexpr<To>(),
             flags | AcrFlags::Unaddressable
         ),
@@ -506,13 +545,13 @@ struct VariableAcr : Accessor {
 /// constant
 
 template <class From, class To>
-struct ConstantAcr : Accessor {
+struct ConstantAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static_assert(alignof(To) <= alignof(usize));
     alignas(usize) const To value;  // The offset of this MUST match VariableAcr::value
     explicit constexpr ConstantAcr (const To& v, AcrFlags flags) :
-        Accessor(
+        TypedAcr(
             AF::Variable, Type::For_constexpr<To>(),
             flags | AcrFlags::Readonly | AcrFlags::Unaddressable
         ),
@@ -523,12 +562,12 @@ struct ConstantAcr : Accessor {
 /// constant_pointer
 
 template <class From, class To>
-struct ConstantPtrAcr : Accessor {
+struct ConstantPtrAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     const To* pointer;
     explicit constexpr ConstantPtrAcr (const To* p, AcrFlags flags) :
-        Accessor(
+        TypedAcr(
             AF::ConstantPtr, Type::For_constexpr<To>(),
             flags | AcrFlags::Readonly
         ),
@@ -541,37 +580,29 @@ struct ConstantPtrAcr : Accessor {
  // This is a little awkward because we can't transfer the flags from the
  // calculated AnyRef's acr to this one.  We'll just have to hope we don't
  // miss anything important.
-struct AnyRefFuncAcr1 : Accessor {
-    using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-};
 template <class From>
-struct AnyRefFuncAcr : AnyRefFuncAcr1 {
+struct AnyRefFuncAcr : Accessor {
     using AcrFromType = From;
     using AcrToType = AnyRef;
     AnyRef(* f )(From&);
     explicit constexpr AnyRefFuncAcr (
         AnyRef(* f )(From&), AcrFlags flags
     ) :
-        AnyRefFuncAcr1(AF::Functive, &_access, flags), f(f)
+        Accessor(AF::AnyRefFunc, flags), f(f)
     { }
 };
 
 /// anyptr_func
 
-struct AnyPtrFuncAcr1 : Accessor {
-    using Accessor::Accessor;
-    static void _access (const Accessor*, AccessMode, Mu&, AccessCB);
-};
 template <class From>
-struct AnyPtrFuncAcr : AnyPtrFuncAcr1 {
+struct AnyPtrFuncAcr : Accessor {
     using AcrFromType = From;
     using AcrToType = AnyPtr;
     AnyPtr(* f )(From&);
     explicit constexpr AnyPtrFuncAcr (
         AnyPtr(* f )(From&), AcrFlags flags
     ) :
-        AnyPtrFuncAcr1(AF::Functive, &_access, flags), f(f)
+        Accessor(AF::AnyPtrFunc, flags), f(f)
     { }
 };
 

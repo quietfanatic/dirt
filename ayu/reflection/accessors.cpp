@@ -5,84 +5,199 @@
 
 namespace ayu::in {
 
- // noclone prevents removing unused parameter, which is necessary to match
- // signatures of other functions so they don't have to shuffle registers around
- // before jumping here.
-[[gnu::noclone]] NOINLINE static
-void finish_access (
-    const Accessor* acr, AccessMode, Mu& to, AccessCB cb
+void access_Functive (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
-    Type t = acr->type;
-    t.data |= !!(acr->flags & AcrFlags::Readonly);
-    bool addressable = !(acr->flags & AcrFlags::Unaddressable);
+    auto self = static_cast<const FunctiveAcr*>(acr);
+    self->access_func(acr, from, cb, mode);
+}
+
+NOINLINE
+void access_Typed (
+    const Accessor* acr, Mu& to, AccessCB cb, AccessMode
+) {
+    auto self = static_cast<const TypedAcr*>(acr);
+    Type t = self->type;
+    t.data |= !!(self->flags & AcrFlags::Readonly);
+    bool addressable = !(self->flags & AcrFlags::Unaddressable);
     cb(AnyPtr(t, &to), addressable);
 }
 
-static void access_Member (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+void access_Member (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const MemberAcr<Mu, Mu>*>(acr);
-    finish_access(acr, mode, from.*(self->mp), cb);
+    access_Typed(acr, from.*(self->mp), cb, mode);
 }
 
-static void access_RefFunc (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
+void access_RefFunc (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode
 ) {
     auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(acr);
-    finish_access(acr, mode, self->f(from), cb);
+    Mu& to = self->f(from);
+    Type t = self->type;
+    t.data |= !!(self->flags & AcrFlags::Readonly);
+    bool addressable = !(self->flags & AcrFlags::Unaddressable);
+    cb(AnyPtr(t, &to), addressable);
 }
 
-static void access_Variable (
-    const Accessor* acr, AccessMode mode, Mu&, AccessCB cb
+void access_ConstantPtr (
+    const Accessor* acr, Mu&, AccessCB cb, AccessMode mode
+) {
+    auto self = static_cast<const ConstantPtrAcr<Mu, Mu>*>(acr);
+    access_Typed(acr, *const_cast<Mu*>(self->pointer), cb, mode);
+}
+
+void access_AnyRefFunc (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
+) {
+    auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
+     // Just pass on the call
+    self->f(from).access(mode, cb);
+}
+
+void access_AnyPtrFunc (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode
+) {
+    auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
+    auto ptr = self->f(from);
+    ptr.type.data |= !!(self->flags & AcrFlags::Readonly);
+    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+}
+
+void access_Variable (
+    const Accessor* acr, Mu&, AccessCB cb, AccessMode mode
 ) {
      // Can't instantiate this with a To=Mu, because it has a To
      // embedded in it.
     auto self = static_cast<const VariableAcr<Mu, usize>*>(acr);
-    finish_access(acr, mode, *(Mu*)&self->value, cb);
+    access_Typed(acr, *(Mu*)&self->value, cb, mode);
 }
 
-static void access_ConstantPtr (
-    const Accessor* acr, AccessMode mode, Mu&, AccessCB cb
+void access_Chain (
+    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
 ) {
-    auto self = static_cast<const ConstantPtrAcr<Mu, Mu>*>(acr);
-    finish_access(acr, mode, *const_cast<Mu*>(self->pointer), cb);
-}
-
-static void access_Functive (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
-) {
-    acr->access_func(acr, mode, from, cb);
-}
-
- // GCC's jump tables have problems with register allocation, so use our own.
- // This pathway is called a lot so it's worth optimizing it.
-static constexpr AccessFunc* access_table [] = {
-    finish_access, // Skip the noop
-    access_Member,
-    access_RefFunc,
-    access_Variable,
-    access_ConstantPtr,
-    access_Functive,
-    access_Functive,
-    access_Functive,
-    access_Functive,
-    access_Functive
-};
-
-void Accessor::access (AccessMode mode, Mu& from, AccessCB cb) const {
-    expect(mode == AccessMode::Read ||
-           mode == AccessMode::Write ||
-           mode == AccessMode::Modify
+    struct Frame {
+        const ChainAcr* self;
+        AccessCB cb;
+        AccessMode mode;
+        bool o_addr;
+    };
+    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode, false};
+     // Have to use modify instead of write for the first mode, or other
+     // parts of the item will get clobbered.  Hope this isn't necessary
+     // very often.
+    auto outer_mode = write_to_modify(mode);
+    return frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+            frame.o_addr = o_addr;
+            frame.self->inner->access(frame.mode, *w.address,
+                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
+                     // We need to wrap the cb twice, so that we can return the
+                     // correct addressable bool, for a total of five nested
+                     // indirect calls.  Fortunately, many of them can be tail
+                     // calls, and there are no branches in these functions.
+                    bool addr = frame.o_addr & i_addr
+                              & !(frame.self->flags & AcrFlags::Unaddressable);
+                    frame.cb(x, addr);
+                })
+            );
+        })
     );
-    expect(!(flags & AcrFlags::Readonly) || mode == AccessMode::Read);
-    access_table[u8(form)](this, mode, from, cb);
+}
+
+void access_ChainAttrFunc (
+    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+) {
+    struct Frame {
+        const ChainAttrFuncAcr* self;
+        AccessCB cb;
+        AccessMode mode;
+        bool o_addr;
+    };
+    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode, false};
+    auto outer_mode = write_to_modify(mode);
+    frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+            frame.o_addr = o_addr;
+            frame.self->f(*w.address, frame.self->key).access(frame.mode,
+                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
+                    bool addr = frame.o_addr & i_addr
+                              & !(frame.self->flags & AcrFlags::Unaddressable);
+                    frame.cb(x, addr);
+                })
+            );
+        })
+    );
+}
+
+void access_ChainElemFunc (
+    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+) {
+    struct Frame {
+        const ChainElemFuncAcr* self;
+        AccessCB cb;
+        AccessMode mode;
+        bool o_addr;
+    };
+    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode, false};
+    auto outer_mode = write_to_modify(mode);
+    frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+            frame.o_addr = o_addr;
+            frame.self->f(*w.address, frame.self->index).access(frame.mode,
+                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
+                    bool addr = frame.o_addr & i_addr
+                              & !(frame.self->flags & AcrFlags::Unaddressable);
+                    frame.cb(x, addr);
+                })
+            );
+        })
+    );
+}
+
+void access_ChainDataFunc (
+    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+) {
+    struct Frame {
+        const ChainDataFuncAcr* self;
+        AccessCB cb;
+#ifndef NDEBUG
+        AccessMode mode;
+#endif
+    };
+#ifndef NDEBUG
+    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
+#else
+    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb};
+#endif
+    auto outer_mode = write_to_modify(mode);
+    frame.self->outer->access(outer_mode, v,
+        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+             // We should already have done bounds checking.  Unfortunately we
+             // can't reverify it in debug mode because we've lost the info
+             // necessary to get the length.
+#ifndef NDEBUG
+            expect(!w.readonly() || frame.mode == AccessMode::Read);
+#endif
+            AnyPtr x = frame.self->f(*w.address);
+            x.address = (Mu*)(
+                (char*)x.address + frame.self->index * x.type.cpp_size()
+            );
+            bool addr = o_addr
+                      & !(frame.self->flags & AcrFlags::Unaddressable);
+            frame.cb(x, addr);
+        })
+    );
 }
 
 NOINLINE
 void delete_Accessor (Accessor* acr) noexcept {
     switch (acr->form) {
         case AF::Variable: {
-            if (!acr->ref_count) break; // Don't try to destruct constexpr object
              // Can't use Mu because it doesn't have a size.  We don't *need* a
              // size, but C++ does in order to do this operation.  So I guess
              // use usize instead?  Hope the alignment works out!
@@ -191,168 +306,6 @@ usize hash_acr (const Accessor& a) {
         }
         default: return std::hash<const Accessor*>{}(&a);
     }
-}
-
-void AnyRefFuncAcr1::_access (
-    const Accessor* acr, AccessMode mode, Mu& from, AccessCB cb
-) {
-    auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
-     // Just pass on the call
-    self->f(from).access(mode, cb);
-}
-
-void AnyPtrFuncAcr1::_access (
-    const Accessor* acr, AccessMode, Mu& from, AccessCB cb
-) {
-    auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
-    auto ptr = self->f(from);
-    ptr.type.data |= !!(self->flags & AcrFlags::Readonly);
-    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
-}
-
-static
-AcrFlags chain_acr_flags (AcrFlags o, AcrFlags i) {
-    AcrFlags r = {};
-     // Readonly if either accessor is readonly
-    r |= (o | i) & AcrFlags::Readonly;
-     // Pass through addressable if both are PTA
-    r |= (o & i) & AcrFlags::PassThroughAddressable;
-    if (!!(o & AcrFlags::PassThroughAddressable)) {
-         // If outer is pta, unaddressable if inner is unaddressable
-        r |= i & AcrFlags::Unaddressable;
-    }
-    else {
-         // Otherwise if either is unaddressable
-        r |= (o & i) & AcrFlags::Unaddressable;
-    }
-    return r;
-}
-
-ChainAcr::ChainAcr (const Accessor* outer, const Accessor* inner) noexcept :
-    Accessor(AF::Chain, &_access, chain_acr_flags(outer->flags, inner->flags)),
-    outer(outer), inner(inner)
-{ outer->inc(); inner->inc(); }
-
-void ChainAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
-) {
-    struct Frame {
-        const ChainAcr* self;
-        AccessCB cb;
-        AccessMode mode;
-        bool o_addr;
-    };
-    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode, false};
-     // Have to use modify instead of write for the first mode, or other
-     // parts of the item will get clobbered.  Hope this isn't necessary
-     // very often.
-    auto outer_mode = write_to_modify(mode);
-    return frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-            frame.o_addr = o_addr;
-            frame.self->inner->access(frame.mode, *w.address,
-                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
-                     // We need to wrap the cb twice, so that we can return the
-                     // correct addressable bool, for a total of five nested
-                     // indirect calls.  Fortunately, many of them can be tail
-                     // calls, and there are no branches in these functions.
-                    bool addr = frame.o_addr & i_addr
-                              & !(frame.self->flags & AcrFlags::Unaddressable);
-                    frame.cb(x, addr);
-                })
-            );
-        })
-    );
-}
-
-ChainAcr::~ChainAcr () { inner->dec(); outer->dec(); }
-
-void ChainAttrFuncAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
-) {
-    struct Frame {
-        const ChainAttrFuncAcr* self;
-        AccessCB cb;
-        AccessMode mode;
-        bool o_addr;
-    };
-    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode, false};
-    auto outer_mode = write_to_modify(mode);
-    frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-            frame.o_addr = o_addr;
-            frame.self->f(*w.address, frame.self->key).access(frame.mode,
-                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
-                    bool addr = frame.o_addr & i_addr
-                              & !(frame.self->flags & AcrFlags::Unaddressable);
-                    frame.cb(x, addr);
-                })
-            );
-        })
-    );
-}
-
-void ChainElemFuncAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
-) {
-    struct Frame {
-        const ChainElemFuncAcr* self;
-        AccessCB cb;
-        AccessMode mode;
-        bool o_addr;
-    };
-    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode, false};
-    auto outer_mode = write_to_modify(mode);
-    frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-            frame.o_addr = o_addr;
-            frame.self->f(*w.address, frame.self->index).access(frame.mode,
-                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
-                    bool addr = frame.o_addr & i_addr
-                              & !(frame.self->flags & AcrFlags::Unaddressable);
-                    frame.cb(x, addr);
-                })
-            );
-        })
-    );
-}
-
-void ChainDataFuncAcr::_access (
-    const Accessor* acr, AccessMode mode, Mu& v, AccessCB cb
-) {
-    struct Frame {
-        const ChainDataFuncAcr* self;
-        AccessCB cb;
-#ifndef NDEBUG
-        AccessMode mode;
-#endif
-    };
-#ifndef NDEBUG
-    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
-#else
-    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb};
-#endif
-    auto outer_mode = write_to_modify(mode);
-    frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-             // We should already have done bounds checking.  Unfortunately we
-             // can't reverify it in debug mode because we've lost the info
-             // necessary to get the length.
-#ifndef NDEBUG
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-#endif
-            AnyPtr x = frame.self->f(*w.address);
-            x.address = (Mu*)(
-                (char*)x.address + frame.self->index * x.type.cpp_size()
-            );
-            bool addr = o_addr
-                      & !(frame.self->flags & AcrFlags::Unaddressable);
-            frame.cb(x, addr);
-        })
-    );
 }
 
 } using namespace ayu::in;
