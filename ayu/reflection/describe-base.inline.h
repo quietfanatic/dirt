@@ -4,58 +4,58 @@ namespace ayu {
 static void ERROR_conflicting_flags_on_attr () { }
 static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::name (StaticString n) {
     return in::NameDcr<T>{{}, n};
 }
 
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::computed_name (in::NameFunc* f) {
     return in::ComputedNameDcr<T>{{}, &in::cached_name<T>, f};
 }
 
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::to_tree (in::ToTreeFunc<T>* f) {
     return in::ToTreeDcr<T>{{}, f};
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::from_tree (in::FromTreeFunc<T>* f) {
     return in::FromTreeDcr<T>{{}, f};
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::before_from_tree (in::FromTreeFunc<T>* f) {
     return in::BeforeFromTreeDcr<T>{{}, f};
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::swizzle (in::SwizzleFunc<T>* f) {
     return in::SwizzleDcr<T>{{}, f};
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::init (in::InitFunc<T>* f, double pri) {
     return in::InitDcr<T>{{}, f, pri};
 }
 
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::default_construct (void(* f )(void*)) {
     return in::DefaultConstructDcr<T>{{}, f};
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::destroy (void(* f )(T*)) {
     return in::DestroyDcr<T>{{}, f};
 }
 
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::flags (in::TypeFlags f) {
     return in::FlagsDcr<T>{{}, f};
 }
 
-template <class T>
+template <Describable T>
 template <class... Values>
     requires (requires (T v) { v == v; v = v; })
 constexpr auto AYU_DescribeBase<T>::values (const Values&... vs) {
     return in::ValuesDcrWith<T, Values...>(vs...);
 }
-template <class T>
+template <Describable T>
 template <class... Values>
 constexpr auto AYU_DescribeBase<T>::values_custom (
     in::CompareFunc<T>* compare,
@@ -68,7 +68,7 @@ constexpr auto AYU_DescribeBase<T>::values_custom (
 }
  // Forwarding references only work if the template parameter is immediately on
  // the function, not in some outer scope.
-template <class T>
+template <Describable T>
 template <class N>
     requires (requires (const T& v) { T(v); })
 constexpr auto AYU_DescribeBase<T>::value (const N& n, const T& v) {
@@ -84,7 +84,7 @@ constexpr auto AYU_DescribeBase<T>::value (const N& n, const T& v) {
     return in::ValueDcrWithValue<T>{{{}, name}, v};
 }
 
-template <class T>
+template <Describable T>
 template <class N>
 constexpr auto AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
     Tree name;
@@ -99,13 +99,13 @@ constexpr auto AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
     return in::ValueDcrWithPtr<T>{{{}, name}, p};
 }
 
-template <class T>
+template <Describable T>
 template <class... Attrs>
 constexpr auto AYU_DescribeBase<T>::attrs (const Attrs&... as) {
     return in::AttrsDcrWith<T, Attrs...>(as...);
 }
-template <class T>
-template <class Acr>
+template <Describable T>
+template <AccessorFrom<T> Acr>
 constexpr auto AYU_DescribeBase<T>::attr (
     StaticString key, const Acr& acr, in::AttrFlags flags
 ) {
@@ -115,93 +115,67 @@ constexpr auto AYU_DescribeBase<T>::attr (
     if (count > 1) {
         ERROR_conflicting_flags_on_attr();
     }
-     // Implicit member().
-    if constexpr (std::is_member_object_pointer_v<Acr>) {
-        return attr(key, AYU_DescribeBase<T>::member(acr), flags);
-    }
-    else {
-        static_assert(
-            std::is_same_v<typename Acr::AcrFromType, T>,
-            "Second argument to attr() is not an accessor of this type"
-        );
-        auto r = in::AttrDcrWith<T, Acr>(key, acr);
-        r.acr.attr_flags = flags;
-        return r;
-    }
+    auto r = in::AttrDcrWith<T, Acr>(key, acr);
+    r.acr.attr_flags = flags;
+    return r;
 }
-template <class T>
-template <class Acr, class Default>
+template <Describable T>
+template <AccessorFrom<T> Acr, class Default>
     requires (requires (const Default& def) { Tree(def); })
 constexpr auto AYU_DescribeBase<T>::attr_default (
     StaticString key, const Acr& acr, const Default& def, in::AttrFlags flags
 ) {
-     // We still need to handle member pointers because it changes the type Acr
-    if constexpr (std::is_member_object_pointer_v<Acr>) {
-        return attr_default(key, AYU_DescribeBase<T>::member(acr), def, flags);
-    }
-    else return in::AttrDefaultDcrWith<T, Acr>(
+    return in::AttrDefaultDcrWith<T, Acr>(
         Tree(def),
         AYU_DescribeBase<T>::attr(key, acr, flags)
     );
 }
-template <class T>
+template <Describable T>
 template <class... Elems>
 constexpr auto AYU_DescribeBase<T>::elems (const Elems&... es) {
     return in::ElemsDcrWith<T, Elems...>(es...);
 }
-template <class T>
-template <class Acr>
+template <Describable T>
+template <AccessorFrom<T> Acr>
 constexpr auto AYU_DescribeBase<T>::elem (
     const Acr& acr, in::AttrFlags flags
 ) {
     if (!!(flags & in::AttrFlags::CollapseOptional)) {
         ERROR_elem_cannot_have_collapse_optional_flag();
     }
-    if constexpr (std::is_member_object_pointer_v<Acr>) {
-        return elem(AYU_DescribeBase<T>::member(acr), flags);
-    }
-    else {
-        static_assert(
-            std::is_same_v<typename Acr::AcrFromType, T>,
-            "First argument to elem() is not an accessor of this type"
-        );
-        auto r = in::ElemDcrWith<T, Acr>(acr);
-        r.acr.attr_flags = flags;
-        return r;
-    }
+    auto r = in::ElemDcrWith<T, Acr>(acr);
+    r.acr.attr_flags = flags;
+    return r;
 }
-template <class T>
-template <class Acr>
+template <Describable T>
+template <AccessorFrom<T> Acr>
 constexpr auto AYU_DescribeBase<T>::keys (const Acr& acr) {
     return in::KeysDcrWith<T, Acr>(acr);
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::computed_attrs (in::AttrFunc<T>* f) {
     return in::ComputedAttrsDcr<T>{{}, f};
 }
-template <class T>
-template <class Acr>
+template <Describable T>
+template <AccessorFrom<T> Acr>
 constexpr auto AYU_DescribeBase<T>::length (const Acr& acr) {
     return in::LengthDcrWith<T, Acr>(acr);
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::computed_elems (in::ElemFunc<T>* f) {
     return in::ComputedElemsDcr<T>{{}, f};
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::contiguous_elems (in::DataFunc<T>* f) {
     return in::ContiguousElemsDcr<T>{{}, f};
 }
-template <class T>
-template <class Acr>
+template <Describable T>
+template <AccessorFrom<T> Acr>
 constexpr auto AYU_DescribeBase<T>::delegate (const Acr& acr) {
-    if constexpr (std::is_member_object_pointer_v<Acr>) {
-        return delegate(AYU_DescribeBase<T>::member(acr));
-    }
-    else return in::DelegateDcrWith<T, Acr>(acr);
+    return in::DelegateDcrWith<T, Acr>(acr);
 }
 
-template <class T>
+template <Describable T>
 template <class T2, class M>
 constexpr auto AYU_DescribeBase<T>::member (
     M T2::* mp, in::AcrFlags flags
@@ -211,7 +185,7 @@ constexpr auto AYU_DescribeBase<T>::member (
      // the return type of this function based on it.
     return in::MemberAcr<T, M>(mp, flags);
 }
-template <class T>
+template <Describable T>
 template <class T2, class M>
 constexpr auto AYU_DescribeBase<T>::const_member (
     const M T2::* mp, in::AcrFlags flags
@@ -220,7 +194,7 @@ constexpr auto AYU_DescribeBase<T>::const_member (
         const_cast<M T::*>(mp), flags | in::AcrFlags::Readonly
     );
 }
-template <class T>
+template <Describable T>
 template <class B>
     requires (requires (T* t, B* b) { b = t; t = static_cast<T*>(b); })
 constexpr auto AYU_DescribeBase<T>::base (
@@ -236,7 +210,7 @@ constexpr auto AYU_DescribeBase<T>::base (
     }
     else return in::BaseAcr<T, B>(flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
 constexpr auto AYU_DescribeBase<T>::ref_func (
     M&(* f )(T&),
@@ -244,7 +218,7 @@ constexpr auto AYU_DescribeBase<T>::ref_func (
 ) {
     return in::RefFuncAcr<T, M>(f, flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
 constexpr auto AYU_DescribeBase<T>::const_ref_func (
     const M&(* f )(const T&),
@@ -252,7 +226,7 @@ constexpr auto AYU_DescribeBase<T>::const_ref_func (
 ) {
     return in::ConstRefFuncAcr<T, M>(f, flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
 constexpr auto AYU_DescribeBase<T>::const_ref_funcs (
     const M&(* g )(const T&),
@@ -261,7 +235,7 @@ constexpr auto AYU_DescribeBase<T>::const_ref_funcs (
 ) {
     return in::RefFuncsAcr<T, M>(g, s, flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
     requires (requires (M m) { M(move(m)); })
 constexpr auto AYU_DescribeBase<T>::value_func (
@@ -270,7 +244,7 @@ constexpr auto AYU_DescribeBase<T>::value_func (
 ) {
     return in::ValueFuncAcr<T, M>(f, flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
     requires (requires (M m) { M(move(m)); })
 constexpr auto AYU_DescribeBase<T>::value_funcs (
@@ -280,7 +254,7 @@ constexpr auto AYU_DescribeBase<T>::value_funcs (
 ) {
     return in::ValueFuncsAcr<T, M>(g, s, flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
     requires (requires (M m) { M(move(m)); })
 constexpr auto AYU_DescribeBase<T>::mixed_funcs (
@@ -292,7 +266,7 @@ constexpr auto AYU_DescribeBase<T>::mixed_funcs (
 }
 
  // TODO: optimize for pointers
-template <class T>
+template <Describable T>
 template <class M>
     requires (requires (T t, M m) { t = m; m = t; })
 constexpr auto AYU_DescribeBase<T>::assignable (
@@ -301,7 +275,7 @@ constexpr auto AYU_DescribeBase<T>::assignable (
     return in::AssignableAcr<T, M>(flags);
 }
 
-template <class T>
+template <Describable T>
 template <class M>
     requires (requires (const M& m) { M(m); })
 constexpr auto AYU_DescribeBase<T>::constant (
@@ -309,7 +283,7 @@ constexpr auto AYU_DescribeBase<T>::constant (
 ) {
     return in::ConstantAcr<T, M>(move(v), flags);
 }
-template <class T>
+template <Describable T>
 template <class M>
 constexpr auto AYU_DescribeBase<T>::constant_ptr (
     const M* p, in::AcrFlags flags
@@ -319,7 +293,7 @@ constexpr auto AYU_DescribeBase<T>::constant_ptr (
 
  // This one is not constexpr, so it is only valid in computed_attrs,
  // computed_elems, or reference_func.
-template <class T>
+template <Describable T>
 template <class M>
     requires (requires (M m) { M(move(m)); m.~M(); })
 auto AYU_DescribeBase<T>::variable (
@@ -328,20 +302,20 @@ auto AYU_DescribeBase<T>::variable (
     return in::VariableAcr<T, M>(move(v), flags);
 }
 
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::anyref_func (
     AnyRef(* f )(T&), in::AcrFlags flags
 ) {
     return in::AnyRefFuncAcr<T>(f, flags);
 }
-template <class T>
+template <Describable T>
 constexpr auto AYU_DescribeBase<T>::anyptr_func (
     AnyPtr(* f )(T&), in::AcrFlags flags
 ) {
     return in::AnyPtrFuncAcr<T>(f, flags);
 }
 
-template <class T>
+template <Describable T>
 template <class... Dcrs>
 constexpr auto AYU_DescribeBase<T>::AYU_describe (
     const Dcrs&... dcrs

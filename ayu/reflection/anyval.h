@@ -37,7 +37,7 @@ struct AnyVal {
         o.data = null;
     }
      // Construct with arguments.
-    template <class T, class... Args>
+    template <Describable T, class... Args>
     static AnyVal make (Args&&... args) {
         auto type = Type::For<T>();
         void* data = dynamic_allocate(type);
@@ -51,7 +51,7 @@ struct AnyVal {
         }
     }
      // Move construct from std::unique_ptr
-    template <class T>
+    template <Describable T>
     AnyVal (std::unique_ptr<T> p) :
         type(Type::For<T>()), data((Mu*)p.release())
     { }
@@ -111,7 +111,7 @@ struct AnyVal {
         );
     }
 
-    template <class T>
+    template <Describable T>
     std::unique_ptr<T> to_unique_ptr () && {
         if (empty()) return null;
         auto r = std::unique_ptr<T>(

@@ -59,13 +59,8 @@ struct AnyRef {
 
      // Construct from native pointer.  Explicit for AnyPtr* and AnyRef*,
      // because that's likely to be a mistake.
-    template <class T> requires (
-        Describable<std::remove_const_t<T>>
-    )
-    explicit (
-        std::is_same_v<std::remove_const_t<T>, AnyPtr> ||
-        std::is_same_v<std::remove_const_t<T>, AnyRef>
-    ) AnyRef (T* p) : host(p), acr(null) { }
+    template <ConstableDescribable T> explicit(IsAnyPtrOrAnyRef<T>)
+    AnyRef (T* p) : host(p), acr(null) { }
 
      // Construct from unknown pointer and type
     constexpr AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
@@ -76,8 +71,8 @@ struct AnyRef {
      // AYU_DESCRIBE blocks.  The first argument must be an instance of the type
      // being described, and the second argument must be one of the
      // accessor-generating functions in describe-base.h (the same thing you
-     // would pass to, say attr or elem).
-    template <class From, AccessorFor<From> Acr>
+     // would pass to, say attr or elem).  TODO: readonly?
+    template <Describable From, AccessorFrom<From> Acr>
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
 
      // Copy and move construction and assignment
@@ -144,7 +139,7 @@ struct AnyRef {
         return address().upcast_to(t).address;
     }
 
-    template <class T> requires (Describable<std::remove_const_t<T>>)
+    template <ConstableDescribable T>
     T* address_as () const {
         if constexpr (!std::is_const_v<T>) {
             require_writeable();
@@ -163,7 +158,7 @@ struct AnyRef {
         return require_address().upcast_to(t).address;
     }
 
-    template <class T> requires (Describable<std::remove_const_t<T>>)
+    template <ConstableDescribable T>
     T* require_address_as () const {
         if constexpr (!std::is_const_v<T>) {
             require_writeable();
@@ -172,7 +167,7 @@ struct AnyRef {
     }
 
      // Copying getter.
-    template <class T>
+    template <ConstableDescribable T>
     T get_as () const {
          // TODO: detect value_func(s) and avoid a copy
         T r;
@@ -184,8 +179,7 @@ struct AnyRef {
 
      // Assign to the referenced item with rvalue ref.
      // TODO: don't cast! We'll slice the object!
-    template <class T>
-        requires (!std::is_const_v<T>)
+    template <Describable T>
     void set_as (T&& new_v) {
         write(AccessCB(move(new_v), [](T&& new_v, AnyPtr v, bool){
             *v.upcast_to<T>() = move(new_v);
@@ -193,8 +187,7 @@ struct AnyRef {
     }
 
      // Assign to the referenced item with lvalue ref.
-    template <class T>
-        requires (!std::is_const_v<T>)
+    template <Describable T>
     void set_as (const T& new_v) {
         write(AccessCB(new_v, [](const T& new_v, AnyPtr v, bool){
             *v.upcast_to<T>() = new_v;
@@ -206,7 +199,7 @@ struct AnyRef {
         return require_address();
     }
 
-    template <class T>
+    template <ConstableDescribable T>
     operator T* () const {
         return require_address_as<T>();
     }

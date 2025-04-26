@@ -36,7 +36,7 @@ struct Type {
     explicit Type (Str name) : data(in::require_type_with_name(name)) { }
 
      // Construct from C++ type.  Never throws.
-    template <class T> requires (Describable<T>) static
+    template <Describable T> static
     Type For () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
     }
@@ -77,7 +77,7 @@ struct Type {
      // For maximum safety, always use Type::For unless you absolutely need it
      // to be constexpr, and if you do use this, test with optimizations enabled
      // (-O1 is enough).
-    template <class T> requires (Describable<T>) static constexpr
+    template <Describable T> static constexpr
     Type For_constexpr () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
     }

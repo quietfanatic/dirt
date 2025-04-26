@@ -53,7 +53,7 @@
 
 namespace ayu {
 
-template <class T>
+template <Describable T>
 struct AYU_DescribeBase {
 
     ///// GENERAL-PURPOSE DESCRIPTORS
@@ -145,8 +145,11 @@ struct AYU_DescribeBase {
      // delegate() and other descriptors are specified, some behaviors may be
      // overridden by those other descriptors.  See serialization.h for details
      // about which descriptors override delegate() during which operations.
-    template <class Acr>
+    template <AccessorFrom<T> Acr>
     static constexpr auto delegate (const Acr& accessor);
+     // Shortcut for delegate(member(...))
+    template <class T2, class M>
+    static constexpr auto delegate (M T2::* mp) { return delegate(member(mp)); }
      // Specify custom behavior for default construction.  You shouldn't need
      // to use this unless for some reason the type's default constructor is not
      // visible where you're declaring the AYU_DESCRIPTION.  The function will
@@ -275,12 +278,19 @@ struct AYU_DescribeBase {
      //     element, an exception will be thrown.  This flag cannot be combined
      //     with optional or include.
      // TODO: Reject multiple attrs with the same name.
-    template <class Acr>
+    template <AccessorFrom<T> Acr>
     static constexpr auto attr (
         StaticString key,
         const Acr& accessor,
         in::AttrFlags = {}
     );
+     // Shortcut for attr("...", member(...))
+    template <class T2, class M>
+    static constexpr auto attr (
+        StaticString key,
+        M T2::* mp,
+        in::AttrFlags flags = {}
+    ) { return attr(key, member(mp), flags); }
      // Same as attr(), but with an extra parameter that specifies a default
      // value.  This parameter is anything that can be converted to a Tree,
      // similar to the name parameter of values.  When serializing, if the
@@ -292,14 +302,22 @@ struct AYU_DescribeBase {
      // make the default value a non-empty array or object, you need to declare
      // an array at global scope and pass that in as a StaticArray<Tree> or
      // StaticArray<TreePair>.
-    template <class Acr, class Default>
+    template <AccessorFrom<T> Acr, class Default>
         requires (requires (const Default& def) { Tree(def); })
     static constexpr auto attr_default (
         StaticString key,
         const Acr& accessor,
-        const Default& default_value,
+        const Default& def,
         in::AttrFlags = {}
     );
+     // Shortcut for attr_default("...", member(...), ...)
+    template <class T2, class M, class Default>
+    static constexpr auto attr_default (
+        StaticString key,
+        M T2::* mp,
+        const Default& def,
+        in::AttrFlags flags = {}
+    ) { return attr_default(key, member(mp), def, flags); }
      // Use this for items that may have a variable number of attributes.
      // `accessor` must be the output of one of the accessor functions (see
      // ACCESSORS), and its child type must be uni::AnyArray<uni::AnyString>.
@@ -321,7 +339,7 @@ struct AYU_DescribeBase {
      //
      // If keys() is present, computed_attrs() must also be present, and attrs()
      // must not be present.
-    template <class Acr>
+    template <AccessorFrom<T> Acr>
     static constexpr auto keys (const Acr& accessor);
      // Provide a way to read or write arbitrary attributes.  The function is
      // expected to return an ayu::AnyRef corresponding to the attribute with
@@ -387,11 +405,13 @@ struct AYU_DescribeBase {
      //   - ignored: This elem will not be written during the from_tree
      //     operation.  If any elem has the ignored flag, all elems after it
      //     must also have the ignored flag.
-    template <class Acr>
+    template <AccessorFrom<T> Acr>
+    static constexpr auto elem (const Acr& accessor, in::AttrFlags = {});
+     // Shortcut for elem(member(...))
+    template <class T2, class M>
     static constexpr auto elem (
-        const Acr& accessor, in::AttrFlags = {}
-    );
-    template <class Acr>
+        M T2::* mp, in::AttrFlags flags = {}
+    ) { return elem(member(mp), flags); }
      // Use this for array-like items of variable length (or fixed-size items
      // with very long length).  The accessor must have a child type of either
      // u32 or u64 (one of which is usize aka size_t).
@@ -412,6 +432,7 @@ struct AYU_DescribeBase {
      //
      // If length() is present, computed_elems() or contiguous_elems() must also
      // be present, and elems() must not be present.
+    template <AccessorFrom<T> Acr>
     static constexpr auto length (const Acr& accessor);
      // Use this to provide a way to read and write elements at arbitrary
      // indexes.  The return value must be an ayu::AnyRef, which can be created
@@ -659,6 +680,9 @@ struct AYU_DescribeBase {
      //
      // If the returned AnyRef was made with an accessor that has different
      // flags than this one, which flags are used is Unspecified Behavior.
+     //
+     // anyref_func and anyptr_func are not valid accessors for the keys and
+     // length descriptors.
     static constexpr auto anyref_func (
         AnyRef(* f )(T&), in::AcrFlags = {}
     );

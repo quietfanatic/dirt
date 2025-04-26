@@ -28,23 +28,15 @@ struct AnyPtr {
 
      // Coercion from pointer is explicit for AnyPtr* and AnyRef* to avoid
      // mistakes.  Watch out for when you're working with template parameters!
-    template <class T> requires (
-        Describable<T>
-    ) explicit (
-        std::is_same_v<T, AnyPtr> ||
-        std::is_same_v<T, AnyRef>
-    ) AnyPtr (T* a) :
+    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
+    AnyPtr (T* a) :
         address((Mu*)a),
         type_p(Type::For<T>().data)
     { }
 
      // Coercion from const pointer.
-    template <class T> requires (
-        Describable<T>
-    ) explicit (
-        std::is_same_v<T, AnyPtr> ||
-        std::is_same_v<T, AnyRef>
-    ) AnyPtr (const T* a) :
+    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
+    AnyPtr (const T* a) :
         address((Mu*)a),
         type_i(reinterpret_cast<usize>(Type::For<T>().data) | 1)
     { }
@@ -76,7 +68,7 @@ struct AnyPtr {
         Mu* p = dynamic_try_upcast(type(), to, address);
         return AnyPtr(to, p, readonly());
     }
-    template <class T> requires (Describable<std::remove_const_t<T>>)
+    template <ConstableDescribable T>
     T* try_upcast_to () const {
         if (!std::is_const_v<T> && readonly()) return null;
         auto to = Type::For<std::remove_const_t<T>>();
@@ -87,7 +79,7 @@ struct AnyPtr {
         Mu* p = dynamic_upcast(type(), to, address);
         return AnyPtr(to, p, readonly());
     }
-    template <class T> requires (Describable<std::remove_const_t<T>>)
+    template <ConstableDescribable T>
     T* upcast_to () const {
         if (!std::is_const_v<T> && readonly()) {
             raise(e_General, "Tried to cast readonly AnyPtr to non-const pointer (details NYI)");
@@ -96,14 +88,14 @@ struct AnyPtr {
         return (T*)dynamic_upcast(type(), to, address);
     }
 
-    template <class T> requires (Describable<std::remove_const_t<T>>)
+    template <ConstableDescribable T>
     T* expect_exact () const {
-        expect(type() == Type::For<T>());
+        expect(type() == Type::For<std::remove_const_t<T>>());
         expect(readonly() == std::is_const_v<T>);
         return reinterpret_cast<T*>(address);
     }
 
-    template <class T> requires (Describable<std::remove_const_t<T>>)
+    template <ConstableDescribable T>
     operator T* () const { return upcast_to<T>(); }
 };
 

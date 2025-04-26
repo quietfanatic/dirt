@@ -556,7 +556,6 @@ struct ConstantPtrAcr : TypedAcr {
 template <class From>
 struct AnyRefFuncAcr : Accessor {
     using AcrFromType = From;
-    using AcrToType = AnyRef;
     AnyRef(* f )(From&);
     explicit constexpr AnyRefFuncAcr (
         AnyRef(* f )(From&), AcrFlags flags
@@ -570,7 +569,6 @@ struct AnyRefFuncAcr : Accessor {
 template <class From>
 struct AnyPtrFuncAcr : Accessor {
     using AcrFromType = From;
-    using AcrToType = AnyPtr;
     AnyPtr(* f )(From&);
     explicit constexpr AnyPtrFuncAcr (
         AnyPtr(* f )(From&), AcrFlags flags

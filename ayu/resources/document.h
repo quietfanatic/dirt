@@ -23,7 +23,7 @@ struct Document {
         return *this;
     }
 
-    template <class T, class... Args>
+    template <Describable T, class... Args>
     T* new_ (Args&&... args) {
         void* p = allocate(Type::For<T>());
         try {
@@ -36,7 +36,7 @@ struct Document {
     }
 
      // This may be linear over the number of items in the document.
-    template <class T, class... Args>
+    template <Describable T, class... Args>
     T* new_named (AnyString name, Args&&... args) {
         void* p = allocate_named(Type::For<T>(), move(name));
         try {
@@ -50,7 +50,7 @@ struct Document {
 
      // In debug mode, verifies that the given object actually belongs to this
      // Document and that its type is actually T.
-    template <class T>
+    template <Describable T>
     void delete_ (T* p) {
         delete_(Type::For<T>(), (Mu*)p);
     }

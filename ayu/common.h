@@ -86,8 +86,19 @@ template <class T> struct DescribableS<const volatile T> { static constexpr bool
  // No functions (but pointers to them are allowed)
 template <class R, class... A> struct DescribableS<R(A...)> { static constexpr bool value = false; };
 
+ // This is the actual type trait.
 template <class T>
 concept Describable = DescribableS<T>::value;
+
+ // True if either T or const T is describable.
+template <class T>
+concept ConstableDescribable = Describable<std::remove_const_t<T>>;
+
+ // Checks if the type is AnyPtr or AnyRef.  This prevents some dangerous
+ // implicit coercions.
+template <class T>
+concept IsAnyPtrOrAnyRef = std::is_same_v<std::remove_cvref_t<T>, AnyPtr>
+                        || std::is_same_v<std::remove_cvref_t<T>, AnyRef>;
 
 ///// DEBUGGING
 

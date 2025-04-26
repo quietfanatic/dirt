@@ -49,9 +49,13 @@ AccessMode write_to_modify (AccessMode mode) {
 namespace in { struct Accessor; }
 using in::Accessor;
 
- // This checks that the given accessor subclass is an accessor for the given
- // type (specifically, an accessor whose from-type is the given type).
+ // Constrain an accessor's from-type.
 template <class Acr, class From>
-concept AccessorFor = std::is_same_v<typename Acr::AcrFromType, From>;
+concept AccessorFrom = std::is_same_v<typename Acr::AcrFromType, From>;
+
+ // Constrain an accessor's to-type.  Note that some accessors don't know their
+ // to-type at compile time.  Those accessors will fail this check.
+template <class Acr, class To>
+concept AccessorTo = std::is_same_v<typename Acr::AcrToType, To>;
 
 } // ayu

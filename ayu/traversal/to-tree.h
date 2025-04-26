@@ -41,7 +41,7 @@ using TTO = ToTreeOptions;
  // thrown.
 Tree item_to_tree (const AnyRef&, RouteRef rt = {}, ToTreeOptions opts = {});
  // Slight optimization for pointers (the usual case)
-template <class T>
+template <Describable T>
 Tree item_to_tree (T* item, RouteRef rt = {}, ToTreeOptions opts = {});
 
 ///// Shortcuts
@@ -50,7 +50,7 @@ UniqueString item_to_string (
     const AnyRef& item, PrintOptions popts = {},
     RouteRef rt = {}, ToTreeOptions ttopts = {}
 );
-template <class T>
+template <Describable T>
 UniqueString item_to_string (
     T* item, PrintOptions popts = {},
     RouteRef rt = {}, ToTreeOptions ttopts = {}
@@ -61,7 +61,7 @@ UniqueString show (
     const AnyRef& item, PrintOptions popts = {},
     RouteRef rt = {}, ToTreeOptions ttopts = {}
 ) noexcept;
-template <class T>
+template <Describable T>
 UniqueString show (
     T* item, PrintOptions popts = {},
     RouteRef rt = {}, ToTreeOptions ttopts = {}
@@ -79,14 +79,14 @@ constexpr ErrorCode e_ToTreeValueNotFound = "ayu::e_ToTreeValueNotFound";
 
 ///// Inlines
 
-template <class T>
+template <Describable T>
 Tree item_to_tree (T* item, RouteRef rt, ToTreeOptions opts) {
     Tree r;
     in::FakeRef fake {.ref = item};
     return item_to_tree(fake.ref, rt, opts);
 }
 
-template <class T>
+template <Describable T>
 UniqueString item_to_string (
     T* item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) {
@@ -94,7 +94,7 @@ UniqueString item_to_string (
     return item_to_string(fake.ref, popts, rt, ttopts);
 }
 
-template <class T>
+template <Describable T>
 UniqueString show (
     T* item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) noexcept {

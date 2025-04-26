@@ -55,7 +55,7 @@ void item_from_tree (
     FromTreeOptions opts = {}
 );
  // Slight optimization for pointers (the usual case)
-template <class T>
+template <Describable T>
 void item_from_tree (
     T* item, const Tree& t, RouteRef rt = {},
     FromTreeOptions opts = {}
@@ -66,7 +66,7 @@ void item_from_tree (
 
  // Shortcuts
  // item_from_string and item_from_file do not currently allow passing opts
-template <class T>
+template <Describable T>
 void item_from_string (
     T&& item, Str src, RouteRef rt = {}
 ) {
@@ -74,7 +74,7 @@ void item_from_string (
     return item_from_tree(std::forward<T>(item), tree, rt);
 }
 
-template <class T>
+template <Describable T>
 void item_from_list_string (
     T&& item, Str src, RouteRef rt = {}
 ) {
