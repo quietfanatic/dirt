@@ -1,5 +1,6 @@
 #include "common.internal.h"
 #include "../iri/iri.h"
+#include "../uni/errors.h"
 #include "../uni/io.h"
 #include "traversal/route.h"
 #include "traversal/to-tree.h"
@@ -44,7 +45,7 @@ void in::rethrow_with_route (RouteRef rt) {
         {
             e.details = cat(
 #if defined(__GXX_RTTI) || defined(_CPPRTTI)
-                get_demangled_name(typeid(ex)), ": ", ex.what()
+                demangle_cpp_name(typeid(ex).name()), ": ", ex.what()
 #else
                 "(unknown error type): ", ex.what()
 #endif

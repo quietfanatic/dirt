@@ -203,7 +203,7 @@ void delete_Accessor (Accessor* acr) noexcept {
              // size, but C++ does in order to do this operation.  So I guess
              // use usize instead?  Hope the alignment works out!
             auto* self = static_cast<VariableAcr<Mu, usize>*>(acr);
-            self->type.destroy((Mu*)&self->value);
+            dynamic_destroy(self->type, (Mu*)&self->value);
             break;
         }
         case AF::Chain: {

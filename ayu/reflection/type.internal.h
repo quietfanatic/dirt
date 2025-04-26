@@ -93,10 +93,12 @@ struct DescriptionHeader : ComparableAddress {
         u16 contiguous_elems_offset;
     };
     u16 delegate_offset = 0;
+
+    StaticString get_name () const noexcept;
 };
 
 void register_description (const void*) noexcept;
 
-UniqueString get_demangled_name (const std::type_info&) noexcept;
+const DescriptionHeader* require_type_with_name (Str name);
 
 } // ayu::in

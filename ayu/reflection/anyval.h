@@ -29,7 +29,7 @@ struct AnyVal {
      // Default construction
     constexpr explicit AnyVal (Type t) :
         type(t),
-        data(t ? t.default_new() : null)
+        data(t ? dynamic_default_new(t) : null)
     { }
      // Move construct
     constexpr AnyVal (AnyVal&& o) : type(o.type), data(o.data) {
@@ -40,13 +40,13 @@ struct AnyVal {
     template <class T, class... Args>
     static AnyVal make (Args&&... args) {
         auto type = Type::For<T>();
-        void* data = type.allocate();
+        void* data = dynamic_allocate(type);
         try {
             new (data) T (std::forward<Args>(args)...);
             return AnyVal(type, reinterpret_cast<Mu*>(data));
         }
         catch (...) {
-            type.deallocate(data);
+            dynamic_deallocate(type, data);
             throw;
         }
     }
@@ -66,7 +66,7 @@ struct AnyVal {
     }
      // Destroy
     constexpr ~AnyVal () {
-        if (data) type.delete_(data);
+        if (data) dynamic_delete(type, data);
     }
      // Check contents.
     constexpr explicit operator bool () const {
@@ -79,7 +79,7 @@ struct AnyVal {
     AnyPtr readonly_ptr () const { return AnyPtr(type, data, true); }
      // Runtime casting
     Mu& as (Type t) {
-        return *type.upcast_to(t, data);
+        return *dynamic_upcast(type, t, data);
     }
     template <class T>
     std::remove_cvref_t<T>& as () {
@@ -115,7 +115,7 @@ struct AnyVal {
     std::unique_ptr<T> to_unique_ptr () && {
         if (empty()) return null;
         auto r = std::unique_ptr<T>(
-            (T*)type.upcast_to(Type::For<T>(), data)
+            (T*)dynamic_upcast(type, Type::For<T>(), data)
         );
         type = Type();
         data = null;

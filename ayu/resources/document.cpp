@@ -63,7 +63,7 @@ struct DocumentData {
     ~DocumentData () {
         while (items.next != &items) {
             auto header = static_cast<DocumentItemHeader*>(items.next);
-            if (header->type) header->type.destroy(header->data());
+            if (header->type) dynamic_destroy(header->type, header->data());
             header->~DocumentItemHeader();
             lilac::deallocate_unknown_size(header);
         }
@@ -91,7 +91,6 @@ AnyPtr Document::find_with_name (Str name) const {
     return null;
 }
 AnyPtr Document::find_with_id (u32 id) const {
-    expect(id != u32(-1));
     for (auto link = data->last_lookup->next;; link = link->next) {
         if (link != &data->items) {
             auto h = static_cast<DocumentItemHeader*>(link);
@@ -108,7 +107,7 @@ AnyPtr Document::find_with_id (u32 id) const {
 void* Document::allocate (Type t) noexcept {
     auto id = data->next_id++;
     auto p = lilac::allocate(
-        sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
+        sizeof(DocumentItemHeader) + t.cpp_size()
     );
     auto header = new (p) DocumentItemHeader(&data->items, t, id);
     return header+1;
@@ -130,7 +129,7 @@ void* Document::allocate_named (Type t, AnyString name) {
             raise(e_DocumentItemNameDuplicate, move(name));
         }
         auto p = lilac::allocate(
-            sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
+            sizeof(DocumentItemHeader) + t.cpp_size()
         );
         auto header = new (p) DocumentItemHeader(&data->items, t, move(name));
         return header+1;
@@ -144,7 +143,7 @@ void* Document::allocate_named (Type t, AnyString name) {
         }
         if (id >= data->next_id) data->next_id = id + 1;
         auto p = lilac::allocate(
-            sizeof(DocumentItemHeader) + (t ? t.cpp_size() : 0)
+            sizeof(DocumentItemHeader) + t.cpp_size()
         );
         auto header = new (p) DocumentItemHeader(&data->items, t, id);
         return header+1;
@@ -163,7 +162,7 @@ void Document::delete_ (Type t, Mu* p) noexcept {
 #endif
     auto header = (DocumentItemHeader*)p - 1;
     expect(header->type == t);
-    if (header->type) header->type.destroy(p);
+    if (header->type) dynamic_destroy(header->type, p);
     header->~DocumentItemHeader();
     if (data->last_lookup == header) data->last_lookup = &data->items;
     lilac::deallocate_unknown_size(header);
@@ -196,7 +195,7 @@ AYU_DESCRIBE(ayu::Document,
             if (a.size() != 2 || a[0].form != Form::String) continue;
             Type t = Type(Str(a[0]));
             void* p = v.allocate_named(t, key);
-            t.default_construct(p);
+            dynamic_default_construct(t, p);
         }
     }),
     keys(mixed_funcs<AnyArray<AnyString>>(

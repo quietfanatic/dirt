@@ -72,24 +72,28 @@ struct AnyPtr {
         return r;
     }
 
-    AnyPtr try_upcast_to (Type t) const {
-        return AnyPtr(t, type().try_upcast_to(t, address), readonly());
+    AnyPtr try_upcast_to (Type to) const {
+        Mu* p = dynamic_try_upcast(type(), to, address);
+        return AnyPtr(to, p, readonly());
     }
     template <class T> requires (Describable<std::remove_const_t<T>>)
     T* try_upcast_to () const {
         if (!std::is_const_v<T> && readonly()) return null;
-        return type().try_upcast_to<std::remove_const_t<T>>(address);
+        auto to = Type::For<std::remove_const_t<T>>();
+        return (T*)dynamic_try_upcast(type(), to, address);
     }
 
-    AnyPtr upcast_to (Type t) const {
-        return AnyPtr(t, type().upcast_to(t, address), readonly());
+    AnyPtr upcast_to (Type to) const {
+        Mu* p = dynamic_upcast(type(), to, address);
+        return AnyPtr(to, p, readonly());
     }
     template <class T> requires (Describable<std::remove_const_t<T>>)
     T* upcast_to () const {
         if (!std::is_const_v<T> && readonly()) {
             raise(e_General, "Tried to cast readonly AnyPtr to non-const pointer (details NYI)");
         }
-        return type().upcast_to<std::remove_const_t<T>>(address);
+        auto to = Type::For<std::remove_const_t<T>>();
+        return (T*)dynamic_upcast(type(), to, address);
     }
 
     template <class T> requires (Describable<std::remove_const_t<T>>)

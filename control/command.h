@@ -94,7 +94,7 @@ struct Statement {
     }
     constexpr ~Statement () {
         if (storage) {
-            storage->command->storage_type.delete_((ayu::Mu*)storage);
+            ayu::dynamic_delete(storage->command->storage_type, (ayu::Mu*)storage);
         }
     }
 

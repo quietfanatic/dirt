@@ -6,7 +6,7 @@ namespace ayu {
 
 // This is a type storing dynamic values with optional names, intended to be the
 // top-level item of a file.  Has fast insertion of newly-created unnamed items
-// (usually a single allocation).  Lookup by name is linear.
+// (just a single memory allocation).  Lookup by name is linear.
 //
 // Keys starting with _ are reserved.
 struct Document {

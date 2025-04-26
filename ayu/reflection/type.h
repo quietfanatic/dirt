@@ -32,77 +32,33 @@ struct Type {
     )
     constexpr explicit Type (const T* p) : data(p) { }
 
+     // Construct from name.  Can throw TypeNameNotFound.
+    explicit Type (Str name) : data(in::require_type_with_name(name)) { }
+
      // Construct from C++ type.  Never throws.
     template <class T> requires (Describable<T>) static
     Type For () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
     }
 
-     // Construct from name.  Can throw TypeNameNotFound.
-    explicit Type (Str name);
-
     ///// INFO
 
      // Checks if this is the empty type.
     explicit constexpr operator bool () const { return data; }
+
      // Get human-readable type name (whatever name was registered with
-     // AYU_DESCRIBE).  Returns "" for the empty type.
-    StaticString name () const noexcept;
-     // Get the sizeof() of this type
-    usize cpp_size () const;
-     // Get the alignof() of this type
-    usize cpp_align () const;
-
-    ///// OPERATIONS
-
-     // Construct an instance of this type in-place.  The target must have at
-     // least the required size and alignment.  May throw CannotDefaultConstruct
-     // or CannotDestroy.
-    void default_construct (void* target) const;
-     // Destory an instance of this type in-place.  The memory will not be
-     // deallocated.
-    void destroy (Mu*) const;
-     // Allocate a buffer appropriate for containing an instance of this type.
-     // This uses operator new(size, align, nothrow), so either use
-     // type.deallocate(p) or operator delete(p, align) to delete the pointer.
-    void* allocate () const noexcept;
-     // Deallocate a buffer previously allocated with allocate()
-    void deallocate (void*) const noexcept;
-     // Allocate and construct an instance of this type.
-    Mu* default_new () const;
-     // Destruct and deallocate and instance of this type.
-     // Should be called delete, but, you know
-    void delete_ (Mu*) const;
-
-    ///// CASTING
-
-     // Cast from derived class to base class.  Does a depth-first search
-     // through the derived class's description looking for accessors like:
-     //  - delegate(...)
-     //  - attr("name", ..., include)
-     //  - elem(..., include)
-     // and recurses through those accessors.  Note also that only information
-     // provided through AYU_DESCRIBE will be used; C++'s native inheritance
-     // system has no influence.
-     //
-     // try_upcast_to will return null if the requested base class was not found
-     // in the derived class's inheritance hierarchy, or if the address of the
-     // base class can't be retrieved (goes through value_funcs or some such).
-     // upcast_to will throw TypeCantCast (unless given null, in which case it
-     // will return null).
-     //
-     // Previous versions of this library also had downcast_to (and cast_to,
-     // which tries upcast then downcast) but it was dragging down refactoring
-     // and I didn't end up actually using it.
-    Mu* try_upcast_to (Type, Mu*) const;
-    template <class T>
-    T* try_upcast_to (Mu* p) const {
-        return (T*)try_upcast_to(Type::For<T>(), p);
+     // AYU_DESCRIBE).
+    StaticString name () const noexcept {
+        return reinterpret_cast<const in::DescriptionHeader*>(data)->get_name();
     }
-    Mu* upcast_to (Type, Mu*) const;
-    template <class T>
-    T* upcast_to (Mu* p) const {
-        return (T*)upcast_to(Type::For<T>(), p);
+
+     // Get the sizeof() this type
+    usize cpp_size () const {
+        return reinterpret_cast<const in::DescriptionHeader*>(data)->cpp_size;
+    }
+     // Get the alignof() this type
+    usize cpp_align () const {
+        return reinterpret_cast<const in::DescriptionHeader*>(data)->cpp_align;
     }
 
     ///// MISC
@@ -130,6 +86,65 @@ struct Type {
  // The same type will always have the same description pointer.
 constexpr bool operator == (Type a, Type b) { return a.data == b.data; }
 constexpr auto operator <=> (Type a, Type b) { return a.data <=> b.data; }
+
+///// DYNAMICALLY TYPED OPERATIONS
+
+ // Allocate a buffer appropriate for containing an instance of this type.
+ // This uses operator new(size, align, nothrow), so either use
+ // type.deallocate(p) or operator delete(p, align) to delete the pointer.
+inline
+void* dynamic_allocate (Type t) noexcept {
+    return operator new(
+        t.cpp_size(), std::align_val_t(t.cpp_align()), std::nothrow
+    );
+}
+
+ // Deallocate a buffer previously allocated with allocate()
+inline
+void dynamic_deallocate (Type t, void* p) noexcept {
+    operator delete(p, t.cpp_size(), std::align_val_t(t.cpp_align()));
+}
+
+ // Construct an instance of this type in-place.  Doesn't check that the target
+ // location has the required size and alignment.  May throw
+ // CannotDefaultConstruct or CannotDestruct.
+void dynamic_default_construct (Type, void*);
+
+ // Like dynamic_default_construct but skips the destructor check, so only use
+ // it if you plan to leak the object forever or destroy it in some other
+ // manner.
+void dynamic_default_construct_without_destructor (Type, void*);
+
+ // Destroy an instance of this type in-place.  The memory will not be
+ // deallocated.  May throw CannotDestroy.
+void dynamic_destroy (Type, Mu*);
+
+ // Allocate and construct an instance of this type.
+Mu* dynamic_default_new (Type);
+
+ // Destruct and deallocate and instance of this type.
+void dynamic_delete (Type, Mu*);
+
+ // Cast from derived class to base class.  Does a depth-first search through
+ // the derived class's description looking for accessors like:
+ //  - delegate(...)
+ //  - attr("name", ..., include)
+ //  - elem(..., include)
+ // and recurses through those accessors.  Note also that only information
+ // provided through AYU_DESCRIBE will be used; C++'s native inheritance system
+ // has no influence.
+ //
+ // Returns null if the requested base class was not found in the
+ // derived class's inheritance hierarchy, or if the address of the base class
+ // can't be retrieved (goes through value_funcs or some such).
+Mu* dynamic_try_upcast (Type from, Type to, Mu*);
+
+ // Throws TypeCantCast (unless given null, in which case it will return null).
+Mu* dynamic_upcast (Type from, Type to, Mu*);
+
+ // Previous versions of this library also had downcast_to (and cast_to, which
+ // tries upcast then downcast) but it was dragging down refactoring and I
+ // didn't end up actually using it.
 
  // Tried to look up a type be name but there is no registered type with that
  // name.

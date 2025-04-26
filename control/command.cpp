@@ -66,7 +66,8 @@ AYU_DESCRIBE(control::Statement,
                 " but got ", a.size() - 1, ')'
             ));
         }
-        v.storage = (StatementStorageBase*)command->storage_type.default_new();
+        v.storage = (StatementStorageBase*)
+            ayu::dynamic_default_new(command->storage_type);
         v.storage->command = command;
     }),
     delegate(anyptr_func([](Statement& v)->ayu::AnyPtr{
