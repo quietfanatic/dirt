@@ -51,12 +51,17 @@ struct AnyRef {
     AnyPtr host;
     const in::Accessor* acr;
 
+///// CONSTRUCTION
+
      // The empty AnyRef will cause null derefs if you do anything with it.
     constexpr AnyRef (Null n = null) : host(n), acr(n) { }
+
      // Construct from internal data.
     constexpr AnyRef (AnyPtr h, const in::Accessor* a) : host(h), acr(a) { }
+
      // Construct from a AnyPtr.
     constexpr AnyRef (AnyPtr p) : host(p), acr(null) { }
+
      // Construct from native pointer.  Explicit for AnyPtr* and AnyRef*,
      // because that's likely to be a mistake.
     template <class T> requires (
@@ -66,14 +71,17 @@ struct AnyRef {
         std::is_same_v<std::remove_const_t<T>, AnyPtr> ||
         std::is_same_v<std::remove_const_t<T>, AnyRef>
     ) AnyRef (T* p) : host(p), acr(null) { }
+
      // Construct from unknown pointer and type
     constexpr AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
     AnyRef (Type t, Mu* p, bool readonly) : host(t, p, readonly), acr(null) { }
+
      // For use in attr_func and elem_func.
     template <class From, class Acr> requires (
         std::is_same_v<typename Acr::AcrFromType, From>
     )
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
+
      // Copy and move construction and assignment
     constexpr AnyRef (const AnyRef& o) : AnyRef(o.host, o.acr) {
         if (acr) [[unlikely]] acr->inc();
@@ -102,6 +110,8 @@ struct AnyRef {
 
     constexpr ~AnyRef () { if (acr) [[unlikely]] acr->dec(); }
 
+///// INFO
+
     explicit constexpr operator bool () const { return !!host; }
 
      // Get type of referred-to item
@@ -116,14 +126,13 @@ struct AnyRef {
         return r;
     }
 
-    [[noreturn]] void raise_WriteReadonly () const;
-    void require_writeable () const {
-        if (readonly()) raise_WriteReadonly();
-    }
+    void require_writeable () const { if (readonly()) raise_WriteReadonly(); }
 
     constexpr bool addressable () const {
         return !acr || !(acr->flags & in::AcrFlags::Unaddressable);
     }
+
+///// SIMPLE ACCESS
 
      // Returns typed null if this reference is not addressable.  TODO:
      // propagate readonly from host
@@ -131,10 +140,12 @@ struct AnyRef {
         if (!acr) [[likely]] return host;
         else return acr->address(*host.address);
     }
+
      // Can throw TypeCantCast, even if the result is null.
     Mu* address_as (Type t) const {
         return address().upcast_to(t).address;
     }
+
     template <class T> requires (Describable<std::remove_const_t<T>>)
     T* address_as () const {
         if constexpr (!std::is_const_v<T>) {
@@ -143,43 +154,23 @@ struct AnyRef {
         return (T*)address_as(Type::For<std::remove_const_t<T>>());
     }
 
-    [[noreturn]] void raise_Unaddressable () const;
     constexpr AnyPtr require_address () const {
         if (!*this) return null;
         if (auto a = address()) return a;
         else raise_Unaddressable();
     }
+
      // Can throw either CannotCoerce or UnaddressableAnyRef
     Mu* require_address_as (Type t) const {
         return require_address().upcast_to(t).address;
     }
+
     template <class T> requires (Describable<std::remove_const_t<T>>)
     T* require_address_as () const {
         if constexpr (!std::is_const_v<T>) {
             require_writeable();
         }
         return (T*)require_address_as(Type::For<std::remove_const_t<T>>());
-    }
-
-     // Callback passed to access functions.  The first parameter is a pointer
-     // (with type info) to the item, and the second parameter is true if the
-     // item is addressable.
-    using AccessCB = CallbackRef<void(AnyPtr, bool)>;
-
-     // Read the item.  You must not modify it.
-    void read (AccessCB cb) const {
-        access(in::AccessMode::Read, cb);
-    }
-     // Write the item.  The thing behind the AnyPtr passed to the callback may
-     // be the item itself, or it may be a default-constructed clone which will
-     // then be copied to the item.
-    void write (AccessCB cb) const {
-        access(in::AccessMode::Write, cb);
-    }
-     // Modify the item.  The item may be modified in-place or it may do a
-     // read-modify-write opreration.
-    void modify (AccessCB cb) const {
-        access(in::AccessMode::Modify, cb);
     }
 
      // Copying getter.
@@ -194,6 +185,7 @@ struct AnyRef {
     }
 
      // Assign to the referenced item with rvalue ref.
+     // TODO: don't cast! We'll slice the object!
     template <class T>
         requires (!std::is_const_v<T>)
     void set_as (T&& new_v) {
@@ -201,6 +193,7 @@ struct AnyRef {
             *v.upcast_to<T>() = move(new_v);
         }));
     }
+
      // Assign to the referenced item with lvalue ref.
     template <class T>
         requires (!std::is_const_v<T>)
@@ -220,21 +213,35 @@ struct AnyRef {
         return require_address_as<T>();
     }
 
-     // Kinda internal, TODO move to internal namespace
-    void access (in::AccessMode mode, AccessCB cb) const {
-        if (mode != in::AccessMode::Read) require_writeable();
+///// ARBITRARY ACCESS
+
+     // See access.h for how to use these.
+    void access (AccessMode mode, AccessCB cb) const {
+        if (mode != AccessMode::Read) require_writeable();
         if (acr) {
             acr->access(mode, *host.address, cb);
         }
         else cb(host, true);
     }
 
-     // Syntax sugar.  These are just wrappers around item_attr and item_elem,
-     // but they're extern so that we don't pull too many dependencies into this
-     // header.
+    void read (AccessCB cb) const { access(AccessMode::Read, cb); }
+    void write (AccessCB cb) const { access(AccessMode::Write, cb); }
+    void modify (AccessCB cb) const { access(AccessMode::Modify, cb); }
+
+///// SYNTAX SUGAR FOR TRAVERSAL
+
+     // These are just wrappers around item_attr and item_elem, but they're
+     // extern so that we don't pull too many dependencies into this header.
     AnyRef operator [] (const AnyString& key) const;
     AnyRef operator [] (u32 index) const;
+
+///// ERRORS
+
+    [[noreturn]] void raise_WriteReadonly () const;
+    [[noreturn]] void raise_Unaddressable () const;
 };
+
+///// COMPARISON
 
  // AnyRef comparison is best-effort.  If two AnyRefs were constructed
  // differently but happen to point to the same item, they might be considered
@@ -245,7 +252,7 @@ constexpr bool operator == (const AnyRef& a, const AnyRef& b) {
     return *a.acr == *b.acr;
 }
 
-///// AnyRef error codes
+///// ERROR CODES
 
  // Tried to write through a readonly AnyRef.
 constexpr ErrorCode e_WriteReadonly = "ayu::e_WriteReadonly";
@@ -253,6 +260,8 @@ constexpr ErrorCode e_WriteReadonly = "ayu::e_WriteReadonly";
 constexpr ErrorCode e_ReferenceUnaddressable = "ayu::e_ReferenceUnaddressable";
 
 } // ayu
+
+///// HASH
 
  // Allow AnyRef to be a key in unordered_map
 template <>
