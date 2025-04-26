@@ -167,8 +167,6 @@ struct DescriptionHeaderFor : DescriptionHeader {
     };
 };
 
-///// DESCRIPTORS
-
 template <class T>
 struct Descriptor : ComparableAddress { };
 template <class T>
@@ -187,6 +185,11 @@ struct DetachedDescriptor : Descriptor<T> {
     template <class Self>
     static constexpr ComparableAddress make_static (const Self&) { return {}; }
 };
+
+template <class Dcr, class T>
+concept IsDescriptor = std::is_base_of_v<Descriptor<T>, Dcr>;
+
+///// MISC DESCRIPTORS
 
 template <class T>
 struct NameDcr : DetachedDescriptor<T> {
@@ -241,6 +244,17 @@ template <class T>
 struct FlagsDcr : DetachedDescriptor<T> {
     TypeFlags flags;
 };
+
+template <class T>
+struct DefaultConstructDcr : DetachedDescriptor<T> {
+    void(* f )(void*);
+};
+template <class T>
+struct DestroyDcr : DetachedDescriptor<T> {
+    void(* f )(T*);
+};
+
+///// VALUE DESCRIPTORS
 
 template <class T>
 struct ValueDcr : ComparableAddress {
@@ -370,6 +384,11 @@ struct ValuesDcrWith : ValuesDcr<T> {
     }
 };
 
+template <class Dcr, class T>
+concept IsValueDcr = std::is_base_of_v<ValueDcr<T>, Dcr>;
+
+///// ATTR DESCRIPTORS
+
 template <class T>
 struct AttrDcr : ComparableAddress {
     StaticString key;
@@ -429,6 +448,11 @@ struct AttrsDcrWith : AttrsDcr<T> {
     }
 };
 
+template <class Dcr, class T>
+concept IsAttrDcr = std::is_base_of_v<AttrDcr<T>, Dcr>;
+
+///// ELEM DESCRIPTORS
+
 template <class T>
 struct ElemDcr : ComparableAddress { };
 template <class T, class Acr>
@@ -477,6 +501,11 @@ struct ElemsDcrWith : ElemsDcr<T> {
     }
 };
 
+template <class Dcr, class T>
+concept IsElemDcr = std::is_base_of_v<ElemDcr<T>, Dcr>;
+
+///// KEYS AND COMPUTED ATTRS
+
 template <class T>
 struct KeysDcr : AttachedDescriptor<T> { };
 template <class T, class Acr>
@@ -495,6 +524,8 @@ template <class T>
 struct ComputedAttrsDcr : AttachedDescriptor<T> {
     AttrFunc<T>* f;
 };
+
+///// LENGTH AND COMPUTED ELEMS
 
 template <class T>
 struct LengthDcr : AttachedDescriptor<T> { };
@@ -534,15 +565,6 @@ struct DelegateDcrWith : DelegateDcr<T> {
     constexpr DelegateDcrWith (const Acr& a) :
         acr(constexpr_acr(a))
     { }
-};
-
-template <class T>
-struct DefaultConstructDcr : DetachedDescriptor<T> {
-    void(* f )(void*);
-};
-template <class T>
-struct DestroyDcr : DetachedDescriptor<T> {
-    void(* f )(T*);
 };
 
 ///// MAKING DESCRIPTIONS

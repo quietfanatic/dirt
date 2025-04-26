@@ -65,7 +65,7 @@ using TreePair = Pair<AnyString, Tree>;
  //     be a const Mu&).
 struct Mu;
 
-///// TYPE TRAITS
+///// TYPE TRAITS / CONCEPTS
 
  // Type trait for the types that AYU can process at runtime.
  // There is no way to find out at compile time whether a type actually has been
@@ -99,6 +99,9 @@ concept ConstableDescribable = Describable<std::remove_const_t<T>>;
 template <class T>
 concept IsAnyPtrOrAnyRef = std::is_same_v<std::remove_cvref_t<T>, AnyPtr>
                         || std::is_same_v<std::remove_cvref_t<T>, AnyRef>;
+
+template <class T, class Base>
+concept SameOrBase = std::is_same_v<T, Base> || std::is_base_of_v<T, Base>;
 
 ///// DEBUGGING
 
