@@ -60,7 +60,6 @@ enum class AttrFlags : u8 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 
-struct Accessor;
  // This is the "virtual function" that accessors use
 using AccessFunc = void(const Accessor*, Mu&, AccessCB, AccessMode);
 

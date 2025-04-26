@@ -24,21 +24,16 @@
 // the item's original value, use modify().  Some AnyRefs are readonly, and
 // trying to write to them will throw WriteReadonly.
 //
-// A AnyRef can be implicitly cast to a raw C++ pointer if the item it points
-// to is addressable (i.e. the internal accessor supports the address
-// operation).  A readonly AnyRef can only be cast to a const pointer.  A raw
-// C++ pointer can be implicitly cast to an AnyRef if the pointed-to type is
+// An AnyRef can be implicitly cast to a raw C++ pointer if the item it points
+// to is addressable.  A readonly AnyRef can only be cast to a const pointer.  A
+// raw C++ pointer can be implicitly cast to an AnyRef if the pointed-to type is
 // known to AYU.
 //
 // There is an empty AnyRef, which has no type and no value.  There are also
 // typed "null" AnyRefs, which have a type but no value, and are equivalent to
 // typed null pointers.  operator bool returns false for both of these, so to
 // differentiate them, call .type(), which will return the empty Type for the
-// empty AnyRef.  .address() will return null for null AnyRefs and segfault for
-// the empty AnyRef.
-//
-// AnyRefs cannot be constructed until main() starts (except for the typeless
-// empty AnyRef).
+// empty AnyRef.
 
 #pragma once
 #include <type_traits>
@@ -49,7 +44,7 @@ namespace ayu {
 
 struct AnyRef {
     AnyPtr host;
-    const in::Accessor* acr;
+    const Accessor* acr;
 
 ///// CONSTRUCTION
 
@@ -76,10 +71,13 @@ struct AnyRef {
     constexpr AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
     AnyRef (Type t, Mu* p, bool readonly) : host(t, p, readonly), acr(null) { }
 
-     // For use in attr_func and elem_func.
-    template <class From, class Acr> requires (
-        std::is_same_v<typename Acr::AcrFromType, From>
-    )
+     // Construct from an object and an accessor for that object.  This is
+     // intended to be used in computed_attrs and computed_elems functions in
+     // AYU_DESCRIBE blocks.  The first argument must be an instance of the type
+     // being described, and the second argument must be one of the
+     // accessor-generating functions in describe-base.h (the same thing you
+     // would pass to, say attr or elem).
+    template <class From, AccessorFor<From> Acr>
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
 
      // Copy and move construction and assignment

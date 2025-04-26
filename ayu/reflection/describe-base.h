@@ -55,7 +55,9 @@ namespace ayu {
 
 template <class T>
 struct AYU_DescribeBase {
+
     ///// GENERAL-PURPOSE DESCRIPTORS
+
      // Specifies the name of the type, as it will appear in serialized strings.
      // You do not need to provide this for non-template types, since the
      // AYU_DESCRIBE macro will stringify the type name given to it and use that

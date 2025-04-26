@@ -30,7 +30,7 @@ struct AnyPtr {
      // mistakes.  Watch out for when you're working with template parameters!
     template <class T> requires (
         Describable<T>
-    ) constexpr explicit (
+    ) explicit (
         std::is_same_v<T, AnyPtr> ||
         std::is_same_v<T, AnyRef>
     ) AnyPtr (T* a) :
@@ -38,10 +38,10 @@ struct AnyPtr {
         type_p(Type::For<T>().data)
     { }
 
-     // Coercion from const pointer
+     // Coercion from const pointer.
     template <class T> requires (
         Describable<T>
-    ) constexpr explicit (
+    ) explicit (
         std::is_same_v<T, AnyPtr> ||
         std::is_same_v<T, AnyRef>
     ) AnyPtr (const T* a) :
