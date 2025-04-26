@@ -37,18 +37,17 @@ void raise_inner (StaticString code, AnyString::Impl details) {
     throw e;
 }
 
-[[gnu::cold, maybe_unused]] static
-auto get_demangled_name (const std::type_info& t) noexcept {
+UniqueString demangle_cpp_name (const char* name) noexcept {
 #if __has_include(<cxxabi.h>)
     int status;
-    char* demangled = abi::__cxa_demangle(t.name(), nullptr, nullptr, &status);
-    if (status != 0) return cat("?(Failed to demangle ", t.name(), ')');
+    char* demangled = abi::__cxa_demangle(name, nullptr, nullptr, &status);
+    if (status != 0) return cat("!(Failed to demangle ", name, ')');
     auto r = UniqueString(demangled);
     free(demangled);
     return r;
 #else
      // Probably MSVC, which automatically demangles.
-    return Str(t.name());
+    return name;
 #endif
 }
 
@@ -60,7 +59,7 @@ void unrecoverable_exception (Str when) noexcept {
         warn_utf8(cat(
             "ERROR: Unrecoverable exception ", when, ":\n    ",
 #if defined(__GXX_RTTI) || defined(_CPPRTTI)
-            get_demangled_name(typeid(e)), ": ", e.what()
+            demangle_cpp_name(typeid(e).name()), ": ", e.what()
 #else
             "(Unknown type name): ", e.what()
 #endif

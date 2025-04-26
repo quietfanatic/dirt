@@ -75,6 +75,9 @@ constexpr ErrorCode e_External = "uni::e_External";
  // impossible.
 [[noreturn]] void unrecoverable_exception (Str when) noexcept;
 
+ // Probably useless without rtti
+UniqueString demangle_cpp_name (const char* name) noexcept;
+
 } // uni
 
 #ifndef TAP_DISABLE_TESTS
