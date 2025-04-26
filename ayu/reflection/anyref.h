@@ -42,7 +42,7 @@
 
 #pragma once
 #include <type_traits>
-#include "accessors.internal.h"
+#include "access.internal.h"
 #include "anyptr.h"
 
 namespace ayu {

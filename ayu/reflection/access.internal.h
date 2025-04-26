@@ -19,7 +19,7 @@ enum class AcrFlags : u8 {
     Readonly = 0x1,
      // Children considered addressable even if this item is not addressable.
     PassThroughAddressable = 0x2,
-     // Consider this item unaddressable even if it normally would be
+     // Consider this item unaddressable even if it normally would be.
     Unaddressable = 0x4,
      // These are only used in the describe API.  They're transferred to actual
      // TreeFlags when the ACR is written.

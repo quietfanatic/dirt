@@ -1,6 +1,6 @@
 #pragma once
 #include "../common.h"
-#include "../reflection/accessors.private.h"
+#include "../reflection/access.private.h"
 #include "../reflection/description.private.h"
 #include "route.h"
 #include "to-tree.h"
