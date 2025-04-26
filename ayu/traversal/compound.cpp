@@ -318,8 +318,8 @@ struct TraverseAttr {
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const GetAttrTraversal<>&>(tr);
         auto desc = trav.desc();
-        if (desc->keys_offset) {
-            return use_computed_attrs(trav);
+        if (desc->keys_acr()) {
+            return use_computed_attrs(trav, expect(desc->computed_attrs())->f);
         }
         else if (auto attrs = desc->attrs()) {
             return use_attrs(trav, attrs);
@@ -362,10 +362,7 @@ struct TraverseAttr {
     }
 
     NOINLINE static
-    void use_computed_attrs (const GetAttrTraversal<>& trav) {
-        auto desc = trav.desc();
-        expect(desc->computed_attrs_offset);
-        auto f = desc->computed_attrs()->f;
+    void use_computed_attrs (const GetAttrTraversal<>& trav, AttrFunc<Mu>* f) {
         if (AnyRef ref = f(*trav.address, *trav.get_key)) {
             ReturnRefTraversal<ComputedAttrTraversal> child;
             child.r = trav.r;
@@ -513,7 +510,7 @@ struct TraverseElem {
                 use_contiguous_elems(trav, length);
             }
             else {
-                use_computed_elems(trav);
+                use_computed_elems(trav, expect(desc->computed_elems())->f);
             }
         }
         else if (auto elems = desc->elems()) {
@@ -537,10 +534,7 @@ struct TraverseElem {
     }
 
     NOINLINE static
-    void use_computed_elems (const GetElemTraversal<>& trav) {
-        auto desc = trav.desc();
-        expect(desc->computed_elems_offset);
-        auto f = desc->computed_elems()->f;
+    void use_computed_elems (const GetElemTraversal<>& trav, ElemFunc<Mu>* f) {
         AnyRef ref = f(*trav.address, trav.index);
         if (!ref) return;
         ReturnRefTraversal<ComputedElemTraversal> child;
@@ -559,9 +553,7 @@ struct TraverseElem {
         u32 len;
         read_length_acr(len, trav.ptr(), length_acr);
         if (trav.index >= len) return;
-        auto desc = trav.desc();
-        expect(desc->contiguous_elems_offset);
-        auto f = desc->contiguous_elems()->f;
+        auto f = expect(trav.desc()->contiguous_elems())->f;
         AnyPtr ptr = f(*trav.address);
         ptr.address = (Mu*)(
             (char*)ptr.address + trav.index * ptr.type().cpp_size()

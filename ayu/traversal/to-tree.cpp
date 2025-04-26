@@ -53,7 +53,7 @@ struct TraverseToTree {
         else if (auto values = desc->values()) {
             use_values(trav, values);
         }
-        else no_value_match(trav);
+        else no_value_match(trav, desc);
     }
 
     NOINLINE static
@@ -65,13 +65,14 @@ struct TraverseToTree {
         else if (auto values = desc->values()) {
             use_values(trav, values);
         }
-        else no_value_match(trav);
+        else no_value_match(trav, desc);
     }
     catch (...) { wrap_exception(trav); }
 
     NOINLINE static
-    void no_value_match (const ToTreeTraversal<>& trav) {
-        auto desc = trav.desc();
+    void no_value_match (
+        const ToTreeTraversal<>& trav, const DescriptionPrivate* desc
+    ) {
         if (desc->preference() == DescFlags::PreferObject) {
             if (auto keys = desc->keys_acr()) {
                 return use_computed_attrs(trav, keys);
@@ -119,7 +120,7 @@ struct TraverseToTree {
                 return;
             }
         }
-        no_value_match(trav);
+        no_value_match(trav, trav.desc());
     }
 
     NOINLINE static
@@ -145,8 +146,7 @@ struct TraverseToTree {
         }
          // Then if there are included or collapsed attrs, rebuild the object
          // while flattening them.
-        auto desc = trav.desc();
-        if (!!(desc->flags & DescFlags::AttrsNeedRebuild)) {
+        if (!!(trav.desc()->flags & DescFlags::AttrsNeedRebuild)) {
              // Determine length for preallocation
             u32 len = object.size();
             for (u32 i = 0; i < attrs->n_attrs; i++) {
@@ -236,9 +236,7 @@ struct TraverseToTree {
             });
         }));
          // Populate values
-        auto desc = trav.desc();
-        expect(desc->computed_attrs_offset);
-        auto f = desc->computed_attrs()->f;
+        auto f = expect(trav.desc()->computed_attrs())->f;
         for (auto& [key, value] : object) {
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.type, key);
@@ -279,9 +277,7 @@ struct TraverseToTree {
         u32 len;
         read_length_acr(len, trav.ptr(), length_acr);
         auto array = UniqueArray<Tree>(len);
-        auto desc = trav.desc();
-        expect(desc->computed_elems_offset);
-        auto f = desc->computed_elems()->f;
+        auto f = expect(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.type, i);
@@ -305,9 +301,7 @@ struct TraverseToTree {
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't needed for computed_elems.
         if (array) {
-            auto desc = trav.desc();
-            expect(desc->contiguous_elems_offset);
-            auto f = desc->contiguous_elems()->f;
+            auto f = expect(trav.desc()->contiguous_elems())->f;
             auto ptr = f(*trav.address);
             for (u32 i = 0; i < array.size(); i++) {
                 ToTreeTraversal<ContiguousElemTraversal> child;

@@ -162,19 +162,20 @@ struct TraverseFromTree {
         if (auto before = desc->before_from_tree()) {
             use_before(trav, before->f);
         }
-        else after_before(trav);
+        else after_before(trav, desc);
     }
 
     NOINLINE static
     void use_before (const FromTreeTraversal<>& trav, FromTreeFunc<Mu>* f) {
         f(*trav.address, *trav.tree);
-        after_before(trav);
+        after_before(trav, trav.desc());
     }
 
     NOINLINE static
-    void after_before (const FromTreeTraversal<>& trav) {
+    void after_before (
+        const FromTreeTraversal<>& trav, const DescriptionPrivate* desc
+    ) {
          // If description has a from_tree, just use that.
-        auto desc = trav.desc();
         if (auto from_tree = desc->from_tree()) [[likely]] {
              // Check this ahead of time for better tail calling capabilities
             if (!!desc->swizzle_offset | !!desc->init_offset) {
@@ -189,17 +190,18 @@ struct TraverseFromTree {
                 if (trav.tree->form == Form::String) {
                     use_values_all_strings(trav, values);
                 }
-                else no_match(trav);
+                else no_match(trav, desc);
             }
             else use_values(trav, values);
         }
-        else no_match(trav);
+        else no_match(trav, desc);
     }
 
     NOINLINE static
-    void no_match (const FromTreeTraversal<>& trav) {
+    void no_match (
+        const FromTreeTraversal<>& trav, const DescriptionPrivate* desc
+    ) {
          // Now the behavior depends on what form of tree we got
-        auto desc = trav.desc();
         if (trav.tree->form == Form::Object) {
             if (auto keys = desc->keys_acr()) {
                 return use_computed_attrs(trav, keys);
@@ -229,7 +231,7 @@ struct TraverseFromTree {
         }
          // Still nothing?  Allow swizzle with no from_tree.
         else if (desc->swizzle_offset) {
-            register_swizzle_init(trav);
+            register_swizzle_init(trav, desc);
         }
         else fail(trav);
     }
@@ -241,7 +243,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, FromTreeFunc<Mu>* f
     ) {
         f(*trav.address, *trav.tree);
-        register_swizzle_init(trav);
+        register_swizzle_init(trav, trav.desc());
     }
 
 ///// OBJECT STRATEGIES
@@ -460,9 +462,7 @@ struct TraverseFromTree {
          // has computed attrs.
         expect(trav.tree->form == Form::Object);
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
-        auto desc = trav.desc();
-        expect(desc->computed_attrs_offset);
-        auto f = desc->computed_attrs()->f;
+        auto f = expect(trav.desc()->computed_attrs())->f;
         u32* prev_next; u32 i;
         for (
             prev_next = &next_list[-1], i = *prev_next;
@@ -606,9 +606,7 @@ struct TraverseFromTree {
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
         write_length_acr(len, trav.ptr(), length_acr);
-        auto desc = trav.desc();
-        expect(desc->computed_elems_offset);
-        auto f = desc->computed_elems()->f;
+        auto f = expect(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.type, i);
@@ -630,9 +628,7 @@ struct TraverseFromTree {
         u32 len = array.size();
         write_length_acr(len, trav.ptr(), length_acr);
         if (array) {
-            auto desc = trav.desc();
-            expect(desc->contiguous_elems_offset);
-            auto f = desc->contiguous_elems()->f;
+            auto f = expect(trav.desc()->contiguous_elems())->f;
             auto ptr = f(*trav.address);
             for (u32 i = 0; i < array.size(); i++) {
                 FromTreeTraversal<ContiguousElemTraversal> child;
@@ -662,7 +658,7 @@ struct TraverseFromTree {
                 return finish_item(trav);
             }
         }
-        no_match(trav);
+        no_match(trav, trav.desc());
     }
 
     NOINLINE static
@@ -676,7 +672,7 @@ struct TraverseFromTree {
                 return finish_item(trav);
             }
         }
-        no_match(trav);
+        no_match(trav, trav.desc());
     }
 
     NOINLINE static
@@ -698,16 +694,18 @@ struct TraverseFromTree {
          // their parent.
         auto desc = trav.desc();
         if (!!desc->swizzle_offset | !!desc->init_offset) {
-            register_swizzle_init(trav);
+            register_swizzle_init(trav, desc);
         }
          // Done
     }
 
     NOINLINE static
-    void register_swizzle_init (const FromTreeTraversal<>& trav) {
+    void register_swizzle_init (
+        const FromTreeTraversal<>& trav,
+        const DescriptionPrivate* desc
+    ) {
          // We're repeating the to_reference work if there's both a swizzle and
          // an init, but almost no types are going to have both.
-        auto desc = trav.desc();
         if (auto swizzle = desc->swizzle()) {
             auto& op = IFTContext::current->swizzle_ops.emplace_back(
                 current_base->route, AnyRef(), swizzle->f, *trav.tree
