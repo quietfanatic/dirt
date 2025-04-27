@@ -4,60 +4,56 @@ namespace ayu {
 static void ERROR_conflicting_flags_on_attr () { }
 static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::name (StaticString n) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::name (StaticString n) {
     return in::NameDcr<T>{{}, n};
 }
-
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::computed_name (in::NameFunc* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::computed_name (in::NameFunc* f) {
     return in::ComputedNameDcr<T>{{}, &in::cached_name<T>, f};
 }
-
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::to_tree (in::ToTreeFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::to_tree (in::ToTreeFunc<T>* f) {
     return in::ToTreeDcr<T>{{}, f};
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::from_tree (in::FromTreeFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::from_tree (in::FromTreeFunc<T>* f) {
     return in::FromTreeDcr<T>{{}, f};
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::before_from_tree (in::FromTreeFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::before_from_tree (in::FromTreeFunc<T>* f) {
     return in::BeforeFromTreeDcr<T>{{}, f};
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::swizzle (in::SwizzleFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::swizzle (in::SwizzleFunc<T>* f) {
     return in::SwizzleDcr<T>{{}, f};
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::init (in::InitFunc<T>* f, double pri) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::init (in::InitFunc<T>* f, double pri) {
     return in::InitDcr<T>{{}, f, pri};
 }
-
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::default_construct (void(* f )(void*)) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::default_construct (void(* f )(void*)) {
     return in::DefaultConstructDcr<T>{{}, f};
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::destroy (void(* f )(T*)) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::destroy (void(* f )(T*)) {
     return in::DestroyDcr<T>{{}, f};
 }
-
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::flags (in::TypeFlags f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::flags (in::TypeFlags f) {
     return in::FlagsDcr<T>{{}, f};
 }
-
 template <Describable T>
-template <in::IsValueDcr<T>... Values>
-    requires (requires (T v) { v == v; v = v; })
-constexpr auto AYU_DescribeBase<T>::values (const Values&... vs) {
+template <ValueDcrFor<T>... Values> requires (
+    requires (T v) { v == v; v = v; }
+) constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::values (const Values&... vs) {
     return in::ValuesDcrWith<T, Values...>(vs...);
 }
 template <Describable T>
-template <in::IsValueDcr<T>... Values>
-constexpr auto AYU_DescribeBase<T>::values_custom (
+template <ValueDcrFor<T>... Values> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::values_custom (
     in::CompareFunc<T>* compare,
     in::AssignFunc<T>* assign,
     const Values&... vs
@@ -66,12 +62,9 @@ constexpr auto AYU_DescribeBase<T>::values_custom (
         compare, assign, vs...
     );
 }
- // Forwarding references only work if the template parameter is immediately on
- // the function, not in some outer scope.
 template <Describable T>
-template <ConvertibleToTree N>
-    requires (requires (const T& v) { T(v); })
-constexpr auto AYU_DescribeBase<T>::value (const N& n, const T& v) {
+template <ConstructsTree N> requires (Copyable<T>) constexpr
+ValueDcrFor<T> auto AYU_DescribeBase<T>::value (const N& n, const T& v) {
     Tree name;
     if constexpr (
         !requires { Null(n); } &&
@@ -83,10 +76,9 @@ constexpr auto AYU_DescribeBase<T>::value (const N& n, const T& v) {
     name.flags &= ~TreeFlags::ValueIsPtr;
     return in::ValueDcrWithValue<T>{{{}, name}, v};
 }
-
 template <Describable T>
-template <ConvertibleToTree N>
-constexpr auto AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
+template <ConstructsTree N> constexpr
+ValueDcrFor<T> auto AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
     Tree name;
     if constexpr (
         !requires { Null(n); } &&
@@ -98,16 +90,15 @@ constexpr auto AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
     name.flags |= TreeFlags::ValueIsPtr;
     return in::ValueDcrWithPtr<T>{{{}, name}, p};
 }
-
 template <Describable T>
-template <in::IsAttrDcr<T>... Attrs>
-constexpr auto AYU_DescribeBase<T>::attrs (const Attrs&... as) {
+template <AttrDcrFor<T>... Attrs> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::attrs (const Attrs&... as) {
     return in::AttrsDcrWith<T, Attrs...>(as...);
 }
 template <Describable T>
-template <AccessorFrom<T> Acr>
-constexpr auto AYU_DescribeBase<T>::attr (
-    StaticString key, const Acr& acr, in::AttrFlags flags
+template <AccessorFrom<T> Acr> constexpr
+AttrDcrFor<T> auto AYU_DescribeBase<T>::attr (
+    StaticString key, const Acr& acr, AttrFlags flags
 ) {
     u32 count = !!(flags & in::AttrFlags::Optional)
               + !!(flags & in::AttrFlags::Include)
@@ -120,9 +111,8 @@ constexpr auto AYU_DescribeBase<T>::attr (
     return r;
 }
 template <Describable T>
-template <AccessorFrom<T> Acr, ConvertibleToTree Default>
-    requires (requires (const Default& def) { Tree(def); })
-constexpr auto AYU_DescribeBase<T>::attr_default (
+template <AccessorFrom<T> Acr, ConstructsTree Default> constexpr
+AttrDcrFor<T> auto AYU_DescribeBase<T>::attr_default (
     StaticString key, const Acr& acr, const Default& def, in::AttrFlags flags
 ) {
     return in::AttrDefaultDcrWith<T, Acr>(
@@ -131,13 +121,13 @@ constexpr auto AYU_DescribeBase<T>::attr_default (
     );
 }
 template <Describable T>
-template <in::IsElemDcr<T>... Elems>
-constexpr auto AYU_DescribeBase<T>::elems (const Elems&... es) {
+template <ElemDcrFor<T>... Elems> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::elems (const Elems&... es) {
     return in::ElemsDcrWith<T, Elems...>(es...);
 }
 template <Describable T>
-template <AccessorFrom<T> Acr>
-constexpr auto AYU_DescribeBase<T>::elem (
+template <AccessorFrom<T> Acr> constexpr
+ElemDcrFor<T> auto AYU_DescribeBase<T>::elem (
     const Acr& acr, in::AttrFlags flags
 ) {
     if (!!(flags & in::AttrFlags::CollapseOptional)) {
@@ -149,38 +139,40 @@ constexpr auto AYU_DescribeBase<T>::elem (
 }
 template <Describable T>
 template <AccessorFrom<T> Acr> requires (
-    AccessorTo<Acr, uni::AnyArray<uni::AnyString>>
-) constexpr auto AYU_DescribeBase<T>::keys (const Acr& acr) {
+    AccessorTo<Acr, AnyArray<AnyString>>
+) constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::keys (const Acr& acr) {
     return in::KeysDcrWith<T, Acr>(acr);
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::computed_attrs (in::AttrFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::computed_attrs (in::AttrFunc<T>* f) {
     return in::ComputedAttrsDcr<T>{{}, f};
 }
 template <Describable T>
 template <AccessorFrom<T> Acr> requires (
     AccessorTo<Acr, u32> || AccessorTo<Acr, u64>
-) constexpr auto AYU_DescribeBase<T>::length (const Acr& acr) {
+) constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::length (const Acr& acr) {
     return in::LengthDcrWith<T, Acr>(acr);
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::computed_elems (in::ElemFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::computed_elems (in::ElemFunc<T>* f) {
     return in::ComputedElemsDcr<T>{{}, f};
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::contiguous_elems (in::DataFunc<T>* f) {
+template <Describable T> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::contiguous_elems (in::DataFunc<T>* f) {
     return in::ContiguousElemsDcr<T>{{}, f};
 }
 template <Describable T>
-template <AccessorFrom<T> Acr>
-constexpr auto AYU_DescribeBase<T>::delegate (const Acr& acr) {
+template <AccessorFrom<T> Acr> constexpr
+DescriptorFor<T> auto AYU_DescribeBase<T>::delegate (const Acr& acr) {
     return in::DelegateDcrWith<T, Acr>(acr);
 }
 
 template <Describable T>
-template <SameOrBase<T> T2, Describable M>
-constexpr auto AYU_DescribeBase<T>::member (
-    M T2::* mp, in::AcrFlags flags
+template <SameOrBase<T> T2, Describable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::member (
+    M T2::* mp, AcrFlags flags
 ) {
      // Sadly we can't use NoopAcr to save a word if mp is 0, because we can't
      // check mp in an if constexpr because it's a parameter, so we can't change
@@ -188,81 +180,76 @@ constexpr auto AYU_DescribeBase<T>::member (
     return in::MemberAcr<T, M>(mp, flags);
 }
 template <Describable T>
-template <SameOrBase<T> T2, Describable M>
-constexpr auto AYU_DescribeBase<T>::const_member (
-    const M T2::* mp, in::AcrFlags flags
+template <SameOrBase<T> T2, Describable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::const_member (
+    const M T2::* mp, AcrFlags flags
 ) {
     return in::MemberAcr<T, M>(
         const_cast<M T::*>(mp), flags | in::AcrFlags::Readonly
     );
 }
 template <Describable T>
-template <Describable B>
-    requires (requires (T* t, B* b) { b = t; t = static_cast<T*>(b); })
-constexpr auto AYU_DescribeBase<T>::base (
-    in::AcrFlags flags
-) {
+template <Describable M>
+    requires (requires (T* t, M* m) { m = t; t = static_cast<T*>(m); }) constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::base (AcrFlags flags) {
     if constexpr (
-        static_cast<B*>((T*)null) == null
+        static_cast<M*>((T*)null) == null
     ) {
          // BaseAcr is kinda heavy because it may have to deal with virtual
          // bases, so if the base is the first base (offset 0), use a special
          // Acr that doesn't need to store any data.
-        return in::NoopAcr<T, B>(flags);
+        return in::NoopAcr<T, M>(flags);
     }
-    else return in::BaseAcr<T, B>(flags);
+    else return in::BaseAcr<T, M>(flags);
 }
 template <Describable T>
-template <Describable M>
-constexpr auto AYU_DescribeBase<T>::ref_func (
+template <Describable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::ref_func (
     M&(* f )(T&),
-    in::AcrFlags flags
+    AcrFlags flags
 ) {
     return in::RefFuncAcr<T, M>(f, flags);
 }
 template <Describable T>
-template <Describable M>
-constexpr auto AYU_DescribeBase<T>::const_ref_func (
+template <Describable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::const_ref_func (
     const M&(* f )(const T&),
-    in::AcrFlags flags
+    AcrFlags flags
 ) {
     return in::ConstRefFuncAcr<T, M>(f, flags);
 }
 template <Describable T>
-template <Describable M>
-constexpr auto AYU_DescribeBase<T>::const_ref_funcs (
+template <Describable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::const_ref_funcs (
     const M&(* g )(const T&),
     void(* s )(T&, const M&),
-    in::AcrFlags flags
+    AcrFlags flags
 ) {
     return in::RefFuncsAcr<T, M>(g, s, flags);
 }
 template <Describable T>
-template <Describable M>
-    requires (requires (M m) { M(move(m)); })
-constexpr auto AYU_DescribeBase<T>::value_func (
+template <Movable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::value_func (
     M(* f )(const T&),
-    in::AcrFlags flags
+    AcrFlags flags
 ) {
     return in::ValueFuncAcr<T, M>(f, flags);
 }
 template <Describable T>
-template <Describable M>
-    requires (requires (M m) { M(move(m)); })
-constexpr auto AYU_DescribeBase<T>::value_funcs (
+template <Movable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::value_funcs (
     M(* g )(const T&),
     void(* s )(T&, M),
-    in::AcrFlags flags
+    AcrFlags flags
 ) {
     return in::ValueFuncsAcr<T, M>(g, s, flags);
 }
 template <Describable T>
-template <Describable M>
-    requires (requires (M m) { M(move(m)); })
-constexpr auto AYU_DescribeBase<T>::mixed_funcs (
+template <Movable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::mixed_funcs (
     M(* g )(const T&),
     void(* s )(T&, const M&),
-    in::AcrFlags flags
+    AcrFlags flags
 ) {
     return in::MixedFuncsAcr<T, M>(g, s, flags);
 }
@@ -270,55 +257,51 @@ constexpr auto AYU_DescribeBase<T>::mixed_funcs (
  // TODO: optimize for pointers
 template <Describable T>
 template <Describable M>
-    requires (requires (T t, M m) { t = m; m = t; })
-constexpr auto AYU_DescribeBase<T>::assignable (
-    in::AcrFlags flags
+    requires (requires (T t, M m) { t = m; m = t; }) constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::assignable (
+    AcrFlags flags
 ) {
     return in::AssignableAcr<T, M>(flags);
 }
 
 template <Describable T>
-template <Describable M>
-    requires (requires (const M& m) { M(m); })
-constexpr auto AYU_DescribeBase<T>::constant (
-    const M& v, in::AcrFlags flags
+template <Copyable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::constant (
+    const M& v, AcrFlags flags
 ) {
     return in::ConstantAcr<T, M>(move(v), flags);
 }
 template <Describable T>
-template <Describable M>
-constexpr auto AYU_DescribeBase<T>::constant_ptr (
-    const M* p, in::AcrFlags flags
+template <Describable M> constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::constant_ptr (
+    const M* p, AcrFlags flags
 ) {
     return in::ConstantPtrAcr<T, M>(p, flags);
 }
 
- // This one is not constexpr, so it is only valid in computed_attrs,
- // computed_elems, or reference_func.
 template <Describable T>
-template <Describable M>
-    requires (requires (M m) { M(move(m)); m.~M(); })
-auto AYU_DescribeBase<T>::variable (
-    M&& v, in::AcrFlags flags
+template <Movable M> // not constexpr
+AccessorFromTo<T, M> auto AYU_DescribeBase<T>::variable (
+    M&& v, AcrFlags flags
 ) {
     return in::VariableAcr<T, M>(move(v), flags);
 }
 
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::anyref_func (
-    AnyRef(* f )(T&), in::AcrFlags flags
+template <Describable T> constexpr
+AccessorFrom<T> auto AYU_DescribeBase<T>::anyref_func (
+    Function<AnyRef(T&)>* f, AcrFlags flags
 ) {
     return in::AnyRefFuncAcr<T>(f, flags);
 }
-template <Describable T>
-constexpr auto AYU_DescribeBase<T>::anyptr_func (
-    AnyPtr(* f )(T&), in::AcrFlags flags
+template <Describable T> constexpr
+AccessorFrom<T> auto AYU_DescribeBase<T>::anyptr_func (
+    Function<AnyPtr(T&)>* f, AcrFlags flags
 ) {
     return in::AnyPtrFuncAcr<T>(f, flags);
 }
 
 template <Describable T>
-template <in::IsDescriptor<T>... Dcrs>
+template <DescriptorFor<T>... Dcrs>
 constexpr auto AYU_DescribeBase<T>::AYU_describe (
     const Dcrs&... dcrs
 ) {

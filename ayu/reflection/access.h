@@ -40,22 +40,13 @@ AccessMode write_to_modify (AccessMode mode) {
     return AccessMode(int(mode) & ~int(AccessMode::Write));
 }
 
- // This is the base class for accessors.  Every function in the "ACCESSORS"
- // section of describe-base.h returns a subclass of this, although the details
- // of those subclasses are not public.
- //
- // In some cases, accessors may be refcounted, so don't duplicate pointers to
- // them.
-namespace in { struct Accessor; }
-using in::Accessor;
-
- // Constrain an accessor's from-type.
 template <class Acr, class From>
 concept AccessorFrom = std::is_same_v<typename Acr::AcrFromType, From>;
 
- // Constrain an accessor's to-type.  Note that some accessors don't know their
- // to-type at compile time.  Those accessors will fail this check.
 template <class Acr, class To>
 concept AccessorTo = std::is_same_v<typename Acr::AcrToType, To>;
+
+template <class Acr, class From, class To>
+concept AccessorFromTo = AccessorFrom<Acr, From> && AccessorTo<Acr, To>;
 
 } // ayu

@@ -44,7 +44,7 @@ namespace ayu {
 
 struct AnyRef {
     AnyPtr host;
-    const Accessor* acr;
+    const in::Accessor* acr;
 
 ///// CONSTRUCTION
 

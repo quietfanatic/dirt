@@ -94,12 +94,24 @@ concept Describable = DescribableS<T>::value;
 template <class T>
 concept ConstableDescribable = Describable<std::remove_const_t<T>>;
 
+ // Some basic traits
+template <class T>
+concept Destructible = requires (T v) { v.~T(); };
+
+template <class T>
+concept Movable = Destructible<T> && requires (T&& v) { T(move(v)); };
+
+template <class T>
+concept Copyable = Movable<T> && requires (const T& v) { T(v); };
+
  // Checks if the type is AnyPtr or AnyRef.  This prevents some dangerous
  // implicit coercions.
 template <class T>
 concept IsAnyPtrOrAnyRef = std::is_same_v<std::remove_cvref_t<T>, AnyPtr>
                         || std::is_same_v<std::remove_cvref_t<T>, AnyRef>;
 
+ // Like std::is_base_of_v but also returns true if T and Base are the same
+ // union type.
 template <class T, class Base>
 concept SameOrBase = std::is_same_v<T, Base> || std::is_base_of_v<T, Base>;
 

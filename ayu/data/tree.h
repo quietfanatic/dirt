@@ -182,9 +182,10 @@ struct Tree {
  //    attributes don't have to be in the same order.
 bool operator == (const Tree& a, const Tree& b) noexcept;
 
- // Constraint used in value descriptors.
+ // Constrain to types that a Tree can be constructed from.  This is used in
+ // value descriptors and attr_default.
 template <class T>
-concept ConvertibleToTree = requires (T v) { Tree(v); };
+concept ConstructsTree = requires (T v) { Tree(v); };
 
  // Tried to get something out of a tree that was the wrong form.
 constexpr ErrorCode e_TreeWrongForm = "ayu::e_TreeWrongForm";

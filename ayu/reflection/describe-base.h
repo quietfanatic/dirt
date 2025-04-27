@@ -53,6 +53,52 @@
 
 namespace ayu {
 
+///// TYPES AND CONSTRAINTS
+
+ // The top level arguments of an AYU_DESCRIBE list must match this.
+template <class Dcr, class T>
+concept DescriptorFor = std::is_base_of_v<in::Descriptor<T>, Dcr>;
+
+ // The arguments to values and values_custom must match this.
+template <class Dcr, class T>
+concept ValueDcrFor = std::is_base_of_v<in::ValueDcr<T>, Dcr>;
+
+ // The arguments to attrs must match this.
+template <class Dcr, class T>
+concept AttrDcrFor = std::is_base_of_v<in::AttrDcr<T>, Dcr>;
+
+ // The arguments to elems must match this.
+template <class Dcr, class T>
+concept ElemDcrFor = std::is_base_of_v<in::ElemDcr<T>, Dcr>;
+
+#if 0 // These are declared elsewhere.
+
+ // This matches an argument to each of delegate, attr, elem, keys, length.
+template <class Acr, class From>
+concept AccessorFrom = std::is_same_v<typename Acr::AcrFromType, From>;
+
+ // This further constrains the argument to keys and length.
+template <class Acr, class To>
+concept AccessorTo = std::is_same_v<typename Acr::AcrToType, To>;
+
+ // Constrain both from and to type
+template <class Acr, class From, class To>
+concept AccessorFromTo = AccessorFrom<Acr, From> && AccessorTo<Acr, To>;
+
+#endif
+
+ // Passed to flags descriptor
+using TypeFlags = in::TypeFlags;
+
+ // Passed to accessor constructors
+using AcrFlags = in::AcrFlags;
+
+ // Passed to attr and elem
+using AttrFlags = in::AttrFlags;
+
+ // Convenience since C's functions parameter syntax is kooky.
+template <class F> using Function = F;
+
 template <Describable T>
 struct AYU_DescribeBase {
 
@@ -63,17 +109,29 @@ struct AYU_DescribeBase {
      // AYU_DESCRIBE macro will stringify the type name given to it and use that
      // as the name.  You must provide a name for template types, but you
      // probably want to use computed_name instead.
-    static constexpr auto name (StaticString);
+    static constexpr
+    DescriptorFor<T> auto name (
+        StaticString
+    );
+
      // Generate a name dynamically, which can depend on the names of other
      // types.  This function will only be called once, with the result cached
      // for later accesses.  For usage examples, see describe-standard.h.
-    static constexpr auto computed_name (AnyString(* f )());
+    static constexpr
+    DescriptorFor<T> auto computed_name (
+        Function<AnyString()>*
+    );
+
      // Provides a function to transform an item of this type to an ayu::Tree
      // for serialization.  For most types this should not be needed; for
      // aggregate types you usually want attrs() or elems(), and for scalar
      // types delegate() or values().  For more complex types, however, you can
      // use this and from_tree() to control serialization.
-    static constexpr auto to_tree (Tree(* f )(const T&));
+    static constexpr
+    DescriptorFor<T> auto to_tree (
+        Function<Tree(const T&)>*
+    );
+
      // Provides a function to transform an ayu::Tree into an item of this type
      // for deserialization.  For most types this should not be needed, but it's
      // available for more complex types if necessary.  The type will already
@@ -91,13 +149,21 @@ struct AYU_DescribeBase {
      //
      // TODO: Add construct_from_tree for types that refuse to be default
      // constructed no matter what.
-    static constexpr auto from_tree (void(* f )(T&, const Tree&));
+    static constexpr
+    DescriptorFor<T> auto from_tree (
+        Function<void(T&, const Tree&)>*
+    );
+
      // This is similar to from_tree.  The difference is that after this
      // function is called, deserialization will continue with any other
      // applicable descriptors.  The use case for this is for polymorphic types
      // that need to inspect the tree to know how to allocate their storage, but
      // after that will use delegate() with a more concrete type.
-    static constexpr auto before_from_tree (void(* f )(T&, const Tree&));
+    static constexpr
+    DescriptorFor<T> auto before_from_tree (
+        Function<void(T&, const Tree&)>*
+    );
+
      // If your type needs extra work to link it to other items after
      // from_tree() has been called on all of them, use this function.  As an
      // example, this is used for pointers so that they can point to other
@@ -118,15 +184,20 @@ struct AYU_DescribeBase {
      //   - If this item is in an included attr, the tree passed to swizzle will
      //     be the tree provided to the outer item that includes this one, so
      //     the tree may have more attributes than you expect.
-    static constexpr auto swizzle (void(* f )(T&, const Tree&));
+    static constexpr
+    DescriptorFor<T> auto swizzle (
+        Function<void(T&, const Tree&)>*
+    );
+
      // If your type has an extra step needed to complete its initialization
      // after from_tree() and swizzle(), use this function.  As an example, you
      // can have a window type which sets all its parameters using attrs(), and
      // then calls a library function to open the window in init().
      //
-     // Init functions will be called in descending priority order.  If init
-     // functions have the same priority, they will be called first on child
-     // items in order, then on parent items.
+     // Init functions will be called in descending priority order (highest
+     // priority first).  If init functions have the same priority, they will be
+     // called first on child items in order, then on parent items.  TODO:
+     // reverse this order and rename to "order"
      //
      // Be aware that an optional attr or elem will not have init called on it
      // or its child items if it is not provided with a value in the from_tree
@@ -139,31 +210,48 @@ struct AYU_DescribeBase {
      // autoloading a resource, for instance), all currently queued init
      // operations will run before the new items' init operations, regardless of
      // priority.
-    static constexpr auto init (void(* f )(T&), double priority = 0);
+    static constexpr
+    DescriptorFor<T> auto init (
+        Function<void(T&)>*,
+        double priority = 0
+    );
+
      // Make this type behave like another type.  `accessor` must be the result
      // of one of the accessor functions in the ACCESSOR section below.  If both
      // delegate() and other descriptors are specified, some behaviors may be
      // overridden by those other descriptors.  See serialization.h for details
      // about which descriptors override delegate() during which operations.
-    template <AccessorFrom<T> Acr>
-    static constexpr auto delegate (const Acr& accessor);
+    template <AccessorFrom<T> Acr> static constexpr
+    DescriptorFor<T> auto delegate (
+        const Acr& accessor
+    );
      // Shortcut for delegate(member(...))
-    template <SameOrBase<T> T2, Describable M>
-    static constexpr auto delegate (M T2::* mp) { return delegate(member(mp)); }
+    template <SameOrBase<T> T2, Describable M> static constexpr
+    DescriptorFor<T> auto delegate (
+        M T2::* mp
+    ) { return delegate(member(mp)); }
+
      // Specify custom behavior for default construction.  You shouldn't need
      // to use this unless for some reason the type's default constructor is not
      // visible where you're declaring the AYU_DESCRIPTION.  The function will
      // be passed a void* pointing to an allocated buffer with sizeof(T) and
      // alignof(T), and must construct an object of type T, such as by using
      // placement new.
-    static constexpr auto default_construct (void(* f )(void*));
+    static constexpr
+    DescriptorFor<T> auto default_construct (
+        Function<void(void*)>*
+    );
+
      // Specify custom behavior for destruction, in case the item's destructor
      // is not visible from here.  You should destroy the pointed-to object, but
      // do not delete/free it.  It will be deallocated automatically.
-    static constexpr auto destroy (void(* f )(T*));
+    static constexpr
+    DescriptorFor<T> auto destroy (
+        Function<void(T*)>*
+    );
 
-     // Specify flags for this type specifically.  Currently there's only one
-     // supported flag:
+     // Specify flags for this type specifically.  Currently there are one and a
+     // half supported flags:
      //   - no_refs_to_children: Forbid other items from referencing child items
      //     of this type.  This item itself can still be referenced.  This
      //     allows the reference-to-location scanning system to save time by
@@ -173,7 +261,13 @@ struct AYU_DescribeBase {
      //     documentation purposes only.  There are some types which will cause
      //     confusing breakages when they contain references--most notably,
      //     std::set and std::unordered_set.
-    static constexpr auto flags (in::TypeFlags);
+    static constexpr
+    DescriptorFor<T> auto flags (
+        TypeFlags
+    );
+
+    static constexpr TypeFlags no_refs_to_children = in::TypeFlags::NoRefsToChildren;
+    static constexpr TypeFlags no_refs_from_children = in::TypeFlags::NoRefsFromChildren;
 
     ///// DESCRIPTORS FOR ENUM-LIKE TYPES
 
@@ -198,29 +292,37 @@ struct AYU_DescribeBase {
      // types.  For instance, for a matrix item, you can provide special names
      // like "id" and "flipx" that refer to specific matrixes, and still allow
      // an arbitrary matrix to be specified with a list of numbers.
-    template <in::IsValueDcr<T>... Values>
-        requires (requires (T v) { v == v; v = v; })
-    static constexpr auto values (const Values&... vs);
+    template <ValueDcrFor<T>... Values> requires (
+        requires (T v) { v == v; v = v; }
+    ) static constexpr
+    DescriptorFor<T> auto values (
+        const Values&... value_descriptors
+    );
+
      // This is just like values(), but will use the provided compare and assign
      // functions instead of operator== and operator=, so this type doesn't have
      // to have those operators defined.  The first argument to compare is the
      // item being serialized, and the second value is the value()'s value.
-    template <in::IsValueDcr<T>... Values>
-    static constexpr auto values_custom (
-        bool(* compare )(const T&, const T&),
-        void(* assign )(T&, const T&),
-        const Values&... vs
+    template <ValueDcrFor<T>... Values> static constexpr
+    DescriptorFor<T> auto values_custom (
+        Function<bool(const T&, const T&)>* compare,
+        Function<void(T&, const T&)>* assign,
+        const Values&... value_descriptors
     );
+
      // Specify a named value for use in values(...).  The value must be
      // constexpr copy constructible.
-    template <ConvertibleToTree N>
-        requires (requires (const T& v) { T(v); })
-    static constexpr auto value (const N& name, const T& value);
+    template <ConstructsTree N> requires (Copyable<T>) static constexpr
+    ValueDcrFor<T> auto value (
+        const N& name, const T& val
+    );
      // Specify a named value for use in values(...).  The value must be a
      // pointer to an item of this type, which doesn't have to be constexpr, but
      // it must be initialized before you call any AYU serialization functions.
-    template <ConvertibleToTree N>
-    static constexpr auto value_ptr (const N& name, const T* value);
+    template <ConstructsTree N> static constexpr
+    ValueDcrFor<T> auto value_ptr (
+        const N& name, const T* val
+    );
 
     ///// DESCRIPTORS FOR OBJECT-LIKE TYPES
 
@@ -230,8 +332,11 @@ struct AYU_DescribeBase {
      // serialized as {}.  Attrs will be deserialized in the order they're
      // specified in the description, not in the order they're provided in the
      // Tree.
-    template <in::IsAttrDcr<T>... Attrs>
-    static constexpr auto attrs (const Attrs&... as);
+    template <AttrDcrFor<T>... Attrs> static constexpr
+    DescriptorFor<T> auto attrs (
+        const Attrs&... attr_descriptors
+    );
+
      // Specify a single attribute for an object-like type.  When serializing,
      // `key` will be used as the attribute's key, and `accessor`'s read
      // operation will be used to get the attribute's value.  When
@@ -278,19 +383,20 @@ struct AYU_DescribeBase {
      //     element, an exception will be thrown.  This flag cannot be combined
      //     with optional or include.
      // TODO: Reject multiple attrs with the same name.
-    template <AccessorFrom<T> Acr>
-    static constexpr auto attr (
+    template <AccessorFrom<T> Acr> static constexpr
+    AttrDcrFor<T> auto attr (
         StaticString key,
         const Acr& accessor,
-        in::AttrFlags = {}
+        AttrFlags = {}
     );
      // Shortcut for attr("...", member(...))
-    template <SameOrBase<T> T2, Describable M>
-    static constexpr auto attr (
+    template <SameOrBase<T> T2, Describable M> static constexpr
+    AttrDcrFor<T> auto attr (
         StaticString key,
         M T2::* mp,
-        in::AttrFlags flags = {}
+        AttrFlags flags = {}
     ) { return attr(key, member(mp), flags); }
+
      // Same as attr(), but with an extra parameter that specifies a default
      // value.  This parameter is anything that can be converted to a Tree,
      // similar to the name parameter of values.  When serializing, if the
@@ -302,22 +408,36 @@ struct AYU_DescribeBase {
      // make the default value a non-empty array or object, you need to declare
      // an array at global scope and pass that in as a StaticArray<Tree> or
      // StaticArray<TreePair>.
-    template <AccessorFrom<T> Acr, ConvertibleToTree Default>
-        requires (requires (const Default& def) { Tree(def); })
-    static constexpr auto attr_default (
+     //
+     // Yes, it would make more sense for the attribute to be an actual object
+     // of the accessor's To type, rather than a Tree-like object, but that
+     // would basically require capturing comparison and assignment operators
+     // for all types.
+    template <AccessorFrom<T> Acr, ConstructsTree Default> static constexpr
+    AttrDcrFor<T> auto attr_default (
         StaticString key,
         const Acr& accessor,
-        const Default& def,
-        in::AttrFlags = {}
+        const Default& default_tree_value,
+        AttrFlags = {}
     );
+
      // Shortcut for attr_default("...", member(...), ...)
-    template <SameOrBase<T> T2, Describable M, ConvertibleToTree Default>
-    static constexpr auto attr_default (
+    template <SameOrBase<T> T2, Describable M, ConstructsTree Default>
+    static constexpr
+    AttrDcrFor<T> auto attr_default (
         StaticString key,
         M T2::* mp,
-        const Default& def,
-        in::AttrFlags flags = {}
-    ) { return attr_default(key, member(mp), def, flags); }
+        const Default& default_tree_value,
+        AttrFlags flags = {}
+    ) { return attr_default(key, member(mp), default_tree_value, flags); }
+
+     // Flags for attr (and elem).
+    static constexpr AttrFlags optional = in::AttrFlags::Optional;
+    static constexpr AttrFlags include = in::AttrFlags::Include;
+    static constexpr AttrFlags invisible = in::AttrFlags::Invisible;
+    static constexpr AttrFlags ignored = in::AttrFlags::Ignored;
+    static constexpr AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
+
      // Use this for items that may have a variable number of attributes.
      // `accessor` must be the output of one of the accessor functions (see
      // ACCESSORS), and its child type must be uni::AnyArray<uni::AnyString>.
@@ -341,8 +461,10 @@ struct AYU_DescribeBase {
      // must not be present.
     template <AccessorFrom<T> Acr> requires (
         AccessorTo<Acr, uni::AnyArray<uni::AnyString>>
-    )
-    static constexpr auto keys (const Acr& accessor);
+    ) static constexpr
+    DescriptorFor<T> auto keys (
+        const Acr& accessor
+    );
      // Provide a way to read or write arbitrary attributes.  The function is
      // expected to return an ayu::AnyRef corresponding to the attribute with
      // the given key.  You can create that AnyRef any way you like, such as by
@@ -367,7 +489,10 @@ struct AYU_DescribeBase {
      //
      // If computed_attrs() is present, keys() must also be present, and attrs()
      // must not be present.
-    static constexpr auto computed_attrs (AnyRef(* f )(T&, const AnyString&));
+    static constexpr
+    DescriptorFor<T> auto computed_attrs (
+        Function<AnyRef(T&, const AnyString&)>*
+    );
 
     ///// DESCRIPTORS FOR ARRAY-LIKE TYPES
 
@@ -384,8 +509,10 @@ struct AYU_DescribeBase {
      // If you specify both attrs() and elems(), then the type can be
      // deserialized from either an object or an array, and will be serialized
      // using whichever of attrs() and elems() was specified first.
-    template <in::IsElemDcr<T>... Elems>
-    static constexpr auto elems (const Elems&... es);
+    template <ElemDcrFor<T>... Elems> static constexpr
+    DescriptorFor<T> auto elems (
+        const Elems&... elem_descriptors
+    );
      // Provide an individual element accessor.  `accessor` must be one of the
      // accessors in the ACCESSORS section or a pointer-to-data-member as a
      // shortcut for the member() accessor.  `flags` can be 0 or any |ed
@@ -407,13 +534,16 @@ struct AYU_DescribeBase {
      //   - ignored: This elem will not be written during the from_tree
      //     operation.  If any elem has the ignored flag, all elems after it
      //     must also have the ignored flag.
-    template <AccessorFrom<T> Acr>
-    static constexpr auto elem (const Acr& accessor, in::AttrFlags = {});
+    template <AccessorFrom<T> Acr> static constexpr
+    ElemDcrFor<T> auto elem (
+        const Acr& accessor, AttrFlags = {}
+    );
      // Shortcut for elem(member(...))
-    template <SameOrBase<T> T2, Describable M>
-    static constexpr auto elem (
-        M T2::* mp, in::AttrFlags flags = {}
+    template <SameOrBase<T> T2, Describable M> static constexpr
+    ElemDcrFor<T> auto elem (
+        M T2::* mp, AttrFlags flags = {}
     ) { return elem(member(mp), flags); }
+
      // Use this for array-like items of variable length (or fixed-size items
      // with very long length).  The accessor must have a child type of either
      // u32 or u64 (one of which is usize aka size_t).
@@ -436,7 +566,11 @@ struct AYU_DescribeBase {
      // be present, and elems() must not be present.
     template <AccessorFrom<T> Acr> requires (
         AccessorTo<Acr, u32> || AccessorTo<Acr, u64>
-    ) static constexpr auto length (const Acr& accessor);
+    ) static constexpr
+    DescriptorFor<T> auto length (
+        const Acr& accessor
+    );
+
      // Use this to provide a way to read and write elements at arbitrary
      // indexes.  The return value must be an ayu::AnyRef, which can be created
      // any way you like, including by using an accessor.
@@ -449,7 +583,11 @@ struct AYU_DescribeBase {
      //
      // If computed_elems() is present, length() must also be present, and
      // elems() and contiguous_elems() must not be present.
-    static constexpr auto computed_elems (AnyRef(* f )(T&, u32));
+    static constexpr
+    DescriptorFor<T> auto computed_elems (
+        Function<AnyRef(T&, u32)>*
+    );
+
      // Use this for objects that have elements of identical laid out
      // sequentially in memory.  The provided function must return an AnyPtr to
      // the 0th element, and each subsequent element must be sizeof(Element)
@@ -471,14 +609,17 @@ struct AYU_DescribeBase {
      //
      // If contiguous_elems() is present, length() must also be present, and
      // elems() and computed_elems() must not be present.
-    static constexpr auto contiguous_elems (AnyPtr(* f )(T&));
+    static constexpr
+    DescriptorFor<T> auto contiguous_elems (
+        Function<AnyPtr(T&)>*
+    );
 
     ///// ACCESSORS
      // Accessors are internal types that are the output of the functions below.
      // They each have two associated types:
-     //   - Parent type: The type of the item that the accessor is applied to
+     //   - From type: The type of the item that the accessor is applied to
      //     (that's the type of the AYU_DESCRIBE block you're currently in).
-     //   - Child type: The type of the item that this accessor points to.
+     //   - To type: The type of the item that this accessor points to.
      // Accessors have up to four operations that they support:
      //   - read: Read the value of the child item from the parent item.  All
      //     accessors support this operation.
@@ -500,16 +641,6 @@ struct AYU_DescribeBase {
      //     parent item will not survive a round-trip serialize-deserialize.
      //     This doesn't matter if the parent item is only ever going to be
      //     serialized and never deserialized.
-     //   - prefer_hex: The item this accessor points to prefers to be
-     //     serialized in hexadecimal format if it's a number.
-     //   - prefer_compact: The item this accessor points to prefers to be
-     //     serialized compactly (for arrays, objects, and strings).
-     //   - prefer_expanded: The item this accessor points to prefers to be
-     //     serialized in expanded multi-line form (for arrays, objects, and
-     //     strings).  The behavior is unspecified if both prefer_compact and
-     //     prefer_expanded are given, and if multiple accessors are followed to
-     //     reach an item, which accessor's prefer_* flags are used is
-     //     unspecified.
      //   - pass_through_addressable: Normally you can only take the address of
      //     a child item if its parent is also addressable, but if the parent
      //     item's accessor has pass_through_addressable, then instead you can
@@ -525,6 +656,22 @@ struct AYU_DescribeBase {
      //     pass_through_addressable, or for some reason you're returning
      //     AnyRefs to items with unstable addresses in computed_attrs or
      //     computed_elems.
+     //   - prefer_hex: The item this accessor points to prefers to be
+     //     serialized in hexadecimal format if it's a number.
+     //   - prefer_compact: The item this accessor points to prefers to be
+     //     serialized compactly (for arrays, objects, and strings).
+     //   - prefer_expanded: The item this accessor points to prefers to be
+     //     serialized in expanded multi-line form (for arrays, objects, and
+     //     strings).  The behavior is unspecified if both prefer_compact and
+     //     prefer_expanded are given, and if multiple accessors are followed to
+     //     reach an item, which accessor's prefer_* flags are used is
+     //     unspecified.
+    static constexpr AcrFlags readonly = in::AcrFlags::Readonly;
+    static constexpr AcrFlags pass_through_addressable = in::AcrFlags::PassThroughAddressable;
+    static constexpr AcrFlags unaddressable = in::AcrFlags::Unaddressable;
+    static constexpr AcrFlags prefer_hex = in::AcrFlags::PreferHex;
+    static constexpr AcrFlags prefer_compact = in::AcrFlags::PreferCompact;
+    static constexpr AcrFlags prefer_expanded = in::AcrFlags::PreferExpanded;
 
      // This accessor gives access to a non-static data member of a class by
      // means of a pointer-to-member.  This accessor will be addressable and
@@ -543,26 +690,28 @@ struct AYU_DescribeBase {
      //         ...
      //         AYU_FRIEND_DESCRIBE(MyClass)
      //     };
-    template <SameOrBase<T> T2, Describable M>
-    static constexpr auto member (
-        M T2::* mp, in::AcrFlags = {}
+    template <SameOrBase<T> T2, Describable M> static constexpr
+    AccessorFromTo<T, M> auto member (
+        M T2::* mp, AcrFlags = {}
     );
+
      // Give access to a const non-static data member.  This accessor will be
      // readonly, and is addressable and reverse_addressable.
-    template <SameOrBase<T> T2, Describable M>
-    static constexpr auto const_member (
-        const M T2::* mp, in::AcrFlags = {}
+    template <SameOrBase<T> T2, Describable M> static constexpr
+    AccessorFromTo<T, M> auto const_member (
+        const M T2::* mp, AcrFlags = {}
     );
+
      // Give access to a base class.  This can be any type where a C++ reference
      // to the derived class can be implicitly cast to a reference to the base
      // class, and a reference to the base class can be static_cast<>()ed to a
      // reference to the derived class.  This accessor is addressable and
      // reverse_addressable.
-    template <Describable B>
-        requires (requires (T* t, B* b) { b = t; t = static_cast<T*>(b); })
-    static constexpr auto base (
-        in::AcrFlags = {}
-    );
+    template <Describable M> requires (
+        requires (T* t, M* m) { m = t; t = static_cast<T*>(m); }
+    ) static constexpr
+    AccessorFromTo<T, M> auto base (AcrFlags = {});
+
      // Give access to a child item by means of a function that returns a
      // non-const C++ reference to the item.  This accessor is addressable, but
      // with the natural caveat that the address must not be used after the
@@ -576,83 +725,87 @@ struct AYU_DescribeBase {
      //     Foo* ptr = &object.get_foo_ref();
      // and it's your responsibilty not to keep the pointer around longer than
      // the reference is valid.
-    template <Describable M>
-    static constexpr auto ref_func (
-        M&(* f )(T&), in::AcrFlags = {}
+    template <Describable M> static constexpr
+    AccessorFromTo<T, M> auto ref_func (
+        Function<M&(T&)>*, AcrFlags = {}
     );
+
      // Just like ref_func, but creates a readonly accessor.  Just like with
      // ref_func, be careful when returning a reference to a temporary.
-    template <Describable M>
-    static constexpr auto const_ref_func (
-        const M&(* f )(const T&),
-        in::AcrFlags = {}
+    template <Describable M> static constexpr
+    AccessorFromTo<T, M> auto const_ref_func (
+        Function<const M&(const T&)>*, AcrFlags = {}
     );
+
      // This makes a read-write accessor based on two functions, one of which
      // returns a const ref to the child, and the other of which takes a const
      // ref to a child and writes a copy to the parent.  This accessor is not
      // addressable.  If possible, it's better to use member() than this.
-    template <Describable M>
-    static constexpr auto const_ref_funcs (
-        const M&(* g )(const T&),
-        void(* s )(T&, const M&),
-        in::AcrFlags = {}
+    template <Describable M> static constexpr
+    AccessorFromTo<T, M> auto const_ref_funcs (
+        Function<const M&(const T&)>* get,
+        Function<void(T&, const M&)>* set,
+        AcrFlags = {}
     );
+
      // This makes a readonly accessor from a function that returns a child item
      // by value.  It is not addressable.
-    template <Describable M>
-        requires (requires (M m) { M(move(m)); })
-    static constexpr auto value_func (
-        M(* f )(const T&),
-        in::AcrFlags = {}
+    template <Movable M> static constexpr
+    AccessorFromTo<T, M> auto value_func (
+        Function<M(const T&)>*, AcrFlags = {}
     );
+
      // This makes a read-write accessor from two functions that read and write
      // a child item by value.  It is not addressable.
-    template <Describable M>
-        requires (requires (M m) { M(move(m)); })
-    static constexpr auto value_funcs (
-        M(* g )(const T&),
-        void(* s )(T&, M),
-        in::AcrFlags = {}
+    template <Movable M> static constexpr
+    AccessorFromTo<T, M> auto value_funcs (
+        Function<M(const T&)>* get,
+        Function<void(T&, M)>* set,
+        AcrFlags = {}
     );
+
      // This makes a read-write accessor from two functions, the first of which
      // returns a child item by value, the second of which takes a child item by
-     // const reference and writes a copy to the parent.  This is what you want
-     // if the child item is something like a std::vector that's generated on
-     // the fly.
-    template <Describable M>
-        requires (requires (M m) { M(move(m)); })
-    static constexpr auto mixed_funcs (
-        M(* g )(const T&),
-        void(* s )(T&, const M&),
-        in::AcrFlags = {}
+     // const reference and writes a copy to the parent.  This is usually what
+     // you want if the child item is something like a std::vector that's
+     // generated on the fly.
+    template <Movable M> static constexpr
+    AccessorFromTo<T, M> auto mixed_funcs (
+        Function<M(const T&)>* get,
+        Function<void(T&, const M&)>* set,
+        AcrFlags = {}
     );
+
      // This makes an accessor to any child item such that the parent and child
      // types can be assigned to eachother with operator=.  It is not
      // addressable.
      //
      // I'm not sure how useful this is since you can just use value_funcs
      // instead, but here it is.
-    template <Describable M>
-        requires (requires (T t, M m) { t = m; m = t; })
-    static constexpr auto assignable (
-        in::AcrFlags = {}
+    template <Describable M> requires (
+        requires (T t, M m) { t = m; m = t; }
+    ) static constexpr
+    AccessorFromTo<T, M> auto assignable (
+        AcrFlags = {}
     );
+
      // This makes a readonly accessor which always returns a constant.  The
      // provided constant must be constexpr copy constructible.  This accessor
      // is not addressable, though theoretically it could be made to be.
-    template <Describable M>
-        requires (requires (const M& m) { M(m); })
-    static constexpr auto constant (
-        const M& v, in::AcrFlags = {}
+    template <Copyable M> static constexpr
+    AccessorFromTo<T, M> auto constant (
+        const M& val, AcrFlags = {}
     );
+
      // Makes a readonly accessor which always returns a constant.  The pointed-
      // to constant does not need to be constexpr or even copy-constructible,
      // but it must be initialized before calling any AYU serialization
      // functions.  This accessor is addressable.
-    template <Describable M>
-    static constexpr auto constant_ptr (
-        const M* p, in::AcrFlags = {}
+    template <Describable M> static constexpr
+    AccessorFromTo<T, M> auto constant_ptr (
+        const M* ptr, AcrFlags = {}
     );
+
      // Like constant(), but provides read-write access to a variable which is
      // embedded in the accessor with move().  This accessor is not constexpr,
      // so it cannot be used directly in an AYU_DESCRIBE block, and can only be
@@ -664,11 +817,11 @@ struct AYU_DescribeBase {
      //
      // This is intended to be used for proxy types along with
      // pass_through_addressable.
-    template <Describable M>
-        requires (requires (M m) { M(move(m)); m.~M(); })
-    static auto variable (
-        M&& v, in::AcrFlags = {}
+    template <Movable M> static // not constexpr
+    AccessorFromTo<T, M> auto variable (
+        M&& var, AcrFlags = {}
     );
+
      // An accessor that gives access to a child item by means of an ayu::AnyRef
      // instead of a C++ reference.  This and anyptr_func are the only accessors
      // whose child type can vary depending on the parent item it's applied to.
@@ -686,14 +839,16 @@ struct AYU_DescribeBase {
      //
      // anyref_func and anyptr_func are not valid accessors for the keys and
      // length descriptors.
-    static constexpr auto anyref_func (
-        AnyRef(* f )(T&), in::AcrFlags = {}
+    static constexpr
+    AccessorFrom<T> auto anyref_func (
+        Function<AnyRef(T&)>*, AcrFlags = {}
     );
      // An accessor that gives access to a child item through an ayu::AnyPtr.
      // Like anyref_func but it's addressable.  Don't return empty or null from
      // this.
-    static constexpr auto anyptr_func (
-        AnyPtr(* f )(T&), in::AcrFlags = {}
+    static constexpr
+    AccessorFrom<T> auto anyptr_func (
+        Function<AnyPtr(T&)>*, AcrFlags = {}
     );
 
     ///// METHOD ACCESSORS
@@ -708,28 +863,32 @@ struct AYU_DescribeBase {
         T, Mu
     >;
      // ref_method
-    template <Describable M, M&(T3::* get )()>
-    static constexpr auto ref_method (
-        in::AcrFlags flags = {}
-    ) {
+    template <
+        Describable M,
+        M&(T3::* get )()
+    > static constexpr
+    AccessorFromTo<T, M> auto ref_method (AcrFlags flags = {}) {
         return ref_func<M>(
             [](const T& v) -> M& { return (v.*get)(); }, flags
         );
     }
      // const_ref_method
-    template <Describable M, const M&(T3::* get )()const>
-    static constexpr auto const_ref_method (
-        in::AcrFlags flags = {}
-    ) {
+    template <
+        Describable M,
+        const M&(T3::* get )()const
+    > static constexpr
+    AccessorFromTo<T, M> auto const_ref_method (AcrFlags flags = {}) {
         return const_ref_func<M>(
             [](const T& v) -> const M& { return (v.*get)(); }, flags
         );
     }
      // const_ref_methods
-    template <Describable M, const M&(T3::* get )()const, void(T3::* set )(const M&)>
-    static constexpr auto const_ref_methods (
-        in::AcrFlags flags = {}
-    ) {
+    template <
+        Describable M,
+        const M&(T3::* get )()const,
+        void(T3::* set )(const M&)
+    > static constexpr
+    AccessorFromTo<T, M> auto const_ref_methods (AcrFlags flags = {}) {
         return const_ref_funcs<M>(
             [](const T& v) -> const M& { return (v.*get)(); },
             [](T& v, const M& m){ (v.*set)(m); },
@@ -737,19 +896,22 @@ struct AYU_DescribeBase {
         );
     }
      // value_method
-    template <Describable M, M(T3::* get )()const>
-    static constexpr auto value_method (
-        in::AcrFlags flags = {}
-    ) {
+    template <
+        Describable M,
+        M(T3::* get )()const
+    > static constexpr
+    AccessorFromTo<T, M> auto value_method (AcrFlags flags = {}) {
         return value_func<M>(
             [](const T& v) -> M { return (v.*get)(); }, flags
         );
     }
      // value_methods
-    template <Describable M, M(T3::* get )()const, void(T3::* set )(M)>
-    static constexpr auto value_methods (
-        in::AcrFlags flags = {}
-    ) {
+    template <
+        Describable M,
+        M(T3::* get )()const,
+        void(T3::* set )(M)
+    > static constexpr
+    AccessorFromTo<T, M> auto value_methods (AcrFlags flags = {}) {
         return value_funcs<M>(
             [](const T& v) -> M { return (v.*get)(); },
             [](T& v, M m){ (v.*set)(m); },
@@ -757,50 +919,33 @@ struct AYU_DescribeBase {
         );
     }
      // mixed_methods
-    template <Describable M, M(T3::* get )()const, void(T3::* set )(const M&)>
-    static constexpr auto mixed_methods (
-        in::AcrFlags flags = {}
-    ) {
+    template <
+        Describable M,
+        M(T3::* get )()const,
+        void(T3::* set )(const M&)
+    > static constexpr
+    AccessorFromTo<T, M> auto mixed_methods (AcrFlags flags = {}) {
         return mixed_funcs<M>(
             [](const T& v) -> M { return (v.*get)(); },
             [](T& v, const M& m){ (v.*set)(m); },
             flags
         );
     }
-     // anyref_method.  I doubt you'll ever need this but here it is.
-    template <AnyRef (T3::* get )()>
-    static constexpr auto anyref_method (
-        in::AcrFlags flags = {}
-    ) {
-        return anyref_func(
-            [](const T& v) -> AnyRef { return (v.*get)(); }, flags
-        );
-    }
-     // And an overload for init() (a descriptor, not an accessor, but this
-     // seems convenient, as a lot of class-like types have a method for this.
-    template <void(T3::* m )()>
-    static constexpr auto init (double priority = 0) {
+
+     // And here's an overload for init(), which is a descriptor, not an
+     // accessor, but a lot of class-like types have a method for finishing
+     // intialization, so this is useful.
+    template <
+        void(T3::* m )()
+    > static constexpr
+    DescriptorFor<T> auto init (double priority = 0) {
         return init([](T& v){ (v.*m)(); }, priority);
     }
 
-    ///// FLAGS AND INTERNAL STUFF
+    ///// INTERNAL
 
-    static constexpr in::TypeFlags no_refs_to_children = in::TypeFlags::NoRefsToChildren;
-    static constexpr in::TypeFlags no_refs_from_children = in::TypeFlags::NoRefsFromChildren;
-    static constexpr in::AttrFlags optional = in::AttrFlags::Optional;
-    static constexpr in::AttrFlags include = in::AttrFlags::Include;
-    static constexpr in::AttrFlags invisible = in::AttrFlags::Invisible;
-    static constexpr in::AttrFlags ignored = in::AttrFlags::Ignored;
-    static constexpr in::AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
-    static constexpr in::AcrFlags readonly = in::AcrFlags::Readonly;
-    static constexpr in::AcrFlags prefer_hex = in::AcrFlags::PreferHex;
-    static constexpr in::AcrFlags prefer_compact = in::AcrFlags::PreferCompact;
-    static constexpr in::AcrFlags prefer_expanded = in::AcrFlags::PreferExpanded;
-    static constexpr in::AcrFlags pass_through_addressable =
-        in::AcrFlags::PassThroughAddressable;
-    static constexpr in::AcrFlags unaddressable = in::AcrFlags::Unaddressable;
-    template <in::IsDescriptor<T>... Dcrs>
-    static constexpr auto AYU_describe (const Dcrs&... dcrs);
+    template <DescriptorFor<T>... Dcrs> static constexpr
+    auto AYU_describe (const Dcrs&... dcrs);
 };
 
 } // namespace ayu
