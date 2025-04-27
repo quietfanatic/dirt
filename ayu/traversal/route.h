@@ -24,6 +24,7 @@
 #include "../../uni/lilac.h"
 #include "../common.internal.h"
 #include "../reflection/anyref.h"
+#include "../resources/resource.h"
 
 namespace ayu {
 

@@ -3,33 +3,10 @@
 #include <charconv>
 #include "../../iri/iri.h"
 #include "../reflection/describe.h"
-#include "../resources/resource.h"
 #include "compound.h"
 #include "traversal.private.h"
 
 namespace ayu {
-namespace in {
-
-struct ResourceRoute : Route {
-    SharedResource resource;
-    ResourceRoute (SharedResource res) :
-        Route(RF::Resource), resource(move(res))
-    { expect(resource); }
-};
-
-} using namespace in;
-
-SharedRoute::SharedRoute (ResourceRef res) noexcept :
-    data(new ResourceRoute(res))
-{ }
-
-ResourceRef Route::resource () const noexcept {
-    switch (form) {
-        case RF::Resource: return static_cast<const ResourceRoute*>(this)->resource;
-        default: return {};
-    }
-}
-
 namespace in {
 
  // TODO: make this able to tail call itself

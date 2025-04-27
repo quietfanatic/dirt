@@ -10,10 +10,8 @@
 #include "../../uni/transaction.h"
 #include "../common.h"
 #include "../data/print.h"
- // TODO: see if we can take out these dependencies
 #include "../reflection/anyref.h"
 #include "../reflection/anyval.h"
-#include "../traversal/route.h"
 
 namespace ayu {
 
@@ -66,9 +64,9 @@ struct Resource : in::RefCounted {
      // resource is RS::Unloaded, returns an empty AnyRef.
     AnyRef get_ref () noexcept { return get_value().ptr(); }
 
-     // Syntax sugar
-    auto operator [] (const AnyString& key) { return ref()[key]; }
-    auto operator [] (usize index) { return ref()[index]; }
+     // Syntax sugar.  Extern to avoid depending on anyref.h
+    AnyRef operator [] (const AnyString& key); // { return ref()[key]; }
+    AnyRef operator [] (u32 index); // { return ref()[index]; }
 
     protected:
     Resource () { }
@@ -92,8 +90,8 @@ struct SharedResource {
     Resource& operator* () const { return *data; }
     Resource* operator-> () const { return &*data; }
     constexpr explicit operator bool () const { return !!data; }
-    auto operator [] (const AnyString& key) { return data->ref()[key]; }
-    auto operator [] (usize index) { return data->ref()[index]; }
+    AnyRef operator [] (const AnyString& key) { return (*data)[key]; }
+    AnyRef operator [] (u32 index) { return (*data)[index]; }
 };
 
  // A non-owning reference to a Resource.
@@ -108,8 +106,8 @@ struct ResourceRef {
     Resource* operator-> () const { return data; }
     operator SharedResource () const { return SharedResource(data); }
     constexpr explicit operator bool () const { return !!data; }
-    auto operator [] (const AnyString& key) { return data->ref()[key]; }
-    auto operator [] (usize index) { return data->ref()[index]; }
+    AnyRef operator [] (const AnyString& key) { return (*data)[key]; }
+    AnyRef operator [] (u32 index) { return (*data)[index]; }
 };
 
 inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data; }
@@ -264,11 +262,10 @@ void untrack (T& v);
  //     static PageProgram* program = ayu::track(
  //         program, "res:/liv/page.ayu#program"
  //     );
+ //
+ // If the call to reference_from_iri throws, the variable will not be tracked.
 template <class T> [[nodiscard]]
-AnyRef track (T& v, const IRI& loc) {
-    track(v);
-    return ayu::reference_from_iri(loc);
-}
+AnyRef track (T& v, const IRI& loc);
 
 ///// RESOURCE ERROR CODES
 
@@ -300,8 +297,10 @@ constexpr ErrorCode e_ResourceRemoveSourceFailed = "ayu::e_ResourceRemoveSourceF
 namespace in {
     void track_ptr (AnyPtr) noexcept;
     void untrack_ptr (AnyPtr) noexcept;
+    AnyRef track_ptr (AnyPtr, const IRI&); // not noexcept
 }
 template <class T> void track (T& v) { in::track_ptr(&v); }
 template <class T> void untrack (T& v) { in::untrack_ptr(&v); }
+template <class T> AnyRef track (T& v, const IRI& loc) { return in::track_ptr(&v, loc); }
 
 } // namespace ayu

@@ -5,7 +5,12 @@
 namespace ayu {
 namespace in {
 
- // ResourceRoute is extern to break a cyclic dependency.
+struct ResourceRoute : Route {
+    SharedResource resource;
+    ResourceRoute (SharedResource res) :
+        Route(RF::Resource), resource(move(res))
+    { expect(resource); }
+};
 struct ReferenceRoute : Route {
     AnyRef reference;
     ReferenceRoute (AnyRef ref) :
@@ -30,8 +35,11 @@ struct IndexRoute : ChildRoute {
     { }
 };
 
-};
+} // in
 
+inline SharedRoute::SharedRoute (ResourceRef res) noexcept :
+    data(new in::ResourceRoute(res))
+{ }
 inline SharedRoute::SharedRoute (const AnyRef& ref) noexcept :
     data(new in::ReferenceRoute(ref))
 { }
@@ -42,11 +50,14 @@ inline SharedRoute::SharedRoute (SharedRoute p, u32 i) noexcept :
     data(new in::IndexRoute(move(p), i))
 { }
 
+inline ResourceRef Route::resource () const noexcept {
+    if (form != RF::Resource) return {};
+    else return static_cast<const in::ResourceRoute*>(this)->resource;
+}
 inline const AnyRef* Route::reference () const noexcept {
     if (form != RF::Reference) return null;
     else return &static_cast<const in::ReferenceRoute*>(this)->reference;
 }
-
 inline RouteRef Route::parent () const noexcept {
     if (u8(form) < u8(RF::Key)) return {};
     else return static_cast<const in::ChildRoute*>(this)->parent;

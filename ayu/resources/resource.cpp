@@ -172,6 +172,9 @@ void Resource::set_value (AnyVal&& value) {
     data->state = RS::Loaded;
 }
 
+AnyRef Resource::operator[] (const AnyString& key) { return ref()[key]; }
+AnyRef Resource::operator[] (u32 index) { return ref()[index]; }
+
 ///// CONSTRUCTION, DESTRUCTION
 
 SharedResource::SharedResource (const IRI& name) {
@@ -669,6 +672,12 @@ void untrack_ptr (AnyPtr item) noexcept {
 #ifndef NDEBUG
     never();
 #endif
+}
+
+AnyRef track_ptr (AnyPtr item, const IRI& loc) {
+    AnyRef r = reference_from_iri(loc);
+    track_ptr(item);
+    return r;
 }
 
 } // in
