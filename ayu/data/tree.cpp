@@ -53,25 +53,46 @@ void raise_TreeCantRepresent (StaticString type_name, const Tree& t) {
     ));
 }
 
- // NOINLINE these so they don't make operator== push and pop a bunch of
- // registers.
-NOINLINE
-bool tree_eq_array (const Tree* a, const Tree* b, usize s) {
-    expect(s > 0);
-    for (auto ae = a + s; a != ae; a++, b++) {
-        if (*a != *b) return false;
+static bool tree_eq_false (const Tree&, const Tree&) noexcept { return false; }
+static bool tree_eq_true (const Tree&, const Tree&) noexcept { return true; }
+static bool tree_eq_bool (const Tree& a, const Tree& b) noexcept {
+    return a.data.as_bool == b.data.as_bool;
+}
+static bool tree_eq_number (const Tree& a, const Tree& b) noexcept {
+    if (a.floaty) {
+        if (b.floaty) {
+            auto av = a.data.as_double;
+            auto bv = b.data.as_double;
+            return av == bv || (av != av && bv != bv);
+        }
+        else return a.data.as_double == b.data.as_i64;
     }
-    return true;
+    else if (b.floaty) return a.data.as_i64 == b.data.as_double;
+    else return a.data.as_i64 == b.data.as_i64;
+}
+static bool tree_eq_string (const Tree& a, const Tree& b) noexcept {
+    return a.data.as_char_ptr == b.data.as_char_ptr
+        || Str(a.data.as_char_ptr, a.size)
+        == Str(b.data.as_char_ptr, b.size);
+}
+static bool tree_eq_array (const Tree& a, const Tree& b) noexcept {
+     // Usually short-circuiting isn't worth it but array and especially
+     // object comparison is pretty costly.
+    return a.data.as_array_ptr == b.data.as_array_ptr
+        || Slice<Tree>(a.data.as_array_ptr, a.size)
+        == Slice<Tree>(b.data.as_array_ptr, b.size);
 }
 
-NOINLINE
-bool tree_eq_object (const TreePair* a, const TreePair* b, usize s) {
-    expect(s > 0);
+static bool tree_eq_object (const Tree& a, const Tree& b) noexcept {
+    if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
+    if (a.size != b.size) return false;
      // Allow attributes to be in different orders
-    auto ae = a + s;
-    auto be = b + s;
-    for (auto ap = a; ap != ae; ap++) {
-        for (auto bp = b; bp != be; bp++) {
+    auto ab = a.data.as_object_ptr;
+    auto ae = ab + a.size;
+    auto bb = b.data.as_object_ptr;
+    auto be = bb + b.size;
+    for (auto ap = ab; ap != ae; ap++) {
+        for (auto bp = bb; bp != be; bp++) {
             if (ap->first == bp->first) {
                 if (ap->second == bp->second) break;
                 else return false;
@@ -81,53 +102,23 @@ bool tree_eq_object (const TreePair* a, const TreePair* b, usize s) {
     return true;
 }
 
+static constexpr decltype(&tree_eq_false) tree_eqs [8] = {
+    tree_eq_false,
+    tree_eq_true,
+    tree_eq_bool,
+    tree_eq_number,
+    tree_eq_string,
+    tree_eq_array,
+    tree_eq_object,
+    tree_eq_false
+};
+
 } using namespace in;
 
-NOINLINE
 bool operator == (const Tree& a, const Tree& b) noexcept {
     if (a.form != b.form) return false;
-    else switch (a.form) {
-        case Form::Null: return true;
-        case Form::Bool: return a.data.as_bool == b.data.as_bool;
-        case Form::Number: {
-            if (a.floaty) {
-                if (b.floaty) {
-                    auto av = a.data.as_double;
-                    auto bv = b.data.as_double;
-                    return av == bv || (av != av && bv != bv);
-                }
-                else return a.data.as_double == b.data.as_i64;
-            }
-            else if (b.floaty) {
-                return a.data.as_i64 == b.data.as_double;
-            }
-            else return a.data.as_i64 == b.data.as_i64;
-        }
-        case Form::String: {
-            return Str(a.data.as_char_ptr, a.size) ==
-                   Str(b.data.as_char_ptr, b.size);
-        }
-        case Form::Array: {
-            if (a.size != b.size) return false;
-            if (a.size == 0) return true;
-             // Usually short-circuiting isn't worth it but array and especially
-             // object comparison is pretty costly.
-            if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
-            return tree_eq_array(
-                a.data.as_array_ptr, b.data.as_array_ptr, a.size
-            );
-        }
-        case Form::Object: {
-            if (a.size != b.size) return false;
-            if (a.size == 0) return true;
-            if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
-            return tree_eq_object(
-                a.data.as_object_ptr, b.data.as_object_ptr, a.size
-            );
-        }
-        case Form::Error: return false;
-        default: never();
-    }
+    expect(u32(a.form) < 8);
+    return in::tree_eqs[u32(a.form)](a, b);
 }
 
 } using namespace ayu;

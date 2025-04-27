@@ -179,6 +179,8 @@ struct Tree {
  //  - Like float and double, -0.0 == +0.0.
  //  - Objects are equal if they have all the same attributes, but the
  //    attributes don't have to be in the same order.
+ //  - Undefined trees and trees with embedded errors always compare false, even
+ //    to themselves.
 bool operator == (const Tree& a, const Tree& b) noexcept;
 
  // Constrain to types that a Tree can be constructed from.  This is used in
