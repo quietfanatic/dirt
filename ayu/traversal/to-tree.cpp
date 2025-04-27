@@ -158,7 +158,7 @@ struct TraverseToTree {
                     (AttrFlags::Include|AttrFlags::CollapseOptional)
                 )) {
                      // This works for both include and collapse_optional
-                    len = len + (object[i].second.meta >> 1) - 1;
+                    len = len + object[i].second.size - 1;
                 }
             }
              // Allocate
@@ -182,7 +182,7 @@ struct TraverseToTree {
                     continue;
                 }
                 else if (!!(flags & AttrFlags::CollapseOptional)) {
-                    if (value.form != Form::Array || (value.meta >> 1) > 1) {
+                    if (value.form != Form::Array || value.size > 1) {
                         raise(e_General,
                             "Attribute with collapse_optional did not "
                             "serialize to an array of 0 or 1 elements"
@@ -207,7 +207,7 @@ struct TraverseToTree {
 #ifndef NDEBUG
             for (auto& pair : object) {
                 expect(!pair.first.owned());
-                expect(!(pair.second.meta & 1));
+                expect(!pair.second.size);
             }
 #endif
             SharableBuffer<TreePair>::deallocate(object.impl.data);

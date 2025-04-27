@@ -50,9 +50,9 @@ enum class TreeFlags : u8 {
 DECLARE_ENUM_BITWISE_OPERATORS(TreeFlags)
 
 struct Tree {
-    Form form;
+    Form form = Form::Undefined;
      // Only the flags can be modified after construction.
-    TreeFlags flags;
+    TreeFlags flags = {};
 
     constexpr bool has_value () const { return form != Form::Undefined; }
 
@@ -158,12 +158,11 @@ struct Tree {
 
     ///// INTERNAL
 
-     // TODO: Use this empty space to unpack meta
-    u16 unused;
-     // For Form::Number: 0 = integer, 2 = floating
-     // For Form::String|Array|Object|Error: impl.sizex2_with_owned
-     // For all types: meta & 1 means we need to refcount.
-    u32 meta;
+     // We could pack these into the same u32 as size, but we have extra room so
+     // we may as well use it.
+    bool floaty = false;
+    bool owned = false;
+    u32 size = 0;
     union {
         bool as_bool;
         i64 as_i64;

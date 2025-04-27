@@ -301,7 +301,7 @@ struct Printer {
                     : !t ? false
                     : !!(t->flags & TreeFlags::PreferExpanded) ? true
                     : !!(t->flags & TreeFlags::PreferCompact) ? false
-                    : t->meta >> 1 > 50;
+                    : t->size > 50;
         if (expand) {
             return print_quoted_expanded(p, s);
         } else {
@@ -425,7 +425,7 @@ struct Printer {
             case Form::Null: return print_null(p);
             case Form::Bool: return print_bool(p, t);
             case Form::Number: {
-                if (t.meta) return print_double(p, t);
+                if (t.floaty) return print_double(p, t);
                 else if (t.data.as_i64 >= 0 && t.data.as_i64 < 10) {
                     return print_small_int(p, t);
                 }
@@ -469,7 +469,7 @@ UniqueString tree_to_string (const Tree& t, PrintOptions opts) {
     if (!(opts & O::Pretty)) opts |= O::Compact;
     Printer printer (opts);
     u32 cap = t.form == Form::Array || t.form == Form::Object
-        ? 32 * (t.meta >> 1) : 32;
+        ? 32 * t.size : 32;
     return printer.print(t, cap);
 }
 

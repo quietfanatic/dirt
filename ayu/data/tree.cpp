@@ -11,7 +11,7 @@ void delete_Tree_data (Tree& t) noexcept {
      // Manually delete all the elements.  We can't call UniqueArray<*>'s
      // destructor because we've already run the reference count down to 0, and
      // it debug-asserts that the reference count is 1.
-    expect(t.meta & 1);
+    expect(t.owned);
     switch (t.form) {
         case Form::String: {
             SharableBuffer<const char>::deallocate(t.data.as_char_ptr);
@@ -90,39 +90,39 @@ bool operator == (const Tree& a, const Tree& b) noexcept {
         case Form::Null: return true;
         case Form::Bool: return a.data.as_bool == b.data.as_bool;
         case Form::Number: {
-            if (a.meta) {
-                if (b.meta) {
+            if (a.floaty) {
+                if (b.floaty) {
                     auto av = a.data.as_double;
                     auto bv = b.data.as_double;
                     return av == bv || (av != av && bv != bv);
                 }
                 else return a.data.as_double == b.data.as_i64;
             }
-            else if (b.meta) {
+            else if (b.floaty) {
                 return a.data.as_i64 == b.data.as_double;
             }
             else return a.data.as_i64 == b.data.as_i64;
         }
         case Form::String: {
-            return Str(a.data.as_char_ptr, a.meta >> 1) ==
-                   Str(b.data.as_char_ptr, b.meta >> 1);
+            return Str(a.data.as_char_ptr, a.size) ==
+                   Str(b.data.as_char_ptr, b.size);
         }
         case Form::Array: {
-            if (a.meta >> 1 != b.meta >> 1) return false;
-            if (a.meta >> 1 == 0) return true;
+            if (a.size != b.size) return false;
+            if (a.size == 0) return true;
              // Usually short-circuiting isn't worth it but array and especially
              // object comparison is pretty costly.
             if (a.data.as_array_ptr == b.data.as_array_ptr) return true;
             return tree_eq_array(
-                a.data.as_array_ptr, b.data.as_array_ptr, a.meta >> 1
+                a.data.as_array_ptr, b.data.as_array_ptr, a.size
             );
         }
         case Form::Object: {
-            if (a.meta >> 1 != b.meta >> 1) return false;
-            if (a.meta >> 1 == 0) return true;
+            if (a.size != b.size) return false;
+            if (a.size == 0) return true;
             if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
             return tree_eq_object(
-                a.data.as_object_ptr, b.data.as_object_ptr, a.meta >> 1
+                a.data.as_object_ptr, b.data.as_object_ptr, a.size
             );
         }
         case Form::Error: return false;
