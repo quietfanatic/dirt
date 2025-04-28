@@ -17,7 +17,7 @@ AcrFlags chain_acr_flags (AcrFlags o, AcrFlags i) {
     }
     else {
          // Otherwise if either is unaddressable
-        r |= (o & i) & AcrFlags::Unaddressable;
+        r |= (o | i) & AcrFlags::Unaddressable;
     }
     return r;
 }

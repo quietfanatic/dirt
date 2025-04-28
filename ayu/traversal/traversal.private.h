@@ -160,7 +160,7 @@ void trav_start (
     child.route = rt;
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
-        &visit_after_access<visit>
+        &visit_after_access<visit, do_flags>
     ));
 } catch (...) { child.wrap_exception(); }
 
@@ -180,7 +180,7 @@ void trav_acr (
     }
     acr->access(mode, *parent.address, AccessCB(
         static_cast<Traversal&>(child),
-        &visit_after_access<visit>
+        &visit_after_access<visit, do_flags>
     ));
 }
 catch (...) { child.wrap_exception(); }
@@ -199,7 +199,7 @@ void trav_ref (
     }
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
-        &visit_after_access<visit>
+        &visit_after_access<visit, do_flags>
     ));
 }
 catch (...) { child.wrap_exception(); }

@@ -620,18 +620,6 @@ struct AYU_DescribeBase {
      //   - From type: The type of the item that the accessor is applied to
      //     (that's the type of the AYU_DESCRIBE block you're currently in).
      //   - To type: The type of the item that this accessor points to.
-     // Accessors have up to four operations that they support:
-     //   - read: Read the value of the child item from the parent item.  All
-     //     accessors support this operation.
-     //   - write: Write a value to the child item through the parent item.  If
-     //     an accessor is readonly, it does not support this operation.
-     //   - address: Get the memory address of a child item from the parent
-     //     item.  If an accessor supports this operation, various serialization
-     //     operations will be much more efficient, and pointers can be
-     //     serialized and deserialized which point to the child item.
-     //   - reverse_address: Get the memory address of a parent item from a
-     //     child item.  This operation is only used for downcasting, and very
-     //     few accessors support it.
      // In addition, accessors can take these flags:
      //   - readonly: Make this accessor readonly and disable its write
      //     operation.  If an accessor doesn't support the write operation, it

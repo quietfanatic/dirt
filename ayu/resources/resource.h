@@ -64,7 +64,8 @@ struct Resource : in::RefCounted {
      // resource is RS::Unloaded, returns an empty AnyRef.
     AnyRef get_ref () noexcept { return get_value().ptr(); }
 
-     // Syntax sugar.  Extern to avoid depending on anyref.h
+     // Syntax sugar.  Extern to avoid depending on traversal/compound.h which
+     // depends on route.h which depends on us.
     AnyRef operator [] (const AnyString& key); // { return ref()[key]; }
     AnyRef operator [] (u32 index); // { return ref()[index]; }
 
