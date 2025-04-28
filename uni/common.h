@@ -127,7 +127,7 @@ ALWAYS_INLINE constexpr T& operator <<= (T& a, int b) { \
     return a = T(std::underlying_type_t<T>(a) << b); \
 } \
 ALWAYS_INLINE constexpr T operator >> (T a, int b) { \
-    return T(std::underlying_type_t<T>(a) << b); \
+    return T(std::underlying_type_t<T>(a) >> b); \
 } \
 ALWAYS_INLINE constexpr T& operator >>= (T& a, int b) { \
     return a = T(std::underlying_type_t<T>(a) >> b); \
