@@ -76,8 +76,6 @@ bool caps_allow_mode (AccessCaps caps, AccessMode mode) {
  //   - type: the type of the item being accessed.
  //   - address: a pointer to either the item being accessed or a temporary that
  //     represents it (check caps & AC::Addressable to tell the difference).
- //   - caps: tells what you're allowed to do with this item.
- // TODO: remove caps parameter and require all caps to be known ahead of time.
 using AccessCB = CallbackRef<void(Type, Mu*, AccessCaps)>;
 
  // Some accessor constraints.  TODO: Move these to describe-base.h

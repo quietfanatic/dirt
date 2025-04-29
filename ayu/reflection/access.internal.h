@@ -21,7 +21,7 @@ enum class AcrFlags {
      // Consider this item unaddressable even if it normally would be.
     Unaddressable = u8(AC::Addressable), // Inverted!
      // Children considered addressable even if this item is not addressable.
-    PassThroughAddressable = u8(AC::ChildrenAddressable), // Not inverted!
+    ChildrenAddressable = u8(AC::ChildrenAddressable), // Not inverted!
 
      // These are only used in the describe API.  They're transferred to actual
      // TreeFlags when the ACR is written.
@@ -35,8 +35,8 @@ constexpr AccessCaps acr_flags_to_access_caps (AcrFlags f) {
     return AccessCaps(u8(
          // Flip Readonly and Unaddressable
         (~f & (AcrFlags::Readonly | AcrFlags::Unaddressable)) |
-         // Merge ~Unaddressable into PassThroughAddressable
-        ((f | (~f) << 2) & AcrFlags::PassThroughAddressable)
+         // Merge ~Unaddressable into ChildrenAddressable
+        ((f | (~f) << 2) & AcrFlags::ChildrenAddressable)
     ));
 }
 

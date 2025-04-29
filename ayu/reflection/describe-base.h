@@ -252,12 +252,12 @@ struct AYU_DescribeBase {
 
      // Specify flags for this type specifically.  Currently there are one and a
      // half supported flags:
-     //   - no_refs_to_children: Forbid other items from referencing child items
-     //     of this type.  This item itself can still be referenced.  This
-     //     allows the reference-to-location scanning system to save time by
-     //     skipping this item's children.
-     //   - no_refs_from_children: Forbid this item's children from containing
-     //     references.  This is not currently enforced, and is for
+     //   - no_refs_to_children: Forbid other items from referencing recursive
+     //     child items of this type.  This item itself can still be referenced.
+     //     This allows the reference-to-location scanning system to save time
+     //     by skipping this item's children.
+     //   - no_refs_from_children: Forbid this item's recursive children from
+     //     containing references.  This is not currently enforced, and is for
      //     documentation purposes only.  There are some types which will cause
      //     confusing breakages when they contain references--most notably,
      //     std::set and std::unordered_set.
@@ -621,30 +621,26 @@ struct AYU_DescribeBase {
      //     (that's the type of the AYU_DESCRIBE block you're currently in).
      //   - To type: The type of the item that this accessor points to.
      // In addition, accessors can take these flags:
-     //   - readonly: Make this accessor readonly and disable its write
-     //     operation.  If an accessor doesn't support the write operation, it
-     //     is readonly by default and this flag is ignored.  If you have an
-     //     attr or elem with a readonly accessor, the attr or elem should be
-     //     flagged with invisible|optional or invisible|ignored, otherwise the
-     //     parent item will not survive a round-trip serialize-deserialize.
-     //     This doesn't matter if the parent item is only ever going to be
+     //   - readonly: Make this accessor readonly (disable the AC::Writeable
+     //     access capability).  If an accessor doesn't support writing, it is
+     //     readonly by default and this flag is ignored.  If you have an attr
+     //     or elem with a readonly accessor, the attr or elem should be flagged
+     //     with invisible|optional or invisible|ignored, otherwise the parent
+     //     item will not survive a round-trip serialize-deserialize.  This
+     //     doesn't matter if the parent item is only ever going to be
      //     serialized and never deserialized.
-     //   - pass_through_addressable: Normally you can only take the address of
+     //   - unaddressable: Consider items accessed through this accessor to be
+     //     unaddressable, even if they look like they should be addressable.
+     //     There aren't many reasons to use this.
+     //   - children_addressable: Normally you can only take the address of
      //     a child item if its parent is also addressable, but if the parent
-     //     item's accessor has pass_through_addressable, then instead you can
+     //     item's accessor has children_addressable, then instead you can
      //     take its address if the parent's parent is addressable (or if the
-     //     parent's parent also has pass_through_addressable, it's parent's
+     //     parent's parent also has children_addressable, it's parent's
      //     parent's parent).  If you misuse this, you can potentially leave
      //     dangling pointers around, risking memory corruption, so be careful.
      //     This is intended to be used for reference-like proxy items, which
      //     are generated temporarily but refer to non-temporary items.
-     //     TODO: rename to children_addressable
-     //   - unaddressable: Consider items accessed through this accessor to be
-     //     unaddressable, even if they look like they should be addressable.
-     //     You shouldn't need to use this unless the parent has
-     //     pass_through_addressable, or for some reason you're returning
-     //     AnyRefs to items with unstable addresses in computed_attrs or
-     //     computed_elems.
      //   - prefer_hex: The item this accessor points to prefers to be
      //     serialized in hexadecimal format if it's a number.
      //   - prefer_compact: The item this accessor points to prefers to be
@@ -656,7 +652,7 @@ struct AYU_DescribeBase {
      //     reach an item, which accessor's prefer_* flags are used is
      //     unspecified.
     static constexpr AcrFlags readonly = in::AcrFlags::Readonly;
-    static constexpr AcrFlags pass_through_addressable = in::AcrFlags::PassThroughAddressable;
+    static constexpr AcrFlags children_addressable = in::AcrFlags::ChildrenAddressable;
     static constexpr AcrFlags unaddressable = in::AcrFlags::Unaddressable;
     static constexpr AcrFlags prefer_hex = in::AcrFlags::PreferHex;
     static constexpr AcrFlags prefer_compact = in::AcrFlags::PreferCompact;
@@ -805,7 +801,7 @@ struct AYU_DescribeBase {
      // accessor.
      //
      // This is intended to be used for proxy types along with
-     // pass_through_addressable.
+     // children_addressable.
     template <Movable M> static // not constexpr
     AccessorFromTo<T, M> auto variable (
         M&& var, AcrFlags = {}
@@ -815,16 +811,13 @@ struct AYU_DescribeBase {
      // instead of a C++ reference.  This and anyptr_func are the only accessors
      // whose child type can vary depending on the parent item it's applied to.
      //
-     // This accessor is considered unaddressable, even if the returned anyref
-     // is addressable.  Use anyptr_func to give access to an arbitrarily-typed
-     // addressable item.
-     //
      // Unlike computed_attrs and computed_elems, you should not return an empty
      // AnyRef from this function, or you may get null pointer derefs down
      // the line.
      //
-     // If the returned AnyRef was made with an accessor that has different
-     // flags than this one, which flags are used is Unspecified Behavior.
+     // The returned AnyRef must not have stricter accessibility than this
+     // accessor.  Any prefer_* flags on the returned AnyRef will probably be
+     // ignored.
      //
      // anyref_func and anyptr_func are not valid accessors for the keys and
      // length descriptors.
@@ -833,8 +826,9 @@ struct AYU_DescribeBase {
         Function<AnyRef(T&)>*, AcrFlags = {}
     );
      // An accessor that gives access to a child item through an ayu::AnyPtr.
-     // Like anyref_func but it's addressable.  Don't return empty or null from
-     // this.
+     // Like anyref_func but simpler.  Don't return empty or null from this.
+     // The returned AnyPtr must not be readonly unless this accessor also has
+     // the readonly flag.
     static constexpr
     AccessorFrom<T> auto anyptr_func (
         Function<AnyPtr(T&)>*, AcrFlags = {}

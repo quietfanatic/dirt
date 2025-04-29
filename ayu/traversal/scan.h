@@ -59,8 +59,8 @@ using ScanReferencesCB = CallbackRef<bool(const AnyRef&, RouteRef)>;
  // depth-first search, but they may do a breadth-first search in the future.
 
  // Scans all visible addressable items under the given address of the given
- // type.  Skips unaddressable items, and the children of unaddressable items
- // that don't have pass_through_addressable.
+ // type.  Skips unaddressable items and the children of unaddressable items
+ // that don't have children_addressable.
  //   base_item: AnyPtr to the item to start scanning at.
  //   base_rt: Route to the base item, or {} if you don't care.
  //   cb: Is called for each addressable item with its pointer and route
