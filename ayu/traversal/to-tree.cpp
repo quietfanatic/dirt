@@ -32,7 +32,7 @@ struct TraverseToTree {
         child.dest = &r;
         child.embed_errors = !!(opts & TTO::EmbedErrors);
         trav_start<visit>(
-            child, item, rt, AccessMode::Read
+            child, item, rt, AC::Read
         );
         plog("to_tree end");
     }
@@ -140,7 +140,7 @@ struct TraverseToTree {
             ).second;
             child.embed_errors = trav.embed_errors;
             trav_attr<visit>(
-                child, trav, attr->acr(), attr->key, AccessMode::Read
+                child, trav, attr->acr(), attr->key, AC::Read
             );
             child.dest->flags |= child.acr->tree_flags;
         }
@@ -242,7 +242,7 @@ struct TraverseToTree {
             child.dest = &value;
             child.embed_errors = trav.embed_errors;
             trav_computed_attr<visit>(
-                child, trav, ref, f, key, AccessMode::Read
+                child, trav, ref, f, key, AC::Read
             );
         }
         new (trav.dest) Tree(move(object));
@@ -260,7 +260,7 @@ struct TraverseToTree {
             child.dest = &array.emplace_back_expect_capacity(Tree());
             child.embed_errors = trav.embed_errors;
             trav_elem<visit>(
-                child, trav, acr, i, AccessMode::Read
+                child, trav, acr, i, AC::Read
             );
             child.dest->flags |= child.acr->tree_flags;
         }
@@ -282,7 +282,7 @@ struct TraverseToTree {
             child.dest = &array[i];
             child.embed_errors = trav.embed_errors;
             trav_computed_elem<visit>(
-                child, trav, ref, f, i, AccessMode::Read
+                child, trav, ref, f, i, AC::Read
             );
         }
         new (trav.dest) Tree(move(array));
@@ -305,7 +305,7 @@ struct TraverseToTree {
                 child.dest = &array[i];
                 child.embed_errors = trav.embed_errors;
                 trav_contiguous_elem<visit>(
-                    child, trav, ptr, f, i, AccessMode::Read
+                    child, trav, ptr, f, i, AC::Read
                 );
                 ptr.address = (Mu*)(
                     (char*)child.address + child.type.cpp_size()
@@ -320,7 +320,7 @@ struct TraverseToTree {
         ToTreeTraversal<DelegateTraversal> child;
         child.dest = trav.dest;
         child.embed_errors = trav.embed_errors;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit>(child, trav, acr, AC::Read);
         child.dest->flags |= child.acr->tree_flags;
     }
 

@@ -112,17 +112,6 @@ struct AnyRef {
         return address().type();
     }
 
-     // Writing through this reference throws if this is true.
-    constexpr bool readonly () const {
-        return !(caps() & AC::Writeable);
-    }
-
-    constexpr void require_writeable () const { if (readonly()) raise_WriteReadonly(); }
-
-    constexpr bool addressable () const {
-        return !!(caps() & AC::Addressable);
-    }
-
 ///// SIMPLE ACCESS
 
      // Returns typed null if this reference is not addressable.  TODO:
@@ -140,15 +129,15 @@ struct AnyRef {
     template <ConstableDescribable T>
     T* address_as () const {
         if constexpr (!std::is_const_v<T>) {
-            require_writeable();
+            if (AC::Write > caps()) raise_access_denied(AC::Write);
         }
         return (T*)address_as(Type::For<std::remove_const_t<T>>());
     }
 
     constexpr AnyPtr require_address () const {
         if (!*this) return null;
-        if (auto a = address()) return a;
-        else raise_Unaddressable();
+        if (AC::Address > caps()) raise_access_denied(AC::Address);
+        return expect(address());
     }
 
      // Can throw either CannotCoerce or UnaddressableAnyRef
@@ -159,7 +148,7 @@ struct AnyRef {
     template <ConstableDescribable T>
     T* require_address_as () const {
         if constexpr (!std::is_const_v<T>) {
-            require_writeable();
+            if (AC::Write > caps()) raise_access_denied(AC::Write);
         }
         return (T*)require_address_as(Type::For<std::remove_const_t<T>>());
     }
@@ -205,17 +194,19 @@ struct AnyRef {
 ///// ARBITRARY ACCESS
 
      // See access.h for how to use these.
-    void access (AccessMode mode, AccessCB cb) const {
-        if (mode != AccessMode::Read) require_writeable();
+    void access (AccessCaps mode, AccessCB cb) const {
+        if (mode > caps()) {
+            raise_access_denied(mode);
+        }
         if (acr) {
             acr->access(mode, *host.address, cb);
         }
         else cb(host.type(), host.address);
     }
 
-    void read (AccessCB cb) const { access(AccessMode::Read, cb); }
-    void write (AccessCB cb) const { access(AccessMode::Write, cb); }
-    void modify (AccessCB cb) const { access(AccessMode::Modify, cb); }
+    void read (AccessCB cb) const { access(AccessCaps::Read, cb); }
+    void write (AccessCB cb) const { access(AccessCaps::Write, cb); }
+    void modify (AccessCB cb) const { access(AccessCaps::Modify, cb); }
 
     constexpr AccessCaps caps () const {
         return acr ? host.caps() & acr->caps : host.caps();
@@ -230,8 +221,7 @@ struct AnyRef {
 
 ///// ERRORS
 
-    [[noreturn]] void raise_WriteReadonly () const;
-    [[noreturn]] void raise_Unaddressable () const;
+    [[noreturn]] void raise_access_denied (AccessCaps) const;
 };
 
 ///// COMPARISON
@@ -250,7 +240,9 @@ constexpr bool operator == (const AnyRef& a, const AnyRef& b) {
  // Tried to write through a readonly AnyRef.
 constexpr ErrorCode e_WriteReadonly = "ayu::e_WriteReadonly";
  // Tried to get the address of an AnyRef, but it doesn't support addressing.
-constexpr ErrorCode e_ReferenceUnaddressable = "ayu::e_ReferenceUnaddressable";
+constexpr ErrorCode e_AddressUnaddressable = "ayu::e_AddressUnaddressable";
+ // Generic access denied (unknown reason; should probably never happen)
+constexpr ErrorCode e_AccessDenied = "ayu::e_AccessDenied";
 
 } // ayu
 

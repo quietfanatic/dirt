@@ -4,7 +4,7 @@
 namespace ayu::in {
 
 void access_Functive (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const FunctiveAcr*>(acr);
     self->access_func(acr, from, cb, mode);
@@ -12,21 +12,21 @@ void access_Functive (
 
 NOINLINE
 void access_Typed (
-    const Accessor* acr, Mu& to, AccessCB cb, AccessMode
+    const Accessor* acr, Mu& to, AccessCB cb, AccessCaps
 ) {
     auto self = static_cast<const TypedAcr*>(acr);
     cb(self->type, &to);
 }
 
 void access_Member (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const MemberAcr<Mu, Mu>*>(acr);
     access_Typed(acr, from.*(self->mp), cb, mode);
 }
 
 void access_RefFunc (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessMode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps
 ) {
     auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(acr);
     Mu& to = self->f(from);
@@ -34,36 +34,33 @@ void access_RefFunc (
 }
 
 void access_ConstantPtr (
-    const Accessor* acr, Mu&, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu&, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const ConstantPtrAcr<Mu, Mu>*>(acr);
     access_Typed(acr, *const_cast<Mu*>(self->pointer), cb, mode);
 }
 
 void access_AnyRefFunc (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
     auto ref = self->f(from);
-    if (mode != AM::Read && !(ref.caps() & AC::Writeable)) {
-        raise(e_WriteReadonly, "Non-readonly anyref_func returned readonly AnyPtr.");
-    }
     self->f(from).access(mode, cb);
 }
 
 void access_AnyPtrFunc (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
-    if (mode != AM::Read && ptr.readonly()) {
+    if (!!(mode & AC::Write) && ptr.readonly()) {
         raise(e_WriteReadonly, "Non-readonly anyptr_func returned readonly AnyPtr.");
     }
     cb(ptr.type(), ptr.address);
 }
 
 void access_Variable (
-    const Accessor* acr, Mu&, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu&, AccessCB cb, AccessCaps mode
 ) {
      // Can't instantiate this with To=Mu, because it has a To embedded in it.
     auto self = static_cast<const VariableAcr<Mu, usize>*>(acr);
@@ -71,18 +68,18 @@ void access_Variable (
 }
 
 void access_Chain (
-    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessCaps mode
 ) {
     struct Frame {
         const ChainAcr* self;
         AccessCB cb;
-        AccessMode mode;
+        AccessCaps mode;
     };
     Frame frame {static_cast<const ChainAcr*>(acr), cb, mode};
      // Have to use modify instead of write for the first mode, or other
      // parts of the item will get clobbered.  Hope this isn't necessary
      // very often.
-    auto outer_mode = write_to_modify(mode);
+    auto outer_mode = mode | AC::Read;
     return frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             frame.self->inner->access(frame.mode, *iv, frame.cb);
@@ -91,15 +88,15 @@ void access_Chain (
 }
 
 void access_ChainAttrFunc (
-    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessCaps mode
 ) {
     struct Frame {
         const ChainAttrFuncAcr* self;
         AccessCB cb;
-        AccessMode mode;
+        AccessCaps mode;
     };
     Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode};
-    auto outer_mode = write_to_modify(mode);
+    auto outer_mode = mode | AC::Read;
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             AnyRef inter = frame.self->f(*iv, frame.self->key);
@@ -110,15 +107,15 @@ void access_ChainAttrFunc (
 }
 
 void access_ChainElemFunc (
-    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessCaps mode
 ) {
     struct Frame {
         const ChainElemFuncAcr* self;
         AccessCB cb;
-        AccessMode mode;
+        AccessCaps mode;
     };
     Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode};
-    auto outer_mode = write_to_modify(mode);
+    auto outer_mode = mode | AC::Read;
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             AnyRef inter = frame.self->f(*iv, frame.self->index);
@@ -128,17 +125,17 @@ void access_ChainElemFunc (
 }
 
 void access_ChainDataFunc (
-    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessCaps mode
 ) {
     struct Frame {
         const ChainDataFuncAcr* self;
         AccessCB cb;
          // We only need this in debug builds but it's not worth doing a bunch
          // of ifdefs to save one word of stack space.
-        AccessMode mode;
+        AccessCaps mode;
     };
     Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
-    auto outer_mode = write_to_modify(mode);
+    auto outer_mode = mode | AC::Read;
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             AnyPtr p = frame.self->f(*iv);
@@ -365,7 +362,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
             null,
             cat(type, "::address return null").c_str()
         );
-        ok(!(acr.caps & AC::Addressable));
+        ok(!(acr.caps & AC::Address));
         acr.read(reinterpret_cast<Mu&>(t),
             [&](Type t, Mu* v){
                 auto ptr = AnyPtr(t, v);

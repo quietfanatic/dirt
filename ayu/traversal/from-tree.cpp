@@ -108,7 +108,7 @@ struct TraverseFromTree {
         CurrentBase curb (rt, item);
         FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
-        trav_start<visit>(child, item, rt, AccessMode::Write);
+        trav_start<visit>(child, item, rt, AC::Write);
     }
 
     NOINLINE static
@@ -156,7 +156,7 @@ struct TraverseFromTree {
     static // not noinline
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const FromTreeTraversal<>&>(tr);
-        if (!(trav.caps & AC::Writeable)) {
+        if (!(trav.caps & AC::Write)) {
             raise(e_General, "Tried to do from_tree operation on a readonly reference?");
         }
         auto desc = trav.desc();
@@ -410,7 +410,7 @@ struct TraverseFromTree {
                         }
                         else child.tree = &value;
                         trav_attr<visit>(
-                            child, trav, attr->acr(), attr->key, AccessMode::Write
+                            child, trav, attr->acr(), attr->key, AC::Write
                         );
                     }
                      // Claim attr by deleting link
@@ -425,7 +425,7 @@ struct TraverseFromTree {
                 child.next_list = next_list;
                 child.tree = trav.tree;
                 trav_attr<claim_attrs>(
-                    child, trav, attr->acr(), attr->key, AccessMode::Write
+                    child, trav, attr->acr(), attr->key, AC::Write
                 );
             }
             else if (!!(flags & (AttrFlags::Optional|AttrFlags::Ignored))) {
@@ -445,7 +445,7 @@ struct TraverseFromTree {
                 }
                 else raise_AttrMissing(trav.type, attr->key);
                 trav_attr<visit>(
-                    child, trav, attr->acr(), attr->key, AccessMode::Write
+                    child, trav, attr->acr(), attr->key, AC::Write
                 );
             }
             next_attr:;
@@ -486,7 +486,7 @@ struct TraverseFromTree {
         ClaimAttrsTraversal<DelegateTraversal> child;
         child.next_list = next_list;
         child.tree = trav.tree;
-        trav_delegate<claim_attrs>(child, trav, acr, AccessMode::Write);
+        trav_delegate<claim_attrs>(child, trav, acr, AC::Write);
     }
 
     static
@@ -494,7 +494,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, Slice<TreePair> object,
         const Accessor* keys_acr
     ) {
-        if (!!(keys_acr->caps & AC::Writeable)) {
+        if (!!(keys_acr->caps & AC::Write)) {
             set_keys_write(trav, object, keys_acr);
         }
         else {
@@ -571,7 +571,7 @@ struct TraverseFromTree {
         if (!ref) raise_AttrNotFound(trav.type, key);
         FromTreeTraversal<ComputedAttrTraversal> child;
         child.tree = &value;
-        trav_computed_attr<visit>(child, trav, ref, f, key, AccessMode::Write);
+        trav_computed_attr<visit>(child, trav, ref, f, key, AC::Write);
     }
 
 ///// ARRAY STRATEGIES
@@ -592,7 +592,7 @@ struct TraverseFromTree {
             if (!!(acr->attr_flags & AttrFlags::Ignored)) continue;
             FromTreeTraversal<ElemTraversal> child;
             child.tree = &array[i];
-            trav_elem<visit>(child, trav, acr, i, AccessMode::Write);
+            trav_elem<visit>(child, trav, acr, i, AC::Write);
         }
         finish_item(trav);
     }
@@ -612,7 +612,7 @@ struct TraverseFromTree {
             FromTreeTraversal<ComputedElemTraversal> child;
             child.tree = &array[i];
             trav_computed_elem<visit>(
-                child, trav, ref, f, i, AccessMode::Write
+                child, trav, ref, f, i, AC::Write
             );
         }
         finish_item(trav);
@@ -633,7 +633,7 @@ struct TraverseFromTree {
                 FromTreeTraversal<ContiguousElemTraversal> child;
                 child.tree = &array[i];
                 trav_contiguous_elem<visit>(
-                    child, trav, ptr, f, i, AccessMode::Write
+                    child, trav, ptr, f, i, AC::Write
                 );
                 ptr.address = (Mu*)((char*)ptr.address + ptr.type().cpp_size());
             }
@@ -680,7 +680,7 @@ struct TraverseFromTree {
     ) {
         FromTreeTraversal<DelegateTraversal> child;
         child.tree = trav.tree;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Write);
+        trav_delegate<visit>(child, trav, acr, AC::Write);
         finish_item(trav);
     }
 

@@ -10,35 +10,29 @@ namespace ayu {
 using namespace in;
 
 [[gnu::cold]]
-void AnyRef::raise_WriteReadonly () const {
+void AnyRef::raise_access_denied (AccessCaps mode) const {
+    const char* code;
+    StaticString mess;
+    if (!!(mode & ~caps() & AC::Write)) {
+        code = e_WriteReadonly;
+        mess = "Can't write to readonly reference of type ";
+    }
+    else if (!!(mode & ~caps() & AC::Address)) {
+        code = e_AddressUnaddressable;
+        mess = "Can't get address of unaddressable reference of type ";
+    }
+    else {
+        code = e_AccessDenied;
+        mess = "Failed to access reference of type ";
+    }
     try {
         SharedRoute here = reference_to_route(*this);
-        raise(e_WriteReadonly, cat(
-            "Can't write to readonly reference of type ", type().name(),
-            " at ", show(&here)
-        ));
+        raise(code, cat(mess, type().name(), " at ", show(&here)));
     }
     catch (std::exception& e) {
-        raise(e_WriteReadonly, cat(
-            "Can't write to readonly reference of type ", type().name(),
-            " at (!exception thrown while getting route of AnyRef: ", e.what()
-        ));
-    }
-}
-
-[[gnu::cold]]
-void AnyRef::raise_Unaddressable () const {
-    try {
-        SharedRoute here = reference_to_route(*this);
-        raise(e_ReferenceUnaddressable, cat(
-            "Can't get address of unaddressable reference of type ", type().name(),
-            " at ", show(&here)
-        ));
-    }
-    catch (std::exception& e) {
-        raise(e_ReferenceUnaddressable, cat(
-            "Can't get address of unaddressable reference of type ", type().name(),
-            " at (!exception thrown while getting route of AnyRef: ", e.what()
+        raise(code, cat(
+            mess, type().name(),
+            " at (exception thrown while getting route of AnyRef: ", e.what(), ")"
         ));
     }
 }

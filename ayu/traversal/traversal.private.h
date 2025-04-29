@@ -122,7 +122,7 @@ void trav_after_access (Traversal& child, Type t, Mu* v) {
  // their callers are prepared to allocate a lot of stack for them.
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
-    StartTraversal& child, const AnyRef& ref, RouteRef rt, AccessMode mode
+    StartTraversal& child, const AnyRef& ref, RouteRef rt, AccessCaps mode
 ) try {
     expect(ref);
 
@@ -140,7 +140,7 @@ void trav_start (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_acr (
     AcrTraversal& child, const Traversal& parent,
-    const Accessor* acr, AccessMode mode
+    const Accessor* acr, AccessCaps mode
 ) try {
     child.parent = &parent;
     child.op = TraversalOp::Acr;
@@ -156,7 +156,7 @@ catch (...) { child.wrap_exception(); }
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ref (
     RefTraversal& child, const Traversal& parent,
-    const AnyRef& ref, AccessMode mode
+    const AnyRef& ref, AccessCaps mode
 ) try {
     child.parent = &parent;
     child.caps = parent.caps * ref.caps();
@@ -170,7 +170,7 @@ catch (...) { child.wrap_exception(); }
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ptr (
     PtrTraversal& child, const Traversal& parent,
-    AnyPtr ptr, AccessMode
+    AnyPtr ptr, AccessCaps
 ) try {
     child.parent = &parent;
     child.caps = parent.caps * ptr.caps();
@@ -183,7 +183,7 @@ catch (...) { child.wrap_exception(); }
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_attr (
     AcrTraversal& child, const Traversal& parent,
-    const Accessor* acr, const StaticString&, AccessMode mode
+    const Accessor* acr, const StaticString&, AccessCaps mode
 ) {
     trav_acr<visit>(child, parent, acr, mode);
 }
@@ -194,7 +194,7 @@ void trav_attr (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_attr (
     ComputedAttrTraversal& child, const Traversal& parent,
-    const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessMode mode
+    const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessCaps mode
 ) {
     child.op = TraversalOp::ComputedAttr;
     child.func = func;
@@ -205,7 +205,7 @@ void trav_computed_attr (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_elem (
     ElemTraversal& child, const Traversal& parent,
-    const Accessor* acr, u32, AccessMode mode
+    const Accessor* acr, u32, AccessCaps mode
 ) {
     trav_acr<visit>(child, parent, acr, mode);
 }
@@ -213,7 +213,7 @@ void trav_elem (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_elem (
     ComputedElemTraversal& child, const Traversal& parent,
-    const AnyRef& ref, ElemFunc<Mu>* func, u32 index, AccessMode mode
+    const AnyRef& ref, ElemFunc<Mu>* func, u32 index, AccessCaps mode
 ) {
     child.op = TraversalOp::ComputedElem;
     child.func = func;
@@ -224,7 +224,7 @@ void trav_computed_elem (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_contiguous_elem (
     ContiguousElemTraversal& child, const Traversal& parent,
-    AnyPtr ptr, DataFunc<Mu>* func, u32 index, AccessMode mode
+    AnyPtr ptr, DataFunc<Mu>* func, u32 index, AccessCaps mode
 ) {
     child.op = TraversalOp::ContiguousElem;
     child.func = func;
@@ -235,7 +235,7 @@ void trav_contiguous_elem (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_delegate (
     DelegateTraversal& child, const Traversal& parent,
-    const Accessor* acr, AccessMode mode
+    const Accessor* acr, AccessCaps mode
 ) {
     trav_acr<visit>(child, parent, acr, mode);
 }

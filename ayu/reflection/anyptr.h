@@ -27,8 +27,8 @@ struct AnyPtr {
         address(a), type_i(reinterpret_cast<usize>(t.data) | readonly)
     { expect(t); }
     AnyPtr (Type t, Mu* a, AccessCaps caps) :
-        AnyPtr(t, a, !(caps & AC::Writeable))
-    { require(caps & AC::Addressable); } // TODO: raise exception instead
+        AnyPtr(t, a, !(caps & AC::Write))
+    { require(caps & AC::Address); } // TODO: raise exception instead
 
      // Coercion from pointer is explicit for AnyPtr* and AnyRef* to avoid
      // mistakes.  Watch out for when you're working with template parameters!
@@ -105,8 +105,8 @@ struct AnyPtr {
      // Get the AccessCaps for this AnyPtr.  The only bit AnyPtr can represent
      // is the Writeable (here Readonly) bit.
     constexpr AccessCaps caps () const {
-        if (std::is_constant_evaluated()) return AC::Everything;
-        else return AC::Everything ^ AccessCaps(readonly());
+        if (std::is_constant_evaluated()) return AC::AllowEverything;
+        else return AC::AllowEverything ^ AccessCaps(readonly());
     }
 };
 

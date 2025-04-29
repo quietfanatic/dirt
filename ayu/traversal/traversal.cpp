@@ -10,14 +10,14 @@ static void to_reference_chain (const Traversal&, void*);
  // already work without throwing.
 NOINLINE
 void Traversal::to_reference (void* r) const noexcept {
-    if (!!(caps & AC::Addressable)) {
+    if (!!(caps & AC::Address)) {
         new (r) AnyRef(AnyPtr(type, address, caps));
     }
     else if (op == TraversalOp::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
         new (r) AnyRef(*self.reference);
     }
-    else if (!!(parent->caps & AC::Addressable)) {
+    else if (!!(parent->caps & AC::Address)) {
          // This won't tail call for some reason
         to_reference_parent_addressable(*this, r);
     }
@@ -29,7 +29,7 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
     switch (trav.op) {
         case TraversalOp::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
-            expect(!!(self.parent->caps & AC::Addressable));
+            expect(!!(self.parent->caps & AC::Address));
             auto ptr = AnyPtr(
                 self.parent->type, self.parent->address, self.parent->caps
             );

@@ -28,7 +28,7 @@ inline void read_length_acr (
 inline void write_length_acr (
     u32& len, Type t, Mu* v, const Accessor* length_acr
 ) {
-    if (!!(length_acr->caps & AC::Writeable)) {
+    if (!!(length_acr->caps & AC::Write)) {
         length_acr->write(*v, AccessCB(len, write_length_acr_cb));
     }
     else {

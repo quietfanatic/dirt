@@ -24,7 +24,7 @@ struct TraverseGetKeys {
         UniqueArray<AnyString> keys;
         GetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
-        trav_start<visit>(child, item, rt, AccessMode::Read);
+        trav_start<visit>(child, item, rt, AC::Read);
         return keys;
     }
 
@@ -67,7 +67,7 @@ struct TraverseGetKeys {
             if (!!(acr->attr_flags & AttrFlags::Include)) {
                 GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
-                trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
+                trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
             }
             else collect(*trav.keys, attr->key);
         }
@@ -91,7 +91,7 @@ struct TraverseGetKeys {
     ) {
         GetKeysTraversal<DelegateTraversal> child;
         child.keys = trav.keys;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit>(child, trav, acr, AC::Read);
     }
 };
 
@@ -125,7 +125,7 @@ struct TraverseSetKeys {
         UniqueArray<AnyString> keys = move(ks);
         SetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
-        trav_start<visit_and_verify>(child, item, rt, AccessMode::Read);
+        trav_start<visit_and_verify>(child, item, rt, AC::Read);
     }
 
     static
@@ -148,7 +148,7 @@ struct TraverseSetKeys {
         auto& trav = static_cast<const SetKeysTraversal<>&>(tr);
         auto desc = trav.desc();
         if (auto acr = desc->keys_acr()) {
-            if (!!(acr->caps & AC::Writeable)) {
+            if (!!(acr->caps & AC::Write)) {
                 use_computed_attrs(trav, acr);
             }
             else {
@@ -205,7 +205,7 @@ struct TraverseSetKeys {
                 GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
                 trav_attr<visit>(
-                    child, trav, acr, attr->key, AccessMode::Write
+                    child, trav, acr, attr->key, AC::Write
                 );
             }
         }
@@ -272,7 +272,7 @@ struct TraverseSetKeys {
     ) {
         SetKeysTraversal<DelegateTraversal> child;
         child.keys = trav.keys;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Write);
+        trav_delegate<visit>(child, trav, acr, AC::Write);
     }
 
 };
@@ -305,7 +305,7 @@ struct TraverseAttr {
         GetAttrTraversal<StartTraversal> child;
         child.get_key = &key;
         child.r = &r;
-        trav_start<visit>(child, item, rt, AccessMode::Read);
+        trav_start<visit>(child, item, rt, AC::Read);
         return r;
     }
 
@@ -336,7 +336,7 @@ struct TraverseAttr {
                 ReturnRefTraversal<AttrTraversal> child;
                 child.r = trav.r;
                 trav_attr<return_ref>(
-                    child, trav, attr->acr(), attr->key, AccessMode::Read
+                    child, trav, attr->acr(), attr->key, AC::Read
                 );
                 return;
             }
@@ -349,7 +349,7 @@ struct TraverseAttr {
                 GetAttrTraversal<AttrTraversal> child;
                 child.get_key = trav.get_key;
                 child.r = trav.r;
-                trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
+                trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
                 if (*child.r) return;
             }
         }
@@ -362,7 +362,7 @@ struct TraverseAttr {
             ReturnRefTraversal<ComputedAttrTraversal> child;
             child.r = trav.r;
             trav_computed_attr<return_ref>(
-                child, trav, move(ref), f, *trav.get_key, AccessMode::Read
+                child, trav, move(ref), f, *trav.get_key, AC::Read
             );
         }
     }
@@ -374,7 +374,7 @@ struct TraverseAttr {
         GetAttrTraversal<DelegateTraversal> child;
         child.get_key = trav.get_key;
         child.r = trav.r;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit>(child, trav, acr, AC::Read);
     }
 };
 
@@ -493,7 +493,7 @@ struct TraverseElem {
         GetElemTraversal<StartTraversal> child;
         child.index = index;
         child.r = &r;
-        trav_start<visit>(child, item, rt, AccessMode::Read);
+        trav_start<visit>(child, item, rt, AC::Read);
     }
 
     NOINLINE static
@@ -525,7 +525,7 @@ struct TraverseElem {
         auto acr = elems->elem(trav.index)->acr();
         ReturnRefTraversal<ElemTraversal> child;
         child.r = trav.r;
-        trav_elem<return_ref>(child, trav, acr, trav.index, AccessMode::Read);
+        trav_elem<return_ref>(child, trav, acr, trav.index, AC::Read);
     }
 
     NOINLINE static
@@ -535,7 +535,7 @@ struct TraverseElem {
         ReturnRefTraversal<ComputedElemTraversal> child;
         child.r = trav.r;
         trav_computed_elem<return_ref>(
-            child, trav, ref, f, trav.index, AccessMode::Read
+            child, trav, ref, f, trav.index, AC::Read
         );
     }
 
@@ -556,7 +556,7 @@ struct TraverseElem {
         ReturnRefTraversal<ContiguousElemTraversal> child;
         child.r = trav.r;
         trav_contiguous_elem<return_ref>(
-            child, trav, ptr, f, trav.index, AccessMode::Read
+            child, trav, ptr, f, trav.index, AC::Read
         );
     }
 
@@ -567,7 +567,7 @@ struct TraverseElem {
         GetElemTraversal<DelegateTraversal> child;
         child.index = trav.index;
         child.r = trav.r;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit>(child, trav, acr, AC::Read);
     }
 };
 

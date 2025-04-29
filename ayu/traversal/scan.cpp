@@ -41,8 +41,8 @@ struct TraverseScan {
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
-                    if (!(trav.caps & AC::ChildrenAddressable)) return;
-                    bool done = !!(trav.caps & AC::Addressable) &&
+                    if (!(trav.caps & AC::AddressChildren)) return;
+                    bool done = !!(trav.caps & AC::Address) &&
                         cb(AnyPtr(trav.type, trav.address, trav.caps), trav.rt);
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
@@ -54,7 +54,7 @@ struct TraverseScan {
         child.context = &ctx;
         child.rt = base_rt;
         child.collapse_optional = false;
-        trav_start<visit>(child, base_item, base_rt, AccessMode::Read);
+        trav_start<visit>(child, base_item, base_rt, AC::Read);
         currently_scanning = false;
         return ctx.done;
     }
@@ -93,7 +93,7 @@ struct TraverseScan {
         child.context = &ctx;
         child.rt = base_rt;
         child.collapse_optional = false;
-        trav_start<visit>(child, base_item, base_rt, AccessMode::Read);
+        trav_start<visit>(child, base_item, base_rt, AC::Read);
         currently_scanning = false;
         return ctx.done;
     }
@@ -175,7 +175,7 @@ struct TraverseScan {
             }
             child.collapse_optional =
                 !!(acr->attr_flags & AttrFlags::CollapseOptional);
-            trav_attr<visit>(child, trav, acr, attr->key, AccessMode::Read);
+            trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
         }
@@ -204,7 +204,7 @@ struct TraverseScan {
             child.rt = child_rt;
             child.collapse_optional = false;
             trav_computed_attr<visit>(
-                child, trav, ref, f, key, AccessMode::Read
+                child, trav, ref, f, key, AC::Read
             );
             if (child.context->done) [[unlikely]] return;
         }
@@ -230,7 +230,7 @@ struct TraverseScan {
             }
             child.collapse_optional = false;
              // TODO: verify that the child item is array-like.
-            trav_elem<visit>(child, trav, acr, i, AccessMode::Read);
+            trav_elem<visit>(child, trav, acr, i, AC::Read);
             if (child.context->done) [[unlikely]] return;
         }
     }
@@ -257,7 +257,7 @@ struct TraverseScan {
             }
             child.collapse_optional = false;
             trav_computed_elem<visit>(
-                child, trav, ref, f, i, AccessMode::Read
+                child, trav, ref, f, i, AC::Read
             );
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
@@ -286,7 +286,7 @@ struct TraverseScan {
                 child.rt = child_rt;
             }
             trav_contiguous_elem<visit>(
-                child, trav, ptr, f, i, AccessMode::Read
+                child, trav, ptr, f, i, AC::Read
             );
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
@@ -300,7 +300,7 @@ struct TraverseScan {
         child.context = trav.context;
         child.rt = trav.rt;
         child.collapse_optional = trav.collapse_optional;
-        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit>(child, trav, acr, AC::Read);
     }
 };
 
@@ -496,7 +496,7 @@ SharedRoute find_reference (const AnyRef& item) {
         if (AnyPtr ptr = item.address()) {
              // Addressable! This will be fast.
             if (auto it = search_route_cache(ptr)) {
-                if (it->first.readonly() && !item.readonly()) {
+                if (item.caps() > it->first.caps()) {
                     [[unlikely]] return {};
                 }
                 return it->second;
@@ -513,7 +513,7 @@ SharedRoute find_reference (const AnyRef& item) {
                     [&r, &item](const AnyRef& ref, RouteRef rt)
                 {
                     if (ref == item) {
-                        if (ref.readonly() && !item.readonly()) {
+                        if (item.caps() > ref.caps()) {
                             [[unlikely]] return true;
                         }
                         new (&r) SharedRoute(rt);
@@ -533,7 +533,7 @@ SharedRoute find_reference (const AnyRef& item) {
             [&r, &item](const AnyRef& ref, RouteRef rt)
         {
             if (ref == item) {
-                if (ref.readonly() && !item.readonly()) {
+                if (item.caps() > ref.caps()) {
                     [[unlikely]] return true;
                 }
                 new (&r) SharedRoute(rt);

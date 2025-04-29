@@ -7,69 +7,52 @@
 
 namespace ayu {
 
- // This is a tag communicating what kind of access is desired.  TODO: Merge
- // this with AccessCaps.
-enum class AccessMode {
-     // Requests access to either the original item or a copy that will go out
-     // of scope after the callback.  Access operations to get the address of an
-     // item should use AM::Read.  TODO: provide AM::Address.
-    Read = 0x1,
-     // Requests access to either the original item or a default-constructed
-     // value which will be written back to the item after the callback.
-     // Neglecting to write to it in the callback may clear the item.
-    Write = 0x2,
-     // Requests access to either the original item or a copy which will be
-     // written back after the callback.  May be implemented by a
-     // read-modify-write sequence.
-    Modify = 0x0
-};
-using AM = AccessMode;
-
-constexpr
-bool valid_access_mode (AccessMode mode) { return u8(mode) <= 0x2; }
-
- // For nested access routines, if you're doing a write operation, you need to
- // convert all but the last writes into modifies, otherwise other parts of the
- // object may be overwritten.
-constexpr
-AccessMode write_to_modify (AccessMode mode) {
-     // Use the weird values we picked above to optimize this common operation.
-     // TODO: switch to bitfields and & in Read instead of this.
-    return AccessMode(int(mode) & ~int(AM::Write));
-}
-
- // Flagset for what types of accesses are allowed in a given situation
-enum class AccessCaps : u8 {
-     // Allow writing.  If this isn't set, the access is readonly.
-    Writeable = 0x1,
-     // Allow taking the address the item being accessed.  If this isn't set,
-     // the accessed item may be manifested by a temporary that will go out of
-     // scope when the access finishes.
-    Addressable = 0x2,
-     // Allow addressing this item's immediate children (if they're addressable
-     // themselves), even if this item isn't addressable.  If Addressable is
-     // true, this must also be true.
+ // This is a bitfield that communicates what kind of access is possible for a
+ // reference, and what kind of access is requested for an access.
+enum class AccessCaps {
+     // Request/allow access to either the original item or a
+     // default-constructed value which will be written back to the item after
+     // the callback.  Neglecting to write to it in the callback may clear the
+     // item.
      //
-     // Yes, we're skipping 0x4 intentionally for an optimization.
-    ChildrenAddressable = 0x8,
+     // This is bit 1 to match bit 1 of AnyPtr.
+    Write = 0x1,
+     // Request/allow access to either the original item or a copy that will go
+     // out of scope after the callback.  This should always be set on
+     // accessors.
+    Read = 0x2,
+     // Request/allow access to either the original item or a copy which will be
+     // written back after the callback.  May be implemented by a
+     // read-modify-write sequence.  When doing nested write access, you must
+     // use this instead of Write on all but the lowest level of access, so that
+     // other parts of the outer items don't get cleared.
+    Modify = Write|Read,
+     // Request/allow access to the permanent address of the item.  TODO: Use
+     // this instead of AC::Read
+    Address = 0x4,
+     // Allow children to be addressable even if this item isn't addressable.
+     // On accessors, this should always be set if Address is set.  This should
+     // be far enough away to shift into Address without affecting other bits.
+    AddressChildren = 0x40,
 
-    Everything = Writeable | Addressable | ChildrenAddressable
+    AllowEverything = Write|Read|Address|AddressChildren,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AccessCaps)
 using AC = AccessCaps;
 
- // This is how capabilities combine when you're doing nested access.  It'd be
- // nice to give this lower precendence than | and & but that's not feasible.
-constexpr AccessCaps operator* (AccessCaps outer, AccessCaps inner) {
-     // Shift by 2 to merge the ChildrenAddressable bit into the Addressable
-     // bit.
-    return (outer | outer >> 2) & inner;
+ // Check if the requested access is allowed
+constexpr bool operator <= (AccessCaps mode, AccessCaps caps) {
+    return !(mode & ~caps);
+}
+constexpr bool operator > (AccessCaps mode, AccessCaps caps) {
+    return !!(mode & ~caps);
 }
 
- // Check writeability
-constexpr
-bool caps_allow_mode (AccessCaps caps, AccessMode mode) {
-    return (mode == AM::Read) | !!(caps & AC::Writeable);
+ // This is how capabilities combine when you're doing nested access.
+constexpr AccessCaps operator* (AccessCaps outer, AccessCaps inner) {
+     // Shift by 4 to merge the ChildrenAddressable bit into the Addressable
+     // bit.
+    return (outer | outer >> 4) & inner;
 }
 
  // This is a callback passed to access operations.  The parameters are:
