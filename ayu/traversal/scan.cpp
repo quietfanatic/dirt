@@ -41,9 +41,9 @@ struct TraverseScan {
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
-                    if (!trav.children_addressable) return;
-                    bool done = trav.addressable &&
-                        cb(trav.ptr(), trav.rt);
+                    if (!(trav.caps & AC::ChildrenAddressable)) return;
+                    bool done = !!(trav.caps & AC::Addressable) &&
+                        cb(AnyPtr(trav.type, trav.address, trav.caps), trav.rt);
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
                 }
@@ -188,12 +188,10 @@ struct TraverseScan {
          // Get list of keys
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
+            AccessCB(keys, [](auto& keys, Type t, Mu* v, AccessCaps)
         {
-            require_readable_keys(v.type());
-            new (&keys) AnyArray<AnyString>(
-                reinterpret_cast<const AnyArray<AnyString>&>(*v.address)
-            );
+            auto& ks = require_readable_keys(t, v);
+            new (&keys) AnyArray<AnyString>(ks);
         }));
         auto f = expect(trav.desc()->computed_attrs())->f;
          // Now scan for each key
@@ -242,7 +240,7 @@ struct TraverseScan {
         const ScanTraversal<>& trav, const Accessor* length_acr
     ) {
         u32 len;
-        read_length_acr(len, trav.ptr(), length_acr);
+        read_length_acr(len, trav.type, trav.address, length_acr);
         auto f = expect(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < len; i++) {
             auto ref = f(*trav.address, i);
@@ -271,7 +269,7 @@ struct TraverseScan {
         const ScanTraversal<>& trav, const Accessor* length_acr
     ) {
         u32 len;
-        read_length_acr(len, trav.ptr(), length_acr);
+        read_length_acr(len, trav.type, trav.address, length_acr);
         if (!len) return;
         auto f = expect(trav.desc()->contiguous_elems())->f;
         auto ptr = f(*trav.address);

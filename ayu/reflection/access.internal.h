@@ -14,14 +14,15 @@ namespace ayu::in {
 
 ///// UNIVERSAL ACCESSOR STUFF
 
-enum class AcrFlags : u8 {
+enum class AcrFlags {
      // Writes through this accessor will fail.  Attrs and elems with this
      // accessor will not be serialized.
-    Readonly = 0x1,
-     // Children considered addressable even if this item is not addressable.
-    PassThroughAddressable = 0x2,
+    Readonly = u8(AC::Writeable), // Inverted!
      // Consider this item unaddressable even if it normally would be.
-    Unaddressable = 0x4,
+    Unaddressable = u8(AC::Addressable), // Inverted!
+     // Children considered addressable even if this item is not addressable.
+    PassThroughAddressable = u8(AC::ChildrenAddressable), // Not inverted!
+
      // These are only used in the describe API.  They're transferred to actual
      // TreeFlags when the ACR is written.
     PreferHex = u8(TreeFlags::PreferHex) << 4,
@@ -29,6 +30,19 @@ enum class AcrFlags : u8 {
     PreferExpanded = u8(TreeFlags::PreferExpanded) << 4,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AcrFlags)
+
+constexpr AccessCaps acr_flags_to_access_caps (AcrFlags f) {
+    return AccessCaps(u8(
+         // Flip Readonly and Unaddressable
+        (~f & (AcrFlags::Readonly | AcrFlags::Unaddressable)) |
+         // Merge ~Unaddressable into PassThroughAddressable
+        ((f | (~f) << 2) & AcrFlags::PassThroughAddressable)
+    ));
+}
+
+constexpr TreeFlags acr_flags_to_tree_flags (AcrFlags f) {
+    return TreeFlags(u8(f) >> 4);
+}
 
  // These belong on AttrDcr and ElemDcr, but we're putting them with the
  // accessor flags to save space.
@@ -123,41 +137,48 @@ struct Accessor {
      // inc() on it.
     u32 ref_count = 1;
     AcrForm form;
-    AcrFlags flags;
+    AccessCaps caps;
     TreeFlags tree_flags;
      // These belong on AttrDcr and ElemDcr but we're storing them here to
      // save space.
     AttrFlags attr_flags = {};
 
+     // attr_flags should never be read from ad-hoc accessors.
+    explicit constexpr Accessor (AcrForm f, AccessCaps c, TreeFlags t) :
+        form(f), caps(c), tree_flags(t), attr_flags()
+    { }
+
     explicit constexpr Accessor (AcrForm s, AcrFlags f) :
-        form(s), flags(f), tree_flags(TreeFlags(u8(f) >> 4))
+        form(s),
+        caps(acr_flags_to_access_caps(f)),
+        tree_flags(acr_flags_to_tree_flags(f))
     { }
 
 
     void access (AccessMode mode, Mu& from, AccessCB cb) const {
-        expect(mode == AccessMode::Read ||
-               mode == AccessMode::Write ||
-               mode == AccessMode::Modify
-        );
-        expect(!(flags & AcrFlags::Readonly) || mode == AccessMode::Read);
+        expect(valid_access_mode(mode));
+        expect(caps_allow_mode(caps, mode));
         access_table[u8(form)](this, from, cb, mode);
     }
 
     void read (Mu& from, AccessCB cb) const {
-        access(AccessMode::Read, from, cb);
+        access(AM::Read, from, cb);
     }
     void write (Mu& from, AccessCB cb) const {
-        access(AccessMode::Write, from, cb);
+        access(AM::Write, from, cb);
     }
     void modify (Mu& from, AccessCB cb) const {
-        access(AccessMode::Modify, from, cb);
+        access(AM::Modify, from, cb);
     }
     AnyPtr address (Mu& from) const {
         AnyPtr r;
-        access(AccessMode::Read, from,
-            AccessCB(r, [](AnyPtr& r, AnyPtr v, bool addr){
-                if (!addr) v.address = null;
-                r = v;
+        access(AM::Read, from,
+            AccessCB(r, [](AnyPtr& r, Type t, Mu* a, AccessCaps c){
+                r = AnyPtr(
+                    t,
+                    !!(c & AC::Addressable) ? a : null,
+                    !(c & AC::Writeable)
+                );
             })
         );
         return r;
@@ -205,7 +226,8 @@ struct FunctiveAcr : Accessor {
 
  // Yes Accessors are comparable!  Two Accessors are the same if they come from
  // the same place in the same AYU_DESCRIBE block, or if they're dynamically
- // generated from the same inputs.
+ // generated from the same inputs.  TODO: Decide if we should also compare
+ // access caps.
 bool operator== (const Accessor&, const Accessor&);
 usize hash_acr (const Accessor&);
 
@@ -251,10 +273,7 @@ struct BaseAcr : FunctiveAcr {
         auto self = static_cast<const BaseAcr<From, To>*>(acr);
          // reinterpret then implicit upcast
         To& to = reinterpret_cast<From&>(from);
-        cb(
-            AnyPtr(Type::For<To>(), (Mu*)&to, !!(self->flags & AcrFlags::Readonly)),
-            !(self->flags & AcrFlags::Unaddressable)
-        );
+        cb(Type::For<To>(), (Mu*)&to, self->caps);
     }
     explicit constexpr BaseAcr (AcrFlags flags) :
         FunctiveAcr(AF::Functive, &_access, flags)
@@ -326,16 +345,16 @@ void RefFuncsAcr1<To>::_access (
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
         } return;
         case AccessMode::Write: {
             To tmp;
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
             self->setter(from, tmp);
         } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
             self->setter(from, tmp);
         } return;
         default: never();
@@ -369,7 +388,7 @@ void ValueFuncAcr1<To>::_access (
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ValueFuncAcr<Mu, To>*>(acr);
     const To tmp = self->f(from);
-    cb(AnyPtr(&tmp), false);
+    cb(Type::For<To>(), (Mu*)&tmp, self->caps);
 }
 
 /// value_funcs
@@ -405,16 +424,16 @@ void ValueFuncsAcr1<To>::_access (
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
         } return;
         case AccessMode::Write: {
             To tmp;
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
             self->setter(from, tmp);
         } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
             self->setter(from, move(tmp));
         } return;
         default: never();
@@ -422,7 +441,7 @@ void ValueFuncsAcr1<To>::_access (
      // Feels like this should compile smaller but it doesn't, probably because
      // mode has to be saved through the function calls.
     //To tmp = mode != AccessMode::Write ? self->getter(from) : To();
-    //cb(AnyPtr(&tmp), false);
+    //cb(Type::For<To>(), (Mu*)&tmp, self->caps);
     //if (mode != AccessMode::Read) self->setter(from, move(tmp));
 }
 
@@ -459,16 +478,16 @@ void MixedFuncsAcr1<To>::_access (
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
         } return;
         case AccessMode::Write: {
             To tmp;
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
             self->setter(from, tmp);
         } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb(AnyPtr(&tmp), false);
+            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
             self->setter(from, tmp);
         } return;
         default: never();
@@ -482,12 +501,12 @@ struct AssignableAcr : FunctiveAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static void _access (
-        const Accessor*, Mu& from_mu, AccessCB cb, AccessMode mode
+        const Accessor* acr, Mu& from_mu, AccessCB cb, AccessMode mode
     ) {
         From& from = reinterpret_cast<From&>(from_mu);
         To tmp;
         if (mode != AccessMode::Write) tmp = from;
-        cb(AnyPtr(&tmp), false);
+        cb(Type::For<To>(), (Mu*)&tmp, acr->caps);
         if (mode != AccessMode::Read) from = tmp;
         return;
     }

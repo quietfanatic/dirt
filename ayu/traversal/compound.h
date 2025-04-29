@@ -26,7 +26,8 @@ void item_set_keys (
  // Get an attribute of an object-like item by its key, or empty AnyRef if
  // the attribute doesn't exist.
 AnyRef item_maybe_attr (
-    const AnyRef&, const AnyString&, RouteRef rt = {});
+    const AnyRef&, const AnyString&, RouteRef rt = {}
+);
  // Throws e_ElemNotFound if the attribute doesn't exist.  Guaranteed not to
  // return an empty or null AnyRef.
 AnyRef item_attr (const AnyRef&, const AnyString&, RouteRef rt = {});

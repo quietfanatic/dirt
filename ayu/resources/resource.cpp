@@ -402,9 +402,11 @@ void unload (Slice<ResourceRef> to_unload) {
             if (!info.data->root) {
                 refs_to_reses.emplace(item, info.data);
             }
-            item.read([&info](AnyPtr rp, bool){
-                if (rp.type() == Type::For<AnyRef>()) {
-                    info.outgoing_refs.emplace_back(*rp.expect_exact<AnyRef>());
+            item.read([&info](Type t, Mu* v, AccessCaps){
+                if (t == Type::For<AnyRef>()) {
+                    info.outgoing_refs.emplace_back(
+                        *reinterpret_cast<AnyRef*>(v)
+                    );
                 }
             });
             return false;
@@ -466,9 +468,9 @@ struct Update {
 NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
         update.ref_ref.write(
-            AccessCB(move(update), [](Update&& update, AnyPtr v, bool){
-                expect(v.type() == Type::For<AnyRef>());
-                reinterpret_cast<AnyRef&>(*v.address) = move(update.new_ref);
+            AccessCB(move(update), [](Update&& update, Type t, Mu* v, AccessCaps){
+                expect(t == Type::For<AnyRef>());
+                reinterpret_cast<AnyRef&>(*v) = move(update.new_ref);
             })
         );
     });

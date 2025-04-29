@@ -31,7 +31,7 @@ struct TraverseToTree {
         ToTreeTraversal<StartTraversal> child;
         child.dest = &r;
         child.embed_errors = !!(opts & TTO::EmbedErrors);
-        trav_start<visit, false>(
+        trav_start<visit>(
             child, item, rt, AccessMode::Read
         );
         plog("to_tree end");
@@ -139,7 +139,7 @@ struct TraverseToTree {
                 attr->key, Tree()
             ).second;
             child.embed_errors = trav.embed_errors;
-            trav_attr<visit, false>(
+            trav_attr<visit>(
                 child, trav, attr->acr(), attr->key, AccessMode::Read
             );
             child.dest->flags |= child.acr->tree_flags;
@@ -224,15 +224,12 @@ struct TraverseToTree {
          // Populate keys
         UniqueArray<TreePair> object;
         keys_acr->read(*trav.address,
-            AccessCB(object, [](auto& object, AnyPtr v, bool)
+            AccessCB(object, [](auto& object, Type t, Mu* v, AccessCaps)
         {
-            require_readable_keys(v.type());
-            auto& keys = reinterpret_cast<
-                const AnyArray<AnyString>&
-            >(*v.address);
+            auto& ks = require_readable_keys(t, v);
             expect(!object);
-            object = UniqueArray<TreePair>(keys.size(), [&](u32 i){
-                return TreePair{keys[i], Tree()};
+            object = UniqueArray<TreePair>(ks.size(), [&](u32 i){
+                return TreePair{ks[i], Tree()};
             });
         }));
          // Populate values
@@ -244,7 +241,7 @@ struct TraverseToTree {
             ToTreeTraversal<ComputedAttrTraversal> child;
             child.dest = &value;
             child.embed_errors = trav.embed_errors;
-            trav_computed_attr<visit, false>(
+            trav_computed_attr<visit>(
                 child, trav, ref, f, key, AccessMode::Read
             );
         }
@@ -262,7 +259,7 @@ struct TraverseToTree {
             ToTreeTraversal<ElemTraversal> child;
             child.dest = &array.emplace_back_expect_capacity(Tree());
             child.embed_errors = trav.embed_errors;
-            trav_elem<visit, false>(
+            trav_elem<visit>(
                 child, trav, acr, i, AccessMode::Read
             );
             child.dest->flags |= child.acr->tree_flags;
@@ -275,7 +272,7 @@ struct TraverseToTree {
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
         u32 len;
-        read_length_acr(len, trav.ptr(), length_acr);
+        read_length_acr(len, trav.type, trav.address, length_acr);
         auto array = UniqueArray<Tree>(len);
         auto f = expect(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < array.size(); i++) {
@@ -284,7 +281,7 @@ struct TraverseToTree {
             ToTreeTraversal<ComputedElemTraversal> child;
             child.dest = &array[i];
             child.embed_errors = trav.embed_errors;
-            trav_computed_elem<visit, false>(
+            trav_computed_elem<visit>(
                 child, trav, ref, f, i, AccessMode::Read
             );
         }
@@ -296,7 +293,7 @@ struct TraverseToTree {
         const ToTreeTraversal<>& trav, const Accessor* length_acr
     ) {
         u32 len;
-        read_length_acr(len, trav.ptr(), length_acr);
+        read_length_acr(len, trav.type, trav.address, length_acr);
         auto array = UniqueArray<Tree>(len);
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't needed for computed_elems.
@@ -307,7 +304,7 @@ struct TraverseToTree {
                 ToTreeTraversal<ContiguousElemTraversal> child;
                 child.dest = &array[i];
                 child.embed_errors = trav.embed_errors;
-                trav_contiguous_elem<visit, false>(
+                trav_contiguous_elem<visit>(
                     child, trav, ptr, f, i, AccessMode::Read
                 );
                 ptr.address = (Mu*)(
@@ -323,7 +320,7 @@ struct TraverseToTree {
         ToTreeTraversal<DelegateTraversal> child;
         child.dest = trav.dest;
         child.embed_errors = trav.embed_errors;
-        trav_delegate<visit, false>(child, trav, acr, AccessMode::Read);
+        trav_delegate<visit>(child, trav, acr, AccessMode::Read);
         child.dest->flags |= child.acr->tree_flags;
     }
 

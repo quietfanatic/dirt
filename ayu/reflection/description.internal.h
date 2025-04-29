@@ -519,8 +519,6 @@ struct KeysDcrWith : KeysDcr<T> {
 };
 
 template <class T>
-using AttrFunc = AnyRef(T&, const AnyString&);
-template <class T>
 struct ComputedAttrsDcr : AttachedDescriptor<T> {
     AttrFunc<T>* f;
 };
@@ -543,14 +541,10 @@ struct LengthDcrWith : LengthDcr<T> {
 };
 
 template <class T>
-using ElemFunc = AnyRef(T&, u32);
-template <class T>
 struct ComputedElemsDcr : AttachedDescriptor<T> {
     ElemFunc<T>* f;
 };
 
-template <class T>
-using DataFunc = AnyPtr(T&);
 template <class T>
 struct ContiguousElemsDcr : AttachedDescriptor<T> {
     DataFunc<T>* f;

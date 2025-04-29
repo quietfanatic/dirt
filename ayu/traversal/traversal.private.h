@@ -17,6 +17,8 @@ namespace ayu::in {
  // The other one is the overall serialization operation being performed
  // (to_tree, from_tree, scan, etc).  The latter subtypes attach data to the
  // beginning of the Traversal, not the end.
+ // TODO: rename this to TraversalForm to avoid confusion with overall
+ // traversal operations.
 enum class TraversalOp : u8 {
     Start,
     Acr,
@@ -26,23 +28,12 @@ enum class TraversalOp : u8 {
 };
 struct Traversal {
     const Traversal* parent;
+    Type type;
+    Mu* address;
     TraversalOp op;
-     // If this item has a stable address, then to_reference() can use the
-     // address directly instead of having to chain from parent.
-     // Before access, = parent.children_addressable.
-     // After access, &= item addressable
-     // Undefined during to_tree traversals.
-    bool addressable;
-     // Set if parent->children_addressable and pass_through_addressable.  This
-     // can go from on to off, but never from off to on.
-     // Before access, = acr pass through addressable (false if no acr)
-     // After access, |= child.addressable
-     // Undefined during to_tree traversals.
-    bool children_addressable;
-     // Type can keep track of readonly, but TypeInfo* can't, so keep
-     // track of it here.  This can go from off to on, but never from on to off.
-     // Undefined during to_tree traversals.
-    bool readonly;
+     // Cumulative access capabilities for all items traversed so far.  This is
+     // unused by to_tree traversal, because it only ever does read accesses.
+    AccessCaps caps;
      // Extra flags only used by certain traversal stacks.
     union {
          // Attr containing this item has collapse_optional set.  Only used by
@@ -52,16 +43,10 @@ struct Traversal {
          // ToTreeTraversal.
         bool embed_errors;
     };
-     // Type information but without the readonly bit.
-    Type type;
-     // This address is not guaranteed to be permanently valid unless
-     // addressable is set.
-    Mu* address;
 
     const DescriptionPrivate* desc () const {
         return DescriptionPrivate::get(type);
     }
-    AnyPtr ptr () const { return AnyPtr(type, address, readonly); }
 
     void to_reference (void* r) const noexcept;
     [[noreturn, gnu::cold]]
@@ -126,23 +111,17 @@ inline void return_ref (const Traversal& tr) {
 
 using VisitFunc = void(const Traversal&);
 
- // All the lambdas in these functions were identical, so deduplicate them into
- // this function.
-template <VisitFunc& visit, bool do_flags = true> NOINLINE
-void visit_after_access (Traversal& child, AnyPtr v, bool addr) {
-    if constexpr (do_flags) {
-        child.addressable &= addr;
-        child.children_addressable |= child.addressable;
-        child.readonly |= v.readonly();
-    }
-    child.type = v.type();
-    child.address = v.address;
+template <VisitFunc& visit> NOINLINE
+void trav_after_access (Traversal& child, Type t, Mu* v, AccessCaps caps) {
+    child.type = t;
+    child.address = v;
+    child.caps = child.caps * caps;
     visit(child);
 }
 
  // These should always be inlined, because they have a lot of parameters, and
  // their callers are prepared to allocate a lot of stack for them.
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
     StartTraversal& child, const AnyRef& ref, RouteRef rt, AccessMode mode
 ) try {
@@ -150,89 +129,70 @@ void trav_start (
 
     child.parent = null;
     child.op = TraversalOp::Start;
-    if constexpr (do_flags) {
-        child.addressable = true;
-        child.children_addressable = ref.acr &&
-            !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
-        child.readonly = ref.host.readonly();
-    }
     child.reference = &ref;
     child.route = rt;
+    child.caps = AC::Everything;
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
-        &visit_after_access<visit, do_flags>
+        &trav_after_access<visit>
     ));
 } catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_acr (
     AcrTraversal& child, const Traversal& parent,
     const Accessor* acr, AccessMode mode
 ) try {
-    child.op = TraversalOp::Acr;
-    child.acr = acr;
     child.parent = &parent;
-    if constexpr (do_flags) {
-        child.addressable = parent.children_addressable;
-        child.children_addressable =
-            !!(acr->flags & AcrFlags::PassThroughAddressable);
-        child.readonly = parent.readonly | !!(acr->flags & AcrFlags::Readonly);
-    }
+    child.op = TraversalOp::Acr;
+    child.caps = parent.caps;
+    child.acr = acr;
     acr->access(mode, *parent.address, AccessCB(
         static_cast<Traversal&>(child),
-        &visit_after_access<visit, do_flags>
+        &trav_after_access<visit>
     ));
 }
 catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ref (
     RefTraversal& child, const Traversal& parent,
     const AnyRef& ref, AccessMode mode
 ) try {
     child.parent = &parent;
-    if constexpr (do_flags) {
-        child.addressable = parent.children_addressable;
-        child.children_addressable = ref.acr &&
-            !!(ref.acr->flags & AcrFlags::PassThroughAddressable);
-        child.readonly = parent.readonly | ref.host.readonly();
-    }
+    child.caps = parent.caps;
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
-        &visit_after_access<visit, do_flags>
+        &trav_after_access<visit>
     ));
 }
 catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ptr (
     PtrTraversal& child, const Traversal& parent,
     AnyPtr ptr, AccessMode
 ) try {
     child.parent = &parent;
-    if constexpr (do_flags) {
-        child.addressable = parent.children_addressable;
-        child.children_addressable = parent.children_addressable;
-        child.readonly = parent.readonly | ptr.readonly();
-    }
-    child.type = ptr.type();
-    child.address = ptr.address;
-    visit(child);
+    child.caps = parent.caps;
+    trav_after_access<visit>(
+        child, ptr.type(), ptr.address, ptr.caps()
+    );
 }
 catch (...) { child.wrap_exception(); }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_attr (
     AcrTraversal& child, const Traversal& parent,
     const Accessor* acr, const StaticString&, AccessMode mode
 ) {
-    trav_acr<visit, do_flags>(child, parent, acr, mode);
+    trav_acr<visit>(child, parent, acr, mode);
 }
 
  // key is a reference instead of a pointer so that a temporary can be
  // passed in.  The pointer will be released when this function returns, so
  // no worry about a dangling pointer to a temporary.
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_attr (
     ComputedAttrTraversal& child, const Traversal& parent,
     const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessMode mode
@@ -240,18 +200,18 @@ void trav_computed_attr (
     child.op = TraversalOp::ComputedAttr;
     child.func = func;
     child.key = &key;
-    trav_ref<visit, do_flags>(child, parent, ref, mode);
+    trav_ref<visit>(child, parent, ref, mode);
 }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_elem (
     ElemTraversal& child, const Traversal& parent,
     const Accessor* acr, u32, AccessMode mode
 ) {
-    trav_acr<visit, do_flags>(child, parent, acr, mode);
+    trav_acr<visit>(child, parent, acr, mode);
 }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_elem (
     ComputedElemTraversal& child, const Traversal& parent,
     const AnyRef& ref, ElemFunc<Mu>* func, u32 index, AccessMode mode
@@ -259,10 +219,10 @@ void trav_computed_elem (
     child.op = TraversalOp::ComputedElem;
     child.func = func;
     child.index = index;
-    trav_ref<visit, do_flags>(child, parent, ref, mode);
+    trav_ref<visit>(child, parent, ref, mode);
 }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_contiguous_elem (
     ContiguousElemTraversal& child, const Traversal& parent,
     AnyPtr ptr, DataFunc<Mu>* func, u32 index, AccessMode mode
@@ -270,15 +230,15 @@ void trav_contiguous_elem (
     child.op = TraversalOp::ContiguousElem;
     child.func = func;
     child.index = index;
-    trav_ptr<visit, do_flags>(child, parent, ptr, mode);
+    trav_ptr<visit>(child, parent, ptr, mode);
 }
 
-template <VisitFunc& visit, bool do_flags = true> ALWAYS_INLINE
+template <VisitFunc& visit> ALWAYS_INLINE
 void trav_delegate (
     DelegateTraversal& child, const Traversal& parent,
     const Accessor* acr, AccessMode mode
 ) {
-    trav_acr<visit, do_flags>(child, parent, acr, mode);
+    trav_acr<visit>(child, parent, acr, mode);
 }
 
 } // namespace ayu::in

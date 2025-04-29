@@ -118,8 +118,8 @@ struct TraverseFromTree {
                 expect(!op.base->parent());
                 CurrentBase curb (op.base);
                 try {
-                    op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
-                        op.f(*v.address, op.tree);
+                    op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v, AccessCaps){
+                        op.f(*v, op.tree);
                     }));
                 }
                 catch (...) {
@@ -136,8 +136,9 @@ struct TraverseFromTree {
                 expect(!op.base->parent());
                 CurrentBase curb (op.base);
                 try {
-                    op.item.modify(AccessCB(op, [](auto& op, AnyPtr v, bool){
-                        op.f(*v.address);
+                     // TODO: use op.f instead of op
+                    op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v, AccessCaps){
+                        op.f(*v);
                     }));
                 }
                 catch (...) {
@@ -155,7 +156,7 @@ struct TraverseFromTree {
     static // not noinline
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const FromTreeTraversal<>&>(tr);
-        if (trav.readonly) {
+        if (!(trav.caps & AC::Writeable)) {
             raise(e_General, "Tried to do from_tree operation on a readonly reference?");
         }
         auto desc = trav.desc();
@@ -493,7 +494,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, Slice<TreePair> object,
         const Accessor* keys_acr
     ) {
-        if (!(keys_acr->flags & AcrFlags::Readonly)) {
+        if (!!(keys_acr->caps & AC::Writeable)) {
             set_keys_write(trav, object, keys_acr);
         }
         else {
@@ -511,10 +512,10 @@ struct TraverseFromTree {
             object.size(), [&object](u32 i){ return object[i].first; }
         );
         keys_acr->write(*trav.address,
-            AccessCB(move(keys), [](auto&& keys, AnyPtr v, bool)
+            AccessCB(move(keys), [](auto&& keys, Type t, Mu* v, AccessCaps)
         {
-            require_writeable_keys(v.type());
-            reinterpret_cast<AnyArray<AnyString>&>(*v.address) = move(keys);
+            auto& ks = require_writeable_keys(t, v);
+            ks = move(keys);
         }));
         expect(!keys.owned());
     }
@@ -527,12 +528,10 @@ struct TraverseFromTree {
          // Readonly keys?  Read them and check that they match.
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            AccessCB(keys, [](auto& keys, AnyPtr v, bool)
+            AccessCB(keys, [](auto& keys, Type t, Mu* v, AccessCaps)
         {
-            require_readable_keys(v.type());
-            new (&keys) AnyArray<AnyString>(
-                reinterpret_cast<AnyArray<AnyString>&>(*v.address)
-            );
+            auto& ks = require_readable_keys(t, v);
+            new (&keys) AnyArray<AnyString>(ks);
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
@@ -605,7 +604,7 @@ struct TraverseFromTree {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
-        write_length_acr(len, trav.ptr(), length_acr);
+        write_length_acr(len, trav.type, trav.address, length_acr);
         auto f = expect(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
@@ -626,7 +625,7 @@ struct TraverseFromTree {
         expect(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
-        write_length_acr(len, trav.ptr(), length_acr);
+        write_length_acr(len, trav.type, trav.address, length_acr);
         if (array) {
             auto f = expect(trav.desc()->contiguous_elems())->f;
             auto ptr = f(*trav.address);

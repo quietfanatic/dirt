@@ -638,6 +638,7 @@ struct AYU_DescribeBase {
      //     dangling pointers around, risking memory corruption, so be careful.
      //     This is intended to be used for reference-like proxy items, which
      //     are generated temporarily but refer to non-temporary items.
+     //     TODO: rename to children_addressable
      //   - unaddressable: Consider items accessed through this accessor to be
      //     unaddressable, even if they look like they should be addressable.
      //     You shouldn't need to use this unless the parent has

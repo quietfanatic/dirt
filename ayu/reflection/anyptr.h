@@ -8,6 +8,7 @@
 #pragma once
 #include "../../uni/hash.h"
 #include "type.h"
+#include "access.h"
 
 namespace ayu {
 
@@ -25,6 +26,9 @@ struct AnyPtr {
     AnyPtr (Type t, Mu* a, bool readonly) :
         address(a), type_i(reinterpret_cast<usize>(t.data) | readonly)
     { expect(t); }
+    AnyPtr (Type t, Mu* a, AccessCaps caps) :
+        AnyPtr(t, a, !(caps & AC::Writeable))
+    { require(caps & AC::Addressable); } // TODO: raise exception instead
 
      // Coercion from pointer is explicit for AnyPtr* and AnyRef* to avoid
      // mistakes.  Watch out for when you're working with template parameters!
@@ -97,6 +101,13 @@ struct AnyPtr {
 
     template <ConstableDescribable T>
     operator T* () const { return upcast_to<T>(); }
+
+     // Get the AccessCaps for this AnyPtr.  The only bit AnyPtr can represent
+     // is the Writeable (here Readonly) bit.
+    AccessCaps caps () const {
+        return (AC::Writeable ^ AccessCaps(readonly()))
+             | (AC::Addressable | AC::ChildrenAddressable);
+    }
 };
 
  // AnyPtrs have a slightly evil property where a readonly pointer can equal a

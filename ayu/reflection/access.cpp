@@ -1,7 +1,5 @@
 #include "access.private.h"
 #include "anyref.h"
-#include "describe.h"
-#include "description.private.h"
 
 namespace ayu::in {
 
@@ -17,10 +15,7 @@ void access_Typed (
     const Accessor* acr, Mu& to, AccessCB cb, AccessMode
 ) {
     auto self = static_cast<const TypedAcr*>(acr);
-    cb(
-        AnyPtr(self->type, &to, !!(self->flags & AcrFlags::Readonly)),
-        !(self->flags & AcrFlags::Unaddressable)
-    );
+    cb(self->type, &to, self->caps);
 }
 
 void access_Member (
@@ -35,10 +30,7 @@ void access_RefFunc (
 ) {
     auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(acr);
     Mu& to = self->f(from);
-    cb(
-        AnyPtr(self->type, &to, !!(self->flags & AcrFlags::Readonly)),
-        !(self->flags & AcrFlags::Unaddressable)
-    );
+    cb(self->type, &to, self->caps);
 }
 
 void access_ConstantPtr (
@@ -53,7 +45,7 @@ void access_AnyRefFunc (
 ) {
     auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
      // Just pass on the call.
-     // TODO: propagate readonly bit?
+     // TODO: apply own caps!
     self->f(from).access(mode, cb);
 }
 
@@ -62,15 +54,16 @@ void access_AnyPtrFunc (
 ) {
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
-    ptr.type_i |= !!(self->flags & AcrFlags::Readonly);
-    cb(ptr, !(self->flags & AcrFlags::Unaddressable));
+     // Use &, not *.  * merges children_addressable into addressable, but the
+     // right caps are not for the next child, they're for the next step in
+     // accessing the same item.
+    cb(ptr.type(), ptr.address, self->caps & ptr.caps());
 }
 
 void access_Variable (
     const Accessor* acr, Mu&, AccessCB cb, AccessMode mode
 ) {
-     // Can't instantiate this with a To=Mu, because it has a To
-     // embedded in it.
+     // Can't instantiate this with To=Mu, because it has a To embedded in it.
     auto self = static_cast<const VariableAcr<Mu, usize>*>(acr);
     access_Typed(acr, *(Mu*)&self->value, cb, mode);
 }
@@ -82,26 +75,24 @@ void access_Chain (
         const ChainAcr* self;
         AccessCB cb;
         AccessMode mode;
-        bool o_addr;
+        AccessCaps outer_caps;
     };
-    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode, false};
+    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode, {}};
      // Have to use modify instead of write for the first mode, or other
      // parts of the item will get clobbered.  Hope this isn't necessary
      // very often.
     auto outer_mode = write_to_modify(mode);
     return frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-            frame.o_addr = o_addr;
-            frame.self->inner->access(frame.mode, *w.address,
-                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
-                     // We need to wrap the cb twice, so that we can return the
-                     // correct addressable bool, for a total of five nested
-                     // indirect calls.  Fortunately, many of them can be tail
-                     // calls, and there are no branches in these functions.
-                    bool addr = frame.o_addr & i_addr
-                              & !(frame.self->flags & AcrFlags::Unaddressable);
-                    frame.cb(x, addr);
+        AccessCB(frame, [](Frame& frame, Type, Mu* ov, AccessCaps oc){
+            expect(caps_allow_mode(oc, frame.mode));
+            frame.outer_caps = oc;
+            frame.self->inner->access(frame.mode, *ov,
+                AccessCB(frame, [](Frame& frame, Type it, Mu* iv, AccessCaps ic){
+                     // We need to wrap the cb twice so that we can combine the
+                     // caps, for a total of five nested indirect calls.
+                     // Fortunately, many of them can be tail calls, and there
+                     // are no branches in these functions.
+                    frame.cb(it, iv, frame.outer_caps * ic);
                 })
             );
         })
@@ -115,19 +106,17 @@ void access_ChainAttrFunc (
         const ChainAttrFuncAcr* self;
         AccessCB cb;
         AccessMode mode;
-        bool o_addr;
+        AccessCaps outer_caps;
     };
-    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode, false};
+    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode, {}};
     auto outer_mode = write_to_modify(mode);
     frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-            frame.o_addr = o_addr;
-            frame.self->f(*w.address, frame.self->key).access(frame.mode,
-                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
-                    bool addr = frame.o_addr & i_addr
-                              & !(frame.self->flags & AcrFlags::Unaddressable);
-                    frame.cb(x, addr);
+        AccessCB(frame, [](Frame& frame, Type, Mu* ov, AccessCaps oc){
+            expect(caps_allow_mode(oc, frame.mode));
+            frame.outer_caps = oc;
+            frame.self->f(*ov, frame.self->key).access(frame.mode,
+                AccessCB(frame, [](Frame& frame, Type it, Mu* iv, AccessCaps ic){
+                    frame.cb(it, iv, frame.outer_caps * ic);
                 })
             );
         })
@@ -141,19 +130,17 @@ void access_ChainElemFunc (
         const ChainElemFuncAcr* self;
         AccessCB cb;
         AccessMode mode;
-        bool o_addr;
+        AccessCaps outer_caps;
     };
-    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode, false};
+    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode, {}};
     auto outer_mode = write_to_modify(mode);
     frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-            frame.o_addr = o_addr;
-            frame.self->f(*w.address, frame.self->index).access(frame.mode,
-                AccessCB(frame, [](Frame& frame, AnyPtr x, bool i_addr){
-                    bool addr = frame.o_addr & i_addr
-                              & !(frame.self->flags & AcrFlags::Unaddressable);
-                    frame.cb(x, addr);
+        AccessCB(frame, [](Frame& frame, Type, Mu* ov, AccessCaps oc){
+            expect(caps_allow_mode(oc, frame.mode));
+            frame.outer_caps = oc;
+            frame.self->f(*ov, frame.self->index).access(frame.mode,
+                AccessCB(frame, [](Frame& frame, Type it, Mu* iv, AccessCaps ic){
+                    frame.cb(it, iv, frame.outer_caps * ic);
                 })
             );
         })
@@ -166,31 +153,24 @@ void access_ChainDataFunc (
     struct Frame {
         const ChainDataFuncAcr* self;
         AccessCB cb;
-#ifndef NDEBUG
+         // We only need this in debug builds but it's not worth doing a bunch
+         // of ifdefs to save one word of stack space.
         AccessMode mode;
-#endif
     };
-#ifndef NDEBUG
     Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
-#else
-    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb};
-#endif
     auto outer_mode = write_to_modify(mode);
     frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, AnyPtr w, bool o_addr){
+        AccessCB(frame, [](Frame& frame, Type, Mu* v, AccessCaps c){
+            expect(caps_allow_mode(c, frame.mode));
+            AnyPtr p = frame.self->f(*v);
              // We should already have done bounds checking.  Unfortunately we
              // can't reverify it in debug mode because we've lost the info
              // necessary to get the length.
-#ifndef NDEBUG
-            expect(!w.readonly() || frame.mode == AccessMode::Read);
-#endif
-            AnyPtr x = frame.self->f(*w.address);
-            x.address = (Mu*)(
-                (char*)x.address + frame.self->index * x.type().cpp_size()
+             // I think we have the same situation with the outer type.
+            p.address = (Mu*)(
+                (char*)p.address + frame.self->index * p.type().cpp_size()
             );
-            bool addr = o_addr
-                      & !(frame.self->flags & AcrFlags::Unaddressable);
-            frame.cb(x, addr);
+            frame.cb(p.type(), p.address, c * p.caps());
         })
     );
 }
@@ -314,6 +294,8 @@ using namespace ayu;
 
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
+#include "describe.h"
+#include "description.private.h"
 
 namespace ayu::in {
      // For making sure deduction works.  Won't bother making this for other Acrs.
@@ -347,25 +329,25 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     SubThing thing2 {7, 8, 9, 10};
 
     BaseAcr<SubThing, Thing>{{}}.read(reinterpret_cast<Mu&>(thing2),
-        [&](AnyPtr thing, bool){
-            is(thing.type(), Type::For<Thing>());
-            is(reinterpret_cast<Thing&>(*thing.address).b, 8, "BaseAcr::read");
+        [&](Type t, Mu* v, AccessCaps){
+            is(t, Type::For<Thing>());
+            is(reinterpret_cast<Thing&>(*v).b, 8, "BaseAcr::read");
         }
     );
     BaseAcr<SubThing, Thing>{{}}.write(reinterpret_cast<Mu&>(thing2),
-        [&](AnyPtr thing, bool){
-            is(thing.type(), Type::For<Thing>());
-            auto& th = reinterpret_cast<Thing&>(*thing.address);
-            th.a = 77;
-            th.b = 88;
+        [&](Type t, Mu* v, AccessCaps){
+            is(t, Type::For<Thing>());
+            auto& thing = reinterpret_cast<Thing&>(*v);
+            thing.a = 77;
+            thing.b = 88;
         }
     );
     is(thing2.b, 88, "BaseAcr::write");
     BaseAcr<SubThing, Thinger>{{}}.write(reinterpret_cast<Mu&>(thing2),
-        [&](AnyPtr thinger, bool){
-            is(thinger.type(), Type::For<Thinger>());
-            auto& thr = reinterpret_cast<Thinger&>(*thinger.address);
-            thr.d = 101;
+        [&](Type t, Mu* v, AccessCaps){
+            is(t, Type::For<Thinger>());
+            auto& thinger = reinterpret_cast<Thinger&>(*v);
+            thinger.d = 101;
         }
     );
     is(thing2.d, 101, "BaseAcr::write (not first base)");
@@ -378,19 +360,22 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
             cat(type, "::address").c_str()
         );
         acr.read(reinterpret_cast<Mu&>(t),
-            [&](AnyPtr v, bool){
-                is(*v.upcast_to<const int>(), 2, cat(type, "::read").c_str());
+            [&](Type t, Mu* v, AccessCaps c){
+                auto ptr = AnyPtr(t, v, c);
+                is(*ptr.upcast_to<const int>(), 2, cat(type, "::read").c_str());
             }
         );
         acr.write(reinterpret_cast<Mu&>(t),
-            [&](AnyPtr v, bool){
-                *v.upcast_to<int>() = 4;
+            [&](Type t, Mu* v, AccessCaps c){
+                auto ptr = AnyPtr(t, v, c);
+                *ptr.upcast_to<int>() = 4;
             }
         );
         is(t.b, 4, cat(type, "::write").c_str());
         acr.modify(reinterpret_cast<Mu&>(t),
-            [&](AnyPtr v, bool){
-                *v.upcast_to<int>() += 5;
+            [&](Type t, Mu* v, AccessCaps c){
+                auto ptr = AnyPtr(t, v, c);
+                *ptr.upcast_to<int>() += 5;
             }
         );
         is(t.b, 9, cat(type, "::modify").c_str());
@@ -403,19 +388,25 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
             cat(type, "::address return null").c_str()
         );
         acr.read(reinterpret_cast<Mu&>(t),
-            [&](AnyPtr v, bool){
-                is(*v.upcast_to<const int>(), 2, cat(type, "::read").c_str());
+            [&](Type t, Mu* v, AccessCaps c){
+                ok(!(c & AC::Addressable));
+                auto ptr = AnyPtr(t, v);
+                is(*ptr.upcast_to<const int>(), 2, cat(type, "::read").c_str());
             }
         );
         acr.write(reinterpret_cast<Mu&>(t),
-            [&](AnyPtr v, bool){
-                *v.upcast_to<int>() = 4;
+            [&](Type t, Mu* v, AccessCaps c){
+                ok(!(c & AC::Addressable));
+                auto ptr = AnyPtr(t, v);
+                *ptr.upcast_to<int>() = 4;
             }
         );
         is(t.b, 4, cat(type, "::write").c_str());
         acr.modify(reinterpret_cast<Mu&>(t),
-            [&](AnyPtr v, bool){
-                *v.upcast_to<int>() += 5;
+            [&](Type t, Mu* v, AccessCaps c){
+                ok(!(c & AC::Addressable));
+                auto ptr = AnyPtr(t, v);
+                *ptr.upcast_to<int>() += 5;
             }
         );
         is(t.b, 9, cat(type, "::modify").c_str());

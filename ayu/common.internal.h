@@ -25,6 +25,13 @@ struct DocumentData;
 void delete_Route (const Route*) noexcept;
 void delete_Resource_if_unloaded (Resource*) noexcept;
 
+template <class T>
+using AttrFunc = AnyRef(T&, const AnyString&);
+template <class T>
+using ElemFunc = AnyRef(T&, u32);
+template <class T>
+using DataFunc = AnyPtr(T&);
+
  // Intrusive reference counting
 struct RefCounted {
     mutable uint32 ref_count = 0;

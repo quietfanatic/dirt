@@ -112,17 +112,18 @@ struct AnyRef {
         return address().type();
     }
 
-     // Writing through this reference throws if this is true
+     // Writing through this reference throws if this is true.  TODO: Remove
+     // this and addressable since they may not be knowable before accessing.
     bool readonly () const {
         bool r = host.readonly();
-        if (acr) r |= !!(acr->flags & in::AcrFlags::Readonly);
+        if (acr) r |= !(acr->caps & AC::Writeable);
         return r;
     }
 
     void require_writeable () const { if (readonly()) raise_WriteReadonly(); }
 
     constexpr bool addressable () const {
-        return !acr || !(acr->flags & in::AcrFlags::Unaddressable);
+        return !acr || !!(acr->caps & AC::Addressable);
     }
 
 ///// SIMPLE ACCESS
@@ -171,8 +172,8 @@ struct AnyRef {
     T get_as () const {
          // TODO: detect value_func(s) and avoid a copy
         T r;
-        read(AccessCB(r, [](T& r, AnyPtr v, bool){
-            r = *v.upcast_to<T>();
+        read(AccessCB(r, [](T& r, Type t, Mu* v, AccessCaps){
+            r = *AnyPtr(t, v).upcast_to<T>();
         }));
         return r;
     }
@@ -181,16 +182,16 @@ struct AnyRef {
      // TODO: don't cast! We'll slice the object!
     template <Describable T>
     void set_as (T&& new_v) {
-        write(AccessCB(move(new_v), [](T&& new_v, AnyPtr v, bool){
-            *v.upcast_to<T>() = move(new_v);
+        write(AccessCB(move(new_v), [](T&& new_v, Type t, Mu* v, AccessCaps){
+            *AnyPtr(t, v).upcast_to<T>() = move(new_v);
         }));
     }
 
      // Assign to the referenced item with lvalue ref.
     template <Describable T>
     void set_as (const T& new_v) {
-        write(AccessCB(new_v, [](const T& new_v, AnyPtr v, bool){
-            *v.upcast_to<T>() = new_v;
+        write(AccessCB(new_v, [](const T& new_v, Type t, Mu* v, AccessCaps){
+            *AnyPtr(t, v).upcast_to<T>() = new_v;
         }));
     }
 
@@ -212,12 +213,19 @@ struct AnyRef {
         if (acr) {
             acr->access(mode, *host.address, cb);
         }
-        else cb(host, true);
+        else cb(host.type(), host.address, host.caps());
     }
 
     void read (AccessCB cb) const { access(AccessMode::Read, cb); }
     void write (AccessCB cb) const { access(AccessMode::Write, cb); }
     void modify (AccessCB cb) const { access(AccessMode::Modify, cb); }
+
+     // Returns as much information about access capabilities as we can get
+     // without calling the accessor.  The actual caps passed to the access cb
+     // may be stricter, but they will never be looser.
+    AccessCaps estimate_caps () const {
+        return acr ? host.caps() & acr->caps : host.caps();
+    }
 
 ///// SYNTAX SUGAR FOR TRAVERSAL
 
