@@ -112,10 +112,9 @@ inline void return_ref (const Traversal& tr) {
 using VisitFunc = void(const Traversal&);
 
 template <VisitFunc& visit> NOINLINE
-void trav_after_access (Traversal& child, Type t, Mu* v, AccessCaps caps) {
+void trav_after_access (Traversal& child, Type t, Mu* v) {
     child.type = t;
     child.address = v;
-    child.caps = child.caps * caps;
     visit(child);
 }
 
@@ -131,7 +130,7 @@ void trav_start (
     child.op = TraversalOp::Start;
     child.reference = &ref;
     child.route = rt;
-    child.caps = AC::Everything;
+    child.caps = ref.caps();
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
@@ -145,7 +144,7 @@ void trav_acr (
 ) try {
     child.parent = &parent;
     child.op = TraversalOp::Acr;
-    child.caps = parent.caps;
+    child.caps = parent.caps * acr->caps;
     child.acr = acr;
     acr->access(mode, *parent.address, AccessCB(
         static_cast<Traversal&>(child),
@@ -160,7 +159,7 @@ void trav_ref (
     const AnyRef& ref, AccessMode mode
 ) try {
     child.parent = &parent;
-    child.caps = parent.caps;
+    child.caps = parent.caps * ref.caps();
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
@@ -174,9 +173,9 @@ void trav_ptr (
     AnyPtr ptr, AccessMode
 ) try {
     child.parent = &parent;
-    child.caps = parent.caps;
+    child.caps = parent.caps * ptr.caps();
     trav_after_access<visit>(
-        child, ptr.type(), ptr.address, ptr.caps()
+        child, ptr.type(), ptr.address
     );
 }
 catch (...) { child.wrap_exception(); }

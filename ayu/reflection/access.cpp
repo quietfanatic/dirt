@@ -15,7 +15,7 @@ void access_Typed (
     const Accessor* acr, Mu& to, AccessCB cb, AccessMode
 ) {
     auto self = static_cast<const TypedAcr*>(acr);
-    cb(self->type, &to, self->caps);
+    cb(self->type, &to);
 }
 
 void access_Member (
@@ -30,7 +30,7 @@ void access_RefFunc (
 ) {
     auto self = static_cast<const RefFuncAcr<Mu, Mu>*>(acr);
     Mu& to = self->f(from);
-    cb(self->type, &to, self->caps);
+    cb(self->type, &to);
 }
 
 void access_ConstantPtr (
@@ -44,20 +44,22 @@ void access_AnyRefFunc (
     const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
-     // Just pass on the call.
-     // TODO: apply own caps!
+    auto ref = self->f(from);
+    if (mode != AM::Read && !(ref.caps() & AC::Writeable)) {
+        raise(e_WriteReadonly, "Non-readonly anyref_func returned readonly AnyPtr.");
+    }
     self->f(from).access(mode, cb);
 }
 
 void access_AnyPtrFunc (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessMode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessMode mode
 ) {
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
-     // Use &, not *.  * merges children_addressable into addressable, but the
-     // right caps are not for the next child, they're for the next step in
-     // accessing the same item.
-    cb(ptr.type(), ptr.address, self->caps & ptr.caps());
+    if (mode != AM::Read && ptr.readonly()) {
+        raise(e_WriteReadonly, "Non-readonly anyptr_func returned readonly AnyPtr.");
+    }
+    cb(ptr.type(), ptr.address);
 }
 
 void access_Variable (
@@ -69,86 +71,64 @@ void access_Variable (
 }
 
 void access_Chain (
-    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
 ) {
     struct Frame {
         const ChainAcr* self;
         AccessCB cb;
         AccessMode mode;
-        AccessCaps outer_caps;
     };
-    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode, {}};
+    Frame frame {static_cast<const ChainAcr*>(acr), cb, mode};
      // Have to use modify instead of write for the first mode, or other
      // parts of the item will get clobbered.  Hope this isn't necessary
      // very often.
     auto outer_mode = write_to_modify(mode);
-    return frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, Type, Mu* ov, AccessCaps oc){
-            expect(caps_allow_mode(oc, frame.mode));
-            frame.outer_caps = oc;
-            frame.self->inner->access(frame.mode, *ov,
-                AccessCB(frame, [](Frame& frame, Type it, Mu* iv, AccessCaps ic){
-                     // We need to wrap the cb twice so that we can combine the
-                     // caps, for a total of five nested indirect calls.
-                     // Fortunately, many of them can be tail calls, and there
-                     // are no branches in these functions.
-                    frame.cb(it, iv, frame.outer_caps * ic);
-                })
-            );
+    return frame.self->outer->access(outer_mode, ov,
+        AccessCB(frame, [](Frame& frame, Type, Mu* iv){
+            frame.self->inner->access(frame.mode, *iv, frame.cb);
         })
     );
 }
 
 void access_ChainAttrFunc (
-    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
 ) {
     struct Frame {
         const ChainAttrFuncAcr* self;
         AccessCB cb;
         AccessMode mode;
-        AccessCaps outer_caps;
     };
-    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode, {}};
+    Frame frame {static_cast<const ChainAttrFuncAcr*>(acr), cb, mode};
     auto outer_mode = write_to_modify(mode);
-    frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, Type, Mu* ov, AccessCaps oc){
-            expect(caps_allow_mode(oc, frame.mode));
-            frame.outer_caps = oc;
-            frame.self->f(*ov, frame.self->key).access(frame.mode,
-                AccessCB(frame, [](Frame& frame, Type it, Mu* iv, AccessCaps ic){
-                    frame.cb(it, iv, frame.outer_caps * ic);
-                })
-            );
+    frame.self->outer->access(outer_mode, ov,
+        AccessCB(frame, [](Frame& frame, Type, Mu* iv){
+            AnyRef inter = frame.self->f(*iv, frame.self->key);
+             // TODO: expect caps are same as they were before
+            inter.access(frame.mode, frame.cb);
         })
     );
 }
 
 void access_ChainElemFunc (
-    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
 ) {
     struct Frame {
         const ChainElemFuncAcr* self;
         AccessCB cb;
         AccessMode mode;
-        AccessCaps outer_caps;
     };
-    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode, {}};
+    Frame frame {static_cast<const ChainElemFuncAcr*>(acr), cb, mode};
     auto outer_mode = write_to_modify(mode);
-    frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, Type, Mu* ov, AccessCaps oc){
-            expect(caps_allow_mode(oc, frame.mode));
-            frame.outer_caps = oc;
-            frame.self->f(*ov, frame.self->index).access(frame.mode,
-                AccessCB(frame, [](Frame& frame, Type it, Mu* iv, AccessCaps ic){
-                    frame.cb(it, iv, frame.outer_caps * ic);
-                })
-            );
+    frame.self->outer->access(outer_mode, ov,
+        AccessCB(frame, [](Frame& frame, Type, Mu* iv){
+            AnyRef inter = frame.self->f(*iv, frame.self->index);
+            inter.access(frame.mode, frame.cb);
         })
     );
 }
 
 void access_ChainDataFunc (
-    const Accessor* acr, Mu& v, AccessCB cb, AccessMode mode
+    const Accessor* acr, Mu& ov, AccessCB cb, AccessMode mode
 ) {
     struct Frame {
         const ChainDataFuncAcr* self;
@@ -159,18 +139,16 @@ void access_ChainDataFunc (
     };
     Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
     auto outer_mode = write_to_modify(mode);
-    frame.self->outer->access(outer_mode, v,
-        AccessCB(frame, [](Frame& frame, Type, Mu* v, AccessCaps c){
-            expect(caps_allow_mode(c, frame.mode));
-            AnyPtr p = frame.self->f(*v);
+    frame.self->outer->access(outer_mode, ov,
+        AccessCB(frame, [](Frame& frame, Type, Mu* iv){
+            AnyPtr p = frame.self->f(*iv);
              // We should already have done bounds checking.  Unfortunately we
              // can't reverify it in debug mode because we've lost the info
              // necessary to get the length.
-             // I think we have the same situation with the outer type.
             p.address = (Mu*)(
                 (char*)p.address + frame.self->index * p.type().cpp_size()
             );
-            frame.cb(p.type(), p.address, c * p.caps());
+            frame.cb(p.type(), p.address);
         })
     );
 }
@@ -329,13 +307,13 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     SubThing thing2 {7, 8, 9, 10};
 
     BaseAcr<SubThing, Thing>{{}}.read(reinterpret_cast<Mu&>(thing2),
-        [&](Type t, Mu* v, AccessCaps){
+        [&](Type t, Mu* v){
             is(t, Type::For<Thing>());
             is(reinterpret_cast<Thing&>(*v).b, 8, "BaseAcr::read");
         }
     );
     BaseAcr<SubThing, Thing>{{}}.write(reinterpret_cast<Mu&>(thing2),
-        [&](Type t, Mu* v, AccessCaps){
+        [&](Type t, Mu* v){
             is(t, Type::For<Thing>());
             auto& thing = reinterpret_cast<Thing&>(*v);
             thing.a = 77;
@@ -344,7 +322,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     );
     is(thing2.b, 88, "BaseAcr::write");
     BaseAcr<SubThing, Thinger>{{}}.write(reinterpret_cast<Mu&>(thing2),
-        [&](Type t, Mu* v, AccessCaps){
+        [&](Type t, Mu* v){
             is(t, Type::For<Thinger>());
             auto& thinger = reinterpret_cast<Thinger&>(*v);
             thinger.d = 101;
@@ -360,21 +338,21 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
             cat(type, "::address").c_str()
         );
         acr.read(reinterpret_cast<Mu&>(t),
-            [&](Type t, Mu* v, AccessCaps c){
-                auto ptr = AnyPtr(t, v, c);
+            [&](Type t, Mu* v){
+                auto ptr = AnyPtr(t, v, acr.caps);
                 is(*ptr.upcast_to<const int>(), 2, cat(type, "::read").c_str());
             }
         );
         acr.write(reinterpret_cast<Mu&>(t),
-            [&](Type t, Mu* v, AccessCaps c){
-                auto ptr = AnyPtr(t, v, c);
+            [&](Type t, Mu* v){
+                auto ptr = AnyPtr(t, v, acr.caps);
                 *ptr.upcast_to<int>() = 4;
             }
         );
         is(t.b, 4, cat(type, "::write").c_str());
         acr.modify(reinterpret_cast<Mu&>(t),
-            [&](Type t, Mu* v, AccessCaps c){
-                auto ptr = AnyPtr(t, v, c);
+            [&](Type t, Mu* v){
+                auto ptr = AnyPtr(t, v, acr.caps);
                 *ptr.upcast_to<int>() += 5;
             }
         );
@@ -387,24 +365,22 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
             null,
             cat(type, "::address return null").c_str()
         );
+        ok(!(acr.caps & AC::Addressable));
         acr.read(reinterpret_cast<Mu&>(t),
-            [&](Type t, Mu* v, AccessCaps c){
-                ok(!(c & AC::Addressable));
+            [&](Type t, Mu* v){
                 auto ptr = AnyPtr(t, v);
                 is(*ptr.upcast_to<const int>(), 2, cat(type, "::read").c_str());
             }
         );
         acr.write(reinterpret_cast<Mu&>(t),
-            [&](Type t, Mu* v, AccessCaps c){
-                ok(!(c & AC::Addressable));
+            [&](Type t, Mu* v){
                 auto ptr = AnyPtr(t, v);
                 *ptr.upcast_to<int>() = 4;
             }
         );
         is(t.b, 4, cat(type, "::write").c_str());
         acr.modify(reinterpret_cast<Mu&>(t),
-            [&](Type t, Mu* v, AccessCaps c){
-                ok(!(c & AC::Addressable));
+            [&](Type t, Mu* v){
                 auto ptr = AnyPtr(t, v);
                 *ptr.upcast_to<int>() += 5;
             }

@@ -224,7 +224,7 @@ struct TraverseToTree {
          // Populate keys
         UniqueArray<TreePair> object;
         keys_acr->read(*trav.address,
-            AccessCB(object, [](auto& object, Type t, Mu* v, AccessCaps)
+            AccessCB(object, [](auto& object, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
             expect(!object);

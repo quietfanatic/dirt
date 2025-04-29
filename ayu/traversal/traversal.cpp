@@ -68,28 +68,28 @@ void to_reference_chain (const Traversal& trav, void* r) {
         case TraversalOp::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAcr(
-                parent_ref.acr, self.acr
+                parent_ref.acr, self.acr, trav.caps
             ));
             return;
         }
         case TraversalOp::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAttrFuncAcr(
-                parent_ref.acr, self.func, *self.key
+                parent_ref.acr, self.func, *self.key, trav.caps
             ));
             return;
         }
         case TraversalOp::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainElemFuncAcr(
-                parent_ref.acr, self.func, self.index
+                parent_ref.acr, self.func, self.index, trav.caps
             ));
             return;
         }
         case TraversalOp::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainDataFuncAcr(
-                parent_ref.acr, self.func, self.index
+                parent_ref.acr, self.func, self.index, trav.caps
             ));
             return;
         }

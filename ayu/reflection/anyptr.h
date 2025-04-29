@@ -104,9 +104,9 @@ struct AnyPtr {
 
      // Get the AccessCaps for this AnyPtr.  The only bit AnyPtr can represent
      // is the Writeable (here Readonly) bit.
-    AccessCaps caps () const {
-        return (AC::Writeable ^ AccessCaps(readonly()))
-             | (AC::Addressable | AC::ChildrenAddressable);
+    constexpr AccessCaps caps () const {
+        if (std::is_constant_evaluated()) return AC::Everything;
+        else return AC::Everything ^ AccessCaps(readonly());
     }
 };
 

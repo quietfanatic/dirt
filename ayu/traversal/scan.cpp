@@ -188,7 +188,7 @@ struct TraverseScan {
          // Get list of keys
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            AccessCB(keys, [](auto& keys, Type t, Mu* v, AccessCaps)
+            AccessCB(keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
             new (&keys) AnyArray<AnyString>(ks);

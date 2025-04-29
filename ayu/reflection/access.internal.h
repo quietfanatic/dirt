@@ -143,9 +143,10 @@ struct Accessor {
      // save space.
     AttrFlags attr_flags = {};
 
-     // attr_flags should never be read from ad-hoc accessors.
-    explicit constexpr Accessor (AcrForm f, AccessCaps c, TreeFlags t) :
-        form(f), caps(c), tree_flags(t), attr_flags()
+     // Constructor for ad-hoc accessors.  The tree_flags and attr_flags should
+     // never be used on this.  TODO: Use checkable invalid value
+    explicit constexpr Accessor (AcrForm f, AccessCaps c) :
+        form(f), caps(c), tree_flags()
     { }
 
     explicit constexpr Accessor (AcrForm s, AcrFlags f) :
@@ -173,14 +174,12 @@ struct Accessor {
     AnyPtr address (Mu& from) const {
         AnyPtr r;
         access(AM::Read, from,
-            AccessCB(r, [](AnyPtr& r, Type t, Mu* a, AccessCaps c){
-                r = AnyPtr(
-                    t,
-                    !!(c & AC::Addressable) ? a : null,
-                    !(c & AC::Writeable)
-                );
+            AccessCB(r, [](AnyPtr& r, Type t, Mu* v){
+                r = AnyPtr(t, v);
             })
         );
+        if (!(caps & AC::Addressable)) r.address = null;
+        if (!(caps & AC::Writeable)) r = r.add_readonly();
         return r;
     }
 
@@ -268,12 +267,11 @@ struct BaseAcr : FunctiveAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static void _access (
-        const Accessor* acr, Mu& from, AccessCB cb, AccessMode
+        const Accessor*, Mu& from, AccessCB cb, AccessMode
     ) {
-        auto self = static_cast<const BaseAcr<From, To>*>(acr);
          // reinterpret then implicit upcast
         To& to = reinterpret_cast<From&>(from);
-        cb(Type::For<To>(), (Mu*)&to, self->caps);
+        cb(Type::For<To>(), (Mu*)&to);
     }
     explicit constexpr BaseAcr (AcrFlags flags) :
         FunctiveAcr(AF::Functive, &_access, flags)
@@ -345,16 +343,16 @@ void RefFuncsAcr1<To>::_access (
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
         } return;
         case AccessMode::Write: {
             To tmp;
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
             self->setter(from, tmp);
         } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
             self->setter(from, tmp);
         } return;
         default: never();
@@ -388,7 +386,7 @@ void ValueFuncAcr1<To>::_access (
     expect(mode == AccessMode::Read);
     auto self = static_cast<const ValueFuncAcr<Mu, To>*>(acr);
     const To tmp = self->f(from);
-    cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+    cb(Type::For<To>(), (Mu*)&tmp);
 }
 
 /// value_funcs
@@ -424,16 +422,16 @@ void ValueFuncsAcr1<To>::_access (
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
         } return;
         case AccessMode::Write: {
             To tmp;
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
             self->setter(from, tmp);
         } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
             self->setter(from, move(tmp));
         } return;
         default: never();
@@ -441,7 +439,7 @@ void ValueFuncsAcr1<To>::_access (
      // Feels like this should compile smaller but it doesn't, probably because
      // mode has to be saved through the function calls.
     //To tmp = mode != AccessMode::Write ? self->getter(from) : To();
-    //cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+    //cb(Type::For<To>(), (Mu*)&tmp);
     //if (mode != AccessMode::Read) self->setter(from, move(tmp));
 }
 
@@ -478,16 +476,16 @@ void MixedFuncsAcr1<To>::_access (
     switch (mode) {
         case AccessMode::Read: {
             To tmp = self->getter(from);
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
         } return;
         case AccessMode::Write: {
             To tmp;
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
             self->setter(from, tmp);
         } return;
         case AccessMode::Modify: {
             To tmp = self->getter(from);
-            cb(Type::For<To>(), (Mu*)&tmp, self->caps);
+            cb(Type::For<To>(), (Mu*)&tmp);
             self->setter(from, tmp);
         } return;
         default: never();
@@ -501,12 +499,12 @@ struct AssignableAcr : FunctiveAcr {
     using AcrFromType = From;
     using AcrToType = To;
     static void _access (
-        const Accessor* acr, Mu& from_mu, AccessCB cb, AccessMode mode
+        const Accessor*, Mu& from_mu, AccessCB cb, AccessMode mode
     ) {
         From& from = reinterpret_cast<From&>(from_mu);
         To tmp;
         if (mode != AccessMode::Write) tmp = from;
-        cb(Type::For<To>(), (Mu*)&tmp, acr->caps);
+        cb(Type::For<To>(), (Mu*)&tmp);
         if (mode != AccessMode::Read) from = tmp;
         return;
     }

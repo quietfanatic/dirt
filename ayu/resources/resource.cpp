@@ -402,7 +402,7 @@ void unload (Slice<ResourceRef> to_unload) {
             if (!info.data->root) {
                 refs_to_reses.emplace(item, info.data);
             }
-            item.read([&info](Type t, Mu* v, AccessCaps){
+            item.read([&info](Type t, Mu* v){
                 if (t == Type::For<AnyRef>()) {
                     info.outgoing_refs.emplace_back(
                         *reinterpret_cast<AnyRef*>(v)
@@ -468,7 +468,7 @@ struct Update {
 NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
         update.ref_ref.write(
-            AccessCB(move(update), [](Update&& update, Type t, Mu* v, AccessCaps){
+            AccessCB(move(update), [](Update&& update, Type t, Mu* v){
                 expect(t == Type::For<AnyRef>());
                 reinterpret_cast<AnyRef&>(*v) = move(update.new_ref);
             })

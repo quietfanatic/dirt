@@ -118,7 +118,7 @@ struct TraverseFromTree {
                 expect(!op.base->parent());
                 CurrentBase curb (op.base);
                 try {
-                    op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v, AccessCaps){
+                    op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
                         op.f(*v, op.tree);
                     }));
                 }
@@ -137,7 +137,7 @@ struct TraverseFromTree {
                 CurrentBase curb (op.base);
                 try {
                      // TODO: use op.f instead of op
-                    op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v, AccessCaps){
+                    op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
                         op.f(*v);
                     }));
                 }
@@ -512,7 +512,7 @@ struct TraverseFromTree {
             object.size(), [&object](u32 i){ return object[i].first; }
         );
         keys_acr->write(*trav.address,
-            AccessCB(move(keys), [](auto&& keys, Type t, Mu* v, AccessCaps)
+            AccessCB(move(keys), [](auto&& keys, Type t, Mu* v)
         {
             auto& ks = require_writeable_keys(t, v);
             ks = move(keys);
@@ -528,7 +528,7 @@ struct TraverseFromTree {
          // Readonly keys?  Read them and check that they match.
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            AccessCB(keys, [](auto& keys, Type t, Mu* v, AccessCaps)
+            AccessCB(keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
             new (&keys) AnyArray<AnyString>(ks);

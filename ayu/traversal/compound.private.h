@@ -16,8 +16,8 @@ inline AnyArray<AnyString>& require_writeable_keys (Type t, Mu* v) {
     return reinterpret_cast<AnyArray<AnyString>&>(*v);
 }
 
-void read_length_acr_cb (u32& len, Type, Mu*, AccessCaps);
-void write_length_acr_cb (u32& len, Type, Mu*, AccessCaps);
+void read_length_acr_cb (u32& len, Type, Mu*);
+void write_length_acr_cb (u32& len, Type, Mu*);
 
 inline void read_length_acr (
     u32& len, Type, Mu* v, const Accessor* length_acr

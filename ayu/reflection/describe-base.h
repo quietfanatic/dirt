@@ -487,6 +487,28 @@ struct AYU_DescribeBase {
      // and it's your responsibility not to keep the AnyRef around longer than
      // the referred item's lifetime.
      //
+     // The returned AnyRef must not be invalidated by:
+     //   - Reading or writing any items that would come after this one in a
+     //     serialization operation, including child items of this item and
+     //     sibling items that are ordered after this one.
+     //   - Any swizzle or init operations that could be performed in the same
+     //     serialization operation.
+     // It may be invalidated by:
+     //   - The before_from_tree() function of this item, if it exists.
+     //   - Writing to the keys() accessor of this item (or length() accessor
+     //     for computed_elems and contiguous_elems()).
+     //   - Writing to sibling items that are ordered before this one.
+     //   - The before_from_tree(), length() setter, or keys() setter of any
+     //     recursive parent items of this one.
+     //   - Running program logic outside of serialization operations.
+     // In addition, as long as the AnyRef would still be valid, a second call
+     // to the computed_attrs function must return the same or an equivalent
+     // AnyRef (equivalent because if this item is unaddressable, its memory
+     // address may be different between calls, so the AnyRef doesn't have to be
+     // exactly the same, but it must be functionally the same: it must have the
+     // same access capabilities, and reading and writing it must have the same
+     // effects).
+     //
      // If computed_attrs() is present, keys() must also be present, and attrs()
      // must not be present.
     static constexpr
@@ -548,7 +570,9 @@ struct AYU_DescribeBase {
      // with very long length).  The accessor must have a child type of either
      // u32 or u64 (one of which is usize aka size_t).
      // Regardless of the type, its returned value cannot be more than the max
-     // array size, 0x7fffffff or 2,147,483,647.
+     // array size of 0x7fffffff or 2,147,483,647.  If you need to work with
+     // array-like items larger than that, you should probably be using a binary
+     // format.
      //
      // Writing to this accessor may clear the contents of the item.
      //
@@ -578,8 +602,8 @@ struct AYU_DescribeBase {
      // This might be called with an out-of-bounds index.  If that happens, you
      // should return an empty or null AnyRef.
      //
-     // Make sure not to return a AnyRef to a temporary and then keep that
-     // AnyRef beyond the temporary's lifetime.  See also computed_attrs.
+     // The rules for validity and consistency of the returned AnyRef are the
+     // same as those for computed_attrs().
      //
      // If computed_elems() is present, length() must also be present, and
      // elems() and contiguous_elems() must not be present.
@@ -597,15 +621,8 @@ struct AYU_DescribeBase {
      // If the length is 0, this may or may not be called.  You're allowed to
      // return null if the length is 0, but must not return null otherwise.
      //
-     // The memory range must not be invalidated by:
-     //   - Reading or writing any items that would come after this one in a
-     //     serialization operation, including child elems of this item and
-     //     sibling items that are ordered after this one.
-     //   - Any swizzle or init operations that could be performed in the same
-     //     serialization operation.
-     // It may be (and probably will be) invalidated by:
-     //   - Writing to the length() accessor of this item.
-     //   - Writing to length() or keys() of any parent items of this one.
+     // The memory range must stay valid and consistent according to similar
+     // rules to the AnyRef returned by computed_attrs().
      //
      // If contiguous_elems() is present, length() must also be present, and
      // elems() and computed_elems() must not be present.
@@ -815,8 +832,12 @@ struct AYU_DescribeBase {
      // AnyRef from this function, or you may get null pointer derefs down
      // the line.
      //
-     // The returned AnyRef must not have stricter accessibility than this
-     // accessor.  Any prefer_* flags on the returned AnyRef will probably be
+     // This accessor is considered unaddressable, even if the returned anyref
+     // is addressable.  Use anyptr_func to give access to an arbitrarily-typed
+     // addressable item.
+     //
+     // The returned AnyRef must not be readonly unless this accessor is also
+     // readonly.  Any prefer_* flags on the returned AnyRef will probably be
      // ignored.
      //
      // anyref_func and anyptr_func are not valid accessors for the keys and

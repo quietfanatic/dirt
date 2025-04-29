@@ -78,7 +78,7 @@ struct TraverseGetKeys {
         const GetKeysTraversal<>& trav, const Accessor* keys_acr
     ) {
         keys_acr->read(*trav.address,
-            AccessCB(*trav.keys, [](auto& keys, Type t, Mu* v, AccessCaps)
+            AccessCB(*trav.keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
             for (auto& key : ks) collect(keys, AnyString(key));
@@ -216,7 +216,7 @@ struct TraverseSetKeys {
         const SetKeysTraversal<>& trav, const Accessor* keys_acr
     ) {
         keys_acr->write(*trav.address,
-            AccessCB(move(*trav.keys), [](auto&& keys, Type t, Mu* v, AccessCaps)
+            AccessCB(move(*trav.keys), [](auto&& keys, Type t, Mu* v)
         {
             auto& ks = require_writeable_keys(t, v);
             ks = move(keys);
@@ -232,7 +232,7 @@ struct TraverseSetKeys {
          // about this codepath to work any harder on it.
         AnyArray<AnyString> keys;
         keys_acr->read(*trav.address,
-            AccessCB(keys, [](auto& keys, Type t, Mu* v, AccessCaps)
+            AccessCB(keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_writeable_keys(t, v);
             new (&keys) AnyArray<AnyString>(ks);
@@ -412,7 +412,7 @@ struct TraverseGetLength {
     } catch (...) { rethrow_with_route(rt); }
 
     static
-    void visit (u32& len, Type t, Mu* v, AccessCaps) {
+    void visit (u32& len, Type t, Mu* v) {
         auto desc = DescriptionPrivate::get(t);
         if (auto acr = desc->length_acr()) {
             read_length_acr(len, t, v, acr);
@@ -445,7 +445,7 @@ struct TraverseSetLength {
     } catch (...) { rethrow_with_route(rt); }
 
     NOINLINE static
-    void visit (u32& len, Type t, Mu* v, AccessCaps) {
+    void visit (u32& len, Type t, Mu* v) {
         auto desc = DescriptionPrivate::get(t);
         if (auto acr = desc->length_acr()) {
             write_length_acr(len, t, v, acr);
@@ -593,7 +593,7 @@ AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
 
 ///// LENGTH AND KEYS ACR HANDLING
 
-void in::read_length_acr_cb (u32& len, Type t, Mu* v, AccessCaps) {
+void in::read_length_acr_cb (u32& len, Type t, Mu* v) {
     u64 l;
     if (t == Type::For<u32>()) {
         l = reinterpret_cast<const u32&>(*v);
@@ -608,7 +608,7 @@ void in::read_length_acr_cb (u32& len, Type t, Mu* v, AccessCaps) {
     len = l;
 }
 
-void in::write_length_acr_cb (u32& len, Type t, Mu* v, AccessCaps) {
+void in::write_length_acr_cb (u32& len, Type t, Mu* v) {
     expect(len <= AnyArray<Tree>::max_size_);
     if (t == Type::For<u32>()) {
         reinterpret_cast<u32&>(*v) = len;
