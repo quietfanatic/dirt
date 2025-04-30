@@ -45,7 +45,8 @@ void access_AnyRefFunc (
 ) {
     auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
     auto ref = self->f(from);
-    self->f(from).access(mode, cb);
+     // Don't need to check caps as AnyRef::access will check them.
+    ref.access(mode, cb);
 }
 
 void access_AnyPtrFunc (
@@ -53,6 +54,7 @@ void access_AnyPtrFunc (
 ) {
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
+     // This will not get checked unless we check it here.
     if (mode % AC::Write && ptr.readonly()) {
         raise(e_WriteReadonly, "Non-readonly anyptr_func returned readonly AnyPtr.");
     }
@@ -77,8 +79,7 @@ void access_Chain (
     };
     Frame frame {static_cast<const ChainAcr*>(acr), cb, mode};
      // Have to use modify instead of write for the first mode, or other
-     // parts of the item will get clobbered.  Hope this isn't necessary
-     // very often.
+     // parts of the item will get clobbered.
     auto outer_mode = mode | AC::Read;
     return frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
