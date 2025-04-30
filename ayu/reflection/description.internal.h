@@ -439,10 +439,8 @@ struct AttrsDcrWith : AttrsDcr<T> {
     constexpr bool need_rebuild () {
         bool r = false;
         attrs.for_each([&](const auto& attr){
-            r |= !!(attr.acr.attr_flags &
-                (AttrFlags::Include|AttrFlags::HasDefault|
-                 AttrFlags::CollapseOptional)
-            );
+            r |= attr.acr.attr_flags %
+                (AttrFlags::Include|AttrFlags::HasDefault|AttrFlags::CollapseOptional);
         });
         return r;
     }
@@ -483,13 +481,13 @@ struct ElemsDcrWith : ElemsDcr<T> {
         bool have_invisible = false;
         u16 i = 0;
         elems.for_each([&]<class Elem>(const Elem& elem){
-            if (!!(elem.acr.attr_flags & AttrFlags::Optional)) {
+            if (elem.acr.attr_flags % AttrFlags::Optional) {
                 have_optional = true;
             }
             else if (have_optional) {
                 ERROR_cannot_have_non_optional_elem_after_optional_elem();
             }
-            if (!!(elem.acr.attr_flags & AttrFlags::Invisible)) {
+            if (elem.acr.attr_flags % AttrFlags::Invisible) {
                 have_invisible = true;
             }
             else if (have_invisible) {
@@ -726,7 +724,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
             }
             AYU_APPLY_OFFSET(AttrsDcr, attrs)
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferObject;
             }
             Dcr* attrs = desc.template get<Dcr>(0);
@@ -739,7 +737,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
             }
             AYU_APPLY_OFFSET(KeysDcr, keys)
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferObject;
             }
         }
@@ -748,7 +746,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs();
             }
             AYU_APPLY_OFFSET(ComputedAttrsDcr, computed_attrs)
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferObject;
             }
         }
@@ -757,7 +755,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
             }
             AYU_APPLY_OFFSET(ElemsDcr, elems)
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferArray;
             }
         }
@@ -766,7 +764,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_elems_cannot_be_combined_with_length_and_computed_elems();
             }
             AYU_APPLY_OFFSET(LengthDcr, length)
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferArray;
             }
         }
@@ -778,7 +776,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
                 ERROR_cannot_have_both_computed_and_contiguous_elems();
             }
             AYU_APPLY_OFFSET(ComputedElemsDcr, computed_elems)
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferArray;
             }
         }
@@ -791,7 +789,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             }
             AYU_APPLY_OFFSET(ContiguousElemsDcr, contiguous_elems)
             header.flags |= DescFlags::ElemsContiguous;
-            if (!(header.flags & DescFlags::Preference)) {
+            if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferArray;
             }
         }

@@ -14,7 +14,7 @@ struct ValueDcrPrivate : ValueDcr<Mu> {
          // Can't static cast to ValueDcrWithValue<Mu> because it has an inline
          // member of incomplete type Mu.
         auto r = (Mu*)((char*)this + sizeof(ValueDcr<Mu>));
-        if (!!(name.flags & TreeFlags::ValueIsPtr)) {
+        if (name.flags % TreeFlags::ValueIsPtr) {
             r = *(Mu**)r;
         }
         return r;
@@ -45,7 +45,7 @@ struct AttrDcrPrivate : AttrDcr<Mu> {
         return (const Accessor*)((char*)this + sizeof(AttrDcr<Mu>));
     }
     const Tree* default_value () const {
-        if (!!(acr()->attr_flags & AttrFlags::HasDefault)) {
+        if (acr()->attr_flags % AttrFlags::HasDefault) {
             return (const Tree*)((char*)this - sizeof(Tree));
         }
         else return null;
@@ -76,7 +76,7 @@ struct ElemsDcrPrivate : ElemsDcr<Mu> {
      // invisible).  TODO: this could be done at compile time
     u16 chop_flag (AttrFlags flag) const {
         u16 r = n_elems;
-        while (r && !!(elem(r-1)->acr()->attr_flags & flag)) r--;
+        while (r && elem(r-1)->acr()->attr_flags % flag) r--;
         return r;
     }
 };

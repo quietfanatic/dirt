@@ -27,7 +27,7 @@ struct AnyPtr {
         address(a), type_i(reinterpret_cast<usize>(t.data) | readonly)
     { expect(t); }
     AnyPtr (Type t, Mu* a, AccessCaps caps) :
-        AnyPtr(t, a, !(caps & AC::Write))
+        AnyPtr(t, a, !(caps % AC::Write))
     { require(caps & AC::Address); } // TODO: raise exception instead
 
      // Coercion from pointer is explicit for AnyPtr* and AnyRef* to avoid

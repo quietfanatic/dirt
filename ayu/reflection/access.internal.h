@@ -177,8 +177,8 @@ struct Accessor {
                 r = AnyPtr(t, v);
             })
         );
-        if (!(caps & AC::Address)) r.address = null;
-        if (!(caps & AC::Write)) r = r.add_readonly();
+        if (!(caps % AC::Address)) r.address = null;
+        if (!(caps % AC::Write)) r = r.add_readonly();
         return r;
     }
 
@@ -339,9 +339,9 @@ void RefFuncsAcr1<To>::_access (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const RefFuncsAcr<Mu, To>*>(acr);
-    To tmp = !!(mode & AC::Read) ? self->getter(from) : To();
+    To tmp = mode % AC::Read ? self->getter(from) : To();
     cb(Type::For<To>(), (Mu*)&tmp);
-    if (!!(mode & AC::Write)) self->setter(from, move(tmp));
+    if (mode % AC::Write) self->setter(from, move(tmp));
 }
 
 /// value_func
@@ -404,9 +404,9 @@ void ValueFuncsAcr1<To>::_access (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const ValueFuncsAcr<Mu, To>*>(acr);
-    To tmp = !!(mode & AC::Read) ? self->getter(from) : To();
+    To tmp = mode % AC::Read ? self->getter(from) : To();
     cb(Type::For<To>(), (Mu*)&tmp);
-    if (!!(mode & AC::Write)) self->setter(from, move(tmp));
+    if (mode % AC::Write) self->setter(from, move(tmp));
 }
 
 /// mixed_funcs
@@ -439,9 +439,9 @@ void MixedFuncsAcr1<To>::_access (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const MixedFuncsAcr<Mu, To>*>(acr);
-    To tmp = !!(mode & AC::Read) ? self->getter(from) : To();
+    To tmp = mode % AC::Read ? self->getter(from) : To();
     cb(Type::For<To>(), (Mu*)&tmp);
-    if (!!(mode & AC::Write)) self->setter(from, move(tmp));
+    if (mode % AC::Write) self->setter(from, move(tmp));
 }
 
 /// assignable
@@ -455,9 +455,9 @@ struct AssignableAcr : FunctiveAcr {
     ) {
         From& from = reinterpret_cast<From&>(from_mu);
         To tmp;
-        if (!!(mode & AC::Read)) tmp = from;
+        if (mode % AC::Read) tmp = from;
         cb(Type::For<To>(), (Mu*)&tmp);
-        if (!!(mode & AC::Write)) from = tmp;
+        if (mode % AC::Write) from = tmp;
         return;
     }
     explicit constexpr AssignableAcr (AcrFlags flags) :

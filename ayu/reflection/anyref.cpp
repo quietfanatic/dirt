@@ -13,11 +13,11 @@ using namespace in;
 void AnyRef::raise_access_denied (AccessCaps mode) const {
     const char* code;
     StaticString mess;
-    if (!!(mode & ~caps() & AC::Write)) {
+    if ((mode & ~caps()) % AC::Write) {
         code = e_WriteReadonly;
         mess = "Can't write to readonly reference of type ";
     }
-    else if (!!(mode & ~caps() & AC::Address)) {
+    else if ((mode & ~caps()) % AC::Address) {
         code = e_AddressUnaddressable;
         mess = "Can't get address of unaddressable reference of type ";
     }

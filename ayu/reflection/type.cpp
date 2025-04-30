@@ -42,10 +42,10 @@ void register_description (const void* desc) noexcept {
 
 static
 StaticString get_type_name_cached (const DescriptionPrivate* desc) {
-    if (!!(desc->flags & DescFlags::NameComputed)) {
+    if (desc->flags % DescFlags::NameComputed) {
         return *desc->computed_name.cache;
     }
-    else if (!!(desc->flags & DescFlags::NameLocal)) {
+    else if (desc->flags % DescFlags::NameLocal) {
         return StaticString(Str(desc->local_name));
     }
     else return desc->name;
@@ -114,7 +114,7 @@ const DescriptionHeader* require_type_with_name (Str name) {
 }
 
 StaticString DescriptionHeader::get_name () const noexcept {
-    if (!!(flags & DescFlags::NameComputed)) {
+    if (flags % DescFlags::NameComputed) {
         auto cache = computed_name.cache;
         if (!*cache) {
             AnyString s = computed_name.f();
@@ -123,7 +123,7 @@ StaticString DescriptionHeader::get_name () const noexcept {
         }
         return *cache;
     }
-    else if (!!(flags & DescFlags::NameLocal)) {
+    else if (flags % DescFlags::NameLocal) {
         return StaticString(Str(local_name));
     }
     else return name;
@@ -179,7 +179,7 @@ Mu* dynamic_try_upcast (Type from, Type to, Mu* p) {
     if (auto attrs = desc->attrs())
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
-        if (!!(acr->attr_flags & AttrFlags::Include))
+        if (acr->attr_flags % AttrFlags::Include)
         if (AnyPtr a = acr->address(*p))
         if (Mu* b = dynamic_try_upcast(a.type(), to, a.address))
             return b;
@@ -189,7 +189,7 @@ Mu* dynamic_try_upcast (Type from, Type to, Mu* p) {
     if (auto elems = desc->elems())
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
-        if (!!(acr->attr_flags & AttrFlags::Include))
+        if (acr->attr_flags % AttrFlags::Include)
         if (AnyPtr a = acr->address(*p))
         if (Mu* b = dynamic_try_upcast(a.type(), to, a.address))
             return b;

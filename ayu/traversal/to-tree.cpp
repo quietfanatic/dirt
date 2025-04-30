@@ -30,7 +30,7 @@ struct TraverseToTree {
         KeepRouteCache klc;
         ToTreeTraversal<StartTraversal> child;
         child.dest = &r;
-        child.embed_errors = !!(opts & TTO::EmbedErrors);
+        child.embed_errors = opts % TTO::EmbedErrors;
         trav_start<visit>(
             child, item, rt, AC::Read
         );
@@ -84,7 +84,7 @@ struct TraverseToTree {
         }
         else if (desc->preference() == DescFlags::PreferArray) {
             if (auto length = desc->length_acr()) {
-                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
+                if (desc->flags % DescFlags::ElemsContiguous) {
                     return use_contiguous_elems(trav, length);
                 }
                 else {
@@ -131,7 +131,7 @@ struct TraverseToTree {
          // First just build the object as though none of the attrs are included
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
-            if (!!(attr->acr()->attr_flags & AttrFlags::Invisible)) continue;
+            if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
 
             ToTreeTraversal<AttrTraversal> child;
 
@@ -146,7 +146,7 @@ struct TraverseToTree {
         }
          // Then if there are included or collapsed attrs, rebuild the object
          // while flattening them.
-        if (!!(trav.desc()->flags & DescFlags::AttrsNeedRebuild)) {
+        if (trav.desc()->flags % DescFlags::AttrsNeedRebuild) {
              // Determine length for preallocation
             u32 len = object.size();
             for (u32 i = 0; i < attrs->n_attrs; i++) {
@@ -154,9 +154,7 @@ struct TraverseToTree {
                  // Ignore HasDefault; it can only decrease the length by 1, and
                  // checking whether it does requires comparing Trees, so I'd
                  // rather just overallocate.
-                if (!!(flags &
-                    (AttrFlags::Include|AttrFlags::CollapseOptional)
-                )) {
+                if (flags % (AttrFlags::Include|AttrFlags::CollapseOptional)) {
                      // This works for both include and collapse_optional
                     len = len + object[i].second.size - 1;
                 }
@@ -169,7 +167,7 @@ struct TraverseToTree {
                 auto flags = attr->acr()->attr_flags;
                 auto key = move(object[i].first);
                 Tree value = move(object[i].second);
-                if (!!(flags & AttrFlags::Include)) {
+                if (flags % AttrFlags::Include) {
                     if (value.form != Form::Object) {
                         raise(e_General,
                             "Included item did not serialize to an object"
@@ -181,7 +179,7 @@ struct TraverseToTree {
                     }
                     continue;
                 }
-                else if (!!(flags & AttrFlags::CollapseOptional)) {
+                else if (flags % AttrFlags::CollapseOptional) {
                     if (value.form != Form::Array || value.size > 1) {
                         raise(e_General,
                             "Attribute with collapse_optional did not "

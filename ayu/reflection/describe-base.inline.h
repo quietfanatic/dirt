@@ -100,9 +100,9 @@ template <AccessorFrom<T> Acr> constexpr
 AttrDcrFor<T> auto AYU_DescribeBase<T>::attr (
     StaticString key, const Acr& acr, AttrFlags flags
 ) {
-    u32 count = !!(flags & in::AttrFlags::Optional)
-              + !!(flags & in::AttrFlags::Include)
-              + !!(flags & in::AttrFlags::CollapseOptional);
+    u32 count = flags % in::AttrFlags::Optional
+              + flags % in::AttrFlags::Include
+              + flags % in::AttrFlags::CollapseOptional;
     if (count > 1) {
         ERROR_conflicting_flags_on_attr();
     }
@@ -130,7 +130,7 @@ template <AccessorFrom<T> Acr> constexpr
 ElemDcrFor<T> auto AYU_DescribeBase<T>::elem (
     const Acr& acr, in::AttrFlags flags
 ) {
-    if (!!(flags & in::AttrFlags::CollapseOptional)) {
+    if (flags % in::AttrFlags::CollapseOptional) {
         ERROR_elem_cannot_have_collapse_optional_flag();
     }
     auto r = in::ElemDcrWith<T, Acr>(acr);

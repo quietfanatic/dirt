@@ -33,16 +33,14 @@ struct TraverseScan {
         AnyPtr base_item, RouteRef base_rt, ScanPointersCB cb
     ) {
         if (currently_scanning) {
-            raise(e_ScanWhileScanning,
-                "Cannot start scan while there's already a scan running."
-            );
+            raise(e_ScanWhileScanning, "Cannot start scan while there's already a scan running.");
         }
         currently_scanning = true;
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
                 cb, [](auto& cb, const ScanTraversal<>& trav) {
-                    if (!(trav.caps & AC::AddressChildren)) return;
-                    bool done = !!(trav.caps & AC::Address) &&
+                    if (!(trav.caps % AC::AddressChildren)) return;
+                    bool done = trav.caps % AC::Address &&
                         cb(AnyPtr(trav.type, trav.address, trav.caps), trav.rt);
                     if (done) [[unlikely]] trav.context->done = true;
                     else after_cb(trav);
@@ -108,7 +106,7 @@ struct TraverseScan {
     NOINLINE static
     void after_cb (const ScanTraversal<>& trav) {
         auto desc = trav.desc();
-        if (!!(desc->type_flags & TypeFlags::NoRefsToChildren)) {
+        if (desc->type_flags % TypeFlags::NoRefsToChildren) {
             return;
         }
         if (desc->preference() == DescFlags::PreferObject) {
@@ -119,7 +117,7 @@ struct TraverseScan {
         }
         else if (desc->preference() == DescFlags::PreferArray) {
             if (auto length = desc->length_acr()) {
-                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
+                if (desc->flags % DescFlags::ElemsContiguous) {
                     use_contiguous_elems(trav, length);
                 }
                 else use_computed_elems(trav, length);
@@ -142,7 +140,7 @@ struct TraverseScan {
         }
         else if (desc->preference() == DescFlags::PreferArray) {
             if (auto length = desc->length_acr()) {
-                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
+                if (desc->flags % DescFlags::ElemsContiguous) {
                     use_contiguous_elems(trav, length);
                 }
                 else use_computed_elems(trav, length);
@@ -164,7 +162,7 @@ struct TraverseScan {
              // TODO: verify that the child item is object-like.
             ScanTraversal<AttrTraversal> child;
             child.context = trav.context;
-            if (!!(acr->attr_flags & AttrFlags::Include)) {
+            if (acr->attr_flags % AttrFlags::Include) {
                  // Behave as though all included attrs are included (collapse
                  // the route segment for the included attr).
                 child.rt = trav.rt;
@@ -173,8 +171,7 @@ struct TraverseScan {
                 child_rt = SharedRoute(trav.rt, attr->key);
                 child.rt = child_rt;
             }
-            child.collapse_optional =
-                !!(acr->attr_flags & AttrFlags::CollapseOptional);
+            child.collapse_optional = acr->attr_flags % AttrFlags::CollapseOptional;
             trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
             child_rt = {};
             if (child.context->done) [[unlikely]] return;

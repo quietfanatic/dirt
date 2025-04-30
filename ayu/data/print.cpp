@@ -78,7 +78,7 @@ struct Printer {
         p = reserve(p, 3);
         i64 v = t.data.as_i64;
         expect(v >= 0 && v < 10);
-        bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
+        bool hex = !(opts % O::Json) && t.flags % TreeFlags::PreferHex;
         if (hex) {
             *p++ = '0'; *p++ = 'x';
         }
@@ -95,7 +95,7 @@ struct Printer {
             *p++ = '-';
             v = -v;
         }
-        bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
+        bool hex = !(opts % O::Json) && t.flags % TreeFlags::PreferHex;
         if (hex) {
              // std::to_chars is bulky for decimal, but it's better than I can
              // program for hexadecimal.
@@ -119,7 +119,7 @@ struct Printer {
         p = reserve(p, 24);
         double v = t.data.as_double;
         if (v != v) {
-            if (!!(opts & O::Json)) {
+            if (opts % O::Json) {
                 return 4+(char*)std::memcpy(p, "null", 4);
             }
             else {
@@ -127,7 +127,7 @@ struct Printer {
             }
         }
         else if (v == +inf) {
-            if (!!(opts & O::Json)) {
+            if (opts % O::Json) {
                 return 5+(char*)std::memcpy(p, "1e999", 5);
             }
             else {
@@ -135,7 +135,7 @@ struct Printer {
             }
         }
         else if (v == -inf) {
-            if (!!(opts & O::Json)) {
+            if (opts % O::Json) {
                 return 6+(char*)std::memcpy(p, "-1e999", 6);
             }
             else {
@@ -150,7 +150,7 @@ struct Printer {
             return p;
         }
 
-        bool hex = !(opts & O::Json) && !!(t.flags & TreeFlags::PreferHex);
+        bool hex = !(opts % O::Json) && t.flags % TreeFlags::PreferHex;
         if (hex) {
             if (v < 0) {
                 *p++ = '-';
@@ -183,7 +183,7 @@ struct Printer {
                 case '\r': esc = 'r'; goto escape;
                 default: {
                     if (u8(s[i]) < u8(' ')) [[unlikely]] {
-                        if (!!(opts & O::Json)) {
+                        if (opts % O::Json) {
                             p = reserve(p, 6 + s.size() - i);
                             *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
                             *p++ = to_hex_digit(s[i] >> 4);
@@ -225,7 +225,7 @@ struct Printer {
                 case '\t': esc = 't'; goto escape;
                 default: {
                     if (u8(s[i]) < u8(' ')) [[unlikely]] {
-                        if (!!(opts & O::Json)) {
+                        if (opts % O::Json) {
                             p = reserve(p, 6 + s.size() - i);
                             *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
                             *p++ = to_hex_digit(s[i] >> 4);
@@ -252,7 +252,7 @@ struct Printer {
     }
 
     char* print_string (char* p, Str s, const Tree* t) {
-        if (!!(opts & O::Json)) {
+        if (opts % O::Json) {
             return print_quoted_contracted(p, s);
         }
         else return print_string_nojson(p, s, t);
@@ -297,10 +297,10 @@ struct Printer {
          // The expanded form of a string uses raw newlines and tabs instead of
          // escaping them.  Ironically, this takes fewer characters than the
          // compact form, so expand it when not pretty-printing.
-        bool expand = !(opts & O::Pretty) ? true
+        bool expand = !(opts % O::Pretty) ? true
                     : !t ? false
-                    : !!(t->flags & TreeFlags::PreferExpanded) ? true
-                    : !!(t->flags & TreeFlags::PreferCompact) ? false
+                    : t->flags % TreeFlags::PreferExpanded ? true
+                    : t->flags % TreeFlags::PreferCompact ? false
                     : t->size > 50;
         if (expand) {
             return print_quoted_expanded(p, s);
@@ -325,18 +325,18 @@ struct Printer {
         }
 
          // Print "small" arrays compactly.
-        bool expand = !(opts & O::Pretty) ? false
-                    : !!(t.flags & TreeFlags::PreferExpanded) ? true
-                    : !!(t.flags & TreeFlags::PreferCompact) ? false
+        bool expand = !(opts % O::Pretty) ? false
+                    : t.flags % TreeFlags::PreferExpanded ? true
+                    : t.flags % TreeFlags::PreferCompact ? false
                     : a.size() > 8;
 
         bool show_indices = expand
                          && a.size() > 2
-                         && !(opts & O::Json);
+                         && !(opts % O::Json);
         p = pchar(p, '[');
         if (expand) {
             for (auto& elem : a) {
-                if (!!(opts & O::Json) && &elem != &a.front()) {
+                if (opts % O::Json && &elem != &a.front()) {
                     p = pchar(p, ',');
                 }
                 p = print_newline(p, ind + 1);
@@ -350,7 +350,7 @@ struct Printer {
         else {
             for (auto& elem : a) {
                 if (&elem != &a.front()) {
-                    p = pchar(p, !!(opts & O::Json) ? ',' : ' ');
+                    p = pchar(p, opts % O::Json ? ',' : ' ');
                 }
                 p = print_tree(p, elem, ind);
             }
@@ -368,15 +368,15 @@ struct Printer {
 
          // If both prefer_expanded and prefer_compact are set, I think the one
          // who set prefer_expanded is more likely to have a good reason.
-        bool expand = !(opts & O::Pretty) ? false
-                    : !!(t.flags & TreeFlags::PreferExpanded) ? true
-                    : !!(t.flags & TreeFlags::PreferCompact) ? false
+        bool expand = !(opts % O::Pretty) ? false
+                    : t.flags % TreeFlags::PreferExpanded ? true
+                    : t.flags % TreeFlags::PreferCompact ? false
                     : o.size() > 1;
 
         p = pchar(p, '{');
         if (expand) {
             for (auto& attr : o) {
-                if (!!(opts & O::Json) && &attr != &o.front()) {
+                if (opts % O::Json && &attr != &o.front()) {
                     p = pchar(p, ',');
                 }
                 p = print_newline(p, ind + 1);
@@ -389,7 +389,7 @@ struct Printer {
         else {
             for (auto& attr : o) {
                 if (&attr != &o.front()) {
-                    p = pchar(p, !!(opts & O::Json) ? ',' : ' ');
+                    p = pchar(p, opts % O::Json ? ',' : ' ');
                 }
                 p = print_string(p, attr.first, null);
                 p = pchar(p, ':');
@@ -444,7 +444,7 @@ struct Printer {
         end = begin + SharableBuffer<char>::header(begin)->capacity;
          // Do it
         char* p = print_tree(begin, t, 0);
-        if (!!(opts & O::Pretty)) p = pchar(p, '\n');
+        if (opts % O::Pretty) p = pchar(p, '\n');
          // Make return
         UniqueString r;
         r.impl.size = p - begin;
@@ -455,8 +455,8 @@ struct Printer {
 };
 
 static void validate_print_options (PrintOptions opts) {
-    if (!!(opts & ~O::ValidBits) ||
-        (!!(opts & O::Pretty) && !!(opts & O::Compact))
+    if (opts % ~O::ValidBits ||
+        (opts % O::Pretty && opts % O::Compact)
     ) {
         raise(e_PrintOptionsInvalid, "Further info NYI");
     }
@@ -466,7 +466,7 @@ static void validate_print_options (PrintOptions opts) {
 
 UniqueString tree_to_string (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
-    if (!(opts & O::Pretty)) opts |= O::Compact;
+    if (!(opts % O::Pretty)) opts |= O::Compact;
     Printer printer (opts);
     u32 cap = t.form == Form::Array || t.form == Form::Object
         ? 32 * t.size : 32;
@@ -475,7 +475,7 @@ UniqueString tree_to_string (const Tree& t, PrintOptions opts) {
 
 UniqueString tree_to_string_for_file (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
-    if (!(opts & O::Compact)) opts |= O::Pretty;
+    if (!(opts % O::Compact)) opts |= O::Pretty;
     Printer printer (opts);
      // Lilac can't quite fast-allocate a whole 4k page
     return printer.print(t, 4064);

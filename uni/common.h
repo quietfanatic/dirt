@@ -131,5 +131,11 @@ ALWAYS_INLINE constexpr T operator >> (T a, int b) { \
 } \
 ALWAYS_INLINE constexpr T& operator >>= (T& a, int b) { \
     return a = T(std::underlying_type_t<T>(a) >> b); \
+} \
+/* There's no way to get enum classes to boolify themselves, and looking at */ \
+/* !!(flags & Flags::Flag) all the time is tedious so here's some relief. */ \
+/* I tried operator / too but it looks too much like |. */ \
+ALWAYS_INLINE constexpr bool operator % (T a, T b) { \
+    return !!(std::underlying_type_t<T>(a) & std::underlying_type_t<T>(b)); \
 }
 #endif

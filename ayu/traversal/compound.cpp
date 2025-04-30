@@ -63,8 +63,8 @@ struct TraverseGetKeys {
         for (u16 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (!!(acr->attr_flags & AttrFlags::Invisible)) continue;
-            if (!!(acr->attr_flags & AttrFlags::Include)) {
+            if (acr->attr_flags % AttrFlags::Invisible) continue;
+            if (acr->attr_flags % AttrFlags::Include) {
                 GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
                 trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
@@ -148,7 +148,7 @@ struct TraverseSetKeys {
         auto& trav = static_cast<const SetKeysTraversal<>&>(tr);
         auto desc = trav.desc();
         if (auto acr = desc->keys_acr()) {
-            if (!!(acr->caps & AC::Write)) {
+            if (acr->caps % AC::Write) {
                 use_computed_attrs(trav, acr);
             }
             else {
@@ -188,9 +188,7 @@ struct TraverseSetKeys {
             if (claim(*trav.keys, attr->key)) {
                 claimed[i] = true;
             }
-            else if (!!(acr->attr_flags &
-                (AttrFlags::Optional|AttrFlags::Include)
-            )) {
+            else if (acr->attr_flags % (AttrFlags::Optional|AttrFlags::Include)) {
                  // Allow omitting optional or included attrs
             }
             else raise_AttrMissing(trav.type, attr->key);
@@ -199,7 +197,7 @@ struct TraverseSetKeys {
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (!!(acr->attr_flags & AttrFlags::Include)) {
+            if (acr->attr_flags % AttrFlags::Include) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed[i]) continue;
                 GetKeysTraversal<AttrTraversal> child;
@@ -345,7 +343,7 @@ struct TraverseAttr {
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (!!(acr->attr_flags & AttrFlags::Include)) {
+            if (acr->attr_flags % AttrFlags::Include) {
                 GetAttrTraversal<AttrTraversal> child;
                 child.get_key = trav.get_key;
                 child.r = trav.r;
@@ -501,7 +499,7 @@ struct TraverseElem {
         auto& trav = static_cast<const GetElemTraversal<>&>(tr);
         auto desc = trav.desc();
         if (auto length = desc->length_acr()) {
-            if (!!(desc->flags & DescFlags::ElemsContiguous)) {
+            if (desc->flags % DescFlags::ElemsContiguous) {
                 use_contiguous_elems(trav, length);
             }
             else {

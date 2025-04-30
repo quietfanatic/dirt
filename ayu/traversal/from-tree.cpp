@@ -76,7 +76,7 @@ struct TraverseFromTree {
                 "Undefined tree given to item_from_tree"
             );
         }
-        if (!!(opts & FTO::DelaySwizzle) && IFTContext::current) {
+        if (opts % FTO::DelaySwizzle && IFTContext::current) {
              // Delay swizzle and inits to the outer item_from_tree call.  Basically
              // this just means keep the current context instead of making a new one.
             start_without_context(item, tree, rt);
@@ -156,7 +156,7 @@ struct TraverseFromTree {
     static // not noinline
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const FromTreeTraversal<>&>(tr);
-        if (!(trav.caps & AC::Write)) {
+        if (!(trav.caps % AC::Write)) {
             raise(e_General, "Tried to do from_tree operation on a readonly reference?");
         }
         auto desc = trav.desc();
@@ -187,7 +187,7 @@ struct TraverseFromTree {
          // Now check for values.  Values can be of any tree form now, not just
          // atomic forms.
         else if (auto values = desc->values()) {
-            if (!!(desc->flags & DescFlags::ValuesAllStrings)) {
+            if (desc->flags % DescFlags::ValuesAllStrings) {
                 if (trav.tree->form == Form::String) {
                     use_values_all_strings(trav, values);
                 }
@@ -214,7 +214,7 @@ struct TraverseFromTree {
         }
         else if (trav.tree->form == Form::Array) {
             if (auto length = desc->length_acr()) {
-                if (!!(desc->flags & DescFlags::ElemsContiguous)) {
+                if (desc->flags % DescFlags::ElemsContiguous) {
                     return use_contiguous_elems(trav, length);
                 }
                 else {
@@ -402,10 +402,10 @@ struct TraverseFromTree {
             ) {
                 auto& [key, value] = trav.tree->data.as_object_ptr[j];
                 if (key == attr->key) {
-                    if (!(flags & AttrFlags::Ignored)) {
+                    if (!(flags % AttrFlags::Ignored)) {
                         Tree singleton;
                         FromTreeTraversal<AttrTraversal> child;
-                        if (!!(flags & AttrFlags::CollapseOptional)) {
+                        if (flags % AttrFlags::CollapseOptional) {
                             child.tree = &(singleton = Tree::array(value));
                         }
                         else child.tree = &value;
@@ -419,7 +419,7 @@ struct TraverseFromTree {
                 }
             }
              // No match, try including, optional, collapsing
-            if (!!(flags & AttrFlags::Include)) {
+            if (flags % AttrFlags::Include) {
                  // Included.  Recurse with the same tree.
                 ClaimAttrsTraversal<AttrTraversal> child;
                 child.next_list = next_list;
@@ -428,12 +428,12 @@ struct TraverseFromTree {
                     child, trav, attr->acr(), attr->key, AC::Write
                 );
             }
-            else if (!!(flags & (AttrFlags::Optional|AttrFlags::Ignored))) {
+            else if (flags % (AttrFlags::Optional|AttrFlags::Ignored)) {
                  // Leave the attribute in its default-constructed state.
             }
             else {
                 FromTreeTraversal<AttrTraversal> child;
-                if (!!(flags & AttrFlags::CollapseOptional)) {
+                if (flags % AttrFlags::CollapseOptional) {
                      // If the attribute was not provided and has
                      // collapse_optional set, deserialize the item with an
                      // empty array.
@@ -494,7 +494,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, Slice<TreePair> object,
         const Accessor* keys_acr
     ) {
-        if (!!(keys_acr->caps & AC::Write)) {
+        if (keys_acr->caps % AC::Write) {
             set_keys_write(trav, object, keys_acr);
         }
         else {
@@ -589,7 +589,7 @@ struct TraverseFromTree {
         }
         for (u32 i = 0; i < array.size(); i++) {
             auto acr = elems->elem(i)->acr();
-            if (!!(acr->attr_flags & AttrFlags::Ignored)) continue;
+            if (acr->attr_flags % AttrFlags::Ignored) continue;
             FromTreeTraversal<ElemTraversal> child;
             child.tree = &array[i];
             trav_elem<visit>(child, trav, acr, i, AC::Write);

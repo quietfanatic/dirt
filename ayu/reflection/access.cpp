@@ -53,7 +53,7 @@ void access_AnyPtrFunc (
 ) {
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
-    if (!!(mode & AC::Write) && ptr.readonly()) {
+    if (mode % AC::Write && ptr.readonly()) {
         raise(e_WriteReadonly, "Non-readonly anyptr_func returned readonly AnyPtr.");
     }
     cb(ptr.type(), ptr.address);
@@ -362,7 +362,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
             null,
             cat(type, "::address return null").c_str()
         );
-        ok(!(acr.caps & AC::Address));
+        ok(!(acr.caps % AC::Address));
         acr.read(reinterpret_cast<Mu&>(t),
             [&](Type t, Mu* v){
                 auto ptr = AnyPtr(t, v);

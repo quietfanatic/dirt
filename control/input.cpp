@@ -34,7 +34,7 @@ Input input_from_event (SDL_Event* event) noexcept {
 }
 
 bool input_matches_binding (Input got, Input binding) noexcept {
-    if (!!(binding.flags & InputFlags::Repeatable)) {
+    if (binding.flags % InputFlags::Repeatable) {
         got.flags &= ~InputFlags::Repeated;
     }
     binding.flags &= ~InputFlags::Repeatable;
@@ -73,13 +73,13 @@ static void send_key_event (int type, int code, int window) {
 }
 
 void send_input_as_event (Input input, int window) noexcept {
-    if (!!(input.flags & InputFlags::Ctrl)) {
+    if (input.flags % InputFlags::Ctrl) {
         send_key_event(SDL_KEYDOWN, SDLK_LCTRL, window);
     }
-    if (!!(input.flags & InputFlags::Alt)) {
+    if (input.flags % InputFlags::Alt) {
         send_key_event(SDL_KEYDOWN, SDLK_LALT, window);
     }
-    if (!!(input.flags & InputFlags::Shift)) {
+    if (input.flags % InputFlags::Shift) {
         send_key_event(SDL_KEYDOWN, SDLK_LSHIFT, window);
     }
     switch (input.type) {
@@ -89,13 +89,13 @@ void send_input_as_event (Input input, int window) noexcept {
             event.key.windowID = window;
              // Ignore scancode for now
             event.key.keysym.sym = input.code;
-            if (!!(input.flags & InputFlags::Ctrl)) {
+            if (input.flags % InputFlags::Ctrl) {
                 event.key.keysym.mod |= KMOD_LCTRL;
             }
-            if (!!(input.flags & InputFlags::Alt)) {
+            if (input.flags % InputFlags::Alt) {
                 event.key.keysym.mod |= KMOD_LALT;
             }
-            if (!!(input.flags & InputFlags::Shift)) {
+            if (input.flags % InputFlags::Shift) {
                 event.key.keysym.mod |= KMOD_LSHIFT;
             }
             SDL_PushEvent(&event);
@@ -115,13 +115,13 @@ void send_input_as_event (Input input, int window) noexcept {
         }
         default: require(false);
     }
-    if (!!(input.flags & InputFlags::Ctrl)) {
+    if (input.flags % InputFlags::Ctrl) {
         send_key_event(SDL_KEYUP, SDLK_LCTRL, window);
     }
-    if (!!(input.flags & InputFlags::Alt)) {
+    if (input.flags % InputFlags::Alt) {
         send_key_event(SDL_KEYUP, SDLK_LALT, window);
     }
-    if (!!(input.flags & InputFlags::Shift)) {
+    if (input.flags % InputFlags::Shift) {
         send_key_event(SDL_KEYUP, SDLK_LSHIFT, window);
     }
 }
@@ -351,20 +351,20 @@ StaticString input_to_string (Input input) {
 
  // These are for the AYU_DESCRIBE.  We're separating them for easier debugging.
 static ayu::Tree input_to_tree (const Input& input) {
-    if (!!(input.type == InputType::None)) return ayu::Tree::array();
+    if (input.type == InputType::None) return ayu::Tree::array();
     auto a = UniqueArray<ayu::Tree>(
         Capacity(1 + std::popcount(u8(input.flags)))
     );
-    if (!!(input.flags & InputFlags::Repeatable)) {
+    if (input.flags % InputFlags::Repeatable) {
         a.emplace_back_expect_capacity("repeatable");
     }
-    if (!!(input.flags & InputFlags::Ctrl)) {
+    if (input.flags % InputFlags::Ctrl) {
         a.emplace_back_expect_capacity("ctrl");
     }
-    if (!!(input.flags & InputFlags::Alt)) {
+    if (input.flags % InputFlags::Alt) {
         a.emplace_back_expect_capacity("alt");
     }
-    if (!!(input.flags & InputFlags::Shift)) {
+    if (input.flags % InputFlags::Shift) {
         a.emplace_back_expect_capacity("shift");
     }
     switch (input.type) {
