@@ -108,20 +108,38 @@ struct AnyRef {
     explicit constexpr operator bool () const { return !!host; }
 
      // Get type of referred-to item
-    constexpr Type type () const {
-        return address().type();
+    Type type () const {
+        Type r;
+        access(AC::Read, AccessCB(r, [](Type& r, Type t, Mu*){
+            r = t;
+        }));
+        return r;
     }
 
 ///// SIMPLE ACCESS
 
-     // Returns typed null if this reference is not addressable.  TODO:
-     // propagate readonly from host
-    constexpr AnyPtr address () const {
-        if (!acr) [[likely]] return host;
-        else return acr->address(*host.address);
+     // If false, address() will throw.
+    constexpr bool addressable () const {
+        return caps() % AC::Address;
     }
 
-     // Can throw TypeCantCast, even if the result is null.
+     // If false, attempting to write will throw.
+    constexpr bool writeable () const {
+        return caps() % AC::Write;
+    }
+
+     // Throws ReferenceUnaddressable if this AnyRef is not addressable.
+    constexpr AnyPtr address () const {
+        if (!acr) return host;
+        AnyPtr r;
+        access(AC::Address, AccessCB(r, [](AnyPtr& r, Type t, Mu* v){
+            r = AnyPtr(t, v);
+        }));
+        if (!writeable()) r.add_readonly();
+        return r;
+    }
+
+     // Can throw either TypeCantCast or ReferenceUnaddressable
     Mu* address_as (Type t) const {
         return address().upcast_to(t).address;
     }
@@ -129,28 +147,9 @@ struct AnyRef {
     template <ConstableDescribable T>
     T* address_as () const {
         if constexpr (!std::is_const_v<T>) {
-            if (AC::Write > caps()) raise_access_denied(AC::Write);
+            if (!writeable()) raise_access_denied(AC::Write);
         }
         return (T*)address_as(Type::For<std::remove_const_t<T>>());
-    }
-
-    constexpr AnyPtr require_address () const {
-        if (!*this) return null;
-        if (AC::Address > caps()) raise_access_denied(AC::Address);
-        return expect(address());
-    }
-
-     // Can throw either CannotCoerce or UnaddressableAnyRef
-    Mu* require_address_as (Type t) const {
-        return require_address().upcast_to(t).address;
-    }
-
-    template <ConstableDescribable T>
-    T* require_address_as () const {
-        if constexpr (!std::is_const_v<T>) {
-            if (AC::Write > caps()) raise_access_denied(AC::Write);
-        }
-        return (T*)require_address_as(Type::For<std::remove_const_t<T>>());
     }
 
      // Copying getter.
@@ -183,12 +182,12 @@ struct AnyRef {
 
      // Cast to pointer
     constexpr operator AnyPtr () const {
-        return require_address();
+        return address();
     }
 
     template <ConstableDescribable T>
     operator T* () const {
-        return require_address_as<T>();
+        return address_as<T>();
     }
 
 ///// ARBITRARY ACCESS

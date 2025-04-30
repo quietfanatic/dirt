@@ -169,15 +169,16 @@ struct Accessor {
     void modify (Mu& from, AccessCB cb) const {
         access(AC::Modify, from, cb);
     }
+
+     // This doesn't really feel like it belongs here but it's too convenient
     AnyPtr address (Mu& from) const {
-         // TODO: make better
+        if (!(caps % AC::Address)) return {};
         AnyPtr r;
-        access(AC::Read, from,
+        access(AC::Address, from,
             AccessCB(r, [](AnyPtr& r, Type t, Mu* v){
                 r = AnyPtr(t, v);
             })
         );
-        if (!(caps % AC::Address)) r.address = null;
         if (!(caps % AC::Write)) r = r.add_readonly();
         return r;
     }

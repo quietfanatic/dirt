@@ -490,7 +490,8 @@ SharedRoute find_reference (const AnyRef& item) {
         if (item == plr->reference) return plr->route;
     }
     if (get_route_cache()) {
-        if (AnyPtr ptr = item.address()) {
+        if (item.addressable()) {
+            AnyPtr ptr = item.address();
              // Addressable! This will be fast.
             if (auto it = search_route_cache(ptr)) {
                 if (item.caps() > it->first.caps()) {
