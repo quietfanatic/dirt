@@ -128,7 +128,8 @@ struct TraverseToTree {
         const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
-         // First just build the object as though none of the attrs are included
+         // First just build the object as though none of the attrs are
+         // collapsed.
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
@@ -144,8 +145,8 @@ struct TraverseToTree {
             );
             child.dest->flags |= child.acr->tree_flags;
         }
-         // Then if there are included or collapsed attrs, rebuild the object
-         // while flattening them.
+         // Then if there are collapsed attrs, rebuild the object while
+         // flattening them.
         if (trav.desc()->flags % DescFlags::AttrsNeedRebuild) {
              // Determine length for preallocation
             u32 len = object.size();
@@ -154,8 +155,8 @@ struct TraverseToTree {
                  // Ignore HasDefault; it can only decrease the length by 1, and
                  // checking whether it does requires comparing Trees, so I'd
                  // rather just overallocate.
-                if (flags % (AttrFlags::Include|AttrFlags::CollapseOptional)) {
-                     // This works for both include and collapse_optional
+                if (flags % (AttrFlags::Collapse|AttrFlags::CollapseOptional)) {
+                     // This coincidentally works for both of these flags.
                     len = len + object[i].second.size - 1;
                 }
             }
@@ -167,10 +168,10 @@ struct TraverseToTree {
                 auto flags = attr->acr()->attr_flags;
                 auto key = move(object[i].first);
                 Tree value = move(object[i].second);
-                if (flags % AttrFlags::Include) {
+                if (flags % AttrFlags::Collapse) {
                     if (value.form != Form::Object) {
                         raise(e_General,
-                            "Included item did not serialize to an object"
+                            "Collapsed item did not serialize to an object"
                         );
                     }
                      // DON'T consume sub object because it could be shared.

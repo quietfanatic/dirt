@@ -101,7 +101,7 @@ AttrDcrFor<T> auto AYU_DescribeBase<T>::attr (
     StaticString key, const Acr& acr, AttrFlags flags
 ) {
     u32 count = flags % in::AttrFlags::Optional
-              + flags % in::AttrFlags::Include
+              + flags % in::AttrFlags::Collapse
               + flags % in::AttrFlags::CollapseOptional;
     if (count > 1) {
         ERROR_conflicting_flags_on_attr();

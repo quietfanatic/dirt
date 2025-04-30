@@ -64,7 +64,7 @@ struct TraverseGetKeys {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
             if (acr->attr_flags % AttrFlags::Invisible) continue;
-            if (acr->attr_flags % AttrFlags::Include) {
+            if (acr->attr_flags % AttrFlags::Collapse) {
                 GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
                 trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
@@ -131,7 +131,7 @@ struct TraverseSetKeys {
     static
     bool claim (UniqueArray<AnyString>& keys, Str key) {
          // This algorithm overall is O(N^3), we may be able to speed it up by
-         // setting a flag if there are no included attrs, or maybe by using an
+         // setting a flag if there are no collapsed attrs, or maybe by using an
          // unordered_set?
          // TODO: Use a next_list like in from-tree.
         for (u32 i = 0; i < keys.size(); ++i) {
@@ -188,16 +188,16 @@ struct TraverseSetKeys {
             if (claim(*trav.keys, attr->key)) {
                 claimed[i] = true;
             }
-            else if (acr->attr_flags % (AttrFlags::Optional|AttrFlags::Include)) {
-                 // Allow omitting optional or included attrs
+            else if (acr->attr_flags % (AttrFlags::Optional|AttrFlags::Collapse|AttrFlags::CollapseOptional)) {
+                 // Allow omitting optional or collapsible attrs
             }
             else raise_AttrMissing(trav.type, attr->key);
         }
-         // Then check included attrs
+         // Then check collapsed attrs
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (acr->attr_flags % AttrFlags::Include) {
+            if (acr->attr_flags % AttrFlags::Collapse) {
                  // Skip if attribute was given directly, uncollapsed
                 if (claimed[i]) continue;
                 GetKeysTraversal<AttrTraversal> child;
@@ -339,11 +339,11 @@ struct TraverseAttr {
                 return;
             }
         }
-         // Then included attrs
+         // Then collapsed attrs
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (acr->attr_flags % AttrFlags::Include) {
+            if (acr->attr_flags % AttrFlags::Collapse) {
                 GetAttrTraversal<AttrTraversal> child;
                 child.get_key = trav.get_key;
                 child.r = trav.r;

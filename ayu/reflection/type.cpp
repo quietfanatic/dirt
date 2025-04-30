@@ -179,7 +179,7 @@ Mu* dynamic_try_upcast (Type from, Type to, Mu* p) {
     if (auto attrs = desc->attrs())
     for (size_t i = 0; i < attrs->n_attrs; i++) {
         auto acr = attrs->attr(i)->acr();
-        if (acr->attr_flags % AttrFlags::Include)
+        if (acr->attr_flags % AttrFlags::Castable)
         if (AnyPtr a = acr->address(*p))
         if (Mu* b = dynamic_try_upcast(a.type(), to, a.address))
             return b;
@@ -189,7 +189,7 @@ Mu* dynamic_try_upcast (Type from, Type to, Mu* p) {
     if (auto elems = desc->elems())
     for (size_t i = 0; i < elems->n_elems; i++) {
         auto acr = elems->elem(i)->acr();
-        if (acr->attr_flags % AttrFlags::Include)
+        if (acr->attr_flags % AttrFlags::Castable)
         if (AnyPtr a = acr->address(*p))
         if (Mu* b = dynamic_try_upcast(a.type(), to, a.address))
             return b;

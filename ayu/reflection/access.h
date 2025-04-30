@@ -40,12 +40,11 @@ enum class AccessCaps : u8 {
 DECLARE_ENUM_BITWISE_OPERATORS(AccessCaps)
 using AC = AccessCaps;
 
- // Check if the requested access is allowed
+ // Check if the requested access is allowed.  This doesn't really follow the
+ // semantics of this operator, so a different operator may be used later, or
+ // just a function.
 constexpr bool operator <= (AccessCaps mode, AccessCaps caps) {
     return !(mode & ~caps);
-}
-constexpr bool operator > (AccessCaps mode, AccessCaps caps) {
-    return !!(mode & ~caps);
 }
 
  // This is how capabilities combine when you're doing nested access.

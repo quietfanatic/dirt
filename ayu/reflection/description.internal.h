@@ -440,7 +440,7 @@ struct AttrsDcrWith : AttrsDcr<T> {
         bool r = false;
         attrs.for_each([&](const auto& attr){
             r |= attr.acr.attr_flags %
-                (AttrFlags::Include|AttrFlags::HasDefault|AttrFlags::CollapseOptional);
+                (AttrFlags::Collapse|AttrFlags::HasDefault|AttrFlags::CollapseOptional);
         });
         return r;
     }

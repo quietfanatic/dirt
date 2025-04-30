@@ -56,21 +56,23 @@ enum class AttrFlags : u8 {
      // be confusing).
     Optional = 0x1,
      // If this is set, the attrs of this attr will be included in the
-     // serialization of this item and available through calls to attr().  In
-     // addition, this item will be able to be upcasted to the type of the attr
-     // if it is addressable.  This is not currently supported on elems.
-    Include = 0x2,
+     // serialization of this item and available through calls to attr().  This
+     // is not currently supported on elems.
+    Collapse = 0x2,
+     // If this is set, this item will be able to be upcasted to the type of the
+     // attr/elem if it is addressable.
+    Castable = 0x4,
      // If this is set, the attr will not be serialized in to_tree.
-    Invisible = 0x4,
+    Invisible = 0x8,
      // If this is set, the attr will not be deserialized in from_tree.
-    Ignored = 0x8,
+    Ignored = 0x10,
      // If this is set, there is a tree 16 bytes before the attr's key, which is
      // the default value of the attr.
-    HasDefault = 0x10,
+    HasDefault = 0x20,
      // If this is set, map an empty array to the attribute being missing from
      // the object, and an array of one element to the attribute being present
      // with that element as its value.
-    CollapseOptional = 0x20,
+    CollapseOptional = 0x40,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 

@@ -181,9 +181,9 @@ struct AYU_DescribeBase {
      //   - If this item is in an optional attr or elem, and that attr or elem
      //     is not assigned in the from_tree operation, then swizzle will not be
      //     called on it or its child items.
-     //   - If this item is in an included attr, the tree passed to swizzle will
-     //     be the tree provided to the outer item that includes this one, so
-     //     the tree may have more attributes than you expect.
+     //   - If this item is in a collapsed/included attr, the tree passed to
+     //     swizzle will be the tree provided to the outer item that includes
+     //     this one, so the tree may have more attributes than you expect.
     static constexpr
     DescriptorFor<T> auto swizzle (
         Function<void(T&, const Tree&)>*
@@ -208,8 +208,8 @@ struct AYU_DescribeBase {
      //
      // If the init function causes more items to be deserialized (by
      // autoloading a resource, for instance), all currently queued init
-     // operations will run before the new items' init operations, regardless of
-     // priority.
+     // operations will run before the new items' swizzle or init operations,
+     // regardless of priority.
     static constexpr
     DescriptorFor<T> auto init (
         Function<void(T&)>*,
@@ -217,10 +217,13 @@ struct AYU_DescribeBase {
     );
 
      // Make this type behave like another type.  `accessor` must be the result
-     // of one of the accessor functions in the ACCESSOR section below.  If both
-     // delegate() and other descriptors are specified, some behaviors may be
-     // overridden by those other descriptors.  See serialization.h for details
-     // about which descriptors override delegate() during which operations.
+     // of one of the accessor functions in the ACCESSOR section below.
+     //
+     // If both delegate() and other descriptors are specified, some behaviors
+     // may be overridden by those other descriptors.
+     //
+     // Using a delegate descriptor also makes the delegated-to type a candidate
+     // for upcasting.  See dynamic_upcast in type.h
     template <AccessorFrom<T> Acr> static constexpr
     DescriptorFor<T> auto delegate (
         const Acr& accessor
@@ -254,8 +257,8 @@ struct AYU_DescribeBase {
      // half supported flags:
      //   - no_refs_to_children: Forbid other items from referencing recursive
      //     child items of this type.  This item itself can still be referenced.
-     //     This allows the reference-to-location scanning system to save time
-     //     by skipping this item's children.
+     //     This allows the reference-to-route scanning system to save time by
+     //     skipping this item's children.
      //   - no_refs_from_children: Forbid this item's recursive children from
      //     containing references.  This is not currently enforced, and is for
      //     documentation purposes only.  There are some types which will cause
@@ -281,17 +284,17 @@ struct AYU_DescribeBase {
      // When serializing, the current item will be compared to each VALUE using
      // operator==, and if it matches, serialized as NAME.  If no values match,
      // serialization will continue using other descriptors if available, or
-     // throw NoNameForValue if there are none.
+     // throw ToTreeValueNotFound if there are none.
      //
      // When deserializing, the provided Tree will be compared to each NAME, and
      // if it matches, the current item will be set to VALUE using operator=.
      // If no names match, deserialization will continue using other descriptors
-     // if available, or throw NoValueForName if there are none.
+     // if available, or throw FromTreeValueNotFound if there are none.
      //
-     // Using this, you can provide names for specific values of more complex
-     // types.  For instance, for a matrix item, you can provide special names
-     // like "id" and "flipx" that refer to specific matrixes, and still allow
-     // an arbitrary matrix to be specified with a list of numbers.
+     // You can also provide names for specific values of more complex types.
+     // For instance, for a matrix item, you can provide special names like "id"
+     // and "flipx" that refer to specific matrixes, and still allow an
+     // arbitrary matrix to be specified with a list of numbers.
     template <ValueDcrFor<T>... Values> requires (
         requires (T v) { v == v; v = v; }
     ) static constexpr
@@ -351,13 +354,17 @@ struct AYU_DescribeBase {
      //     will not be called (normally AttrMissing would be thrown), and
      //     swizzle and init will not be called on this item or any of its
      //     children.
-     //   - include: When serializing, `key` will be ignored and this
-     //     attribute's attributes will be merged with this item's attributes
-     //     (and if any of those attributes have include specified, their
-     //     attributes will also be merged in).  When deserializing, the Tree
-     //     may either ignore inheritance and provide this attribute with `key`,
-     //     or it may provide all of this attribute's attributes directly
-     //     without `key`.  Cannot be combined with optional.
+     //   - collapse: The value of this attribute must be an object-like type.
+     //     When serializing, `key` will be ignored and this attribute's
+     //     attributes will be merged with this item's attributes (recursively,
+     //     if any of the attribute's attributes also have collapse or include
+     //     set).  When deserializing, the Tree may either ignore collapsing and
+     //     provide this attribute with `key`, or it may provide all of this
+     //     attribute's attributes directly without `key`.  Cannot be combined
+     //     with optional.
+     //   - castable: Consider this attr a candidate for upcasting (typically
+     //     used with the base<>() accessor).
+     //   - include: Short for both collapse and castable.
      //   - invisible: This attribute will not be read when serializing, but it
      //     will still be written when deserializing (unless it's also optional
      //     or ignored, which it probably should be).  If your attribute has a
@@ -381,7 +388,7 @@ struct AYU_DescribeBase {
      //     }
      //     If the item serializes to an non-array or an array of more than one
      //     element, an exception will be thrown.  This flag cannot be combined
-     //     with optional or include.
+     //     with optional or collapse.
      // TODO: Reject multiple attrs with the same name.
     template <AccessorFrom<T> Acr> static constexpr
     AttrDcrFor<T> auto attr (
@@ -411,8 +418,8 @@ struct AYU_DescribeBase {
      //
      // Yes, it would make more sense for the attribute to be an actual object
      // of the accessor's To type, rather than a Tree-like object, but that
-     // would basically require capturing comparison and assignment operators
-     // for all types.
+     // would require capturing the type's comparison and assignment operators,
+     // which would be either complicated or inefficient.
     template <AccessorFrom<T> Acr, ConstructsTree Default> static constexpr
     AttrDcrFor<T> auto attr_default (
         StaticString key,
@@ -433,7 +440,9 @@ struct AYU_DescribeBase {
 
      // Flags for attr (and elem).
     static constexpr AttrFlags optional = in::AttrFlags::Optional;
-    static constexpr AttrFlags include = in::AttrFlags::Include;
+    static constexpr AttrFlags collapse = in::AttrFlags::Collapse;
+    static constexpr AttrFlags castable = in::AttrFlags::Castable;
+    static constexpr AttrFlags include = collapse | castable;
     static constexpr AttrFlags invisible = in::AttrFlags::Invisible;
     static constexpr AttrFlags ignored = in::AttrFlags::Ignored;
     static constexpr AttrFlags collapse_optional = in::AttrFlags::CollapseOptional;
@@ -445,7 +454,7 @@ struct AYU_DescribeBase {
      //
      // During serialization, the list of keys will be determined with
      // `accessor`'s read operation, and for each key, the attribute's value
-     // will be set using the computed_elems() descriptor.
+     // will be set using the computed_attrs() descriptor.
      //
      // During deserialization, `accessor`'s write operation will be called with
      // the list of keys provided in the Tree, and it should throw
@@ -465,6 +474,7 @@ struct AYU_DescribeBase {
     DescriptorFor<T> auto keys (
         const Acr& accessor
     );
+
      // Provide a way to read or write arbitrary attributes.  The function is
      // expected to return an ayu::AnyRef corresponding to the attribute with
      // the given key.  You can create that AnyRef any way you like, such as by
@@ -476,7 +486,7 @@ struct AYU_DescribeBase {
      // accessor.  If that happens, you should return an empty AnyRef (or
      // autovivify if you want).
      //
-     // Be careful not to return a AnyRef to a temporary and then use that
+     // Be careful not to return an AnyRef to a temporary and then use that
      // AnyRef past the temporary's lifetime.  For AYU serialization functions,
      // the AnyRef will only be used while the serialization function is
      // running, or while a KeepLocationCache object is active.  But if you keep
@@ -543,12 +553,7 @@ struct AYU_DescribeBase {
      //     deserializing.  If it is not provided, `accessor`'s write operation
      //     will not be called (normally LengthRejected would be thrown).  All
      //     optional elements must be on the end of the elems list.
-     //   - include: Unlike with attrs, this doesn't do much; all it does is
-     //     allow casting between this item and the element.  Earlier versions
-     //     of this library allowed included elements to be flattened into the
-     //     array representation of the parent item, but the behavior and
-     //     implementation were unbelievably complicated, all just to save a few
-     //     square brackets.
+     //   - castable: Consider this elem a candidate for upcasting.
      //   - invisible: This elem will not be serialized during the to_tree
      //     operation.  You probably want optional or ignored on this elem too.
      //     There can't be any non-invisible elems following the invisible

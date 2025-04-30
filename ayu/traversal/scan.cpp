@@ -162,9 +162,9 @@ struct TraverseScan {
              // TODO: verify that the child item is object-like.
             ScanTraversal<AttrTraversal> child;
             child.context = trav.context;
-            if (acr->attr_flags % AttrFlags::Include) {
-                 // Behave as though all included attrs are included (collapse
-                 // the route segment for the included attr).
+            if (acr->attr_flags % AttrFlags::Collapse) {
+                 // Behave as though all collapsed attrs are collapsed (leave
+                 // out the route segment for the collapsed attr).
                 child.rt = trav.rt;
             }
             else {

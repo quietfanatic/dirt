@@ -393,7 +393,7 @@ struct TraverseFromTree {
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto flags = attr->acr()->attr_flags;
-             // First try matching attr directly even if it's included
+             // First try matching attr directly even if it's collapsible
             u32* prev_next; u32 j;
             for (
                 prev_next = &next_list[-1], j = *prev_next;
@@ -418,9 +418,9 @@ struct TraverseFromTree {
                     goto next_attr;
                 }
             }
-             // No match, try including, optional, collapsing
-            if (flags % AttrFlags::Include) {
-                 // Included.  Recurse with the same tree.
+             // No match, try optional, collapsing
+            if (flags % AttrFlags::Collapse) {
+                 // Recurse with the same tree.
                 ClaimAttrsTraversal<AttrTraversal> child;
                 child.next_list = next_list;
                 child.tree = trav.tree;
@@ -459,7 +459,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, u32* next_list,
         const Accessor* keys_acr
     ) {
-         // We should only get here if a parent item included a child item that
+         // We should only get here if a parent item collapsed a child item that
          // has computed attrs.
         expect(trav.tree->form == Form::Object);
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
