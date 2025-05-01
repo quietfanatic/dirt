@@ -78,7 +78,12 @@ struct TraverseToTree {
                 return use_computed_attrs(trav, keys);
             }
             else if (auto attrs = desc->attrs()) {
-                return use_attrs(trav, attrs);
+                if (desc->flags % DescFlags::AttrsNeedRebuild) {
+                    return use_attrs(trav, attrs);
+                }
+                else {
+                    return use_attrs_no_rebuild(trav, attrs);
+                }
             }
             else never();
         }
@@ -124,12 +129,10 @@ struct TraverseToTree {
     }
 
     NOINLINE static
-    void use_attrs (
+    void use_attrs_no_rebuild (
         const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
-         // First just build the object as though none of the attrs are
-         // collapsed.
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
@@ -145,75 +148,96 @@ struct TraverseToTree {
             );
             child.dest->flags |= child.acr->tree_flags;
         }
-         // Then if there are collapsed attrs, rebuild the object while
-         // flattening them.
-        if (trav.desc()->flags % DescFlags::AttrsNeedRebuild) {
-             // Determine length for preallocation
-            u32 len = object.size();
-            for (u32 i = 0; i < attrs->n_attrs; i++) {
-                auto flags = attrs->attr(i)->acr()->attr_flags;
-                 // Ignore HasDefault; it can only decrease the length by 1, and
-                 // checking whether it does requires comparing Trees, so I'd
-                 // rather just overallocate.
-                if (flags % (AttrFlags::Collapse|AttrFlags::CollapseOptional)) {
-                     // This coincidentally works for both of these flags.
-                    len = len + object[i].second.size - 1;
-                }
-            }
-             // Allocate
-            auto new_object = decltype(object)(Capacity(len));
-             // Selectively flatten
-            for (u32 i = 0; i < attrs->n_attrs; i++) {
-                auto attr = attrs->attr(i);
-                auto flags = attr->acr()->attr_flags;
-                auto key = move(object[i].first);
-                Tree value = move(object[i].second);
-                if (flags % AttrFlags::Collapse) {
-                    if (value.form != Form::Object) {
-                        raise(e_General,
-                            "Collapsed item did not serialize to an object"
-                        );
-                    }
-                     // DON'T consume sub object because it could be shared.
-                    for (auto& pair : AnyArray<TreePair>(move(value))) {
-                        new_object.emplace_back_expect_capacity(pair);
-                    }
-                    continue;
-                }
-                else if (flags % AttrFlags::CollapseOptional) {
-                    if (value.form != Form::Array || value.size > 1) {
-                        raise(e_General,
-                            "Attribute with collapse_optional did not "
-                            "serialize to an array of 0 or 1 elements"
-                        );
-                    }
-                    if (auto a = AnyArray<Tree>(move(value))) {
-                        new (&value) Tree(move(a[0]));
-                        SharableBuffer<Tree>::deallocate(a.impl.data);
-                        a.impl = {};
-                    }
-                    else continue; // Drop the attr
-                }
-                else if (const Tree* def = attr->default_value()) {
-                    if (value == *def) continue; // Drop the attr
-                }
-                new_object.emplace_back_expect_capacity(
-                    move(key), move(value)
-                );
-            }
-             // Old object's contents should be fully consumed so skip the
-             // destructor loop (but verify in debug mode).
-#ifndef NDEBUG
-            for (auto& pair : object) {
-                expect(!pair.first.owned());
-                expect(!pair.second.size);
-            }
-#endif
-            SharableBuffer<TreePair>::deallocate(object.impl.data);
-            new (&object) UniqueArray<TreePair>(move(new_object));
-        }
-         // This will check for duplicates in debug mode.
         new (trav.dest) Tree(move(object));
+    }
+
+    NOINLINE static
+    void use_attrs (
+        const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
+    ) {
+        auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
+         // First just build the object as though none of the attrs are
+         // collapsed, then rebuild the object while collapsing attrs.
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
+
+            ToTreeTraversal<AttrTraversal> child;
+
+            child.dest = &object.emplace_back_expect_capacity(
+                attr->key(), Tree()
+            ).second;
+            child.embed_errors = trav.embed_errors;
+            trav_attr<visit>(
+                child, trav, attr->acr(), attr->key(), AC::Read
+            );
+            child.dest->flags |= child.acr->tree_flags;
+        }
+         // Determine length for preallocation
+        u32 len = object.size();
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
+            auto flags = attrs->attr(i)->acr()->attr_flags;
+             // Ignore HasDefault; it can only decrease the length by 1, and
+             // checking whether it does requires comparing Trees, so I'd
+             // rather just overallocate.
+            if (flags % (AttrFlags::Collapse|AttrFlags::CollapseOptional)) {
+                 // This coincidentally works for both of these flags.
+                len = len + object[i].second.size - 1;
+            }
+        }
+         // Allocate
+        auto new_object = decltype(object)(Capacity(len));
+         // Selectively flatten
+        for (u32 i = 0; i < attrs->n_attrs; i++) {
+            auto attr = attrs->attr(i);
+            auto flags = attr->acr()->attr_flags;
+            auto key = move(object[i].first);
+            Tree value = move(object[i].second);
+            if (flags % AttrFlags::Collapse) {
+                if (value.form != Form::Object) {
+                    raise(e_General,
+                        "Collapsed item did not serialize to an object"
+                    );
+                }
+                 // DON'T consume sub object because it could be shared.
+                for (auto& pair : AnyArray<TreePair>(move(value))) {
+                    new_object.emplace_back_expect_capacity(pair);
+                }
+                continue;
+            }
+            else if (flags % AttrFlags::CollapseOptional) {
+                if (value.form != Form::Array || value.size > 1) {
+                    raise(e_General,
+                        "Attribute with collapse_optional did not "
+                        "serialize to an array of 0 or 1 elements"
+                    );
+                }
+                if (auto a = AnyArray<Tree>(move(value))) {
+                    new (&value) Tree(move(a[0]));
+                    SharableBuffer<Tree>::deallocate(a.impl.data);
+                    a.impl = {};
+                }
+                else continue; // Drop the attr
+            }
+            else if (const Tree* def = attr->default_value()) {
+                if (value == *def) continue; // Drop the attr
+            }
+            new_object.emplace_back_expect_capacity(
+                move(key), move(value)
+            );
+        }
+         // Old object's contents should be fully consumed so skip the
+         // destructor loop (but verify in debug mode).
+#ifndef NDEBUG
+        for (auto& pair : object) {
+            expect(!pair.first.owned());
+            expect(!pair.second.size);
+        }
+#endif
+        SharableBuffer<TreePair>::deallocate(object.impl.data);
+        object.impl = {};
+         // This will check for duplicates in debug mode.
+        new (trav.dest) Tree(move(new_object));
     }
 
     NOINLINE static

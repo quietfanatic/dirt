@@ -97,6 +97,7 @@ void to_reference_chain (const Traversal& trav, void* r) {
     }
 }
 
+[[gnu::cold]] NOINLINE
 void Traversal::wrap_exception () const {
     try { throw; }
     catch (Error& e) {
