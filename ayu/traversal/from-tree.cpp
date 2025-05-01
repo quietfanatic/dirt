@@ -18,7 +18,7 @@ struct InitOp {
     SharedRoute base;
     AnyRef item;
     InitFunc<Mu>* f;
-    double priority;
+    double order;
 };
 } }
 template <>
@@ -136,7 +136,6 @@ struct TraverseFromTree {
                 expect(!op.base->parent());
                 CurrentBase curb (op.base);
                 try {
-                     // TODO: use op.f instead of op
                     op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
                         op.f(*v);
                     }));
@@ -715,10 +714,10 @@ struct TraverseFromTree {
             auto& init_ops = IFTContext::current->init_ops;
             u32 i;
             for (i = init_ops.size(); i > 0; --i) {
-                if (init->priority <= init_ops[i-1].priority) break;
+                if (init->order >= init_ops[i-1].order) break;
             }
             auto& op = init_ops.emplace(
-                i, current_base->route, AnyRef(), init->f, init->priority
+                i, current_base->route, AnyRef(), init->f, init->order
             );
             trav.to_reference(&op.item);
         }

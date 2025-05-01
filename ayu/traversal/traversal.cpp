@@ -13,7 +13,7 @@ void Traversal::to_reference (void* r) const noexcept {
     if (caps % AC::Address) {
         new (r) AnyRef(AnyPtr(type, address, caps));
     }
-    else if (op == TraversalOp::Start) {
+    else if (step == TraversalStep::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
         new (r) AnyRef(*self.reference);
     }
@@ -26,8 +26,8 @@ void Traversal::to_reference (void* r) const noexcept {
 
 NOINLINE static
 void to_reference_parent_addressable (const Traversal& trav, void* r) {
-    switch (trav.op) {
-        case TraversalOp::Acr: {
+    switch (trav.step) {
+        case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             expect(self.parent->caps % AC::Address);
             auto ptr = AnyPtr(
@@ -36,17 +36,17 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
             new (r) AnyRef(ptr, self.acr);
             return;
         }
-        case TraversalOp::ComputedAttr: {
+        case TraversalStep::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
             new (r) AnyRef(self.func(*self.parent->address, *self.key));
             return;
         }
-        case TraversalOp::ComputedElem: {
+        case TraversalStep::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
             new (r) AnyRef(self.func(*self.parent->address, self.index));
             return;
         }
-        case TraversalOp::ContiguousElem: {
+        case TraversalStep::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
             auto data = self.func(*self.parent->address);
             auto desc = DescriptionPrivate::get(trav.type);
@@ -64,29 +64,29 @@ NOINLINE static
 void to_reference_chain (const Traversal& trav, void* r) {
     AnyRef parent_ref;
     trav.parent->to_reference(&parent_ref);
-    switch (trav.op) {
-        case TraversalOp::Acr: {
+    switch (trav.step) {
+        case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAcr(
                 parent_ref.acr, self.acr, trav.caps
             ));
             return;
         }
-        case TraversalOp::ComputedAttr: {
+        case TraversalStep::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAttrFuncAcr(
                 parent_ref.acr, self.func, *self.key, trav.caps
             ));
             return;
         }
-        case TraversalOp::ComputedElem: {
+        case TraversalStep::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainElemFuncAcr(
                 parent_ref.acr, self.func, self.index, trav.caps
             ));
             return;
         }
-        case TraversalOp::ContiguousElem: {
+        case TraversalStep::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainDataFuncAcr(
                 parent_ref.acr, self.func, self.index, trav.caps

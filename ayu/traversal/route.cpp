@@ -9,7 +9,9 @@
 namespace ayu {
 namespace in {
 
- // TODO: make this able to tail call itself
+ // If we want, we could make this tail call itself, but it's probably not
+ // important enough.  Routes are likely to be deleted one segment at a time
+ // anyway.
 NOINLINE
 void delete_Route (const Route* p) noexcept {
     switch (p->form) {
@@ -23,9 +25,8 @@ void delete_Route (const Route* p) noexcept {
 
 } using namespace in;
 
- // It would be nice to be able to use Traversal for this, but this walks
- // upwards and Traversal only walks downwards.  TODO: what?  That doesn't make
- // sense, these both walk downwards.
+ // It would be nice to be able to use Traversal for this, but Routes are kind
+ // of inside-out compared to traversals, so we'd have to reverse it first.
 AnyRef reference_from_route (RouteRef rt) {
     if (!rt) return AnyRef();
     switch (rt->form) {
@@ -235,7 +236,8 @@ static tap::TestSet tests ("dirt/ayu/traversal/route", []{
     is(*r->key(), "bar", "String key");
     r = r->parent();
     is(r->resource(), SharedResource(IRI("ayu-test:/")), "Resource root");
-    ok(!r->parent());
+    ok(!r->parent(), "No parent at root");
+    is(r.data, rt->root().data, "Route::root()");
 
     done_testing();
 });

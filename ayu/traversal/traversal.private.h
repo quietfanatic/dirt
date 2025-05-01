@@ -13,13 +13,11 @@ namespace ayu::in {
  // from the beginning, and without requiring any heap allocations otherwise.
  //
  // A Traversal has two dimensions of subtyping.  One is the particular step
- // being performed (attr, elem, delegate, etc), here called the TraversalOp.
+ // being performed (attr, elem, delegate, etc), here called the TraversalStep.
  // The other one is the overall serialization operation being performed
  // (to_tree, from_tree, scan, etc).  The latter subtypes attach data to the
  // beginning of the Traversal, not the end.
- // TODO: rename this to TraversalForm to avoid confusion with overall
- // traversal operations.
-enum class TraversalOp : u8 {
+enum class TraversalStep : u8 {
     Start,
     Acr,
     ComputedAttr,
@@ -30,17 +28,16 @@ struct Traversal {
     const Traversal* parent;
     Type type;
     Mu* address;
-    TraversalOp op;
+    TraversalStep step;
      // Cumulative access capabilities for all items traversed so far.  This is
      // unused by to_tree traversal, because it only ever does read accesses.
     AccessCaps caps;
-     // Extra flags only used by certain traversal stacks.
+     // Extra flags only used by certain traversal stacks, since we have extra
+     // room here.
     union {
-         // Attr containing this item has collapse_optional set.  Only used by
-         // ScanTraversal.
+         // ScanTraversal: Attr containing this item has collapse_optional set.
         bool collapse_optional;
-         // Catch and embed errors instead of throwing them.  Only used by
-         // ToTreeTraversal.
+         // ToTreeTraversal: Catch and embed errors instead of throwing them.
         bool embed_errors;
     };
 
@@ -127,7 +124,7 @@ void trav_start (
     expect(ref);
 
     child.parent = null;
-    child.op = TraversalOp::Start;
+    child.step = TraversalStep::Start;
     child.reference = &ref;
     child.route = rt;
     child.caps = ref.caps();
@@ -143,7 +140,7 @@ void trav_acr (
     const Accessor* acr, AccessCaps mode
 ) try {
     child.parent = &parent;
-    child.op = TraversalOp::Acr;
+    child.step = TraversalStep::Acr;
     child.caps = parent.caps * acr->caps;
     child.acr = acr;
     acr->access(mode, *parent.address, AccessCB(
@@ -196,7 +193,7 @@ void trav_computed_attr (
     ComputedAttrTraversal& child, const Traversal& parent,
     const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessCaps mode
 ) {
-    child.op = TraversalOp::ComputedAttr;
+    child.step = TraversalStep::ComputedAttr;
     child.func = func;
     child.key = &key;
     trav_ref<visit>(child, parent, ref, mode);
@@ -215,7 +212,7 @@ void trav_computed_elem (
     ComputedElemTraversal& child, const Traversal& parent,
     const AnyRef& ref, ElemFunc<Mu>* func, u32 index, AccessCaps mode
 ) {
-    child.op = TraversalOp::ComputedElem;
+    child.step = TraversalStep::ComputedElem;
     child.func = func;
     child.index = index;
     trav_ref<visit>(child, parent, ref, mode);
@@ -226,7 +223,7 @@ void trav_contiguous_elem (
     ContiguousElemTraversal& child, const Traversal& parent,
     AnyPtr ptr, DataFunc<Mu>* func, u32 index, AccessCaps mode
 ) {
-    child.op = TraversalOp::ContiguousElem;
+    child.step = TraversalStep::ContiguousElem;
     child.func = func;
     child.index = index;
     trav_ptr<visit>(child, parent, ptr, mode);

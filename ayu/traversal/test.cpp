@@ -193,7 +193,7 @@ AYU_DESCRIBE(ayu::test::LateInitTest,
     attrs(),
     init([](LateInitTest& v){
         v.value_after_init = *v.place + 1;
-    }, -10)
+    }, 10)
 )
 AYU_DESCRIBE(ayu::test::NestedInitTest,
     attrs(
@@ -432,7 +432,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         item_from_string(&nit, "{lit:{} it:55}");
     });
     is(nit.it_val, 56, "Children get init() before parent");
-    is(nit.lit.value_after_init, 57, "init() with lower priority gets called after");
+    is(nit.lit.value_after_init, 57, "init() with higher order gets called after");
 
     ScalarElemTest set = ScalarElemTest(0xab);
     try_to_tree(&set, "[0xa 0xb]", "Can use elems() on scalar type (to_tree)");

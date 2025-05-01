@@ -205,19 +205,15 @@ Mu* dynamic_upcast (Type from, Type to, Mu* p) {
 
 } using namespace ayu;
 
- // TODO: use to_tree and from_tree
 AYU_DESCRIBE(ayu::Type,
-    values(
-        value(null, Type())
-    ),
-    delegate(mixed_funcs<AnyString>(
-        [](const Type& v){
-            return AnyString(v.name());
-        },
-        [](Type& v, const AnyString& m){
-            v = Type(m);
-        }
-    ))
+    to_tree([](const Type& v){
+        if (v) return Tree(v.name());
+        else return Tree(null);
+    }),
+    from_tree([](Type& v, const Tree& t){
+        if (t.form == Form::Null) v = Type();
+        else v = Type(Str(t));
+    })
 )
 
 // Testing of Type will be done in anyval.cpp

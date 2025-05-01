@@ -2,6 +2,7 @@
 
 #pragma once
 #include <memory>
+#include "../../uni/indestructible.h"
 #include "../common.h"
 #include "resource.h"
 #include "scheme.h"
@@ -24,9 +25,6 @@ struct ResourceData : Resource {
 };
 
 struct Universe {
-     // The memory leak detector flags the resources as leaked, because at
-     // program close, this array is destroyed without destroying the resources.
-     // TODO to prevent this (possibly by leaking the array too).
     UniqueArray<Hashed<ResourceRef>> resources;
     UniqueArray<Hashed<const ResourceScheme*>> schemes;
     UniqueArray<AnyPtr> tracked;
@@ -87,8 +85,12 @@ struct Universe {
 
 
 inline Universe& universe () {
-    static Universe r;
-    return r;
+     // The memory leak detector flags the universe's resources as leaked,
+     // because at program close, the array of resource refs is destroyed
+     // without destroying the resources.  How do we solve that?  By leaking the
+     // array too!
+    static Indestructible<Universe> r;
+    return *r;
 }
 
 } // namespace ayu::in

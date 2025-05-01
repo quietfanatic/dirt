@@ -73,7 +73,8 @@ struct ElemsDcrPrivate : ElemsDcr<Mu> {
         return (const ElemDcrPrivate*)((char*)this + offset);
     }
      // Take elements off the end that have the given flag (e.g. optional or
-     // invisible).  TODO: this could be done at compile time
+     // invisible).  This could be done at compile-time, but it'd take extra
+     // space in the description.
     u16 chop_flag (AttrFlags flag) const {
         u16 r = n_elems;
         while (r && elem(r-1)->acr()->attr_flags % flag) r--;

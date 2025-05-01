@@ -17,17 +17,20 @@ namespace ayu::in {
 } namespace ayu {
 template <class T>
 static void ERROR_duplicate_descriptors () { }
-static void ERROR_element_is_not_a_descriptor_for_this_type () { }
-static void ERROR_cannot_have_non_computed_name_after_computed_name () { }
-static void ERROR_description_doesnt_have_name_or_computed_name () { }
 static void ERROR_attrs_cannot_be_combined_with_keys_and_computed_attrs () { }
-static void ERROR_keys_and_computed_attrs_must_be_together () { }
-static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
-static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
-static void ERROR_elems_cannot_be_combined_with_length_and_computed_elems () { }
-static void ERROR_cannot_have_length_without_computed_or_contiguous_elems () { }
 static void ERROR_cannot_have_both_computed_and_contiguous_elems () { }
 static void ERROR_cannot_have_computed_or_contiguous_elems_without_length () { }
+static void ERROR_cannot_have_length_without_computed_or_contiguous_elems () { }
+static void ERROR_cannot_have_more_than_1000_attrs () { }
+static void ERROR_cannot_have_more_than_1000_elems () { }
+static void ERROR_cannot_have_more_than_1000_values () { }
+static void ERROR_cannot_have_non_computed_name_after_computed_name () { }
+static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
+static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
+static void ERROR_description_doesnt_have_name_or_computed_name () { }
+static void ERROR_element_is_not_a_descriptor_for_this_type () { }
+static void ERROR_elems_cannot_be_combined_with_length_and_computed_elems () { }
+static void ERROR_keys_and_computed_attrs_must_be_together () { }
 } namespace ayu::in {
 
 ///// MEMORY LAYOUT
@@ -237,7 +240,7 @@ using InitFunc = void(T&);
 template <class T>
 struct InitDcr : AttachedDescriptor<T> {
     InitFunc<T>* f;
-    double priority;
+    double order;
 };
 
 template <class T>
@@ -294,6 +297,7 @@ struct ValuesDcr : AttachedDescriptor<T> {
     } assign;
     u16 n_values;
     constexpr ValuesDcr (u16 n) : n_values(n) {
+        if (n > 1000) ERROR_cannot_have_more_than_1000_values();
          // Don't consider floating point to be trivially comparable, because
          // it's not actually trivial (in the other sense) to compare.
         if constexpr (requires { compare.generic = &operator==; }) {
@@ -345,7 +349,9 @@ struct ValuesDcr : AttachedDescriptor<T> {
     }
     constexpr ValuesDcr (u16 n, CompareFunc<T>* c, AssignFunc<T>* a) :
         compare{.generic = c}, assign{.generic = a}, n_values(n)
-    { }
+    {
+        if (n > 1000) ERROR_cannot_have_more_than_1000_values();
+    }
 };
 template <class T, class... Values>
 struct ValuesDcrWith : ValuesDcr<T> {
@@ -430,6 +436,7 @@ struct AttrsDcrWith : AttrsDcr<T> {
         AttrsDcr<T>{{}, u16(sizeof...(Attrs))},
         attrs(as...)
     {
+        if (sizeof...(Attrs) > 1000) ERROR_cannot_have_more_than_1000_attrs();
         for (u32 i = 0; i < sizeof...(Attrs); i++) {
             offsets[i] = static_cast<ComparableAddress*>(
                 attrs.template get<AttrDcr<T>>(i)
@@ -477,6 +484,7 @@ struct ElemsDcrWith : ElemsDcr<T> {
         ElemsDcr<T>{{}, u16(sizeof...(Elems))},
         elems(es...)
     {
+        if (sizeof...(Elems) > 1000) ERROR_cannot_have_more_than_1000_elems();
         bool have_optional = false;
         bool have_invisible = false;
         u16 i = 0;
@@ -569,9 +577,6 @@ constexpr void for_variadic (F f, Arg&& arg, Args&&... args) {
     for_variadic(f, std::forward<Args>(args)...);
 }
 
- // TODO: Prevent this from causing a template parameter deduction failure due
- // to missing make_static.  If make_description is given incorrect arguments,
- // we should try and make a custom compile-time error.
 template <class T, class... Dcrs>
 using FullDescription = Cat<
     DescriptionHeaderFor<T>,

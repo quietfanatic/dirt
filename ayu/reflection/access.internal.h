@@ -146,7 +146,7 @@ struct Accessor {
     AttrFlags attr_flags = {};
 
      // Constructor for ad-hoc accessors.  The tree_flags and attr_flags should
-     // never be used on this.  TODO: Use checkable invalid value
+     // never be used on this.
     explicit constexpr Accessor (AcrForm f, AccessCaps c) :
         form(f), caps(c), tree_flags()
     { }
@@ -227,8 +227,8 @@ struct FunctiveAcr : Accessor {
 
  // Yes Accessors are comparable!  Two Accessors are the same if they come from
  // the same place in the same AYU_DESCRIBE block, or if they're dynamically
- // generated from the same inputs.  TODO: Decide if we should also compare
- // access caps.
+ // generated from the same inputs.  Access capabilities are IGNORED when
+ // comparing accessors for equality.
 bool operator== (const Accessor&, const Accessor&);
 usize hash_acr (const Accessor&);
 

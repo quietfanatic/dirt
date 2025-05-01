@@ -30,5 +30,5 @@ AYU_DESCRIBE(glow::ResourceImage,
         attr("glow::Image", base<glow::Image>(), include),
         attr("source", &ResourceImage::source)
     ),
-    init<&ResourceImage::trim>(-GINF)
+    init<&ResourceImage::trim>(GINF)
 )

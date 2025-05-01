@@ -47,7 +47,8 @@ struct TraverseScan {
                 }
             )
         };
-        CurrentBase curb (base_rt, base_item);
+         // Don't set the current base when scanning.  The scanning process was
+         // likely started implicitly and shouldn't need it.
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.rt = base_rt;
@@ -86,7 +87,6 @@ struct TraverseScan {
                 cb, ignore_no_refs_to_children ? cbcb_ignore : cbcb
             )
         };
-        CurrentBase curb (base_rt, base_item);
         ScanTraversal<StartTraversal> child;
         child.context = &ctx;
         child.rt = base_rt;
@@ -102,7 +102,6 @@ struct TraverseScan {
         trav.context->cb(trav);
     }
 
-     // TODO: use more parameters in use_*
     NOINLINE static
     void after_cb (const ScanTraversal<>& trav) {
         auto desc = trav.desc();
@@ -156,7 +155,7 @@ struct TraverseScan {
     void use_attrs (const ScanTraversal<>& trav, const AttrsDcrPrivate* attrs) {
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
-             // Not discarding invisible attrs for scan purposes.
+             // Scan invisible attrs as well
             auto acr = attr->acr();
             SharedRoute child_rt;
              // TODO: verify that the child item is object-like.
@@ -217,8 +216,10 @@ struct TraverseScan {
             child.context = trav.context;
             if (trav.collapse_optional) [[unlikely]] {
                  // It'd be weird to specify collapse_optional when the child
-                 // item uses non-computed elems, but it's valid.  TODO: assert
-                 // that there aren't multiple elems?
+                 // item uses non-computed elems, but it's valid.
+                if (i >= 1) {
+                    raise(e_General, "collapse_optional on array bigger than 1");
+                }
                 child.rt = trav.rt;
             }
             else {
@@ -226,7 +227,6 @@ struct TraverseScan {
                 child.rt = child_rt;
             }
             child.collapse_optional = false;
-             // TODO: verify that the child item is array-like.
             trav_elem<visit>(child, trav, acr, i, AC::Read);
             if (child.context->done) [[unlikely]] return;
         }
@@ -246,6 +246,9 @@ struct TraverseScan {
             ScanTraversal<ComputedElemTraversal> child;
             child.context = trav.context;
             if (trav.collapse_optional) {
+                if (i >= 1) {
+                    raise(e_General, "collapse_optional on array bigger than 1");
+                }
                 child.rt = trav.rt;
             }
             else {
@@ -276,6 +279,9 @@ struct TraverseScan {
             child.context = trav.context;
             child.collapse_optional = false;
             if (trav.collapse_optional) {
+                if (i >= 1) {
+                    raise(e_General, "collapse_optional on array bigger than 1");
+                }
                 child.rt = trav.rt;
             }
             else {
@@ -438,8 +444,6 @@ bool scan_universe_references (ScanReferencesCB cb) {
      // To allow serializing self-referential data structures that aren't inside
      // a Resource, first scan the currently-being-serialized item, but only if
      // it's not in a Resource (so we don't duplicate work).
-     // TODO: Maybe don't do this if the traversal was started by a scan,
-     // instead of by a serialize.
     if (current_base) {
         auto rt = current_base->route;
         if (auto ref = rt->reference())

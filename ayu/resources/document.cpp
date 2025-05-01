@@ -212,7 +212,11 @@ AYU_DESCRIBE(ayu::Document,
             return AnyArray(r);
         },
         [](Document&, const AnyArray<AnyString>&){
-             // Noop.  TODO: do some validation?
+             // Noop.  The current way Documents work, they don't support
+             // calling item_set_keys() followed by item_attr().write(), because
+             // they need the types of their items before they can allocate
+             // them.  TODO to investigate if there's a way to support that
+             // scenario.
         }
     )),
     computed_attrs([](Document& v, const AnyString& k){

@@ -71,7 +71,7 @@ struct AnyRef {
      // AYU_DESCRIBE blocks.  The first argument must be an instance of the type
      // being described, and the second argument must be one of the
      // accessor-generating functions in describe-base.h (the same thing you
-     // would pass to, say attr or elem).  TODO: readonly?
+     // would pass to, say attr or elem).
     template <Describable From, AccessorFrom<From> Acr>
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
 
@@ -163,20 +163,23 @@ struct AnyRef {
         return r;
     }
 
-     // Assign to the referenced item with rvalue ref.
-     // TODO: don't cast! We'll slice the object!
-    template <Describable T>
-    void set_as (T&& new_v) {
-        write(AccessCB(move(new_v), [](T&& new_v, Type t, Mu* v){
-            *AnyPtr(t, v).upcast_to<T>() = move(new_v);
-        }));
-    }
-
-     // Assign to the referenced item with lvalue ref.
+     // Assign to the referenced item with lvalue ref.  This could be slightly
+     // dangerous if you call this with a type that's the base of the existing
+     // type, as it can "slice" the existing object, similarly to normal C++
+     // assignment.
     template <Describable T>
     void set_as (const T& new_v) {
         write(AccessCB(new_v, [](const T& new_v, Type t, Mu* v){
             *AnyPtr(t, v).upcast_to<T>() = new_v;
+        }));
+    }
+
+     // Assign to the referenced item with rvalue ref.  Same slicing danger as
+     // above.
+    template <Describable T>
+    void set_as (T&& new_v) {
+        write(AccessCB(move(new_v), [](T&& new_v, Type t, Mu* v){
+            *AnyPtr(t, v).upcast_to<T>() = move(new_v);
         }));
     }
 
@@ -227,7 +230,10 @@ struct AnyRef {
 
  // AnyRef comparison is best-effort.  If two AnyRefs were constructed
  // differently but happen to point to the same item, they might be considered
- // unequal.  This should be rare though.
+ // unequal.  This should be rare though.  Similarly to AnyPtr (and native
+ // pointers) access capabilities are ignored when comparing AnyRefs, so a
+ // readonly or unaddressable ref may compare equal to a writeable or
+ // addressable ref (provided other details of the refs are identical).
 constexpr bool operator == (const AnyRef& a, const AnyRef& b) {
     if (a.host != b.host) return false;
     if (!a.acr | !b.acr) return a.acr == b.acr;

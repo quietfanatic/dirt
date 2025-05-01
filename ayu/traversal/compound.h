@@ -12,22 +12,27 @@ namespace ayu {
  // descriptors.  If neither are available, they use the delegate() descriptor,
  // and if that isn't available, they throw e_AttrsNotSupported.
 
- // Get a list of the keys in a object-like item.
+ // Get a list of the keys in a object-like item.  This isn't used that often,
+ // so it may be inefficient.
 AnyArray<AnyString> item_get_keys (
     const AnyRef&, RouteRef rt = {}
 );
+
  // Set the keys in an object-like item.  This may clear the entire contents
  // of the item.  If the item only accepts certain attribute keys, this may
- // throw e_AttrMissing or e_AttrRejected.
+ // throw e_AttrMissing or e_AttrRejected.  This isn't used that often, so it
+ // may be inefficient.
 void item_set_keys (
     const AnyRef&, AnyArray<AnyString>,
     RouteRef rt = {}
 );
+
  // Get an attribute of an object-like item by its key, or empty AnyRef if
  // the attribute doesn't exist.
 AnyRef item_maybe_attr (
     const AnyRef&, const AnyString&, RouteRef rt = {}
 );
+
  // Throws e_ElemNotFound if the attribute doesn't exist.  Guaranteed not to
  // return an empty or null AnyRef.
 AnyRef item_attr (const AnyRef&, const AnyString&, RouteRef rt = {});
@@ -39,17 +44,20 @@ AnyRef item_attr (const AnyRef&, const AnyString&, RouteRef rt = {});
 
  // Get the length of an array-like item.
 u32 item_get_length (const AnyRef&, RouteRef rt = {});
+
  // Set the length of an array-like item.  This may clear some or all of the
  // contents of the item.  If the item only allows certain lengths, this may
  // throw e_WrongLength.
 void item_set_length (
     const AnyRef&, u32, RouteRef rt = {}
 );
+
  // Get an element of an array-like item by its index.  Returns an empty
  // AnyRef if the element doesn't exist.
 AnyRef item_maybe_elem (
     const AnyRef&, u32, RouteRef rt = {}
 );
+
  // Throws e_ElemNotFound if the element doesn't exist.  Guaranteed not to return
  // an empty or null AnyRef.
 AnyRef item_elem (

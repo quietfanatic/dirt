@@ -22,34 +22,10 @@
 #include "describe-base.h"
 
 namespace ayu::in {
-    [[gnu::noclone]] NOINLINE inline
-    AnyString make_optional_name (Type t) noexcept {
-        return cat(t.name(), '?');
-    }
-    [[gnu::noclone]] NOINLINE inline
-    AnyString make_pointer_name (Type t) noexcept {
-        return cat(t.name(), '*');
-    }
-    [[gnu::noclone]] NOINLINE inline
-    AnyString make_template_name_1 (StaticString prefix, Type t) noexcept {
-        return cat(prefix, t.name(), '>');
-    }
-    [[gnu::noclone]] NOINLINE inline
-    AnyString make_variadic_name (
-        StaticString init,
-        const Type* types,
-        u32 len
-    ) noexcept {
-        expect(len >= 1);
-        return cat(
-            init, Caterator(", ", len, [types](u32 i){
-                 // This will call get_type_name twice for each desc, but
-                 // this should still be faster and smaller than caching all the
-                 // names in a variable-length array.
-                return expect(types[i].name());
-            }), '>'
-        );
-    }
+    AnyString make_optional_name (Type t) noexcept;
+    AnyString make_pointer_name (Type t, int flags) noexcept;
+    AnyString make_template_name_1 (StaticString prefix, Type t) noexcept;
+    AnyString make_variadic_name (StaticString prefix, const Type* types, u32 len) noexcept;
 } // ayu::in
 
  // std::optional serializes to [] for nullopt and [value] for value.  To make
@@ -304,18 +280,30 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(T*),
     []{
-        if constexpr (std::is_void_v<std::remove_cv_t<T>>) {
+        if constexpr (std::is_same_v<T, void>) {
             return desc::name("void*");
+        }
+        else if constexpr (std::is_same_v<T, const void>) {
+            return desc::name("void const*");
+        }
+        else if constexpr (std::is_same_v<T, volatile void>) {
+            return desc::name("void volatile*");
+        }
+        else if constexpr (std::is_same_v<T, const volatile void>) {
+            return desc::name("void const volatile*");
         }
         else {
             return desc::computed_name([]{
-                return ayu::in::make_pointer_name(ayu::Type::For<T>());
+                return ayu::in::make_pointer_name(
+                    ayu::Type::For<std::remove_cvref_t<T>>(),
+                    std::is_const_v<T> | std::is_volatile_v<T> << 1
+                );
             });
         }
     }(),
-     // This will probably be faster if we skip the delegate chain, but let's
-     // save that until we know we need it.  Note that when we do that we will
-     // have to adjust the breakage scanning in resource.cpp.
+     // This will probably be faster if we skip the delegation, but let's save
+     // that until we know we need it.  Note that when we do that we will have
+     // to adjust the breakage scanning in resource.cpp.
     []{
         if constexpr (std::is_void_v<std::remove_cv_t<T>>) {
             return desc::to_tree([](T* const& v){

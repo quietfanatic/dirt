@@ -5,6 +5,40 @@
 #include "../../uni/utf.h"
 #include "describe-standard.h"
 
+namespace ayu::in {
+    [[gnu::noclone]] NOINLINE
+    AnyString make_optional_name (Type t) noexcept {
+        return cat(t.name(), '?');
+    }
+    [[gnu::noclone]] NOINLINE
+    AnyString make_pointer_name (Type t, int flags) noexcept {
+        UniqueString r = t.name();
+        if (flags & 1) encat(r, " const");
+        if (flags & 2) encat(r, " volatile");
+        return cat(move(r), '*');
+    }
+    [[gnu::noclone]] NOINLINE
+    AnyString make_template_name_1 (StaticString prefix, Type t) noexcept {
+        return cat(prefix, t.name(), '>');
+    }
+    [[gnu::noclone]] NOINLINE
+    AnyString make_variadic_name (
+        StaticString prefix,
+        const Type* types,
+        u32 len
+    ) noexcept {
+        expect(len >= 1);
+        return cat(
+            prefix, Caterator(", ", len, [types](u32 i){
+                 // This will call get_type_name twice for each desc, but that
+                 // should still be faster and smaller than caching all the
+                 // names in a variable-length array.
+                return expect(types[i].name());
+            }), '>'
+        );
+    }
+} // ayu::in
+
 using namespace ayu;
 
 AYU_DESCRIBE(std::string,

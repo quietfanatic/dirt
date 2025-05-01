@@ -27,12 +27,12 @@ enum class AccessCaps : u8 {
      // use this instead of Write on all but the lowest level of access, so that
      // other parts of the outer items don't get cleared.
     Modify = Write|Read,
-     // Request/allow access to the permanent address of the item.  TODO: Use
-     // this instead of AC::Read
+     // Request/allow access to the permanent address of the item.
     Address = 0x4,
      // Allow children to be addressable even if this item isn't addressable.
      // On accessors, this should always be set if Address is set.  This should
-     // be far enough away to shift into Address without affecting other bits.
+     // never be set when requesting access.  This value should be far enough
+     // away to shift into Address without affecting other bits.
     AddressChildren = 0x40,
 
     AllowEverything = Write|Read|Address|AddressChildren,
@@ -60,7 +60,7 @@ constexpr AccessCaps operator* (AccessCaps outer, AccessCaps inner) {
  //     represents it (check caps & AC::Addressable to tell the difference).
 using AccessCB = CallbackRef<void(Type, Mu*)>;
 
- // Some accessor constraints.  TODO: Move these to describe-base.h
+ // Some accessor constraints.
 
 template <class Acr, class From>
 concept AccessorFrom = std::is_same_v<typename Acr::AcrFromType, From>;

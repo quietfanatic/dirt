@@ -20,7 +20,6 @@ struct TraverseGetKeys {
     static
     UniqueArray<AnyString> start (const AnyRef& item, RouteRef rt) {
         CurrentBase curb (rt, item);
-         // TODO: skip traversal if item is addressable and uses computed_attrs
         UniqueArray<AnyString> keys;
         GetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
@@ -30,12 +29,6 @@ struct TraverseGetKeys {
 
     static
     void collect (UniqueArray<AnyString>& keys, AnyString&& key) {
-         // This'll end up being N^2.  TODO: Test whether including an unordered_set
-         // would speed this up (probably not).  Maybe even just hashing the key
-         // might be enough.
-         //
-         // TODO: There generally aren't supposed to be any duplicates, can we
-         // optimize for the case where there aren't?
         for (auto k : keys) if (k == key) return;
         keys.emplace_back(move(key));
     }
@@ -130,10 +123,6 @@ struct TraverseSetKeys {
 
     static
     bool claim (UniqueArray<AnyString>& keys, Str key) {
-         // This algorithm overall is O(N^3), we may be able to speed it up by
-         // setting a flag if there are no collapsed attrs, or maybe by using an
-         // unordered_set?
-         // TODO: Use a next_list like in from-tree.
         for (u32 i = 0; i < keys.size(); ++i) {
             if (keys[i] == key) {
                 keys.erase(i);
@@ -179,8 +168,7 @@ struct TraverseSetKeys {
          // I don't think it's possible for n_attrs to be large enough to
          // overflow the stack...right?  The max description size is 64K and an
          // attr always consumes at least 14 bytes, so the max n_attrs is
-         // something like 4500.  TODO: enforce a reasonable max n_attrs in
-         // descriptors-internal.h.
+         // something like 4500.  Update: we currently limit n_attrs to 1000.
         bool claimed [attrs->n_attrs] = {};
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
@@ -298,7 +286,6 @@ struct TraverseAttr {
         const AnyRef& item, const AnyString& key, RouteRef rt
     ) {
         CurrentBase curb (rt, item);
-         // TODO: skip the traversal system if we're using computed attrs
         AnyRef r;
         GetAttrTraversal<StartTraversal> child;
         child.get_key = &key;
@@ -455,7 +442,9 @@ struct TraverseSetLength {
             }
         }
         else if (auto acr = desc->delegate_acr()) {
-             // TODO: enforce nonreadonly
+            if (!(acr->caps % AC::Write)) {
+                raise(e_WriteReadonly, "Tried to set length of readonly delegate accessor (more info NYI).");
+            }
             acr->modify(*v, AccessCB(len, &visit));
         }
         else raise_ElemsNotSupported(t);
@@ -482,7 +471,6 @@ struct GetElemTraversalHead {
 template <class T = Traversal>
 struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
 
- // TODO: Skip the traversal system for some cases
 struct TraverseElem {
 
     NOINLINE static

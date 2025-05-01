@@ -148,15 +148,19 @@ constexpr ErrorCode e_RouteIRIInvalid = "ayu::e_RouteIRIInvalid";
 
 ///// CURRENT BASE MANAGEMENT
 
- // This API is publicly visible but it's probably not very useful to use
- // directly.
+ // This API is publicly visible but it's probably not all that useful to use
+ // yourself.  It's mostly used by the resource and scanning systems.
 
  // Similar to web documents, there's a concept of a base IRI.  Relative IRI
  // reference strings are read and written relative to this base IRI.  The
- // current base is set whenever a traversal operation happens.  If the
- // traversal operation is passed a route, the base route is the root of that
- // route.  If not, it's an anonymous reference route of whatever reference was
- // passed to the traversal operation.
+ // current base is set during most traversal operations.  If the traversal
+ // operation is passed a route, the base route is the root of that route.  If
+ // not, it's an anonymous reference route of whatever reference was passed to
+ // the traversal operation.
+ //
+ // During a to_tree or from_tree descriptor function, the current base will
+ // always be set.  The only traversals it isn't set for are scans, and scans
+ // don't touch those functions.
 struct CurrentBase;
 
  // Null if there is no current base.  This will never be null during a
@@ -175,8 +179,6 @@ struct CurrentBase {
      // the current base to what it was before.  You can have multiple
      // CurrentBase objects and they act like a stack.  They must be destroying
      // in reverse order of construction.
-     //
-     // You probably mostly do not want to set the CurrentBase yourself.
     CurrentBase (RouteRef rt) : route(rt->root()) {
         old = current_base;
         current_base = this;

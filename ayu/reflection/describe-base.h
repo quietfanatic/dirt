@@ -194,26 +194,26 @@ struct AYU_DescribeBase {
      // can have a window type which sets all its parameters using attrs(), and
      // then calls a library function to open the window in init().
      //
-     // Init functions will be called in descending priority order (highest
-     // priority first).  If init functions have the same priority, they will be
-     // called first on child items in order, then on parent items.  TODO:
-     // reverse this order and rename to "order"
+     // Init functions will be called in ascending order of their `order`
+     // parameter.  If two init functions have the same `order`, they will be
+     // called first on child items in serialization order, then on parent
+     // items.
      //
      // Be aware that an optional attr or elem will not have init called on it
      // or its child items if it is not provided with a value in the from_tree
      // operation.
      //
-     // There is not currently a way to have multiple inits of different
-     // priorities on the same type.
+     // There is not currently a way to have multiple inits with different
+     // orders on the same type.
      //
      // If the init function causes more items to be deserialized (by
      // autoloading a resource, for instance), all currently queued init
      // operations will run before the new items' swizzle or init operations,
-     // regardless of priority.
+     // regardless of order.
     static constexpr
     DescriptorFor<T> auto init (
         Function<void(T&)>*,
-        double priority = 0
+        double order = 0
     );
 
      // Make this type behave like another type.  `accessor` must be the result
@@ -295,6 +295,10 @@ struct AYU_DescribeBase {
      // For instance, for a matrix item, you can provide special names like "id"
      // and "flipx" that refer to specific matrixes, and still allow an
      // arbitrary matrix to be specified with a list of numbers.
+     //
+     // There cannot be more than 1000 values.  If there are close to that many,
+     // you should probably be using a binary search or hash table anyway,
+     // instead of the linear search this library provides.
     template <ValueDcrFor<T>... Values> requires (
         requires (T v) { v == v; v = v; }
     ) static constexpr
@@ -335,6 +339,10 @@ struct AYU_DescribeBase {
      // serialized as {}.  Attrs will be deserialized in the order they're
      // specified in the description, not in the order they're provided in the
      // Tree.
+     //
+     // There cannot be more than 1000 attrs specified in the description
+     // (subattrs of collapsed attrs do not count).  More than that and you'll
+     // have to use computed_attrs() instead.
     template <AttrDcrFor<T>... Attrs> static constexpr
     DescriptorFor<T> auto attrs (
         const Attrs&... attr_descriptors
@@ -541,6 +549,9 @@ struct AYU_DescribeBase {
      // If you specify both attrs() and elems(), then the type can be
      // deserialized from either an object or an array, and will be serialized
      // using whichever of attrs() and elems() was specified first.
+     //
+     // There cannot be more than 1000 elems.  Any more than that and you will
+     // have to use computed_elems(), or if possible, contiguous_elems().
     template <ElemDcrFor<T>... Elems> static constexpr
     DescriptorFor<T> auto elems (
         const Elems&... elem_descriptors
@@ -947,8 +958,8 @@ struct AYU_DescribeBase {
     template <
         void(T3::* m )()
     > static constexpr
-    DescriptorFor<T> auto init (double priority = 0) {
-        return init([](T& v){ (v.*m)(); }, priority);
+    DescriptorFor<T> auto init (double order = 0) {
+        return init([](T& v){ (v.*m)(); }, order);
     }
 
     ///// INTERNAL

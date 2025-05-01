@@ -29,8 +29,8 @@ DescriptorFor<T> auto AYU_DescribeBase<T>::swizzle (in::SwizzleFunc<T>* f) {
     return in::SwizzleDcr<T>{{}, f};
 }
 template <Describable T> constexpr
-DescriptorFor<T> auto AYU_DescribeBase<T>::init (in::InitFunc<T>* f, double pri) {
-    return in::InitDcr<T>{{}, f, pri};
+DescriptorFor<T> auto AYU_DescribeBase<T>::init (in::InitFunc<T>* f, double o) {
+    return in::InitDcr<T>{{}, f, o};
 }
 template <Describable T> constexpr
 DescriptorFor<T> auto AYU_DescribeBase<T>::default_construct (void(* f )(void*)) {
