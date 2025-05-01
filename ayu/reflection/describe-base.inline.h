@@ -1,9 +1,6 @@
 
 namespace ayu {
 
-static void ERROR_conflicting_flags_on_attr () { }
-static void ERROR_elem_cannot_have_collapse_optional_flag () { }
-
 template <Describable T> constexpr
 DescriptorFor<T> auto AYU_DescribeBase<T>::name (StaticString n) {
     return in::NameDcr<T>{{}, n};
@@ -73,8 +70,7 @@ ValueDcrFor<T> auto AYU_DescribeBase<T>::value (const N& n, const T& v) {
         name = Tree(StaticString(n));
     }
     else name = Tree(n);
-    name.flags &= ~TreeFlags::ValueIsPtr;
-    return in::ValueDcrWithValue<T>{{{}, name}, v};
+    return in::ValueDcrWithValue<T>(name, v);
 }
 template <Describable T>
 template <ConstructsTree N> constexpr
@@ -87,8 +83,7 @@ ValueDcrFor<T> auto AYU_DescribeBase<T>::value_ptr (const N& n, const T* p) {
         name = Tree(StaticString(n));
     }
     else name = Tree(n);
-    name.flags |= TreeFlags::ValueIsPtr;
-    return in::ValueDcrWithPtr<T>{{{}, name}, p};
+    return in::ValueDcrWithPtr<T>(name, p);
 }
 template <Describable T>
 template <AttrDcrFor<T>... Attrs> constexpr
@@ -100,20 +95,12 @@ template <AccessorFrom<T> Acr> constexpr
 AttrDcrFor<T> auto AYU_DescribeBase<T>::attr (
     StaticString key, const Acr& acr, AttrFlags flags
 ) {
-    u32 count = flags % in::AttrFlags::Optional
-              + flags % in::AttrFlags::Collapse
-              + flags % in::AttrFlags::CollapseOptional;
-    if (count > 1) {
-        ERROR_conflicting_flags_on_attr();
-    }
-    auto r = in::AttrDcrWith<T, Acr>(key, acr);
-    r.acr.attr_flags = flags;
-    return r;
+    return in::AttrDcrWith<T, Acr>(key, acr, flags);
 }
 template <Describable T>
 template <AccessorFrom<T> Acr, ConstructsTree Default> constexpr
 AttrDcrFor<T> auto AYU_DescribeBase<T>::attr_default (
-    StaticString key, const Acr& acr, const Default& def, in::AttrFlags flags
+    StaticString key, const Acr& acr, const Default& def, AttrFlags flags
 ) {
     return in::AttrDefaultDcrWith<T, Acr>(
         Tree(def),
@@ -128,14 +115,9 @@ DescriptorFor<T> auto AYU_DescribeBase<T>::elems (const Elems&... es) {
 template <Describable T>
 template <AccessorFrom<T> Acr> constexpr
 ElemDcrFor<T> auto AYU_DescribeBase<T>::elem (
-    const Acr& acr, in::AttrFlags flags
+    const Acr& acr, AttrFlags flags
 ) {
-    if (flags % in::AttrFlags::CollapseOptional) {
-        ERROR_elem_cannot_have_collapse_optional_flag();
-    }
-    auto r = in::ElemDcrWith<T, Acr>(acr);
-    r.acr.attr_flags = flags;
-    return r;
+    return in::ElemDcrWith<T, Acr>(acr, flags);
 }
 template <Describable T>
 template <AccessorFrom<T> Acr> requires (

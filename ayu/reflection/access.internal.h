@@ -73,6 +73,8 @@ enum class AttrFlags : u8 {
      // the object, and an array of one element to the attribute being present
      // with that element as its value.
     CollapseOptional = 0x40,
+     // For space optimization
+    KeyLocal = 0x80
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 

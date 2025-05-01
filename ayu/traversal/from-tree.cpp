@@ -400,7 +400,7 @@ struct TraverseFromTree {
                 prev_next = &next_list[j], j = *prev_next
             ) {
                 auto& [key, value] = trav.tree->data.as_object_ptr[j];
-                if (key == attr->key) {
+                if (key == attr->key()) {
                     if (!(flags % AttrFlags::Ignored)) {
                         Tree singleton;
                         FromTreeTraversal<AttrTraversal> child;
@@ -409,7 +409,7 @@ struct TraverseFromTree {
                         }
                         else child.tree = &value;
                         trav_attr<visit>(
-                            child, trav, attr->acr(), attr->key, AC::Write
+                            child, trav, attr->acr(), attr->key(), AC::Write
                         );
                     }
                      // Claim attr by deleting link
@@ -424,7 +424,7 @@ struct TraverseFromTree {
                 child.next_list = next_list;
                 child.tree = trav.tree;
                 trav_attr<claim_attrs>(
-                    child, trav, attr->acr(), attr->key, AC::Write
+                    child, trav, attr->acr(), attr->key(), AC::Write
                 );
             }
             else if (flags % (AttrFlags::Optional|AttrFlags::Ignored)) {
@@ -442,9 +442,9 @@ struct TraverseFromTree {
                 else if (const Tree* def = attr->default_value()) {
                     child.tree = def;
                 }
-                else raise_AttrMissing(trav.type, attr->key);
+                else raise_AttrMissing(trav.type, attr->key());
                 trav_attr<visit>(
-                    child, trav, attr->acr(), attr->key, AC::Write
+                    child, trav, attr->acr(), attr->key(), AC::Write
                 );
             }
             next_attr:;

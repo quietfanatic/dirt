@@ -27,7 +27,10 @@ static void ERROR_cannot_have_more_than_1000_values () { }
 static void ERROR_cannot_have_non_computed_name_after_computed_name () { }
 static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
 static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
+static void ERROR_conflicting_flags_on_attr () { }
 static void ERROR_description_doesnt_have_name_or_computed_name () { }
+static void ERROR_elem_cannot_have_collapse_flag () { }
+static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 static void ERROR_element_is_not_a_descriptor_for_this_type () { }
 static void ERROR_elems_cannot_be_combined_with_length_and_computed_elems () { }
 static void ERROR_keys_and_computed_attrs_must_be_together () { }
@@ -262,17 +265,24 @@ struct DestroyDcr : DetachedDescriptor<T> {
 template <class T>
 struct ValueDcr : ComparableAddress {
     Tree name;
+    constexpr ValueDcr (const Tree& n) : name(n) { }
 };
 
  // Doesn't currently support objects with alignof larger than Tree
 template <class T>
 struct alignas(Tree) ValueDcrWithValue : ValueDcr<T> {
     alignas(Tree) T value;
+    constexpr ValueDcrWithValue (const Tree& n, const T& v) :
+        ValueDcr<T>(n), value(v)
+    { ValueDcr<T>::name.flags &= ~TreeFlags::ValueIsPtr; }
 };
 
 template <class T>
 struct ValueDcrWithPtr : ValueDcr<T> {
     const T* value;
+    constexpr ValueDcrWithPtr (const Tree& n, const T* v) :
+        ValueDcr<T>(n), value(v)
+    { ValueDcr<T>::name.flags |= TreeFlags::ValueIsPtr; }
 };
 
 template <class T>
@@ -397,17 +407,32 @@ concept IsValueDcr = std::is_base_of_v<ValueDcr<T>, Dcr>;
 
 template <class T>
 struct AttrDcr : ComparableAddress {
-    StaticString key;
+    union {
+        StaticString remote_key;
+        LocalString local_key;
+    };
+    constexpr AttrDcr (StaticString k) {
+        if (k.size() <= LocalString::max) local_key = LocalString(k);
+        else std::construct_at(&remote_key, k);
+    }
 };
 template <class T, class Acr>
 struct AttrDcrWith : AttrDcr<T> {
     Acr acr;
-    constexpr AttrDcrWith (StaticString k, const Acr& a) :
-        AttrDcr<T>{{}, k},
+    constexpr AttrDcrWith (StaticString k, const Acr& a, AttrFlags flags) :
+        AttrDcr<T>(k),
         acr(constexpr_acr(a))
     {
-         // Note that we can't validate flags here because they haven't been set
-         // yet.  Do it in attr() in describe-base.inline.h instead.
+        u32 count = flags % in::AttrFlags::Optional
+                  + flags % in::AttrFlags::Collapse
+                  + flags % in::AttrFlags::CollapseOptional;
+        if (count > 1) {
+            ERROR_conflicting_flags_on_attr();
+        }
+        acr.attr_flags = flags;
+        if (k.size() <= LocalString::max) {
+            acr.attr_flags |= in::AttrFlags::KeyLocal;
+        }
     }
 };
  // We can't put the default value after the acr because it has variable size,
@@ -463,11 +488,16 @@ struct ElemDcr : ComparableAddress { };
 template <class T, class Acr>
 struct ElemDcrWith : ElemDcr<T> {
     Acr acr;
-    constexpr ElemDcrWith (const Acr& a) :
+    constexpr ElemDcrWith (const Acr& a, AttrFlags flags) :
         acr(constexpr_acr(a))
     {
-         // Note that we can't validate flags here because they haven't been set
-         // yet.  Instead do it in elem() in describe-base.inline.h
+        if (flags % in::AttrFlags::Collapse) {
+            ERROR_elem_cannot_have_collapse_flag();
+        }
+        if (flags % in::AttrFlags::CollapseOptional) {
+            ERROR_elem_cannot_have_collapse_optional_flag();
+        }
+        acr.attr_flags = flags;
     }
 };
 
