@@ -130,13 +130,6 @@ constexpr GRange<T> properize (const GRange<T>& a) {
     return proper(a) ? a : invert(a);
 }
 
-///// RELATIONSHIPS
-
-template <class T>
-constexpr bool operator== (const GRange<T>& a, const GRange<T>& b) {
-    return a.l == b.l && a.r == b.r;
-}
-
 #define GRANGE_UNARY_OP(op) \
 template <class T> \
 constexpr auto operator op (const GRange<T>& a) { \
@@ -146,6 +139,13 @@ GRANGE_UNARY_OP(+)
 GRANGE_UNARY_OP(-)
 GRANGE_UNARY_OP(~)
 #undef GRANGE_UNARY_OP
+
+///// RELATIONSHIPS
+
+template <class T>
+constexpr bool operator== (const GRange<T>& a, const GRange<T>& b) {
+    return a.l == b.l && a.r == b.r;
+}
 
  // These assume the ranges are proper, and may give unintuitive results if they
  // aren't.
