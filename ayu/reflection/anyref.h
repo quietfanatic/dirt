@@ -194,12 +194,14 @@ struct AnyRef {
     }
 
 ///// ARBITRARY ACCESS
-
      // See access.h for how to use these.
+
+    void check_access (AccessCaps mode) const {
+        if (!contains(caps(), mode)) { raise_access_denied(mode); }
+    }
+
     void access (AccessCaps mode, AccessCB cb) const {
-        if (mode > caps()) {
-            raise_access_denied(mode);
-        }
+        check_access(mode);
         if (acr) {
             acr->access(mode, *host.address, cb);
         }

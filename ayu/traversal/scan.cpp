@@ -498,7 +498,7 @@ SharedRoute find_reference (const AnyRef& item) {
             AnyPtr ptr = item.address();
              // Addressable! This will be fast.
             if (auto it = search_route_cache(ptr)) {
-                if (item.caps() > it->first.caps()) {
+                if (!contains(it->first.caps(), item.caps())) {
                     [[unlikely]] return {};
                 }
                 return it->second;
@@ -515,7 +515,7 @@ SharedRoute find_reference (const AnyRef& item) {
                     [&r, &item](const AnyRef& ref, RouteRef rt)
                 {
                     if (ref == item) {
-                        if (item.caps() > ref.caps()) {
+                        if (!contains(ref.caps(), item.caps())) {
                             [[unlikely]] return true;
                         }
                         new (&r) SharedRoute(rt);
@@ -535,7 +535,7 @@ SharedRoute find_reference (const AnyRef& item) {
             [&r, &item](const AnyRef& ref, RouteRef rt)
         {
             if (ref == item) {
-                if (item.caps() > ref.caps()) {
+                if (!contains(ref.caps(), item.caps())) {
                     [[unlikely]] return true;
                 }
                 new (&r) SharedRoute(rt);

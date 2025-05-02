@@ -157,6 +157,7 @@ void trav_ref (
 ) try {
     child.parent = &parent;
     child.caps = parent.caps * ref.caps();
+     // TODO: disassemble this ref to save stack space
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
