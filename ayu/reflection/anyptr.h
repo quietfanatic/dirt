@@ -22,7 +22,7 @@ struct AnyPtr {
     };
 
     constexpr AnyPtr (Null n = null) : address(n), type_p(null) { }
-    constexpr AnyPtr (Type t, Mu* a) : address(a), type_p(t.data) { expect(t); }
+    AnyPtr (Type t, Mu* a) : address(a), type_p(t.data) { expect(t); }
     AnyPtr (Type t, Mu* a, bool readonly) :
         address(a), type_i(reinterpret_cast<usize>(t.data) | readonly)
     { expect(t); }
@@ -47,13 +47,12 @@ struct AnyPtr {
 
      // Returns false if this AnyPtr is either (typed) null or (typeless)
      // empty.
-    constexpr explicit operator bool () const { return address; }
+    explicit operator bool () const { return address; }
      // Returns true only for the typeless empty AnyPtr.
-    constexpr bool empty () const { return !!type_p; }
+    bool empty () const { return !!type_p; }
 
-    constexpr Type type () const {
-        if (std::is_constant_evaluated()) return Type(type_p);
-        else return Type((const void*)(type_i & ~1));
+    Type type () const {
+        return Type((const void*)(type_i & ~1));
     }
 
     bool readonly () const { return type_i & 1; }
@@ -104,9 +103,8 @@ struct AnyPtr {
 
      // Get the AccessCaps for this AnyPtr.  The only bit AnyPtr can represent
      // is the Writeable (here Readonly) bit.
-    constexpr AccessCaps caps () const {
-        if (std::is_constant_evaluated()) return AC::AllowEverything;
-        else return AC::AllowEverything ^ AccessCaps(readonly());
+    AccessCaps caps () const {
+        return AC::AllowEverything ^ AccessCaps(readonly());
     }
 };
 
@@ -114,10 +112,10 @@ struct AnyPtr {
  // non-readonly pointer.  This may be unintuitive, but it matches the behavior
  // of native C++ pointers and also makes looking them up in a hash table much
  // easier.
-constexpr bool operator == (const AnyPtr& a, const AnyPtr& b) {
+inline bool operator == (const AnyPtr& a, const AnyPtr& b) {
     return a.address == b.address && a.type() == b.type();
 }
-constexpr auto operator <=> (const AnyPtr& a, const AnyPtr& b) {
+inline auto operator <=> (const AnyPtr& a, const AnyPtr& b) {
     return a.address == b.address
         ? a.type() <=> b.type()
         : a.address <=> b.address;

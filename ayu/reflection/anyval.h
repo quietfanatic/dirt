@@ -6,9 +6,6 @@
 //
 // AnyVals can be statically const (const AnyVal&) but not dynamically const
 // (readonly) like AnyPtr.
-//
-// AnyVals cannot be constructed until main() starts (except for the empty
-// AnyVal).
 
 #pragma once
 #include <type_traits>
@@ -25,14 +22,14 @@ struct AnyVal {
      // The empty value will cause null derefs if you do anything with it.
     constexpr AnyVal () : type(), data(null) { }
      // Create from internal data.  Takes ownership.
-    constexpr AnyVal (Type t, Mu*&& d) : type(t), data(d) { d = null; }
+    AnyVal (Type t, Mu*&& d) : type(t), data(d) { d = null; }
      // Default construction
-    constexpr explicit AnyVal (Type t) :
+    explicit AnyVal (Type t) :
         type(t),
         data(t ? dynamic_default_new(t) : null)
     { }
      // Move construct
-    constexpr AnyVal (AnyVal&& o) : type(o.type), data(o.data) {
+    AnyVal (AnyVal&& o) : type(o.type), data(o.data) {
         o.type = Type();
         o.data = null;
     }
@@ -56,7 +53,7 @@ struct AnyVal {
         type(Type::For<T>()), data((Mu*)p.release())
     { }
      // Move assignment
-    constexpr AnyVal& operator = (AnyVal&& o) {
+    AnyVal& operator = (AnyVal&& o) {
         this->~AnyVal();
         type = o.type;
         data = o.data;
@@ -69,13 +66,13 @@ struct AnyVal {
         if (data) dynamic_delete(type, data);
     }
      // Check contents.
-    constexpr explicit operator bool () const {
+    explicit operator bool () const {
         expect(!!type == !!data);
         return !!type;
     }
-    constexpr bool empty () const { return !*this; }
+    bool empty () const { return !*this; }
      // Get AnyPtr to the value
-    constexpr AnyPtr ptr () { return AnyPtr(type, data); }
+    AnyPtr ptr () { return AnyPtr(type, data); }
     AnyPtr readonly_ptr () const { return AnyPtr(type, data, true); }
      // Runtime casting
     Mu& as (Type t) {

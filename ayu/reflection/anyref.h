@@ -52,10 +52,10 @@ struct AnyRef {
     constexpr AnyRef (Null n = null) : host(n), acr(n) { }
 
      // Construct from internal data.
-    constexpr AnyRef (AnyPtr h, const in::Accessor* a) : host(h), acr(a) { }
+    AnyRef (AnyPtr h, const in::Accessor* a) : host(h), acr(a) { }
 
      // Construct from a AnyPtr.
-    constexpr AnyRef (AnyPtr p) : host(p), acr(null) { }
+    AnyRef (AnyPtr p) : host(p), acr(null) { }
 
      // Construct from native pointer.  Explicit for AnyPtr* and AnyRef*,
      // because that's likely to be a mistake.
@@ -63,7 +63,7 @@ struct AnyRef {
     AnyRef (T* p) : host(p), acr(null) { }
 
      // Construct from unknown pointer and type
-    constexpr AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
+    AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
     AnyRef (Type t, Mu* p, bool readonly) : host(t, p, readonly), acr(null) { }
 
      // Construct from an object and an accessor for that object.  This is
@@ -76,23 +76,23 @@ struct AnyRef {
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
 
      // Copy and move construction and assignment
-    constexpr AnyRef (const AnyRef& o) : AnyRef(o.host, o.acr) {
+    AnyRef (const AnyRef& o) : AnyRef(o.host, o.acr) {
         if (acr) [[unlikely]] acr->inc();
     }
-    constexpr AnyRef (AnyRef&& o) :
+    AnyRef (AnyRef&& o) :
         host(o.host), acr(o.acr)
     {
         o.host = null;
         o.acr = null;
     }
-    constexpr AnyRef& operator = (const AnyRef& o) {
+    AnyRef& operator = (const AnyRef& o) {
         this->~AnyRef();
         host = o.host;
         acr = o.acr;
         if (acr) [[unlikely]] acr->inc();
         return *this;
     }
-    constexpr AnyRef& operator = (AnyRef&& o) {
+    AnyRef& operator = (AnyRef&& o) {
         this->~AnyRef();
         host = o.host;
         acr = o.acr;
@@ -105,7 +105,7 @@ struct AnyRef {
 
 ///// INFO
 
-    explicit constexpr operator bool () const { return !!host; }
+    explicit operator bool () const { return !!host; }
 
      // Get type of referred-to item
     Type type () const {
@@ -119,17 +119,17 @@ struct AnyRef {
 ///// SIMPLE ACCESS
 
      // If false, address() will throw.
-    constexpr bool addressable () const {
+    bool addressable () const {
         return caps() % AC::Address;
     }
 
      // If false, attempting to write will throw.
-    constexpr bool writeable () const {
+    bool writeable () const {
         return caps() % AC::Write;
     }
 
      // Throws ReferenceUnaddressable if this AnyRef is not addressable.
-    constexpr AnyPtr address () const {
+    AnyPtr address () const {
         if (!acr) return host;
         AnyPtr r;
         access(AC::Address, AccessCB(r, [](AnyPtr& r, Type t, Mu* v){
@@ -184,7 +184,7 @@ struct AnyRef {
     }
 
      // Cast to pointer
-    constexpr operator AnyPtr () const {
+    operator AnyPtr () const {
         return address();
     }
 
@@ -212,7 +212,7 @@ struct AnyRef {
     void write (AccessCB cb) const { access(AccessCaps::Write, cb); }
     void modify (AccessCB cb) const { access(AccessCaps::Modify, cb); }
 
-    constexpr AccessCaps caps () const {
+    AccessCaps caps () const {
         return acr ? host.caps() & acr->caps : host.caps();
     }
 
@@ -236,7 +236,7 @@ struct AnyRef {
  // pointers) access capabilities are ignored when comparing AnyRefs, so a
  // readonly or unaddressable ref may compare equal to a writeable or
  // addressable ref (provided other details of the refs are identical).
-constexpr bool operator == (const AnyRef& a, const AnyRef& b) {
+inline bool operator == (const AnyRef& a, const AnyRef& b) {
     if (a.host != b.host) return false;
     if (!a.acr | !b.acr) return a.acr == b.acr;
     return *a.acr == *b.acr;
