@@ -93,17 +93,17 @@ consteval StaticString operator""_s (const char* p, usize s) {
 
 namespace in {
 template <class T> constexpr u32 max_digits;
-template <> constexpr u32 max_digits<u8> = 3;
-template <> constexpr u32 max_digits<i8> = 4;
-template <> constexpr u32 max_digits<u16> = 5;
-template <> constexpr u32 max_digits<i16> = 6;
-template <> constexpr u32 max_digits<u32> = 10;
-template <> constexpr u32 max_digits<i32> = 11;
-template <> constexpr u32 max_digits<u64> = 20;
-template <> constexpr u32 max_digits<i64> = 20;
-template <> constexpr u32 max_digits<float> = 16;
-template <> constexpr u32 max_digits<double> = 24;
-template <> constexpr u32 max_digits<long double> = 48; // dunno, seems safe
+template <> inline constexpr u32 max_digits<u8> = 3;
+template <> inline constexpr u32 max_digits<i8> = 4;
+template <> inline constexpr u32 max_digits<u16> = 5;
+template <> inline constexpr u32 max_digits<i16> = 6;
+template <> inline constexpr u32 max_digits<u32> = 10;
+template <> inline constexpr u32 max_digits<i32> = 11;
+template <> inline constexpr u32 max_digits<u64> = 20;
+template <> inline constexpr u32 max_digits<i64> = 20;
+template <> inline constexpr u32 max_digits<float> = 16;
+template <> inline constexpr u32 max_digits<double> = 24;
+template <> inline constexpr u32 max_digits<long double> = 48; // dunno, seems safe
 } // in
 
 template <>

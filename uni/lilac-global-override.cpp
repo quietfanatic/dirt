@@ -2,10 +2,10 @@
 
 #include <new>
 
-ALWAYS_INLINE void* operator new (uni::usize s) noexcept {
+ALWAYS_INLINE void* operator new (uni::usize s) {
     return uni::lilac::allocate(s);
 }
-ALWAYS_INLINE void* operator new[] (uni::usize s) noexcept {
+ALWAYS_INLINE void* operator new[] (uni::usize s) {
     return uni::lilac::allocate(s);
 }
 ALWAYS_INLINE void* operator new (uni::usize s, const std::nothrow_t&) noexcept {
