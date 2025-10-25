@@ -23,6 +23,11 @@
  //  - Maximum total size of close to 8GB (64-bit) or 1GB (32-bit).  All the
  //    virtual address space is reserved at once, so it won't play well with
  //    other libraries that reserve huge address spaces on 32-bit systems.
+ //    Also, this will result in huge core dump files.  If your system writes
+ //    core dump files to disk this won't be a problem, because the core dump
+ //    will be mostly 0s so the file can be stored sparsely.  But if your system
+ //    pipes the core dump through something slow like systemd-coredump, you may
+ //    get a long hangup.
  //  - Only 8-byte alignment is guaranteed
  //  - Bad but bounded (and unlikely?) worst-case external fragmentation
  //  - Worst-case internal fragmentation is 50% (1.5x).  Average for
@@ -104,9 +109,12 @@ namespace in {
  // Maximum size of the pool in bytes.  I can't call std::aligned_alloc with
  // more than 16GB on my machine.  You probably want your program to crash
  // before it consumes more than this anyway.
-static constexpr usize pool_size =
-    sizeof(void*) >= 8 ? 8ULL*1024*1024*1024 - 16384
-                       : 1*1024*1024*1024 - 16384;
+static constexpr usize pool_size = 1*1024*1024*1024 - 16384;
+
+ // Use different sizes for different architectures.
+//static constexpr usize pool_size =
+//    sizeof(void*) >= 8 ? 8ULL*1024*1024*1024 - 16384
+//                       : 1*1024*1024*1024 - 16384;
 
 ///// SIZE CLASSES
 
