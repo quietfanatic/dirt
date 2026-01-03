@@ -122,6 +122,8 @@ static constexpr usize pool_size = 1*1024*1024*1024 - 16384;
  // but makes fragmentation worse.  You will need to adjust the size tables if
  // you change this.
 static constexpr u32 page_size = 8192;
+ // In theory this could be reduced to 16 at the cost of a few extra
+ // instructions during de/allocation.
 static constexpr u32 page_overhead = 32;
 static constexpr u32 page_usable_size = page_size - page_overhead;
 

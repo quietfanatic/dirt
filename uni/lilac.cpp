@@ -344,10 +344,11 @@ namespace in {
  // noinline-and-tail-call, so that reallocate doesn't have to make a stack
  // frame if it doesn't have to.
 NOINLINE
-void* reallocate_from_small (void* p, usize s, u32 old_s) {
+void* reallocate_from_small (void* p, usize s, Page* page) {
     void* r = allocate(s);
-    std::memcpy(r, p, old_s);
-    deallocate_unknown_size(p);
+    std::memcpy(r, p, page->slot_size);
+    Page*& fp = global.first_partial_pages[page->size_class];
+    deallocate_small(p, fp, page->slot_size);
     return r;
 }
 } // in
@@ -358,9 +359,8 @@ void* reallocate (void* p, usize s) noexcept {
      && (char*)p < (char*)global.pool_end
     ) [[likely]] {
         Page* page = (Page*)((usize)p & ~usize(page_size - 1));
-        u32 old_s = page->slot_size;
-        if (s > old_s) {
-            return reallocate_from_small(p, s, old_s);
+        if (s > page->slot_size) {
+            return reallocate_from_small(p, s, page);
         }
         else return p;
     }
