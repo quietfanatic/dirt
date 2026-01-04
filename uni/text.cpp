@@ -191,6 +191,9 @@ u32 count_decimal_digits (u64 v) noexcept {
     }
 }
 
+ // This is short enough it could be inlined, but the caller is likely to
+ // already have called count_decimal_digits, so it'll already have a stack
+ // frame, so calling one more function won't cost much.
 char* write_decimal_digits (char* p, u32 count, u64 v) noexcept {
      // The STL std::to_chars is kinda messy.  It does two digits at a time,
      // which is theoretically faster, but it reads a lookup table and has more

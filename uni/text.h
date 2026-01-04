@@ -68,4 +68,27 @@ u32 count_decimal_digits (u64 v) noexcept;
  // count_decimal_digits(v).  Returns p + count (the end of the written number).
 char* write_decimal_digits (char* p, u32 count, u64 v) noexcept;
 
+ // Like std::from_chars but smaller.  Does not distinguish between error
+ // conditions.  Returns {start, 0} if end == start or if the number overflows.
+template <class T>
+struct ReadResult {
+    const char* p;
+    T value;
+};
+template <class T>
+ReadResult<T> read_decimal_digits (
+    const char* start, const char* end
+) noexcept {
+    ReadResult<T> r {start, 0};
+    while (r.p != end) {
+        u8 digit = *r.p - '0';
+        if (digit > 9) return r;
+        auto old = r.value;
+        r.value = r.value * 10 + digit;
+        if (r.value < old) return {start, 0};
+        r.p++;
+    }
+    return r;
+}
+
 } // namespace uni
