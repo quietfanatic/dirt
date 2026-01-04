@@ -33,7 +33,9 @@
 // typed "null" AnyRefs, which have a type but no value, and are equivalent to
 // typed null pointers.  operator bool returns false for both of these, so to
 // differentiate them, call .type(), which will return the empty Type for the
-// empty AnyRef.
+// empty AnyRef.  read(), write(), and modify() can be called on empty or null
+// AnyRefs; their callbacks will be passed nullptr and a possibly empty Type.
+// get_as<>() and set_as<>() will segfault on empty or null AnyRefs.
 
 #pragma once
 #include <type_traits>
@@ -107,7 +109,7 @@ struct AnyRef {
 
     explicit operator bool () const { return !!host; }
 
-     // Get type of referred-to item
+     // Get type of referred-to item.  Gives empty Type for empty AnyRef.
     Type type () const {
         Type r;
         access(AC::Read, AccessCB(r, [](Type& r, Type t, Mu*){

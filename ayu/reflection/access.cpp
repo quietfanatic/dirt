@@ -10,7 +10,6 @@ void access_Functive (
     self->access_func(acr, from, cb, mode);
 }
 
-NOINLINE
 void access_Typed (
     const Accessor* acr, Mu& to, AccessCB cb, AccessCaps
 ) {
@@ -55,7 +54,7 @@ void access_AnyPtrFunc (
     auto self = static_cast<const AnyPtrFuncAcr<Mu>*>(acr);
     auto ptr = self->f(from);
      // This will not get checked unless we check it here.
-    if (mode % AC::Write && ptr.readonly()) {
+    if (ptr.readonly() && mode % AC::Write) {
         raise(e_WriteReadonly, "Non-readonly anyptr_func returned readonly AnyPtr.");
     }
     cb(ptr.type(), ptr.address);
@@ -194,9 +193,9 @@ NOINLINE
 bool operator== (const Accessor& a, const Accessor& b) {
     if (&a == &b) return true;
     if (a.form != b.form) return false;
-     // These ACRs are dynamically generated, but have a limited set of types,
-     // so we can dissect them and compare their members.
     switch (a.form) {
+         // These ACRs are dynamically generated, but have a limited set of
+         // types, so we can dissect them and compare their members.
         case AF::Chain: {
             auto& aa = reinterpret_cast<const ChainAcr&>(a);
             auto& bb = reinterpret_cast<const ChainAcr&>(b);

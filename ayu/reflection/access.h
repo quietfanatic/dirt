@@ -29,6 +29,9 @@ enum class AccessCaps : u8 {
     Modify = Write|Read,
      // Request/allow access to the permanent address of the item.
     Address = 0x4,
+     // If we had these, this is where they would go, but we don't.
+    //WriteChildren = 0x10,
+    //ReadChildren = 0x20,
      // Allow children to be addressable even if this item isn't addressable.
      // On accessors, this should always be set if Address is set.  This should
      // never be set when requesting access.  This value should be far enough
