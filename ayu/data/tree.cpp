@@ -6,6 +6,16 @@
 namespace ayu {
 namespace in {
 
+void check_uniqueness (u32 s, const TreePair* p) {
+    expect(s);
+    for (u32 i = 0; i < s; i++)
+    for (u32 j = 0; j < i; j++) {
+        if(p[i].first == p[j].first) {
+            raise(e_TreeObjectKeyDuplicate, p[i].first);
+        }
+    }
+}
+
 NOINLINE
 void delete_Tree_data (Tree& t) noexcept {
      // Manually delete all the elements.  We can't call UniqueArray<*>'s
@@ -59,16 +69,10 @@ static bool tree_eq_bool (const Tree& a, const Tree& b) noexcept {
     return a.data.as_bool == b.data.as_bool;
 }
 static bool tree_eq_number (const Tree& a, const Tree& b) noexcept {
-    if (a.floaty) {
-        if (b.floaty) {
-            auto av = a.data.as_double;
-            auto bv = b.data.as_double;
-            return av == bv || (av != av && bv != bv);
-        }
-        else return a.data.as_double == b.data.as_i64;
-    }
-    else if (b.floaty) return a.data.as_i64 == b.data.as_double;
-    else return a.data.as_i64 == b.data.as_i64;
+    if (!a.floaty && !b.floaty) return a.data.as_i64 == b.data.as_i64;
+    double av = a.floaty ? a.data.as_double : a.data.as_i64;
+    double bv = b.floaty ? b.data.as_double : b.data.as_i64;
+    return av == bv || (av != av && bv != bv);
 }
 static bool tree_eq_string (const Tree& a, const Tree& b) noexcept {
     return a.data.as_char_ptr == b.data.as_char_ptr
@@ -86,7 +90,13 @@ static bool tree_eq_array (const Tree& a, const Tree& b) noexcept {
 static bool tree_eq_object (const Tree& a, const Tree& b) noexcept {
     if (a.data.as_object_ptr == b.data.as_object_ptr) return true;
     if (a.size != b.size) return false;
-     // Allow attributes to be in different orders
+     // This lets the compiler assume both loops run at least once.
+    if (a.size == 0) return true;
+     // The same attributes can be in different orders, so just compare each
+     // attribute to each attribute for O(a.size * b.size).  In theory there are
+     // faster algorithms, but they either require storing extra data in the
+     // objects (which would break compatibility with AnyArray<TreePair>) or
+     // would only be worth it for very large objects.
     auto ab = a.data.as_object_ptr;
     auto ae = ab + a.size;
     auto bb = b.data.as_object_ptr;

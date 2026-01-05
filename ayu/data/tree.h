@@ -97,6 +97,8 @@ struct Tree {
     { }
 
     explicit constexpr Tree (AnyArray<Tree>, TreeFlags = {});
+     // This can throw e_TreeObjectKeyDuplicate.  Only truly constexpr if the
+     // passed array is empty.
     explicit constexpr Tree (AnyArray<TreePair>, TreeFlags = {});
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
@@ -193,6 +195,8 @@ constexpr ErrorCode e_TreeWrongForm = "ayu::e_TreeWrongForm";
  // Tried to get something (probably a number) out of a tree but its value was
  // out of range for the requested type.  Example, u8(Tree(257)).
 constexpr ErrorCode e_TreeCantRepresent = "ayu::e_TreeCantRepresent";
+ // Tried to construct an object tree, but the keys weren't all unique.
+constexpr ErrorCode e_TreeObjectKeyDuplicate = "ayu::e_TreeObjectKeyDuplicate";
 
 }  // namespace ayu
 
