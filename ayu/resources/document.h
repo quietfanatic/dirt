@@ -40,30 +40,12 @@ struct Document : in::DocumentData {
      // Emplace a new anonymous item into this document.  This should be
      // basically as fast as an ordinary allocation with operator new.
     template <Describable T, class... Args>
-    T* new_ (Args&&... args) {
-        void* p = allocate(Type::For<T>());
-        try {
-            return new (p) T {std::forward<Args...>(args...)};
-        }
-        catch (...) {
-            deallocate(p);
-            throw;
-        }
-    }
+    T* new_ (Args&&... args);
 
      // Emplace a new named item into this document.  This may scan all the
      // items in the document to enfore name uniqueness.
     template <Describable T, class... Args>
-    T* new_named (AnyString name, Args&&... args) {
-        void* p = allocate_named(Type::For<T>(), move(name));
-        try {
-            return new (p) T (std::forward<Args...>(args...));
-        }
-        catch (...) {
-            deallocate(p);
-            throw;
-        }
-    }
+    T* new_with_name (AnyString name, Args&&... args);
 
      // Delete an item in this document.  In debug mode, verifies that the given
      // object actually belongs to this Document and that its type is actually
@@ -82,15 +64,19 @@ struct Document : in::DocumentData {
 
      // Allocates space for this type but does not construct it.
     void* allocate (Type) noexcept;
-    void* allocate_named (Type, AnyString);
+    void* allocate_with_name (Type, AnyString);
+     // Does not check uniqueness (except in debug builds).
+    void* allocate_with_name_expect_unique (Type, AnyString);
 
      // Destructs and deallocates.
     void delete_ (Type, Mu*) noexcept;
      // Deletes by name and throws if not found.
-    void delete_named (Str);
+    void delete_with_name (Str);
 
      // Deallocates without destructing.
     void deallocate (void* p) noexcept;
+
+    private: void check_unique (Str);
 };
 
  // Tried to create a document item with an invalid name (empty or starting
@@ -102,5 +88,38 @@ constexpr ErrorCode e_DocumentItemNameDuplicate = "ayu::e_DocumentItemNameDuplic
  // Tried to delete a document item by name, but the given name isn't in this
  // document.
 constexpr ErrorCode e_DocumentItemNotFound = "ayu::e_DocumentItemNotFound";
+
+///// INLINES
+
+template <Describable T, class... Args>
+T* Document::new_ (Args&&... args) {
+    void* p = allocate(Type::For<T>());
+    try {
+        return new (p) T {std::forward<Args...>(args...)};
+    }
+    catch (...) {
+        deallocate(p);
+        throw;
+    }
+}
+
+template <Describable T, class... Args>
+T* Document::new_with_name (AnyString name, Args&&... args) {
+    void* p = allocate_with_name(Type::For<T>(), move(name));
+    try {
+        return new (p) T (std::forward<Args...>(args...));
+    }
+    catch (...) {
+        deallocate(p);
+        throw;
+    }
+}
+
+inline
+void* Document::allocate_with_name (Type t, AnyString name) {
+    expect(t.cpp_align() <= 8);
+    check_unique(name);
+    return allocate_with_name_expect_unique(t, move(name));
+}
 
 } // namespace ayu

@@ -84,11 +84,11 @@ void* Document::allocate (Type t) noexcept {
     return header+1;
 }
 
-void* Document::allocate_named (Type t, AnyString name) {
-    expect(t.cpp_align() <= 8);
-    if (find_with_name(name)) {
-        raise(e_DocumentItemNameDuplicate, move(name));
-    }
+NOINLINE
+void* Document::allocate_with_name_expect_unique (Type t, AnyString name) {
+#ifndef NDEBUG
+    expect(!find_with_name(name));
+#endif
     if (!name) {
         raise(e_DocumentItemNameInvalid, "Document item name cannot be empty");
     }
@@ -135,7 +135,7 @@ void Document::delete_ (Type t, Mu* p) noexcept {
     lilac::deallocate_unknown_size(header);
 }
 
-void Document::delete_named (Str name) {
+void Document::delete_with_name (Str name) {
     AnyPtr p = find_with_name(name);
     if (!p) raise(e_DocumentItemNotFound, name);
     delete_(p.type(), p.address);
@@ -148,6 +148,13 @@ void Document::deallocate (void* p) noexcept {
     lilac::deallocate_unknown_size(header);
 }
 
+ // Optimize this code path for size more than speed.
+NOINLINE
+void Document::check_unique (Str name) {
+    if (find_with_name(name)) raise(e_DocumentItemNameDuplicate, name);
+}
+
+ // Use named functions instead of lambdas for easier debugging
 static void Document_before_from_tree (Document& v, const Tree& t) {
      // Each of these checked cases should reliably cause an error later
     if (t.form != Form::Object) [[unlikely]] return;
@@ -158,7 +165,7 @@ static void Document_before_from_tree (Document& v, const Tree& t) {
         auto a = Slice<Tree>(value);
         if (a.size() != 2 || a[0].form != Form::String) continue;
         Type t = Type(Str(a[0]));
-        void* p = v.allocate_named(t, key);
+        void* p = v.allocate_with_name_expect_unique(t, key);
         dynamic_default_construct(t, p);
     }
 }

@@ -758,8 +758,8 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     throws_code<e_ResourceStateInvalid>([&]{ save(output); }, "save throws on unloaded resource");
 
-    doc->delete_named("foo");
-    doc->new_named<i32>("asdf", 51);
+    doc->delete_with_name("foo");
+    doc->new_with_name<i32>("asdf", 51);
 
     doesnt_throw([&]{ rename(input, output); }, "rename");
     is(input->state(), RS::Unloaded, "Old resource is RS::Unloaded after renaming");
