@@ -119,25 +119,25 @@ struct Parser {
 ///// TERM
 
     NOINLINE const char* parse_term (const char* in, Tree& r) {
-        if (in >= end) [[unlikely]] return got_error(in, r);
-        switch (char_props[*in] & CHAR_TERM_MASK) {
-            case CHAR_TERM_ERROR: [[unlikely]] return got_error(in, r);
-            case CHAR_TERM_WORD: return got_word(in, r);
-            case CHAR_TERM_DIGIT: return got_digit(in, r);
-            case CHAR_TERM_DOT: return got_dot(in, r);
-            case CHAR_TERM_PLUS: return got_plus(in, r);
-             // Comments starting with -- should already have been skipped by a
-             // previous skip_ws().
-            case CHAR_TERM_MINUS: return got_minus(in, r);
-
-            case CHAR_TERM_STRING: return got_string(in, r);
-            case CHAR_TERM_ARRAY: return got_array(in, r);
-            case CHAR_TERM_OBJECT: return got_object(in, r);
-
-            case CHAR_TERM_DECL: return got_decl(in, r);
-            case CHAR_TERM_SHORTCUT: return got_shortcut(in, r);
-            default: never();
-        }
+         // Table has to be inside member function to see functions declared
+         // below it.
+        static constexpr decltype(&got_word) table [] = {
+            &got_error,
+            &got_word,
+            &got_digit,
+            &got_dot,
+            &got_plus,
+            &got_minus,
+            &got_string,
+            &got_array,
+            &got_object,
+            &got_decl,
+            &got_shortcut
+        };
+        if (in >= end) error(in, "Expected term but ran into end of input");
+        auto index = char_props[*in] & CHAR_TERM_MASK;
+        expect(u32(index) <= sizeof(table) / sizeof(table[0]));
+        return table[u32(index)](*this, in, r);
     }
 
 ///// WORDS (unquoted)
@@ -164,8 +164,9 @@ struct Parser {
         return Str(start, in);
     }
 
-    NOINLINE const char* got_word (const char* in, Tree& r) {
-        auto word = parse_word(in);
+    NOINLINE static
+    const char* got_word (Parser& self, const char* in, Tree& r) {
+        auto word = self.parse_word(in);
         if (word == "null") new (&r) Tree(null);
         else if (word == "true") new (&r) Tree(true);
         else if (word == "false") new (&r) Tree(false);
@@ -235,23 +236,26 @@ struct Parser {
         else return parse_number<false>(word, r, minus);
     }
 
-    NOINLINE const char* got_digit (const char* in, Tree& r) {
-        return parse_number_based(parse_word(in), r, false);
+    NOINLINE static
+    const char* got_digit (Parser& self, const char* in, Tree& r) {
+        return self.parse_number_based(self.parse_word(in), r, false);
     }
 
-    NOINLINE const char* got_dot (const char* in, Tree& r) {
-        auto word = parse_word(in);
+    NOINLINE static
+    const char* got_dot (Parser& self, const char* in, Tree& r) {
+        auto word = self.parse_word(in);
         if (word.size() > 1) switch (word[1]) {
             case ANY_DECIMAL_DIGIT: case '+': case '-': {
-                error(in, "Number cannot start with a dot.");
+                self.error(in, "Number cannot start with a dot.");
             }
         }
         new (&r) Tree(word);
         return word.end();
     }
 
-    NOINLINE const char* got_plus (const char* in, Tree& r) {
-        auto word = parse_word(in);
+    NOINLINE static
+    const char* got_plus (Parser& self, const char* in, Tree& r) {
+        auto word = self.parse_word(in);
         if (word == "+nan") {
             new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
             return word.end();
@@ -260,27 +264,30 @@ struct Parser {
             new (&r) Tree(std::numeric_limits<double>::infinity());
             return word.end();
         }
-        return parse_number_based(word.slice(1), r, false);
+        return self.parse_number_based(word.slice(1), r, false);
     }
 
-    NOINLINE const char* got_minus (const char* in, Tree& r) {
-        auto word = parse_word(in);
+    NOINLINE static
+    const char* got_minus (Parser& self, const char* in, Tree& r) {
+         // Comments should already have been recognized by this point.
+        auto word = self.parse_word(in);
         if (word == "-inf") {
             new (&r) Tree(-std::numeric_limits<double>::infinity());
             return word.end();
         }
-        return parse_number_based(word.slice(1), r, true);
+        return self.parse_number_based(word.slice(1), r, true);
     }
 
 ///// STRINGS (quoted)
 
-    NOINLINE const char* got_string (const char* in, Tree& r) {
+    NOINLINE static
+    const char* got_string (Parser& self, const char* in, Tree& r) {
         in++;  // for the "
          // Find the end of the string and determine upper bound of required
          // capacity.
         u32 n_escapes = 0;
         const char* p = in;
-        while (p < end) {
+        while (p < self.end) {
             switch (*p) {
                 case '"': goto start;
                 case '\\':
@@ -291,7 +298,7 @@ struct Parser {
                 default: p++; break;
             }
         }
-        error(in, "Missing \" before end of input");
+        self.error(in, "Missing \" before end of input");
         start:
          // If there aren't any escapes we can just memcpy the whole string
         if (!n_escapes) {
@@ -301,14 +308,14 @@ struct Parser {
          // Otherwise preallocate
         auto out = UniqueString(Capacity(p - in - n_escapes));
          // Now read the string
-        while (in < end) {
+        while (in < self.end) {
             char c = *in++;
             switch (c) {
                 case '"':
                     new (&r) Tree(move(out));
                     return in;
                 case '\\': {
-                    expect(in < end);
+                    expect(in < self.end);
                     switch (*in++) {
                         case '"': c = '"'; break;
                         case '\\': c = '\\'; break;
@@ -319,11 +326,11 @@ struct Parser {
                         case 'n': c = '\n'; break;
                         case 'r': c = '\r'; break;
                         case 't': c = '\t'; break;
-                        case 'x': in = got_x_escape(in, c); break;
+                        case 'x': in = self.got_x_escape(in, c); break;
                         case 'u':
-                            in = got_u_escape(in, out);
+                            in = self.got_u_escape(in, out);
                             continue; // Skip the push_back
-                        default: in--; error(in, "Unknown escape sequence");
+                        default: in--; self.error(in, "Unknown escape sequence");
                     }
                     break;
                 }
@@ -348,6 +355,8 @@ struct Parser {
         invalid_x: error(in, "Invalid \\x escape sequence");
     }
 
+     // NOINLINE this because it's complicated and we only have it for JSON
+     // compatibility.
     NOINLINE
     const char* got_u_escape (const char* in, UniqueString& out) {
         UniqueString16 units (Capacity(1));
@@ -377,67 +386,69 @@ struct Parser {
 
 ///// COMPOUND
 
-    NOINLINE const char* got_array (const char* in, Tree& r) {
-        if (!--shallowth) error(in, "Exceeded limit of 200 nested arrays/objects");
+    NOINLINE static
+    const char* got_array (Parser& self, const char* in, Tree& r) {
+        if (!--self.shallowth) self.error(in, "Exceeded limit of 200 nested arrays/objects");
         const char* start = in;
         in++;  // for the [
-        in = skip_ws(in);
+        in = self.skip_ws(in);
         UniqueArray<Tree> a;
-        while (in < end) {
+        while (in < self.end) {
             if (*in == '}') [[unlikely]] {
-                auto sp = get_source_pos(start);
-                error(in, cat(
+                auto sp = self.get_source_pos(start);
+                self.error(in, cat(
                     "Mismatch between [ at ", sp.line, ':', sp.col, " and }"
                 ));
             }
             if (*in == ']') {
                 new (&r) Tree(move(a));
-                ++shallowth;
+                ++self.shallowth;
                 return in + 1;
             }
-            in = parse_term(in, a.emplace_back());
-            in = skip_comma(in);
+            in = self.parse_term(in, a.emplace_back());
+            in = self.skip_comma(in);
         }
-        error(in, "Missing ] before end of input");
+        self.error(in, "Missing ] before end of input");
     }
 
-    NOINLINE const char* got_object (const char* in, Tree& r) {
-        if (!--shallowth) error(in, "Exceeded limit of 200 nested arrays/objects");
+    NOINLINE static
+    const char* got_object (Parser& self, const char* in, Tree& r) {
+        if (!--self.shallowth) self.error(in, "Exceeded limit of 200 nested arrays/objects");
         const char* start = in;
         in++;  // for the {
-        in = skip_ws(in);
+        in = self.skip_ws(in);
         UniqueArray<TreePair> o;
-        while (in < end) {
+        while (in < self.end) {
             if (*in == ']') [[unlikely]] {
-                auto sp = get_source_pos(start);
-                error(in, cat(
+                auto sp = self.get_source_pos(start);
+                self.error(in, cat(
                     "Mismatch between { at ", sp.line, ':', sp.col, " and ]"
                 ));
             }
             if (*in == '}') {
                 new (&r) Tree(move(o));
-                ++shallowth;
+                ++self.shallowth;
                 return in + 1;
             }
             Tree key;
-            in = parse_term(in, key);
+            in = self.parse_term(in, key);
             if (key.form != Form::String) {
-                error(in, "Can't use non-string as key in object");
+                self.error(in, "Can't use non-string as key in object");
             }
-            in = skip_ws(in);
-            if (in >= end) goto not_terminated;
+            in = self.skip_ws(in);
+            if (in >= self.end) goto not_terminated;
             if (*in == ':') in++;
             else [[unlikely]] {
-                check_error_chars(in);
-                error(in, "Missing : after name in object");
+                self.check_error_chars(in);
+                self.error(in, "Missing : after name in object");
             }
-            in = skip_ws(in);
-            if (in >= end) goto not_terminated;
+            in = self.skip_ws(in);
+            if (in >= self.end) goto not_terminated;
             Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
-            in = parse_term(in, value);
-            in = skip_comma(in);
+            in = self.parse_term(in, value);
+            in = self.skip_comma(in);
         }
-        not_terminated: error(in, "Missing } before end of input");
+        not_terminated: self.error(in, "Missing } before end of input");
     }
 
 ///// SHORTCUTS
@@ -458,46 +469,48 @@ struct Parser {
         return end;
     }
 
-    NOINLINE const char* got_decl (const char* in, Tree& r) {
+    NOINLINE static
+    const char* got_decl (Parser& self, const char* in, Tree& r) {
         in++;  // for the &
         {
             AnyString name;
-            in = parse_shortcut_name(in, name);
-            for (auto& sc : shortcuts) {
+            in = self.parse_shortcut_name(in, name);
+            for (auto& sc : self.shortcuts) {
                 if (sc.first == name) {
-                    error(in, cat("Multiple declarations of shortcut &", name));
+                    self.error(in, cat("Multiple declarations of shortcut &", name));
                 }
             }
-            in = skip_ws(in);
-            if (in < end && *in == ':') {
+            in = self.skip_ws(in);
+            if (in < self.end && *in == ':') {
                 in++;
-                in = skip_ws(in);
+                in = self.skip_ws(in);
                 Tree value;
-                in = parse_term(in, value);
-                shortcuts.emplace_back(move(name), move(value));
-                in = skip_comma(in);
+                in = self.parse_term(in, value);
+                self.shortcuts.emplace_back(move(name), move(value));
+                in = self.skip_comma(in);
                  // Fall through
             }
             else {
-                in = parse_term(in, r);
-                shortcuts.emplace_back(move(name), r);
+                in = self.parse_term(in, r);
+                self.shortcuts.emplace_back(move(name), r);
                 return in;
             }
         } // Destroy name and value so we can tail call parse_term.
-        return parse_term(in, r);
+        return self.parse_term(in, r);
     }
 
-    NOINLINE const char* got_shortcut (const char* in, Tree& r) {
+    NOINLINE static
+    const char* got_shortcut (Parser& self, const char* in, Tree& r) {
         in++;  // for the *
         AnyString name;
-        in = parse_shortcut_name(in, name);
-        for (auto& sc : shortcuts) {
+        in = self.parse_shortcut_name(in, name);
+        for (auto& sc : self.shortcuts) {
             if (sc.first == name) {
                 new (&r) Tree(sc.second);
                 return in;
             }
         }
-        error(in, cat("Unknown shortcut *", name));
+        self.error(in, cat("Unknown shortcut *", name));
     }
 
 ///// NON-SEMANTIC CONTENT
@@ -575,13 +588,10 @@ struct Parser {
         return {line, col};
     };
 
-     // noipa stops noreturn from propagating through and disabling tail call in
-     // parse_term
-    [[gnu::noipa, gnu::cold]] NOINLINE
-    const char* got_error (const char* in, Tree&) {
-        if (in >= end) error(in, "Expected term but ran into end of input");
-        check_error_chars(in);
-        error(in, cat("Expected term but got ", *in));
+    [[gnu::cold]] NOINLINE static
+    const char* got_error (Parser& self, const char* in, Tree&) {
+        self.check_error_chars(in);
+        self.error(in, cat("Expected term but got ", *in));
     }
 
     [[gnu::cold]] NOINLINE
