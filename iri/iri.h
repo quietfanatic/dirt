@@ -374,7 +374,7 @@ bool scheme_canonical (Str scheme);
 template <>
 struct std::hash<iri::IRI> {
     std::size_t operator() (const iri::IRI& x) const {
-        return std::hash<uni::arrays::AnyString>{}(x.spec_);
+        return std::hash<uni::AnyString>{}(x.spec_);
     }
 };
 

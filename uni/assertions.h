@@ -4,7 +4,6 @@
 #include "common.h"
 
 namespace uni {
-inline namespace assertions {
 
  // Abort if the condition isn't true.
 template <class T> ALWAYS_INLINE static constexpr
@@ -72,5 +71,4 @@ T&& expect (T&& v) {
 }
 #endif
 
-} // assertions
 } // uni

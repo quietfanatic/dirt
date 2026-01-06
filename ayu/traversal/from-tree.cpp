@@ -22,11 +22,11 @@ struct InitOp {
 };
 } }
 template <>
-struct uni::arrays::IsTriviallyRelocatableS<ayu::in::SwizzleOp> {
+struct uni::IsTriviallyRelocatableS<ayu::in::SwizzleOp> {
     static constexpr bool value = true;
 };
 template <>
-struct uni::arrays::IsTriviallyRelocatableS<ayu::in::InitOp> {
+struct uni::IsTriviallyRelocatableS<ayu::in::InitOp> {
     static constexpr bool value = true;
 };
 namespace ayu { namespace in {

@@ -5,7 +5,6 @@
 #include "common.h"
 
 namespace uni {
-inline namespace arrays {
 
 ///// ARRAY TYPES
 
@@ -129,5 +128,4 @@ struct ArrayImplementation<ArrayClass::MutStr, T> {
     T* data;
 };
 
-} // arrays
 } // uni

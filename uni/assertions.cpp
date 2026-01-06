@@ -6,7 +6,6 @@
 #include <iostream>
 
 namespace uni {
-inline namespace assertions {
 
 [[gnu::cold]]
 void abort_requirement_failed (std::source_location loc) noexcept {
@@ -17,5 +16,4 @@ void abort_requirement_failed (std::source_location loc) noexcept {
     std::abort();
 }
 
-} // assertions
 } // uni

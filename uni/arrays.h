@@ -71,7 +71,6 @@
 #include "memeq.h"
 
 namespace uni {
-inline namespace arrays {
 
 ///// THIS HEADER PROVIDES
 
@@ -2303,7 +2302,6 @@ void swap (ArrayInterface<ac, T>& a, ArrayInterface<ac, T>& b) {
     b.impl = impl;
 }
 
-} // arrays
 } // uni
 
 template <class ac, class T>

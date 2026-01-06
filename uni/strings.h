@@ -5,7 +5,8 @@
 #include "text.h"
 
 namespace uni {
-inline namespace strings {
+
+///// BASIC INTERFACE
 
  // Concatenation for character strings.  Returns the result of converting all
  // the arguments to strings, concatenated into a single string.
@@ -327,5 +328,4 @@ struct StringConversion<Caterator<F>> {
     using Self = Caterator<F>;
 };
 
-} // strings
 } // uni

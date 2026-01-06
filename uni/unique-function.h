@@ -11,7 +11,7 @@ template <class Ret, class... Args>
 struct UniqueFunction<Ret(Args...)> {
      ///// INTERNAL
     struct Base {
-         // Don't use builtin virtual functions, they cause binary bloat
+         // Don't use builtin virtual functions, because they cause binary bloat
          // especially in template classes.  Also we're putting both of these
          // function pointers directly in the object, since it isn't worth
          // having a separate vtable for just two functions.
