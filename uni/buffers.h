@@ -27,7 +27,6 @@ struct SharableBuffer {
     }
 
     static constexpr usize min_capacity = 8 / sizeof(T) ? 8 / sizeof(T) : 1;
-     // Match max_capacity with ArrayInterface's max_size
     static constexpr usize max_capacity = 0x7fffffff;
 
      // Round up the requested size to a power of two, anticipating continual

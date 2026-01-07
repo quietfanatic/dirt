@@ -21,8 +21,8 @@ enum class PrintOptions {
 DECLARE_ENUM_BITWISE_OPERATORS(PrintOptions)
 
  // Writes tree to string.  May be overallocated because it assumes you won't
- // keep the string around for long.  If you're keeping multiple of these around
- // for a long time, you may want to call shrink_to_fit() on them.
+ // keep the string around for long.  If you're keeping lots of these around for
+ // a long time, you may want to call shrink_to_fit() on them.
 UniqueString tree_to_string (const Tree&, PrintOptions opts = {});
  // Like tree_to_string but uses defaults optimized for tree_to_file.
 UniqueString tree_to_string_for_file (const Tree&, PrintOptions opts = {});

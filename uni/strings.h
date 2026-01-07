@@ -13,17 +13,25 @@ namespace uni {
  //
  // Example: int n; cat("There are ", n, " trees.");
  //
- //   - All ints, float, and double will be converted with std::to_chars.
- //   - unsigned char and signed char are considered integers.
- //   - char by itself is treated like a string of one char.
+ //   - All ints, float, and double will be stringified.
+ //   - unsigned char and signed char are considered integers (u8 and i8).
+ //   - Plain char is treated like a single-character string.
  //   - bool is written as 0 or 1.
+ //   - Pointers (except const char*) will be written in hexadecimal (without a
+ //     preceding 0x).
  //   - Any type with .size() and .data() is assumed to be string-like,
  //     and .data() must coerce to const char*.
  //   - Anything that coerces to Str will be coerced to Str.
  //   - Other types can be processed by specializing StringConversion below.
  //
- // For multiple segments, this will be much more efficient than using a binary
+ // For multiple arguments, this is much more efficient than a binary
  // concatenation operator, because it only does one allocation.
+ //
+ // cat() fulfills a similar role to std::format(), except that it's much
+ // simpler.  Eventually, custom formatting of integers and floats can be
+ // supported by custom StringConversion traits, but this is not yet
+ // implemented.
+ //
 template <class Head, class... Tail>
 UniqueString cat (Head&& h, const Tail&... t);
 UniqueString cat ();
@@ -33,6 +41,15 @@ UniqueString cat ();
 template <class Head, class... Tail> inline
 Head& encat (Head& h, const Tail&... t) {
     return h = cat(move(h), t...);
+}
+
+///// ADVANCED INTERFACE
+
+ // Literal suffix for StaticString.  This is usually unnecessary, as raw
+ // const char[] arrays are generally treated as static strings by the arrays
+ // library.
+consteval StaticString operator""_s (const char* p, usize s) {
+    return StaticString(p, s);
 }
 
  // Trait for string conversions.  This must have:
@@ -82,13 +99,6 @@ struct Caterator {
 };
 
 // TODO: integer wrapper class that outputs hexadecimal
-
- // Literal suffix for StaticString.  This is usually unnecessary, as raw
- // const char[] arrays are generally treated as static strings by the arrays
- // library.
-consteval StaticString operator""_s (const char* p, usize s) {
-    return StaticString(p, s);
-}
 
 ///// DEFAULT STRING CONVERSIONS
 

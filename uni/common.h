@@ -6,7 +6,6 @@
 #include <utility>
 
 namespace uni {
-inline namespace common {
 
 ///// New-fangled int names
 using i8 = std::int8_t;
@@ -59,7 +58,6 @@ constexpr float inf = std::numeric_limits<float>::infinity();
 
 using std::move;
 
-} // common
 } // uni
 
 ///// MACROS

@@ -9,9 +9,9 @@
  // to modify them.  By default simple access operations like begin(), end(),
  // operator[], and at() do not trigger a copy-on-write and instead return const
  // references.  To trigger a copy-on-write use mut_begin(), mut_end(),
- // mut_get(), and mut_at().  For simplicity, AnyArray and AnyString can only be
- // used with element types that have a copy constructor.  To work with move-
- // only element types, use UniqueArray.
+ // mut_get(), and mut_at().  AnyArray and AnyString can only be used with
+ // copyable element types.  To work with move-only element types, use
+ // UniqueArray.
  //
  // STATIC STRING OPTIMIZATION
  // Not to be confused with Small String Optimization.  AnyArray and AnyString
@@ -24,27 +24,39 @@
  // use-after-free surprises.  I think this should be rare to nonexistent in
  // practice.
  //
- // THREAD-SAFETY
- // AnyArray and AnyString use reference counting which is not threadsafe.  To
- // pass arrays and strings between threads you should use UniqueArray and
- // UniqueString.
- //
  // EXCEPTION-SAFETY
  // None of these classes generate their own exceptions.  If an out-of-bounds
  // index or a max-capacity-exceeded problem occurs, the program will be
  // terminated.
  //
  // Elements are allowed to throw exceptions from their default constructor,
- // copy constructor, or copy assignment operator. If this happens, array
- // methods (unless otherwise noted) provide a mostly-strong exception
- // guarantee: All semantic state will be rewound to before the method was
- // called, but non-semantic state (such as capacity and whether a buffer is
- // shared) may be altered.
+ // copy constructor, or copy assignment operator. If this happens, most methods
+ // provide a mostly-strong exception guarantee: All semantic state will be
+ // rewound to before the method was called, but non-semantic state (such as
+ // capacity and whether a buffer is shared) may be altered.
+ //
+ // There are two exceptions to the mostly-strong exception guarantee:
+ //   - The multi-element form of insert() will terminate the program if
+ //     anything throws an exception during it, because cleanup would not be
+ //     worth the code size cost.
+ //   - consume() and reverse_consume() always destroy the entire array even if
+ //     an exception occur, because they destruct elements as they iterate over
+ //     them, and there's no way to undestruct elements that have already been
+ //     destroyed.
  //
  // Elements are assumed to NEVER throw exceptions from their move constructor,
- // move assignment operator, and destructor, even if those are not marked
+ // move assignment operator, or destructor, EVEN IF those are not marked
  // noexcept.  If one of those throws, undefined behavior occurs (hopefully with
  // a debug-mode assert).
+ //
+ // THREAD-SAFETY
+ // This library is not threadsafe, mainly because it uses a non-threadsafe
+ // allocator (lilac).  If modified to use a threadsafe allocator, then AnyArray
+ // and AnyString will still use non-threadsafe reference counting, so they will
+ // need to be martialled to UniqueArray and UniqueString before being passed
+ // between threads, or have make_not_shared() called on them.  Or modified to
+ // use threadsafe reference counting but that has a significant performance
+ // cost.
  //
  // LIMITATIONS
  // Owned arrays are limited to a size and capacity of 2^31-1 elements even on
@@ -55,6 +67,30 @@
  // Reference counts are limited to 2^32-1, but overflow is not checked.  Four
  // billion array objects would take 64 GB of RAM anyway so if you get to that
  // point you already have other problems.
+ //
+ // COMPARISON WITH STL TYPES
+ // These types are intended to be equivalent and mostly compatible.
+ //   std::vector -> UniqueArray, AnyArray
+ //   std::string -> UniqueString, AnyString
+ //   std::string_view -> Str, StaticString
+ //   std::span (no fixed-size extents) -> Slice, MutSlice, MutStr
+ //
+ // Here are the main differences in approximate order of mainness.
+ //   - operator+ is not supported on strings, because it has problems with
+ //     efficiency and readability.  Instead, you can use cat() from strings.h.
+ //     cat() allows concatenating multiple arguments using only a single
+ //     allocation, and it stringifies numbers and some other things.
+ //   - Custom allocators are not supported.  They are rarely used in STL
+ //     containers and mainly serve to clutter up error messages.
+ //   - Some of the more obscure methods may be missing or named differently.
+ //   - AnyArray and AnyString return const references from operator[] instead
+ //     of mutable references, to avoid accidentally triggering copy-on-write.
+ //     To trigger COW, Use mut_get() or cast them to Unique* instead.
+ //   - .substr() returns a slice, not a copy.  In many cases a copy will happen
+ //     implicitly anyway, but if you assign it to auto, you may get a dangling
+ //     reference.
+ //   - Everything else mentioned above regarding thread safety, exceptions, and
+ //     limitations, where those things differ from STL behavior.
 
 #pragma once
 
@@ -82,51 +118,51 @@ struct ArrayInterface;
  // (refcounted) data or reference static data.  Has semi-implicit
  // copy-on-write behavior (at no cost if you don't use it).
 template <class T>
-using AnyArray = ArrayInterface<ArrayClass::AnyArray, T>;
+using AnyArray = ArrayInterface<AnyArrayClass, T>;
 
  // An array that guarantees unique ownership, allowing mutation without
  // copy-on-write.  This has the same role as std::vector.
 template <class T>
-using UniqueArray = ArrayInterface<ArrayClass::UniqueArray, T>;
+using UniqueArray = ArrayInterface<UniqueArrayClass, T>;
 
  // An array that can only reference static data (or at least data that outlives
  // it).  The data cannot be modified.  The difference between this and Slice is
  // that an AnyArray can be constructed from a StaticArray without allocating a new
  // buffer.
 template <class T>
-using StaticArray = ArrayInterface<ArrayClass::StaticArray, T>;
+using StaticArray = ArrayInterface<StaticArrayClass, T>;
 
  // A non-owning view of contiguous elements.  This has the same role as
  // std::span (but without fixed extents).
 template <class T>
-using Slice = ArrayInterface<ArrayClass::Slice, T>;
+using Slice = ArrayInterface<SliceClass, T>;
 
  // A slice but mutable.
 template <class T>
-using MutSlice = ArrayInterface<ArrayClass::MutSlice, T>;
+using MutSlice = ArrayInterface<MutSliceClass, T>;
 
  // The string types are almost exactly the same as the equivalent array types,
- // but they have slightly different rules for array construction; they can be
+ // but they have slightly different rules for array construction: they can be
  // constructed from a const T*, which is taken to be a C-style NUL-terminated
- // string, and when constructing from a C array, they will chop off the final
+ // string; and when constructing from a C array, they will chop off the final
  // NUL element.  Note that by default these strings are not NUL-terminated.  To
  // get a NUL-terminated string out, either explicitly NUL-terminate them or use
- // c_str().
+ // c_str().  (Incidentally, c_str() works on array types too.)
  //
  // These string types do not support operator+, because concatenating strings
  // two at a time is inefficient and the precedence is confusing.  Instead, use
  // the variadic cat(...) from strings.h, which only does a single allocation
  // per invocation.
 template <class T>
-using GenericAnyString = ArrayInterface<ArrayClass::AnyString, T>;
+using GenericAnyString = ArrayInterface<AnyStringClass, T>;
 template <class T>
-using GenericUniqueString = ArrayInterface<ArrayClass::UniqueString, T>;
+using GenericUniqueString = ArrayInterface<UniqueStringClass, T>;
 template <class T>
-using GenericStaticString = ArrayInterface<ArrayClass::StaticString, T>;
+using GenericStaticString = ArrayInterface<StaticStringClass, T>;
 template <class T>
-using GenericStr = ArrayInterface<ArrayClass::Str, T>;
+using GenericStr = ArrayInterface<StrClass, T>;
 template <class T>
-using GenericMutStr = ArrayInterface<ArrayClass::MutStr, T>;
+using GenericMutStr = ArrayInterface<MutStrClass, T>;
 
 using AnyString = GenericAnyString<char>;
 using UniqueString = GenericUniqueString<char>;
@@ -146,6 +182,8 @@ using StaticString32 = GenericStaticString<char32>;
 using Str32 = GenericStr<char32>;
 using MutStr32 = GenericMutStr<char32>;
 
+// wchar_t and char8_t don't exist.
+
 ///// CONCEPTS
  // All concepts in this header are only for non-cvref types.
 
@@ -159,12 +197,12 @@ template <class A>
 concept OtherArrayLike = ArrayLike<A> && !requires { A::is_ArrayInterface; };
  // Array-like for a specific element type.
 template <class A, class T>
-concept ArrayLikeFor = ArrayLike<A> && std::is_same_v<
+concept ArrayLikeOf = ArrayLike<A> && std::is_same_v<
     std::remove_cvref_t<decltype(*std::declval<A>().data())>, T
 >;
  // Foreign array-like class with specific element type.
 template <class A, class T>
-concept OtherArrayLikeFor = ArrayLikeFor<A, T> &&
+concept OtherArrayLikeOf = ArrayLikeOf<A, T> &&
     !requires { A::is_ArrayInterface; };
 
 ///// UTILITY CONCEPTS AND STUFF
@@ -177,10 +215,10 @@ concept OtherArrayLikeFor = ArrayLikeFor<A, T> &&
  // An ArrayIterator is just anything that can be dereferenced and incremented.
 template <class I>
 concept ArrayIterator = requires (I i) { *i; ++i; };
- // An ArrayIteratorFor<T> is an ArrayIterator that when dereferenced provides a
+ // An ArrayIteratorOf<T> is an ArrayIterator that when dereferenced provides a
  // T.
 template <class I, class T>
-concept ArrayIteratorFor = ArrayIterator<I> && std::is_same_v<
+concept ArrayIteratorOf = ArrayIterator<I> && std::is_same_v<
     std::remove_cvref_t<decltype(*std::declval<I>())>,
     std::remove_cv_t<T> // Dunno if we actually want to remove_cv
 >;
@@ -199,24 +237,24 @@ concept ArrayContiguousIterator = std::is_base_of_v<
     std::contiguous_iterator_tag,
     typename std::iterator_traits<I>::iterator_concept
 >;
- // An ArrayContiguousIteratorFor<T> can be martialled into a T*.
+ // An ArrayContiguousIteratorOf<T> can be martialled into a T*.
 template <class I, class T>
-concept ArrayContiguousIteratorFor =
+concept ArrayContiguousIteratorOf =
     ArrayContiguousIterator<I> && std::is_same_v<
         std::remove_cvref_t<decltype(*std::declval<I>())>,
         std::remove_cv_t<T>
     >;
  // An ArrayForwardIterator is one that can be copied, meaning that the array
- // can be walked through multiple times.
+ // can be walked through multiple times.  I didn't invent this terminology.
 template <class I>
 concept ArrayForwardIterator = ArrayIterator<I> &&
     std::is_copy_constructible_v<I>;
 
  // Concept for iota construction.  We're only putting this here because putting
- // it directly on the function causes an ICE on GCC.
+ // it directly on the function causes an ICE on some GCC versions.
  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=112769
 template <class F, class T>
-concept ArrayIotaFunctionFor =
+concept ArrayIotaFunctionTo =
     requires (F f, usize i) { T(f(i)); } &&
     !requires (F f, void p (const T&)) { p(f); };
 
@@ -225,6 +263,12 @@ struct Uninitialized { usize size; };
  // Requests constructing with the given capacity but size 0
 struct Capacity { usize capacity; };
 
+ // An optimization concept for types that can be moved with memcpy, even if
+ // they can't be copied with memcpy.  Surprisingly, a lot of types fill this
+ // role: typically, any type whose address isn't important to its operation.
+ //
+ // The STL will eventually have its own version of this concept, but we aren't
+ // that far in the future yet.
 template <class T>
 struct IsTriviallyRelocatableS {
     static constexpr bool value =
@@ -234,21 +278,26 @@ struct IsTriviallyRelocatableS {
 template <class T>
 concept IsTriviallyRelocatable = IsTriviallyRelocatableS<T>::value;
 
-///// ARRAY INTERFACE
-// The shared interface for all the array classes
+template <class ac, class T>
+struct IsTriviallyRelocatableS<ArrayInterface<ac, T>> {
+    static constexpr bool value = true;
+};
 
+///// ARRAY INTERFACE
+
+ // The shared interface for all the array classes
 template <class ac, class T>
 struct ArrayInterface {
-    using Class = ac;
     using Self = ArrayInterface<ac, T>;
-    using Impl = ArrayImplementation<ac, T>;
+    using Impl = ArrayImpl<ac, T>;
 
      // You can manipulate the impl directly to skip reference counting if you
-     // know what you're doing.
+     // know what you're doing.  You are allowed to do it, as long as you are
+     // willing to accept the responsibility.
     Impl impl;
 
     ///// TYPEDEFS
-     // These are fairly unnecessary, but they're here to match STL containers.
+     // These are pretty useless, but they're here to match STL containers.
     using value_type = T;
     using size_type = usize;
     using difference_type = isize;
@@ -268,15 +317,15 @@ struct ArrayInterface {
     using SelfSlice = std::conditional_t<
         ac::is_Static, Self,  // A slice of a static array is itself static
         std::conditional_t<ac::is_String,
-            ArrayInterface<ArrayClass::Str, T>,
-            ArrayInterface<ArrayClass::Slice, T>
+            ArrayInterface<StrClass, T>,
+            ArrayInterface<SliceClass, T>
         >
     >;
     using SelfMutSlice = std::conditional_t<
-        ac::is_Static, void,  // Can't mutate a static array
+        ac::is_Static || ac::is_Slice, void,  // Can't mutate these
         std::conditional_t<ac::is_String,
-            ArrayInterface<ArrayClass::MutStr, T>,
-            ArrayInterface<ArrayClass::MutSlice, T>
+            ArrayInterface<MutStrClass, T>,
+            ArrayInterface<MutSliceClass, T>
         >
     >;
 
@@ -378,7 +427,7 @@ struct ArrayInterface {
      // with a different element type from this one.  Explicit except for
      // Slice/Str with exact types.
     template <OtherArrayLike O> ALWAYS_INLINE constexpr
-    explicit(ac::is_Static || !(ac::is_Slice && ArrayLikeFor<O, T>))
+    explicit(ac::is_Static || !(ac::is_Slice && ArrayLikeOf<O, T>))
     ArrayInterface (const O& o) requires (!ac::is_Static) {
         if constexpr (ac::supports_owned) {
             static_assert(std::is_copy_constructible_v<T>);
@@ -391,6 +440,7 @@ struct ArrayInterface {
             );
             using T2 = std::remove_cvref_t<decltype(*o.data())>;
              // Allow reinterpretations between same-size integers and chars.
+             // The primary use case of this is u8string.
             if constexpr (
                 std::is_integral_v<T> && !std::is_same_v<T, bool> &&
                 std::is_integral_v<T2> && !std::is_same_v<T2, bool> &&
@@ -406,9 +456,9 @@ struct ArrayInterface {
                 }
             }
             else {
-                static_assert(ArrayLikeFor<O, T>,
+                static_assert(ArrayLikeOf<O, T>,
                     "Cannot construct borrowed array from array-like type if "
-                    "its element type does not match exactly."
+                    "their element types do not match."
                 );
                 set_unowned(o.data(), o.size());
             }
@@ -453,12 +503,13 @@ struct ArrayInterface {
             set_copy(o, len);
         }
         else {
+             // TODO: reinterpret same-size integers?
             static_assert(
                 ac::mut_default
                     ? std::is_same_v<T2, T>
                     : std::is_same_v<T2, const T>,
-                "Cannot construct borrowed array from raw C array if its "
-                "element type does not match exactly."
+                "Cannot construct borrowed array from raw C array if their "
+                "element types do not match exactly."
             );
             set_unowned(o, len);
         }
@@ -494,9 +545,10 @@ struct ArrayInterface {
             set_copy(o, len-1);
         }
         else {
+             // TODO: reinterpret between same-size chars?
             static_assert(std::is_same_v<T2, T>,
-                "Cannot construct borrowed string from raw C array if its "
-                "element type does not match exactly."
+                "Cannot construct borrowed string from raw C array if their "
+                "element types do not match exactly."
             );
             set_unowned(o, len-1);
         }
@@ -511,7 +563,7 @@ struct ArrayInterface {
             set_copy(move(p), s);
         }
         else {
-            static_assert(ArrayIteratorFor<Ptr, T>,
+            static_assert(ArrayIteratorOf<Ptr, T>,
                 "Cannot construct borrowed array from iterator with non-exact "
                 "element type."
             );
@@ -531,7 +583,7 @@ struct ArrayInterface {
             set_copy(move(b), move(e));
         }
         else {
-            static_assert(ArrayIteratorFor<Begin, T>,
+            static_assert(ArrayIteratorOf<Begin, T>,
                 "Cannot construct borrowed array from iterator with non-exact "
                 "element type."
             );
@@ -625,7 +677,7 @@ struct ArrayInterface {
      // I have not figured out how to prevent or detect this scenario yet.
      //
      // This tends to be the most optimizable way of doing a map operation.
-    template <ArrayIotaFunctionFor<T> F> explicit
+    template <ArrayIotaFunctionTo<T> F> explicit
     ArrayInterface (usize s, F&& f) requires (
         ac::supports_owned
     ) {
@@ -740,7 +792,7 @@ struct ArrayInterface {
         ac::trivially_copyable
     ) = default;
 
-    ///// COERCION
+    ///// COERCIONS
 
      // Okay okay
     ALWAYS_INLINE constexpr
@@ -764,6 +816,7 @@ struct ArrayInterface {
     }
 
     ///// DESTRUCTOR
+
     ALWAYS_INLINE constexpr
     ~ArrayInterface () requires (!ac::trivially_copyable) { remove_ref(); }
     ~ArrayInterface () requires (ac::trivially_copyable) = default;
@@ -773,6 +826,7 @@ struct ArrayInterface {
      // Gets whether this array is empty (size == 0)
     ALWAYS_INLINE constexpr
     bool empty () const { return size() == 0; }
+
      // True for non-empty arrays
     ALWAYS_INLINE constexpr
     explicit operator bool () const { return size(); }
@@ -791,10 +845,11 @@ struct ArrayInterface {
      // 64-bit platforms.  If you need to process arrays larger than 2 billion
      // elements, you're probably already managing your own memory anyway.
     static constexpr usize max_size_ =
-        ac::supports_owned ? u32(-1) >> 1 : usize(-1) >> 1;
+        ac::supports_owned ? SharableBuffer<T>::max_capacity : usize(-1) >> 1;
     ALWAYS_INLINE constexpr
     usize max_size () const { return max_size_; }
 
+     // Get the raw data pointer.
     ALWAYS_INLINE constexpr
     const T* const_data () const { return impl.data; }
     ALWAYS_INLINE constexpr
@@ -814,8 +869,13 @@ struct ArrayInterface {
     constexpr
     const T* c_str () {
         static_assert(requires (T v) { !v; v = T(); });
-        if (!size() || !!impl.data[size()-1]) {
-            set_owned_unique(do_c_str(impl), size());
+        if constexpr (ac::supports_owned) {
+            if (!size() || !!impl.data[size()-1]) {
+                set_owned_unique(do_c_str(impl), size());
+            }
+        }
+        else {
+            require(size() && !impl.data[size()-1]);
         }
         return impl.data;
     }
@@ -859,7 +919,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     const T& get (usize i) const { return const_get(i); }
     ALWAYS_INLINE constexpr
-    T& get (usize i) requires (ac::mut_default) { return const_get(i); }
+    T& get (usize i) requires (ac::mut_default) { return mut_get(i); }
 
     ALWAYS_INLINE constexpr
     const T& operator [] (usize i) const {
@@ -868,6 +928,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     T& operator [] (usize i) requires (ac::mut_default) { return mut_get(i); }
 
+     // Get the first element.  Debug-asserts that the array is not empty.
     ALWAYS_INLINE constexpr
     const T& const_front () const { return (*this)[0]; }
     ALWAYS_INLINE constexpr
@@ -880,6 +941,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     T& front () requires (ac::mut_default) { return mut_front(); }
 
+     // Get the last element.  Debug-asserts that the array is not empty.
     ALWAYS_INLINE constexpr
     const T& const_back () const { return (*this)[size() - 1]; }
     ALWAYS_INLINE constexpr
@@ -894,7 +956,10 @@ struct ArrayInterface {
 
      // Slice takes two offsets and does not do bounds checking (except in debug
      // builds).  Unlike operator[], the offsets are allowed to be one off the
-     // end.
+     // end.  You should pretend that the default arguments are
+     //     ... (usize start = 0, usize end = size()) ...
+     // but they're implemented with overloads instead of default arguments,
+     // because size() is not a valid default argument.
     ALWAYS_INLINE constexpr
     SelfSlice const_slice (usize start, usize end) const {
         expect(start <= end && end <= size()); // for safety
@@ -921,8 +986,6 @@ struct ArrayInterface {
         return mut_slice(start, end);
     }
 
-     // Omitting the second argument defaults to size(), but parameter defaults
-     // can't depend on this, so just make a different overload.
     ALWAYS_INLINE constexpr
     SelfSlice const_slice (usize start = 0) const {
         expect(start <= size());
@@ -952,8 +1015,8 @@ struct ArrayInterface {
      // Substr takes an offset and a length, and caps both to the length of the
      // string.  Note that unlike the STL's substr, this returns a Slice/Str,
      // not a new copy.  This can be implicitly coerced to a UniqueArray or
-     // UniqueString, but if you assign it to an auto variable then the original
-     // string goes away, you will have a dangling reference.
+     // UniqueString, but if you assign it to an auto variable and then the
+     // original string goes away, you will have a dangling reference.
     ALWAYS_INLINE constexpr
     SelfSlice const_substr (usize start, usize length = usize(-1)) const {
         if (start >= size()) start = size();
@@ -982,8 +1045,7 @@ struct ArrayInterface {
         return mut_substr(start, length);
     }
 
-     // Take a reinterpreted view.  TODO: Should these return GenericStr for
-     // string types?
+     // Take a reinterpreted view.
     template <class T2> ALWAYS_INLINE constexpr
     typename ArrayInterface<ac, T2>::SelfSlice const_reinterpret () const {
         static_assert(sizeof(T) == sizeof(T2),
@@ -1027,14 +1089,15 @@ struct ArrayInterface {
         else return 0;
     }
 
-     // The minimum capacity of a shared buffer (enough elements to fill 24 (on
-     // 64-bit) or 16 (on 32-bit) bytes).
+     // TODO: should these not be available if !ac::supports_owned?
+     // The minimum capacity of a shared buffer (enough to fill 8 bytes)
     static constexpr usize min_capacity = SharableBuffer<T>::min_capacity;
+     // Maximum capacity of a shared buffer.  Probably equal to max_size_.
     static constexpr usize max_capacity = SharableBuffer<T>::max_capacity;
 
      // Returns if this array is owned (has a shared or unique buffer).  If
      // this returns true, then there is a SharableBufferHeader behind data().
-     // Returns false for empty arrays.
+     // This is equvalent to (capacity() > 0) but is faster.
     ALWAYS_INLINE constexpr
     bool owned () const {
         if constexpr (ac::is_Any) {
@@ -1056,7 +1119,8 @@ struct ArrayInterface {
 
      // Returns if this array is unique (can be moved to a UniqueArray without
      // doing an allocation).  This is not a strict subset of owned(); in
-     // particular, it will return true for most empty arrays (capacity == 0).
+     // particular, it will return true for most empty arrays (those whose
+     // capacity == 0).
     ALWAYS_INLINE constexpr
     bool unique () const {
         if constexpr (ac::is_Unique) return true;
@@ -1138,6 +1202,7 @@ struct ArrayInterface {
 
     ///// MUTATORS
 
+     // Make this array empty.
     ALWAYS_INLINE constexpr
     void clear () { remove_ref(); impl = {}; }
 
@@ -1165,11 +1230,11 @@ struct ArrayInterface {
         }
     }
 
-     // Make this array unique and if it has significantly more capacity than
+     // Make this array unique, and if it has significantly more capacity than
      // necessary, reallocate so that capacity is equal to length.  Note that if
      // this array is sharing its buffer with another array, calling this may
      // increase memory usage instead of decreasing it.  To prevent pointless
-     // reallocations due to allocator rounding, only reallocates if it can
+     // reallocations due to allocator rounding, this only reallocates if it can
      // shrink by more than 33%.
     ALWAYS_INLINE constexpr
     void shrink_to_fit () requires (ac::supports_owned) {
@@ -1192,6 +1257,7 @@ struct ArrayInterface {
 
      // Like make_unique, but works on slices and static arrays.  If you want to
      // pass an AnyArray or AnyString between threads, you must call this first.
+     // NOTE: Currently the allocator being used is not threadsafe either.
     ALWAYS_INLINE
     void make_not_shared () {
         if constexpr (ac::supports_share) {
@@ -1276,10 +1342,11 @@ struct ArrayInterface {
         }
         else require(false);
     }
+
      // Nonmutating version of shrink.  Semantically equivalent to
-     // slice(0, new_size), but avoids an allocate_copy for shared arrays.  If
-     // you only want a Str/Slice, it's better to use .slice(0, new_size)
-     // instead.
+     // slice(0, new_size), but returns the original type.  This may avoid a
+     // copy for AnyArray and AnyString, but may cause an extra copy for
+     // UniqueArray and UniqueString.
     constexpr
     Self chop (usize new_size) const& {
         expect(new_size <= size());
@@ -1291,6 +1358,7 @@ struct ArrayInterface {
         r.shrink(new_size);
         return r;
     }
+     // Chopping from rvalue is less likely to copy the buffer.
     ALWAYS_INLINE constexpr
     Self chop (usize new_size) && {
         expect(new_size <= size());
@@ -1298,7 +1366,7 @@ struct ArrayInterface {
         r.shrink(new_size);
         return r;
     }
-     // Chop to an iterator instead of an index
+     // Chop at an iterator instead of an index.
     ALWAYS_INLINE constexpr
     Self chop (const T* new_end) const& { return chop(new_end - begin()); }
     ALWAYS_INLINE constexpr
@@ -1421,7 +1489,7 @@ struct ArrayInterface {
     ) {
         static_assert(requires { usize(e - b); },
             "Can't call append_expect_capacity with a range of unknown size.  "
-            "That's just a little too dangerous for my comfort, sorry."
+            "That's just a little too dangerous for comfort, sorry."
         );
         return append_expect_capacity(move(b), usize(e - b));
     }
@@ -1530,6 +1598,8 @@ struct ArrayInterface {
     ) {
         insert(pos - impl.data, move(b), move(e));
     }
+
+     // Insert uninitialized data.
     ALWAYS_INLINE
     void insert (usize offset, Uninitialized u) requires (
         ac::supports_owned
@@ -1595,8 +1665,7 @@ struct ArrayInterface {
      //
      // except that each element will be destructed immediately after use,
      // instead of in an implicit second loop after all iterations are done.
-     // All elements will be destroyed no matter what, even if f throws an
-     // exception.  The array will be cleared at the start, and you're allowed
+     // The array will be cleared (moved from) at the start, and you're allowed
      // to append new elements onto the cleared array while consume() is
      // running, so you can implement a processing queue such as
      //
@@ -1605,6 +1674,11 @@ struct ArrayInterface {
      //         actions.emplace_back(new_action);
      //     }
      // }
+     //
+     // All elements will be destroyed no matter what, even if an exception
+     // occurs.  If the callback throws an exception, the original array will be
+     // left as-is (empty, unless the callback modified it, in which case it
+     // will be left as modified).
      //
      // Note that in most cases, destroying an array destroys the elements in
      // back-to-front order, but consume() destroys the elements front-to-back.
@@ -1865,8 +1939,8 @@ struct ArrayInterface {
     }
 
      // Used by reserve_plenty and indirectly by push_back, append, etc.
-     // NOINLINE because reallocate_exact can be tail called and new_size is
-     // probably not statically known.
+     // NOINLINE because reallocate can be tail called and new_size is probably
+     // not statically known.
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
     T* reallocate_plenty (Impl impl, usize new_size) {
         return reallocate(
@@ -1874,8 +1948,8 @@ struct ArrayInterface {
         );
     }
 
-     // Reallocate without rounding the capacity at all.  NOINLINE because it
-     // can be tail called, and this is likely to be on a slow path.
+     // Reallocate without rounding the capacity.  NOINLINE because it can be
+     // tail called, and this is likely to be on a slow path.
     [[gnu::malloc, gnu::returns_nonnull]] NOINLINE static
     T* reallocate (Impl impl, usize cap)
         noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
@@ -1901,7 +1975,9 @@ struct ArrayInterface {
             self.remove_ref();
         }
         else if (self.unique()) {
-            if (IsTriviallyRelocatable<T>) {
+            if constexpr (IsTriviallyRelocatable<T>) {
+                 // Always use memcpy if we can get away with it.  Memcpy is
+                 // really good.
                 dat = (T*)std::memcpy(
                     (void*)dat, self.impl.data, s * sizeof(T)
                 );
@@ -2205,8 +2281,9 @@ constexpr bool operator== (
      // the contract since floating point numbers can compare unequal to
      // themselves.
     if constexpr (
-        std::is_scalar_v<T> && !std::is_floating_point_v<T> &&
-        ArrayContiguousIteratorFor<decltype(bd), T>
+        std::is_same_v<std::remove_cv_t<T>, std::remove_cvref_t<decltype(*bd)>> &&
+        std::is_scalar_v<T> && !std::is_floating_point_v<T> && sizeof(T) < 8 &&
+        ArrayContiguousIteratorOf<decltype(bd), T>
     ) {
          // memcmp is kind of excessive for comparing short strings for
          // equality.  It uses vector instructions, does alignment checks for
@@ -2236,7 +2313,10 @@ bool operator== (
     const T* ad = a.data();
     const T* bd = b;
     if (as != bs) [[likely]] return false;
-    if constexpr (std::is_scalar_v<T> && !std::is_floating_point_v<T>) {
+    if constexpr (
+        std::is_same_v<std::remove_cv_t<T>, std::remove_cvref_t<decltype(*bd)>> &&
+        std::is_scalar_v<T> && !std::is_floating_point_v<T> && sizeof(T) < 8
+    ) {
          // Apparent it's illegal to pass null to memcmp even if size is 0.
         if (bs == 0) return true;
          // Raw char arrays are likely to be short and of known length, so
