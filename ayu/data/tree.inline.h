@@ -21,7 +21,9 @@ void check_uniqueness (u32 s, const TreePair* p);
 
 constexpr Tree::Tree () :
     data{.as_i64 = 0}
-{ }
+{ if (!std::is_constant_evaluated()) {
+    std::memset((void*)this, 0, sizeof(Tree));
+} }
 constexpr Tree::Tree (Null, TreeFlags f) :
     form(Form::Null), flags(f), data{.as_i64 = 0}
 { }

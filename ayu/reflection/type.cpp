@@ -63,7 +63,8 @@ void init_names () {
      // Why we using qsort instead of std::sort, isn't std::sort faster?  Yes,
      // but the reason it's faster is that it generates 10k of code for every
      // callsite, which is overkill for something that'll be called exactly
-     // once at init time.
+     // once at init time.  In contrast, qsort is already in the C library, so
+     // we get it for free.
     std::qsort(
         registry.by_name.data(), registry.by_name.size(), sizeof(registry.by_name[0]),
         [](const void* aa, const void* bb){

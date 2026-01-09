@@ -82,8 +82,6 @@ struct Accessor;
  // This is the "virtual function" that accessors use
 using AccessFunc = void(const Accessor*, Mu&, AccessCB, AccessCaps);
 
-void delete_Accessor (Accessor*) noexcept;
-
  // Arrange these in rough order of commonality for cachiness
 enum class AcrForm : u8 {
     Functive, // Miscellaneous functive accessor that doesn't need destructing
@@ -188,18 +186,12 @@ struct Accessor {
     }
 
     void inc () const {
-         // Unlikely because most ACRs are constexpr.  This cannot be converted
-         // to branchless code because the acr may be in a readonly region.
+         // Unlikely because most ACRs are constexpr.
         if (ref_count) [[unlikely]] {
             const_cast<u32&>(ref_count)++;
         }
     }
-    NOINLINE // noinline this so it doesn't make the caller allocate stack space
-    void do_dec () {
-        if (!--ref_count) {
-            delete_Accessor(this);
-        }
-    }
+    void do_dec () noexcept;
     void dec () const {
         if (ref_count) [[unlikely]] const_cast<Accessor*>(this)->do_dec();
     }

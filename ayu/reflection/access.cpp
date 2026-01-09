@@ -154,39 +154,40 @@ void access_ChainDataFunc (
 }
 
 NOINLINE
-void delete_Accessor (Accessor* acr) noexcept {
-    switch (acr->form) {
+void Accessor::do_dec () noexcept {
+    if (--ref_count) return;
+    switch (form) {
         case AF::Variable: {
              // Can't use Mu because it doesn't have a size.  We don't *need* a
              // size, but C++ does in order to do this operation.  So I guess
              // use usize instead?  Hope the alignment works out!
-            auto* self = static_cast<VariableAcr<Mu, usize>*>(acr);
+            auto* self = static_cast<VariableAcr<Mu, usize>*>(this);
             dynamic_destroy(self->type, (Mu*)&self->value);
             break;
         }
         case AF::Chain: {
-            auto* self = static_cast<ChainAcr*>(acr);
+            auto* self = static_cast<ChainAcr*>(this);
             self->~ChainAcr();
             break;
         }
         case AF::ChainAttrFunc: {
-            auto* self = static_cast<ChainAttrFuncAcr*>(acr);
+            auto* self = static_cast<ChainAttrFuncAcr*>(this);
             self->~ChainAttrFuncAcr();
             break;
         }
         case AF::ChainElemFunc: {
-            auto* self = static_cast<ChainElemFuncAcr*>(acr);
+            auto* self = static_cast<ChainElemFuncAcr*>(this);
             self->~ChainElemFuncAcr();
             break;
         }
         case AF::ChainDataFunc: {
-            auto* self = static_cast<ChainDataFuncAcr*>(acr);
+            auto* self = static_cast<ChainDataFuncAcr*>(this);
             self->~ChainDataFuncAcr();
             break;
         }
         default: break;
     }
-    delete acr;
+    delete this;
 }
 
 NOINLINE
@@ -206,12 +207,12 @@ bool operator== (const Accessor& a, const Accessor& b) {
             auto& bb = reinterpret_cast<const ChainAttrFuncAcr&>(b);
             return *aa.outer == *bb.outer && aa.f == bb.f && aa.key == bb.key;
         }
-        case AF::ChainElemFunc:  {
+        case AF::ChainElemFunc: {
             auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainElemFuncAcr&>(b);
             return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
         }
-        case AF::ChainDataFunc:  {
+        case AF::ChainDataFunc: {
             auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainDataFuncAcr&>(b);
             return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
