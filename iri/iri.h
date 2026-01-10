@@ -2,7 +2,7 @@
 // Basically URIs but unicode.
 // Under heavy development!  Don't use for anything important.
 //
-// Requires C++17 or later.
+// Requires C++20 or later.
 //
 ///// IRI HANDLING, POSSIBLE DEVIATIONS FROM SPECIFICATIONS
 //
@@ -56,7 +56,7 @@
 // wrong by looking at the return of error() and possibly_invalid_spec().
 //
 // The component getter functions will not decode % sequences, because which
-// characters have to be % encoding can be application-specific.  Call decode()
+// characters have to be %-encoded can be application-specific.  Call decode()
 // yourself on the results when you want to decode them.
 //
 // The IRI class is pretty lightweight, with one reference-counted string and
@@ -67,12 +67,12 @@
 // There are no facilities for parsing query strings yet.
 //
 // Most of the behavior of this library is constexpr; however, parsing IRIs is
-// limited at constexpr time.  Validation can be done at constexpr time, but not
-// canonicalization.  Therefore, constexpr IRIs must already be fully
-// absolute and canonicalized, including:
-//   - The scheme must be lowercase
-//   - The path, if hierarchical, must not contain .. or . segments
-//   - All percent-sequences must be uppercase
+// limited at constexpr time.  We can validate at constexpr time, but we cannot
+// canonicalize.  Therefore, constexpr IRIs must already be fully absolute and
+// canonical, including:
+//   - The scheme must be lowercase.
+//   - The path, if hierarchical, must not contain .. or . segments.
+//   - All percent-sequences must be uppercase.
 //   - All characters that are canonically percent-encoded must be
 //     percent-encoded, and all characters that aren't must not be (including
 //     non-ASCII unicode characters).
@@ -91,6 +91,7 @@ constexpr u32 maximum_length = u16(-1);
 
  // Replace reserved characters with % sequences.
 UniqueString encode (Str) noexcept;
+
  // Replace % sequences with their characters.  If there's an invalid escape
  // sequence anywhere in the input, returns the empty string.
 UniqueString decode (Str) noexcept;
@@ -120,10 +121,7 @@ enum class Relativity {
 
  // Return what kind of relative reference this is.  This only does basic
  // detection, and when given an invalid reference, may return anything.  To be
- // sure that the reference is valid, resolve it into a full IRI.  There is not
- // currently a function to validate an IRI reference without a base IRI to
- // resolve it against.  Using a base IRI of "foo://bar/" will error with
- // references that start with "../".
+ // sure that the reference is valid, resolve it into a full IRI.
 constexpr Relativity relativity (Str);
 
 ///// ERRORS
@@ -163,15 +161,16 @@ enum class Error : u16 {
 struct IRI {
      // Construct the empty IRI.  This is not a valid IRI.
     constexpr IRI () { }
+
      // Construct from an IRI string.  Does validation and canonicalization.  If
-     // base is provided, resolved ref as a IRI reference (AKA a relative IRI)
+     // base is provided, resolves ref as an IRI reference (AKA a relative IRI)
      // with base as its base. If base is not provided, ref must be an absolute
      // IRI with scheme included.
      //
      // The behavior of this function changes when run at constexpr time.  It
      // cannot canonicalize the IRI, because new strings can't be allocated at
-     // compile time (unless they're deleted at compile time).  So it must be
-     // given an IRI that is already fully resolved and canonical.  The base
+     // compile time (unless they're also deleted at compile time).  So it must
+     // be given an IRI that is already fully resolved and canonical.  The base
      // will be ignored.  To force compile-time parsing, use iri::constant(ref).
     constexpr explicit IRI (Str ref, const IRI& base = IRI());
 
@@ -235,8 +234,8 @@ struct IRI {
      // If there is an authority or a path that starts with /.
     constexpr bool hierarchical () const;
      // If there is a path and it doesn't start with /.  This is almost the
-     // opposite of the above, but both will return false for an IRI that is
-     // just a scheme.
+     // opposite of the above, but both will return false for an IRI without
+     // any path.
     constexpr bool nonhierarchical () const;
 
      // Get the scheme of the IRI.  Doesn't include the :.
@@ -365,7 +364,8 @@ inline namespace literals {
     }
 } // literals
 
- // Determine if the scheme name is fully canonical (valid and lowercase).
+ // Determine if the scheme name is fully canonical (valid and lowercase).  Only
+ // accepts a scheme name, not a full IRI spec.
 bool scheme_canonical (Str scheme);
 
 } // namespace iri

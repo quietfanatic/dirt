@@ -8,21 +8,21 @@ using namespace in;
 
 static int read_percent (const char* in, const char* end) {
     if (in + 3 > end) [[unlikely]] return -1;
-    u8 byte = 0;
+    int byte = 0;
     for (int i = 1; i < 3; i++) {
         byte <<= 4;
-        char c = in[i];
-        if (c >= '0' && c <= '9') byte |= c - '0';
-        else {
-            c |= 'a' & ~'A';
-            if (c >= 'a' && c <= 'f') byte |= c - 'a' + 10;
-            else [[unlikely]] return -1;
-        }
+        u32 c = in[i];
+        if (!char_is_hexadecimal(c)) [[unlikely]] return -1;
+        u32 d = c - '0';
+        u32 h = (c | 0x20) - 'a' + 10;
+        u32 n = d < 10 ? d : h;
+        byte |= n;
     }
     return byte;
 }
 
-static char* write_percent (char* out, u8 c) {
+NOINLINE static
+char* write_percent (char* out, u8 c) {
     u8 high = u8(c) >> 4;
     u8 low = u8(c) & 0xf;
     *out++ = '%';
@@ -31,8 +31,9 @@ static char* write_percent (char* out, u8 c) {
     return out;
 }
 
-static char* canonicalize_percent (char* out, const char* in, const char* end) {
-    int byte = read_percent(in, end);
+NOINLINE static
+char* canonicalize_percent (char* out, const char* in, const char* in_end) {
+    int byte = read_percent(in, in_end);
     if (byte < 0) [[unlikely]] return null;
     if (char_wants_encode(byte)) {
         return write_percent(out, byte);
@@ -50,7 +51,6 @@ UniqueString encode (Str input) noexcept {
     for (auto c : input) {
         cap += char_wants_encode(c) * 2;
     }
-    require(cap < maximum_length);
     expect(cap > 0);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
@@ -67,7 +67,6 @@ UniqueString encode (Str input) noexcept {
 
 UniqueString decode (Str input) noexcept {
     if (!input) [[unlikely]] return "";
-    require(input.size() < maximum_length);
     const char* in = input.begin();
     const char* end = input.end();
     char* buf = SharableBuffer<char>::allocate(input.size());
@@ -91,126 +90,117 @@ UniqueString decode (Str input) noexcept {
 }
 
 struct IRIParser {
-    Str input;
+    const char* in_end;
+    const char* in_begin;
     UniqueString output;
     u16 scheme_end;
     u16 authority_end;
     u16 path_end;
     u16 query_end;
 
-    void parse (const IRI& base) {
-        if (!input) return fail(Error::Empty);
-        if (input.size() > maximum_length) return fail(Error::TooLong);
+    void parse (Str ref, const IRI& base) {
+        expect(ref);
+        in_begin = ref.begin();
+        in_end = ref.end();
+        if (ref.size() > maximum_length) return fail(Error::TooLong);
          // Figure out how much to allocate
-        usize cap = input.size();
-        for (auto c : input) {
-            if (char_behavior(c) == CharProps::Iffy) [[unlikely]] cap += 2;
+        usize cap = ref.size();
+        for (auto c : ref) {
+            if (char_behavior(c) == CharProps::Iffy) cap += 2;
         }
         expect(cap > 0 && cap <= maximum_length * 3);
-         // Now figure out how much we actually need to parse.
-        Str prefix;
-        decltype(&IRIParser::parse_authority) next;
-        switch (relativity(input)) {
+        switch (relativity(ref)) {
             case Relativity::Scheme: {
                 expect(!output.owned());
-                output = UniqueString(Capacity(cap));
-                return parse_scheme(
-                    output.begin(), input.begin(), input.end()
-                );
+                new (&output) UniqueString(Capacity(cap));
+                return parse_scheme(output.begin(), in_begin);
             }
             case Relativity::Authority: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_.slice(0, base.scheme_end + 1);
                 scheme_end = base.scheme_end;
-                next = &IRIParser::parse_authority;
-                break;
+                char* out = copy_prefix(base.spec_.slice(0, base.scheme_end + 1), cap);
+                return parse_authority(out, in_begin);
             }
             case Relativity::AbsolutePath: {
                 if (!base || base.nonhierarchical()) {
                     return fail(Error::CouldNotResolve);
                 }
-                prefix = base.spec_.slice(0, base.authority_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
-                next = &IRIParser::parse_absolute_path;
-                break;
+                char* out = copy_prefix(base.spec_.slice(0, base.authority_end), cap);
+                return parse_absolute_path(out, in_begin);
             }
             case Relativity::RelativePath: {
                 if (!base.hierarchical()) return fail(Error::CouldNotResolve);
                 usize i = base.path_end;
                 while (base.spec_[i-1] != '/') --i;
-                prefix = base.spec_.slice(0, i);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
-                next = &IRIParser::parse_relative_path;
-                break;
+                char* out = copy_prefix(base.spec_.slice(0, i), cap);
+                return parse_relative_path(out, in_begin);
             }
             case Relativity::Query: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_.slice(0, base.path_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
-                next = &IRIParser::parse_query;
-                break;
+                char* out = copy_prefix(base.spec_.slice(0, base.path_end), cap);
+                return parse_query(out, in_begin);
             }
             case Relativity::Fragment: {
                 if (!base) return fail(Error::CouldNotResolve);
-                prefix = base.spec_.slice(0, base.query_end);
                 scheme_end = base.scheme_end;
                 authority_end = base.authority_end;
                 path_end = base.path_end;
                 query_end = base.query_end;
-                next = &IRIParser::parse_fragment;
-                break;
+                char* out = copy_prefix(base.spec_.slice(0, base.query_end), cap);
+                return parse_fragment(out, in_begin);
             }
             default: never();
         }
-         // Allocate and start
-        expect(prefix.size() > 0 && prefix.size() <= maximum_length);
-        expect(!output.owned());
-        output = UniqueString(Capacity(prefix.size() + cap));
-        std::memcpy(output.data(), prefix.data(), prefix.size());
-        return (this->*next)(
-            output.data() + prefix.size(), input.begin(), input.end()
-        );
     }
 
-    void parse_scheme (char* out, const char* in, const char* in_end) {
+    NOINLINE
+    char* copy_prefix (Str prefix, usize cap) {
+         // Allocate and start
+        expect(!output.owned());
+        usize newcap = prefix.size() + cap;
+        expect(newcap > 0 && newcap <= maximum_length * 4);
+        new (&output) UniqueString(Capacity(newcap));
+        char* out = (char*)std::memcpy(output.data(), prefix.data(), prefix.size());\
+        return out + prefix.size();
+    }
+
+    void parse_scheme (char* out, const char* in) {
          // Must start with a letter.
-        switch (char_scheme_behavior(*in)) {
-            case CharProps::SchemeAlpha:
-                *out++ = *in++ | ('a' & ~'A');
-                break;
-            default: return fail(Error::SchemeInvalid);
-        }
-        while (in < in_end) switch (char_scheme_behavior(*in)) {
-            case CharProps::SchemeAlpha:
-                *out++ = *in++ | ('a' & ~'A');
-                break;
-            case CharProps::SchemeOther:
-                *out++ = *in++; break;
-            case CharProps::SchemeEnd:
+        if (!char_scheme_valid_start(*in)) return fail(Error::SchemeInvalid);
+        *out++ = *in++ | ('a' & ~'A');
+        while (in < in_end) {
+            if (*in == ':') {
                 scheme_end = out - output.begin();
                 *out++ = *in++;
                 if (in + 2 <= in_end && in[0] == '/' && in[1] == '/') {
-                    return parse_authority(out, in, in_end);
+                    return parse_authority(out, in);
                 }
                 else {
                     authority_end = out - output.begin();
                     if (in + 1 <= in_end && in[0] == '/') {
-                        return parse_absolute_path(out, in, in_end);
+                        return parse_absolute_path(out, in);
                     }
-                    else return parse_nonhierarchical_path(out, in, in_end);
+                    else return parse_nonhierarchical_path(out, in);
                 }
-            default: return fail(Error::SchemeInvalid);
+            }
+            else if (char_scheme_valid(*in)) {
+                *out++ = *in++ | ('a' & ~'A');
+            }
+            else return fail(Error::SchemeInvalid);
         }
          // We should not have been called if the input doesn't have a :
         never();
     }
 
     NOINLINE
-    void parse_authority (char* out, const char* in, const char* in_end) {
+    void parse_authority (char* out, const char* in) {
         expect(out[-1] == ':');
         expect(in + 2 <= in_end && Str(in, 2) == "//");
         *out++ = '/'; *out++ = '/';
@@ -226,13 +216,13 @@ struct IRIParser {
             }
             case CharProps::Slash:
                 authority_end = out - output.begin();
-                return parse_absolute_path(out, in, in_end);
+                return parse_absolute_path(out, in);
             case CharProps::Question:
                 authority_end = path_end = out - output.begin();
-                return parse_query(out, in, in_end);
+                return parse_query(out, in);
             case CharProps::Hash:
                 authority_end = path_end = query_end = out - output.begin();
-                return parse_fragment(out, in, in_end);
+                return parse_fragment(out, in);
             case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
@@ -245,25 +235,41 @@ struct IRIParser {
             default: never();
         }
         authority_end = path_end = query_end = out - output.begin();
-        return done(out, in, in_end);
+        return done(out, in);
     }
 
-    NOINLINE
-    void parse_absolute_path (char* out, const char* in, const char* in_end) {
+    void parse_absolute_path (char* out, const char* in) {
         expect(*in == '/');
         *out++ = *in++;
-        return parse_relative_path(out, in, in_end);
+        return parse_relative_path(out, in);
     }
 
     NOINLINE
-    void parse_relative_path (char* out, const char* in, const char* in_end) {
+    void parse_relative_path (char* out, const char* in) {
         while (in < in_end) switch (char_behavior(*in)) {
             case CharProps::Ordinary:
                 *out++ = *in++; break;
             case CharProps::Slash:
+                if (!(out = collapse_segment(out))) {
+                    return fail(Error::PathOutsideRoot);
+                }
+                 // Only here can we collapse extra /s without accidentally
+                 // chopping off a final /
+                if (out[-1] == '/') in++;
+                else *out++ = *in++;
+                break;
             case CharProps::Question:
+                if (!(out = collapse_segment(out))) {
+                    return fail(Error::PathOutsideRoot);
+                }
+                path_end = out - output.begin();
+                return parse_query(out, in);
             case CharProps::Hash:
-                return finish_segment(out, in, in_end);
+                if (!(out = collapse_segment(out))) {
+                    return fail(Error::PathOutsideRoot);
+                }
+                path_end = query_end = out - output.begin();
+                return parse_fragment(out, in);
             case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
@@ -275,43 +281,28 @@ struct IRIParser {
                 return fail(Error::PathInvalid);
             default: never();
         }
-        return finish_segment(out, in, in_end);
+        if (!(out = collapse_segment(out))) {
+            return fail(Error::PathOutsideRoot);
+        }
+        path_end = query_end = out - output.begin();
+        return done(out, in);
     }
 
-    void finish_segment (char* out, const char* in, const char* in_end) {
+    char* collapse_segment (char* out) {
         if (Str(out-3, 3) == "/..") {
             out -= 3;
-            if (out - output.begin() == authority_end) {
-                return fail(Error::PathOutsideRoot);
-            }
+            if (out - output.begin() == authority_end)
+                [[unlikely]] return null;
             while (out[-1] != '/') out--;
         }
         else if (Str(out-2, 2) == "/.") {
             out--;
         }
-        if (in < in_end) switch (*in) {
-            case '/':
-                 // Here we can collapse extra /s without accidentally chopping
-                 // off a final /
-                if (out[-1] == '/') in++;
-                else *out++ = *in++;
-                return parse_relative_path(out, in, in_end);
-            case '?':
-                path_end = out - output.begin();
-                return parse_query(out, in, in_end);
-            case '#':
-                path_end = query_end = out - output.begin();
-                return parse_fragment(out, in, in_end);
-            default: never();
-        }
-        path_end = query_end = out - output.begin();
-        return done(out, in, in_end);
+        return out;
     }
 
     NOINLINE
-    void parse_nonhierarchical_path (
-        char* out, const char* in, const char* in_end
-    ) {
+    void parse_nonhierarchical_path (char* out, const char* in) {
         expect(out[-1] == ':');
         while (in < in_end) switch (char_behavior(*in)) {
             case CharProps::Ordinary:
@@ -319,10 +310,10 @@ struct IRIParser {
                 *out++ = *in++; break;
             case CharProps::Question:
                 path_end = out - output.begin();
-                return parse_query(out, in, in_end);
+                return parse_query(out, in);
             case CharProps::Hash:
                 path_end = query_end = out - output.begin();
-                return parse_fragment(out, in, in_end);
+                return parse_fragment(out, in);
             case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
@@ -336,11 +327,11 @@ struct IRIParser {
             default: never();
         }
         path_end = query_end = out - output.begin();
-        return done(out, in, in_end);
+        return done(out, in);
     }
 
     NOINLINE
-    void parse_query (char* out, const char* in, const char* in_end) {
+    void parse_query (char* out, const char* in) {
         expect(*in == '?');
         *out++ = *in++;
         while (in < in_end) switch (char_behavior(*in)) {
@@ -350,7 +341,7 @@ struct IRIParser {
                 *out++ = *in++; break;
             case CharProps::Hash:
                 query_end = out - output.begin();
-                return parse_fragment(out, in, in_end);
+                return parse_fragment(out, in);
             case CharProps::Percent:
                 if (!(out = canonicalize_percent(out, in, in_end))) {
                     return fail(Error::PercentSequenceInvalid);
@@ -363,11 +354,11 @@ struct IRIParser {
             default: never();
         }
         query_end = out - output.begin();
-        return done(out, in, in_end);
+        return done(out, in);
     }
 
     NOINLINE
-    void parse_fragment (char* out, const char* in, const char* in_end) {
+    void parse_fragment (char* out, const char* in) {
         expect(*in == '#');
         *out++ = *in++;
          // Note that a second # is not allowed.  If that happens, it's likely
@@ -392,10 +383,10 @@ struct IRIParser {
                 return fail(Error::FragmentInvalid);
             default: never();
         }
-        return done(out, in, in_end);
+        return done(out, in);
     }
 
-    void done (char* out, const char* in, const char* in_end) {
+    void done (char* out, const char* in) {
         if (out - output.begin() > maximum_length) return fail(Error::TooLong);
         expect(in == in_end);
         expect(scheme_end < authority_end);
@@ -407,16 +398,17 @@ struct IRIParser {
     }
 
     [[gnu::cold]] void fail (Error err) {
-        output = input;
+        output = Str(in_begin, in_end);
         scheme_end = path_end = query_end = 0;
         authority_end = u16(err);
     }
 };
 
+NOINLINE
 IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
+    if (!ref) [[unlikely]] return IRI();
     IRIParser parser;
-    parser.input = ref;
-    parser.parse(base);
+    parser.parse(ref, base);
     return IRI(
         move(parser.output),
         parser.scheme_end, parser.authority_end,
@@ -535,12 +527,10 @@ bool scheme_canonical (Str scheme) {
     char c = *p++;
     if (c >= 'a' && c <= 'z') [[likely]] { }
     else return false;
-    while (p < end) switch (char_scheme_behavior(*p++)) {
-        case CharProps::SchemeAlpha:
-            if (c >= 'a' && c <= 'z') [[likely]] break;
-            else return false;
-        case CharProps::SchemeOther: break;
-        default: [[unlikely]] return false;
+    while (p < end) {
+        char c = *p++;
+        if (!char_scheme_valid(c)) [[unlikely]] return false;
+        if (!char_scheme_canonical(c)) return false;
     }
     return true;
 }

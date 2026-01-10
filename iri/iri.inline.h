@@ -13,13 +13,10 @@ enum CharProps : u8 {
     Question = 4,
     Hash = 5,
     Percent = 6,
-    Behavior = 0x0f,
+    Behavior = 0x07,
 
-    SchemeAlpha = 0x10,
-    SchemeOther = 0x20,
-    SchemeEnd = 0x40,  // This probably isn't that useful
-    SchemeBehavior = 0x70,
-
+    IsHexadecimal = 0x20,  // We have a spare bit, may as well use it
+    SchemeValid = 0x40,
     WantsEncode = 0x80,  // Don't eagerly decode these
 };
 
@@ -43,12 +40,15 @@ constexpr std::array<u8, 256> char_props = []{
         '+', ',', ';', '='
     }) r[c] |= CharProps::WantsEncode;
 
-    for (u8 c = 'A'; c <= 'Z'; c++) r[c] |= CharProps::SchemeAlpha;
-    for (u8 c = 'a'; c <= 'z'; c++) r[c] |= CharProps::SchemeAlpha;
+    for (u8 c = 'A'; c <= 'Z'; c++) r[c] |= CharProps::SchemeValid;
+    for (u8 c = 'a'; c <= 'z'; c++) r[c] |= CharProps::SchemeValid;
     for (u8 c : {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '-', '.'
-    }) r[c] |= CharProps::SchemeOther;
-    r[':'] |= CharProps::SchemeEnd;
+    }) r[c] |= CharProps::SchemeValid;
+    for (u8 c : {
+        '0','1','2','3','4','5','6','7','8','9',
+        'a','b','c','d','e','f','A','B','C','D','E','F'
+    }) r[c] |= CharProps::IsHexadecimal;
     return r;
 }();
 
@@ -57,12 +57,24 @@ u8 char_behavior (char c) {
     return char_props[u8(c)] & CharProps::Behavior;
 }
 static constexpr
-u8 char_scheme_behavior (char c) {
-    return char_props[u8(c)] & CharProps::SchemeBehavior;
+bool char_scheme_valid (char c) {
+    return char_props[u8(c)] & CharProps::SchemeValid;
+}
+static constexpr
+bool char_scheme_valid_start (char c) {
+    return char_scheme_valid(c) && c & 0x40;
+}
+static constexpr
+bool char_scheme_canonical (char c) {
+    return c & 0x20;
 }
 static constexpr
 bool char_wants_encode (char c) {
     return char_props[u8(c)] & CharProps::WantsEncode;
+}
+static constexpr
+bool char_is_hexadecimal (char c) {
+    return char_props[u8(c)] & CharProps::IsHexadecimal;
 }
 
 struct ConstexprValidator {
@@ -88,22 +100,11 @@ struct ConstexprValidator {
     }
 
     constexpr void parse_scheme () {
-        switch (char_scheme_behavior(*in)) {
-            case CharProps::SchemeAlpha:
-                if (*in & ('a' & ~'A')) {
-                    in++; break;
-                }
-                else ERROR_canonical_scheme_must_be_lowercase();
-            default: ERROR_invalid_scheme();
-        }
-        while (in < end) switch (char_scheme_behavior(*in)) {
-            case CharProps::SchemeAlpha:
-                if (*in & ('a' & ~'A')) {
-                    in++; break;
-                }
-                else ERROR_canonical_scheme_must_be_lowercase();
-            case CharProps::SchemeOther: in++; break;
-            case CharProps::SchemeEnd:
+        if (!char_scheme_valid_start(*in)) ERROR_invalid_scheme();
+        if (!char_scheme_canonical(*in)) ERROR_canonical_scheme_must_be_lowercase();
+        in++;
+        while (in < end) {
+            if (*in == ':') {
                 scheme_end = in - begin;
                 in++;
                 if (in + 2 <= end && in[0] == '/' && in[1] == '/') {
@@ -116,7 +117,12 @@ struct ConstexprValidator {
                     }
                     else return parse_nonhierarchical_path();
                 }
-            default: ERROR_invalid_scheme();
+            }
+            else if (char_scheme_valid(*in)) {
+                if (!char_scheme_canonical(*in)) ERROR_canonical_scheme_must_be_lowercase();
+                in++;
+            }
+            else ERROR_invalid_scheme();
         }
         ERROR_invalid_scheme();
     }
@@ -290,6 +296,7 @@ IRI parse_and_canonicalize (Str ref, const IRI& base) noexcept;
 
 } // in
 
+ // This is very branchy but abusing CharProps doesn't make it any better.
 constexpr Relativity relativity (Str ref) {
     if (ref.size() == 0) return Relativity::Scheme;
     switch (ref[0]) {
