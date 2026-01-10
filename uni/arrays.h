@@ -2065,7 +2065,13 @@ struct ArrayInterface {
             cap * 2 : self.size() + shift
         );
         if (cap > max_size_) [[unlikely]] cap = max_size_;
-        if (self.unique()) {
+        if (!self.impl.data) {
+             // The C spec says that you can't pass null pointers to memcpy even
+             // if the size parameter is zero, even though the implementation of
+             // memcpy allows this.  If you do so, the compiler may assume the
+             // pointer is not null, which will delete null checks later.
+        }
+        else if (self.unique()) {
              // Assume that the move constructor and destructor never throw even
              // if they aren't marked noexcept.
             if constexpr (IsTriviallyRelocatable<T>) {
@@ -2093,11 +2099,8 @@ struct ArrayInterface {
                 }
             }
             catch (...) { never(); }
-             // data could be null if size is 0
-            if (self.impl.data) {
-                 // Don't use remove_ref, it'll call the destructors again
-                SharableBuffer<T>::deallocate(self.impl.data);
-            }
+             // Don't use remove_ref, it'll call the destructors again
+            SharableBuffer<T>::deallocate(self.impl.data);
         }
         else if constexpr (std::is_trivially_copy_constructible_v<T>) {
             dat = (T*)std::memcpy(
