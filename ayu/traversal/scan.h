@@ -33,7 +33,7 @@ SharedRoute reference_to_route (const AnyRef&);
  // while keeping the route cache, since there is no way for the cache to stay
  // up-to-date.
 struct KeepRouteCache {
-    KeepRouteCache () noexcept;
+    KeepRouteCache ();
     ~KeepRouteCache ();
 };
 
@@ -42,7 +42,7 @@ struct KeepRouteCache {
  // only be destroyed in first-in-last-out order, which will be fine if you only
  // construct them on the stack
 struct PushLikelyRef {
-    PushLikelyRef (AnyRef, SharedRoute) noexcept;
+    PushLikelyRef (AnyRef, SharedRoute);
     ~PushLikelyRef ();
 
     AnyRef reference;
@@ -118,7 +118,7 @@ inline PushLikelyRef* first_plr = null;
 
 inline PushLikelyRef::PushLikelyRef (
     AnyRef r, SharedRoute l
-) noexcept :
+) :
     reference(move(r)), route(move(l)), next(first_plr)
 {
 #ifndef NDEBUG
@@ -129,6 +129,19 @@ inline PushLikelyRef::PushLikelyRef (
 inline PushLikelyRef::~PushLikelyRef () {
     expect(first_plr == this);
     first_plr = next;
+}
+
+namespace in {
+    inline u32 keep_route_cache_count = 0;
+    void clear_route_cache ();
+}
+
+
+inline KeepRouteCache::KeepRouteCache () {
+    in::keep_route_cache_count++;
+}
+inline KeepRouteCache::~KeepRouteCache () {
+    if (!--in::keep_route_cache_count) in::clear_route_cache();
 }
 
 } // namespace ayu

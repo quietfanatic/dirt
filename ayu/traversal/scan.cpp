@@ -311,7 +311,6 @@ struct TraverseScan {
  // with different types are different items.
 static UniqueArray<Pair<AnyPtr, SharedRoute>> route_cache;
 static bool have_route_cache = false;
-static u32 keep_route_cache_count = 0;
 
 NOINLINE // Noinline the slow path to make the callback leaner
 bool realloc_cache (auto& cache, AnyPtr ptr, RouteRef rt) {
@@ -384,17 +383,12 @@ const Pair<AnyPtr, SharedRoute>* search_route_cache (AnyPtr item) {
     return null;
 }
 
-} using namespace in;
+void clear_route_cache () {
+    have_route_cache = false;
+    route_cache.clear();
+}
 
-KeepRouteCache::KeepRouteCache () noexcept {
-    keep_route_cache_count++;
-}
-KeepRouteCache::~KeepRouteCache () {
-    if (!--keep_route_cache_count) {
-        have_route_cache = false;
-        route_cache.clear();
-    }
-}
+} using namespace in;
 
 bool scan_pointers (
     AnyPtr base_item, RouteRef base_rt, ScanPointersCB cb
