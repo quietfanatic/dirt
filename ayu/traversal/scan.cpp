@@ -167,11 +167,11 @@ struct TraverseScan {
                 child.rt = trav.rt;
             }
             else {
-                child_rt = SharedRoute(trav.rt, attr->key());
+                child_rt = SharedRoute(trav.rt, attr->key);
                 child.rt = child_rt;
             }
             child.collapse_optional = acr->attr_flags % AttrFlags::CollapseOptional;
-            trav_attr<visit>(child, trav, acr, attr->key(), AC::Read);
+            trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
         }
@@ -421,6 +421,7 @@ bool scan_resource_pointers (ResourceRef res, ScanPointersCB cb) {
 }
 
 bool scan_resource_references (ResourceRef res, ScanReferencesCB cb) {
+     // TODO: use FakeRef or whatever replaces it
     auto& value = res->get_value();
     if (!value) return false;
     return scan_references(value.ptr(), SharedRoute(res), cb);

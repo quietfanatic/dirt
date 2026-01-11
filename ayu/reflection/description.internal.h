@@ -407,20 +407,13 @@ concept IsValueDcr = std::is_base_of_v<ValueDcr<T>, Dcr>;
 
 template <class T>
 struct AttrDcr : ComparableAddress {
-    union {
-        StaticString remote_key;
-        LocalString local_key;
-    };
-    constexpr AttrDcr (StaticString k) {
-        if (k.size() <= LocalString::max) local_key = LocalString(k);
-        else std::construct_at(&remote_key, k);
-    }
+    StaticString key;
 };
 template <class T, class Acr>
 struct AttrDcrWith : AttrDcr<T> {
     Acr acr;
     constexpr AttrDcrWith (StaticString k, const Acr& a, AttrFlags flags) :
-        AttrDcr<T>(k),
+        AttrDcr<T>{{}, k},
         acr(constexpr_acr(a))
     {
         u32 count = flags % in::AttrFlags::Optional
@@ -430,9 +423,6 @@ struct AttrDcrWith : AttrDcr<T> {
             ERROR_conflicting_flags_on_attr();
         }
         acr.attr_flags = flags;
-        if (k.size() <= LocalString::max) {
-            acr.attr_flags |= in::AttrFlags::KeyLocal;
-        }
     }
 };
  // We can't put the default value after the acr because it has variable size,
@@ -700,13 +690,7 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
              // Allow duplicate name descriptors.  A later one overrides an
              // earlier one.
             have_name = true;
-            if (dcr.name.size() <= LocalString::max) {
-                header.flags |= DescFlags::NameLocal;
-                header.local_name = LocalString(dcr.name);
-            }
-            else {
-                header.name = dcr.name;
-            }
+            header.name = dcr.name;
         }
         else if constexpr (std::is_base_of_v<ComputedNameDcr<T>, Dcr>) {
             if (have_computed_name) {

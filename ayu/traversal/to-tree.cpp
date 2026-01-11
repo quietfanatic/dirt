@@ -140,11 +140,11 @@ struct TraverseToTree {
             ToTreeTraversal<AttrTraversal> child;
 
             child.dest = &object.emplace_back_expect_capacity(
-                attr->key(), Tree()
+                attr->key, Tree()
             ).second;
             child.embed_errors = trav.embed_errors;
             trav_attr<visit>(
-                child, trav, attr->acr(), attr->key(), AC::Read
+                child, trav, attr->acr(), attr->key, AC::Read
             );
             child.dest->flags |= child.acr->tree_flags;
         }
@@ -165,11 +165,11 @@ struct TraverseToTree {
             ToTreeTraversal<AttrTraversal> child;
 
             child.dest = &object.emplace_back_expect_capacity(
-                attr->key(), Tree()
+                attr->key, Tree()
             ).second;
             child.embed_errors = trav.embed_errors;
             trav_attr<visit>(
-                child, trav, attr->acr(), attr->key(), AC::Read
+                child, trav, attr->acr(), attr->key, AC::Read
             );
             child.dest->flags |= child.acr->tree_flags;
         }

@@ -60,9 +60,9 @@ struct TraverseGetKeys {
             if (acr->attr_flags % AttrFlags::Collapse) {
                 GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
-                trav_attr<visit>(child, trav, acr, attr->key(), AC::Read);
+                trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
             }
-            else collect(*trav.keys, attr->key());
+            else collect(*trav.keys, attr->key);
         }
     }
 
@@ -173,13 +173,13 @@ struct TraverseSetKeys {
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto acr = attr->acr();
-            if (claim(*trav.keys, attr->key())) {
+            if (claim(*trav.keys, attr->key)) {
                 claimed[i] = true;
             }
             else if (acr->attr_flags % (AttrFlags::Optional|AttrFlags::Collapse|AttrFlags::CollapseOptional)) {
                  // Allow omitting optional or collapsible attrs
             }
-            else raise_AttrMissing(trav.type, attr->key());
+            else raise_AttrMissing(trav.type, attr->key);
         }
          // Then check collapsed attrs
         for (u32 i = 0; i < attrs->n_attrs; i++) {
@@ -191,7 +191,7 @@ struct TraverseSetKeys {
                 GetKeysTraversal<AttrTraversal> child;
                 child.keys = trav.keys;
                 trav_attr<visit>(
-                    child, trav, acr, attr->key(), AC::Write
+                    child, trav, acr, attr->key, AC::Write
                 );
             }
         }
@@ -317,11 +317,11 @@ struct TraverseAttr {
          // First check direct attrs
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
-            if (attr->key() == *trav.get_key) {
+            if (attr->key == *trav.get_key) {
                 ReturnRefTraversal<AttrTraversal> child;
                 child.r = trav.r;
                 trav_attr<return_ref>(
-                    child, trav, attr->acr(), attr->key(), AC::Read
+                    child, trav, attr->acr(), attr->key, AC::Read
                 );
                 return;
             }
@@ -334,7 +334,7 @@ struct TraverseAttr {
                 GetAttrTraversal<AttrTraversal> child;
                 child.get_key = trav.get_key;
                 child.r = trav.r;
-                trav_attr<visit>(child, trav, acr, attr->key(), AC::Read);
+                trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
                 if (*child.r) return;
             }
         }

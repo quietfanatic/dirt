@@ -23,32 +23,17 @@ static_assert(sizeof(ComparableAddress) == 1);
 
 using NameFunc = AnyString();
 
-struct LocalString {
-    static constexpr usize max = sizeof(StaticString) - 1;
-    char data [max];
-    u8 size;
-    constexpr LocalString () = default;
-    constexpr LocalString (Str s) : data{}, size(s.size()) {
-        require(s.size() <= max);
-        for (usize i = 0; i < size; i++) {
-            data[i] = s[i];
-        }
-    }
-    constexpr operator Str () const { return Str(data, size); }
-};
-
 enum class DescFlags : u8 {
     PreferArray = 1 << 0,
     PreferObject = 1 << 1,
     Preference = PreferArray | PreferObject,
      // Select between union members
     NameComputed = 1 << 2,
-    NameLocal = 1 << 3,
-    ElemsContiguous = 1 << 4,
+    ElemsContiguous = 1 << 3,
      // Can select some faster algorithms when this is false.
-    AttrsNeedRebuild = 1 << 5,
+    AttrsNeedRebuild = 1 << 4,
      // Faster values() processing
-    ValuesAllStrings = 1 << 6,
+    ValuesAllStrings = 1 << 5,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
 
@@ -67,7 +52,6 @@ struct DescriptionHeader : ComparableAddress {
             StaticString* cache;
             NameFunc* f;
         } computed_name;
-        LocalString local_name;
     };
 
     DescFlags flags = {};

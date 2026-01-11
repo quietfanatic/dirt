@@ -3,7 +3,6 @@
 
 #pragma once
 #include "access.h"
-#include <typeinfo>
 #include "../../uni/lilac.h"
 #include "../common.h"
 #include "../data/tree.h"
@@ -73,8 +72,6 @@ enum class AttrFlags : u8 {
      // the object, and an array of one element to the attribute being present
      // with that element as its value.
     CollapseOptional = 0x40,
-     // For space optimization
-    KeyLocal = 0x80
 };
 DECLARE_ENUM_BITWISE_OPERATORS(AttrFlags)
 
@@ -336,9 +333,14 @@ void RefFuncsAcr1<To>::_access (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
     auto self = static_cast<const RefFuncsAcr<Mu, To>*>(acr);
-    To tmp = mode % AC::Read ? self->getter(from) : To();
-    cb(Type::For<To>(), (Mu*)&tmp);
-    if (mode % AC::Write) self->setter(from, move(tmp));
+    if (!(mode % AC::Write)) {
+        cb(Type::For<To>(), (Mu*)&self->getter(from));
+    }
+    else {
+        To tmp = mode % AC::Read ? self->getter(from) : To();
+        cb(Type::For<To>(), (Mu*)&tmp);
+        self->setter(from, move(tmp));
+    }
 }
 
 /// value_func

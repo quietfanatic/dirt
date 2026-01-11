@@ -132,11 +132,8 @@ void access_ChainDataFunc (
     struct Frame {
         const ChainDataFuncAcr* self;
         AccessCB cb;
-         // We only need this in debug builds but it's not worth doing a bunch
-         // of ifdefs to save one word of stack space.
-        AccessCaps mode;
     };
-    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb, mode};
+    Frame frame {static_cast<const ChainDataFuncAcr*>(acr), cb};
     auto outer_mode = mode | AC::Read;
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
@@ -200,22 +197,23 @@ bool operator== (const Accessor& a, const Accessor& b) {
         case AF::Chain: {
             auto& aa = reinterpret_cast<const ChainAcr&>(a);
             auto& bb = reinterpret_cast<const ChainAcr&>(b);
-            return *aa.outer == *bb.outer && *aa.inner == *bb.inner;
+            return *aa.inner == *bb.inner && *aa.outer == *bb.outer;
         }
         case AF::ChainAttrFunc: {
             auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainAttrFuncAcr&>(b);
-            return *aa.outer == *bb.outer && aa.f == bb.f && aa.key == bb.key;
+             // Comparing nested accessor last lets us tail recurse.
+            return aa.f == bb.f && aa.key == bb.key && *aa.outer == *bb.outer;
         }
         case AF::ChainElemFunc: {
             auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainElemFuncAcr&>(b);
-            return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
+            return aa.f == bb.f && aa.index == bb.index && *aa.outer == *bb.outer;
         }
         case AF::ChainDataFunc: {
             auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
             auto& bb = reinterpret_cast<const ChainDataFuncAcr&>(b);
-            return *aa.outer == *bb.outer && aa.f == bb.f && aa.index == bb.index;
+            return aa.f == bb.f && aa.index == bb.index && *aa.outer == *bb.outer;
         }
          // Other ACRs can have a diverse range of parameterized types, so
          // comparing their contents is not feasible.  Fortunately, they should
@@ -234,7 +232,7 @@ usize hash_acr (const Accessor& a) {
             auto& aa = reinterpret_cast<const ChainAcr&>(a);
             return hash_combine(hash_acr(*aa.outer), hash_acr(*aa.inner));
         }
-        case AF::ChainAttrFunc:  {
+        case AF::ChainAttrFunc: {
             auto& aa = reinterpret_cast<const ChainAttrFuncAcr&>(a);
             return hash_combine(
                 hash_combine(
@@ -244,7 +242,7 @@ usize hash_acr (const Accessor& a) {
                 std::hash<AnyString>{}(aa.key)
             );
         }
-        case AF::ChainElemFunc:  {
+        case AF::ChainElemFunc: {
             auto& aa = reinterpret_cast<const ChainElemFuncAcr&>(a);
             return hash_combine(
                 hash_combine(
@@ -254,7 +252,7 @@ usize hash_acr (const Accessor& a) {
                 std::hash<usize>{}(aa.index)
             );
         }
-        case AF::ChainDataFunc:  {
+        case AF::ChainDataFunc: {
             auto& aa = reinterpret_cast<const ChainDataFuncAcr&>(a);
             return hash_combine(
                 hash_combine(
