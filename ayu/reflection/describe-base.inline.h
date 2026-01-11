@@ -156,9 +156,9 @@ template <SameOrBase<T> T2, Describable M> constexpr
 AccessorFromTo<T, M> auto AYU_DescribeBase<T>::member (
     M T2::* mp, AcrFlags flags
 ) {
-     // Sadly we can't use NoopAcr to save a word if mp is 0, because we can't
-     // check mp in an if constexpr because it's a parameter, so we can't change
-     // the return type of this function based on it.
+     // Sadly we can't use ReinterpretAcr to save a word if mp is 0, because we
+     // can't check mp in an if constexpr because it's a parameter, so we can't
+     // change the return type of this function based on it.
     return in::MemberAcr<T, M>(mp, flags);
 }
 template <Describable T>
@@ -180,7 +180,7 @@ AccessorFromTo<T, M> auto AYU_DescribeBase<T>::base (AcrFlags flags) {
          // BaseAcr is kinda heavy because it may have to deal with virtual
          // bases, so if the base is the first base (offset 0), use a special
          // Acr that doesn't need to store any data.
-        return in::NoopAcr<T, M>(flags);
+        return in::ReinterpretAcr<T, M>(flags);
     }
     else return in::BaseAcr<T, M>(flags);
 }

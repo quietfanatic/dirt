@@ -82,24 +82,21 @@ constexpr ErrorCode e_ToTreeValueNotFound = "ayu::e_ToTreeValueNotFound";
 template <Describable T>
 Tree item_to_tree (T* item, RouteRef rt, ToTreeOptions opts) {
     Tree r;
-    in::FakeRef fake {.ref = item};
-    return item_to_tree(fake.ref, rt, opts);
+    return item_to_tree(AnyPtr(item), rt, opts);
 }
 
 template <Describable T>
 UniqueString item_to_string (
     T* item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) {
-    in::FakeRef fake {.ref = item};
-    return item_to_string(fake.ref, popts, rt, ttopts);
+    return item_to_string(AnyPtr(item), popts, rt, ttopts);
 }
 
 template <Describable T>
 UniqueString show (
     T* item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) noexcept {
-    in::FakeRef fake {.ref = item};
-    return show(fake.ref, popts, rt, ttopts);
+    return show(AnyPtr(item), popts, rt, ttopts);
 }
 
 } // ayu

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "access.internal1.h"
+
  // Don't bother putting these in a namespace, since the namespace leaks when
  // you're overriding them anyway.  Just use C-style name prefixes.
 template <class T> struct AYU_Description;
@@ -43,7 +45,13 @@ enum class TypeFlags : u8 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
 
-struct DescriptionHeader : ComparableAddress {
+struct IdentityAccessor : Accessor {
+    constexpr IdentityAccessor () :
+        Accessor(AcrForm::Identity, AccessCaps::AllowEverything)
+    { ref_count = 0; }
+};
+
+struct DescriptionHeader : IdentityAccessor, ComparableAddress {
     u32 cpp_size = 0;
     u32 cpp_align = 0;
     union {

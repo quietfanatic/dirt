@@ -494,43 +494,24 @@ SharedRoute find_reference (const AnyRef& item) {
     for (auto plr = first_plr; plr; plr = plr->next) {
         if (item == plr->reference) return plr->route;
     }
-    if (get_route_cache()) {
-        if (item.addressable()) {
-            AnyPtr ptr = item.address();
-             // Addressable! This will be fast.
-            if (auto it = search_route_cache(ptr)) {
-                if (!contains(it->first.caps(), item.caps())) {
-                    [[unlikely]] return {};
-                }
-                return it->second;
+     // Since AnyRef no longer stores its host type, when given an unaddressable
+     // AnyRef we can no longer find the host in the route cache, then scan
+     // under the host for the referent.  So if we have an unaddressable AnyRef
+     // we just gotta search the entire universe now, though this should happen
+     // rarely if ever.  If this does become a problem, we could cache AnyRefs
+     // instead of AnyPtrs, but then we'd have to define operator<=> on AnyRef.
+    if (item.addressable() && get_route_cache()) {
+        AnyPtr ptr = item.address();
+        if (auto it = search_route_cache(ptr)) {
+            if (!contains(it->first.caps(), item.caps())) {
+                [[unlikely]] return {};
             }
-            return {};
+            return it->second;
         }
-        else {
-             // Not addressable.  First find the host in the route cache.
-            if (auto it = search_route_cache(item.host)) {
-                 // Now search under that host for the actual reference.
-                SharedRoute r;
-                scan_references(
-                    AnyRef(item.host), it->second,
-                    [&r, &item](const AnyRef& ref, RouteRef rt)
-                {
-                    if (ref == item) {
-                        if (!contains(ref.caps(), item.caps())) {
-                            [[unlikely]] return true;
-                        }
-                        new (&r) SharedRoute(rt);
-                        return true;
-                    }
-                    else return false;
-                });
-                return r;
-            }
-            else return {};
-        }
+        return {};
     }
     else {
-         // We don't have the route cache!  Time to do a global search.
+         // Gotta do a global search
         SharedRoute r;
         scan_universe_references(
             [&r, &item](const AnyRef& ref, RouteRef rt)

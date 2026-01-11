@@ -9,7 +9,7 @@
 #include <type_traits>
 #include "../common.h"
 #include "../data/tree.h"
-#include "access.internal.h"
+#include "access.internal1.h"
 
 namespace ayu::in {
 

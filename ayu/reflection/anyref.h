@@ -33,40 +33,53 @@
 // typed "null" AnyRefs, which have a type but no value, and are equivalent to
 // typed null pointers.  operator bool returns false for both of these, so to
 // differentiate them, call .type(), which will return the empty Type for the
-// empty AnyRef.  read(), write(), and modify() can be called on empty or null
-// AnyRefs; their callbacks will be passed nullptr and a possibly empty Type.
-// get_as<>() and set_as<>() will segfault on empty or null AnyRefs.
+// empty AnyRef.  read(), write(), and modify() can be called on typed null
+// AnyRefs, but not the empty AnyRef.  get_as<>() and set_as<>() will segfault
+// on empty or null AnyRefs.
 
 #pragma once
 #include <type_traits>
-#include "access.internal.h"
+#include "access.internal1.h"
 #include "anyptr.h"
 
 namespace ayu {
 
 struct AnyRef {
-    AnyPtr host;
-    const in::Accessor* acr;
+    Mu* host;
+    union { // Same representation as AnyPtr
+        const void* acr_p;
+        usize acr_i;
+    };
 
 ///// CONSTRUCTION
 
      // The empty AnyRef will cause null derefs if you do anything with it.
-    constexpr AnyRef (Null n = null) : host(n), acr(n) { }
+    constexpr AnyRef (Null n = null) : host(n), acr_p(n) { }
 
      // Construct from internal data.
-    AnyRef (AnyPtr h, const in::Accessor* a) : host(h), acr(a) { }
+    AnyRef (Mu* h, const in::Accessor* a) : host(h), acr_p(a) { }
+    AnyRef (Mu* h, const in::Accessor* a, AccessCaps caps) :
+        host(h), acr_i(reinterpret_cast<usize>(a) | !(caps % AC::Write))
+    { }
 
-     // Construct from a AnyPtr.
-    AnyRef (AnyPtr p) : host(p), acr(null) { }
+     // Construct from a AnyPtr.  Explicit because AnyPtr& can be implicitly
+     // reinterpreted as AnyRef&, and that is preferred.
+    explicit AnyRef (AnyPtr p) : host(p.address), acr_p(p.type_p) { }
 
      // Construct from native pointer.  Explicit for AnyPtr* and AnyRef*,
      // because that's likely to be a mistake.
-    template <ConstableDescribable T> explicit(IsAnyPtrOrAnyRef<T>)
-    AnyRef (T* p) : host(p), acr(null) { }
+    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
+    AnyRef (T* p) : host((Mu*)p), acr_p(Type::For<T>().data) { }
+    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
+    AnyRef (const T* p) : host((Mu*)p), acr_i(
+        reinterpret_cast<usize>(Type::For<T>().data) | 1
+    ) { }
 
      // Construct from unknown pointer and type
-    AnyRef (Type t, Mu* p) : host(t, p), acr(null) { }
-    AnyRef (Type t, Mu* p, bool readonly) : host(t, p, readonly), acr(null) { }
+    AnyRef (Type t, Mu* p) : host(p), acr_p(t.data) { }
+    AnyRef (Type t, Mu* p, bool readonly) : host(p), acr_i(
+        reinterpret_cast<usize>(t.data) | readonly
+    ) { }
 
      // Construct from an object and an accessor for that object.  This is
      // intended to be used in computed_attrs and computed_elems functions in
@@ -78,39 +91,45 @@ struct AnyRef {
     AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
 
      // Copy and move construction and assignment
-    AnyRef (const AnyRef& o) : AnyRef(o.host, o.acr) {
-        if (acr) [[unlikely]] acr->inc();
+    AnyRef (const AnyRef& o) : host(o.host), acr_p(o.acr_p) {
+        if (acr_p) acr()->inc();
     }
     AnyRef (AnyRef&& o) :
-        host(o.host), acr(o.acr)
+        host(o.host), acr_p(o.acr_p)
     {
         o.host = null;
-        o.acr = null;
+        o.acr_p = null;
     }
     AnyRef& operator = (const AnyRef& o) {
         this->~AnyRef();
         host = o.host;
-        acr = o.acr;
-        if (acr) [[unlikely]] acr->inc();
+        acr_p = o.acr_p;
+        if (acr_p) acr()->inc();
         return *this;
     }
     AnyRef& operator = (AnyRef&& o) {
         this->~AnyRef();
         host = o.host;
-        acr = o.acr;
+        acr_p = o.acr_p;
         o.host = null;
-        o.acr = null;
+        o.acr_p = null;
         return *this;
     }
 
-    constexpr ~AnyRef () { if (acr) [[unlikely]] acr->dec(); }
+    constexpr ~AnyRef () { if (acr_p) acr()->dec(); }
 
 ///// INFO
 
     explicit operator bool () const { return !!host; }
+     // TODO: empty
+
+    const in::Accessor* acr () const {
+        return reinterpret_cast<const in::Accessor*>(acr_i & ~1);
+    }
 
      // Get type of referred-to item.  Gives empty Type for empty AnyRef.
     Type type () const {
+        if (!acr_p) [[unlikely]] return Type();
         Type r;
         access(AC::Read, AccessCB(r, [](Type& r, Type t, Mu*){
             r = t;
@@ -132,7 +151,7 @@ struct AnyRef {
 
      // Throws ReferenceUnaddressable if this AnyRef is not addressable.
     AnyPtr address () const {
-        if (!acr) return host;
+        if (!acr_p) [[unlikely]] return AnyPtr();
         AnyPtr r;
         access(AC::Address, AccessCB(r, [](AnyPtr& r, Type t, Mu* v){
             r = AnyPtr(t, v);
@@ -143,11 +162,13 @@ struct AnyRef {
 
      // Can throw either TypeCantCast or ReferenceUnaddressable
     Mu* address_as (Type t) const {
+        if (!acr_p) [[unlikely]] return null;
         return address().upcast_to(t).address;
     }
 
     template <ConstableDescribable T>
     T* address_as () const {
+        if (!acr_p) [[unlikely]] return null;
         if constexpr (!std::is_const_v<T>) {
             if (!writeable()) raise_access_denied(AC::Write);
         }
@@ -204,10 +225,7 @@ struct AnyRef {
 
     void access (AccessCaps mode, AccessCB cb) const {
         check_access(mode);
-        if (acr) {
-            acr->access(mode, *host.address, cb);
-        }
-        else cb(host.type(), host.address);
+        acr()->access(mode, *host, cb);
     }
 
     void read (AccessCB cb) const { access(AccessCaps::Read, cb); }
@@ -215,7 +233,7 @@ struct AnyRef {
     void modify (AccessCB cb) const { access(AccessCaps::Modify, cb); }
 
     AccessCaps caps () const {
-        return acr ? host.caps() & acr->caps : host.caps();
+        return acr()->caps & ~AccessCaps(acr_i & 1);
     }
 
 ///// SYNTAX SUGAR FOR TRAVERSAL
@@ -240,8 +258,8 @@ struct AnyRef {
  // addressable ref (provided other details of the refs are identical).
 inline bool operator == (const AnyRef& a, const AnyRef& b) {
     if (a.host != b.host) return false;
-    if (!a.acr | !b.acr) return a.acr == b.acr;
-    return *a.acr == *b.acr;
+    if (!a.acr() | !b.acr()) return a.acr() == b.acr();
+    return *a.acr() == *b.acr();
 }
 
 ///// ERROR CODES
@@ -262,20 +280,8 @@ template <>
 struct std::hash<ayu::AnyRef> {
     std::size_t operator () (const ayu::AnyRef& r) const {
         return uni::hash_combine(
-            hash<ayu::AnyPtr>()(r.host),
-            r.acr ? hash<ayu::in::Accessor>()(*r.acr) : 0
+            hash<ayu::Mu*>()(r.host),
+            r.acr_p ? hash<ayu::in::Accessor>()(*r.acr()) : 0
         );
     }
 };
-
-///// CHEATING
-
-namespace ayu::in {
-
- // Disable destructor for a ref we know doesn't need it
-union FakeRef {
-    AnyRef ref;
-    ~FakeRef () { expect(!ref.acr); }
-};
-
-} // ayu::in

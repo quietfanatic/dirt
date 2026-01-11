@@ -100,7 +100,7 @@ struct ReturnRefTraversal : ReturnRefTraversalHead, T { };
 
 inline void return_ref (const Traversal& tr) {
     auto& trav = static_cast<const ReturnRefTraversal<>&>(tr);
-    expect(!trav.r->acr);
+    expect(!trav.r->acr_p);
     trav.to_reference(trav.r);
 }
 

@@ -1,27 +1,28 @@
 #include "access.private.h"
 #include "anyref.h"
+#include "description.private.h"
 
 namespace ayu::in {
 
-void access_Functive (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
-) {
-    auto self = static_cast<const FunctiveAcr*>(acr);
-    self->access_func(acr, from, cb, mode);
-}
-
-void access_Typed (
+void access_Identity (
     const Accessor* acr, Mu& to, AccessCB cb, AccessCaps
 ) {
-    auto self = static_cast<const TypedAcr*>(acr);
+    auto self = static_cast<const DescriptionPrivate*>(acr);
+    cb(Type(self), &to);
+}
+
+void access_Reinterpret (
+    const Accessor* acr, Mu& to, AccessCB cb, AccessCaps
+) {
+    auto self = static_cast<const ReinterpretAcr<Mu, Mu>*>(acr);
     cb(self->type, &to);
 }
 
 void access_Member (
-    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps
 ) {
     auto self = static_cast<const MemberAcr<Mu, Mu>*>(acr);
-    access_Typed(acr, from.*(self->mp), cb, mode);
+    cb(self->type, &(from.*(self->mp)));
 }
 
 void access_RefFunc (
@@ -33,10 +34,10 @@ void access_RefFunc (
 }
 
 void access_ConstantPtr (
-    const Accessor* acr, Mu&, AccessCB cb, AccessCaps mode
+    const Accessor* acr, Mu&, AccessCB cb, AccessCaps
 ) {
     auto self = static_cast<const ConstantPtrAcr<Mu, Mu>*>(acr);
-    access_Typed(acr, *const_cast<Mu*>(self->pointer), cb, mode);
+    cb(self->type, const_cast<Mu*>(self->pointer));
 }
 
 void access_AnyRefFunc (
@@ -60,12 +61,19 @@ void access_AnyPtrFunc (
     cb(ptr.type(), ptr.address);
 }
 
+void access_Functive (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
+) {
+    auto self = static_cast<const FunctiveAcr*>(acr);
+    self->access_func(acr, from, cb, mode);
+}
+
 void access_Variable (
-    const Accessor* acr, Mu&, AccessCB cb, AccessCaps mode
+    const Accessor* acr, Mu&, AccessCB cb, AccessCaps
 ) {
      // Can't instantiate this with To=Mu, because it has a To embedded in it.
     auto self = static_cast<const VariableAcr<Mu, usize>*>(acr);
-    access_Typed(acr, *(Mu*)&self->value, cb, mode);
+    cb(self->type, (Mu*)&self->value);
 }
 
 void access_Chain (
@@ -148,6 +156,18 @@ void access_ChainDataFunc (
             frame.cb(p.type(), p.address);
         })
     );
+}
+
+AnyPtr Accessor::address (Mu& from) const {
+    if (!(caps % AC::Address)) return {};
+    AnyPtr r;
+    access(AC::Address, from,
+        AccessCB(r, [](AnyPtr& r, Type t, Mu* v){
+            r = AnyPtr(t, v);
+        })
+    );
+    if (!(caps % AC::Write)) r = r.add_readonly();
+    return r;
 }
 
 NOINLINE

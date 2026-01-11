@@ -106,6 +106,10 @@ struct AnyPtr {
     AccessCaps caps () const {
         return AC::AllowEverything ^ AccessCaps(readonly());
     }
+
+    // Cheat code!  You can pretend an AnyPtr is an AnyRef (but not vice versa).
+    operator AnyRef& () { return reinterpret_cast<AnyRef&>(*this); }
+    operator const AnyRef& () const { return reinterpret_cast<const AnyRef&>(*this); }
 };
 
  // AnyPtrs have a slightly evil property where a readonly pointer can equal a

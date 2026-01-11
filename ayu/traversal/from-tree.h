@@ -60,8 +60,7 @@ void item_from_tree (
     T* item, const Tree& t, RouteRef rt = {},
     FromTreeOptions opts = {}
 ) {
-    in::FakeRef fake {.ref = item};
-    item_from_tree(fake.ref, t, rt, opts);
+    item_from_tree(AnyPtr(item), t, rt, opts);
 }
 
  // Shortcuts

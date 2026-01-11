@@ -19,6 +19,8 @@ namespace ayu {
  // There is an empty Type, which will cause null derefs if you do anything but
  // boolify it.
 struct Type {
+     // Descriptions have incomplete final types, so the only thing you can cast
+     // their pointers to is void*.
     const void* data;
 
     ///// CONSTRUCTION

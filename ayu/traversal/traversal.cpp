@@ -30,10 +30,7 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
         case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             expect(self.parent->caps % AC::Address);
-            auto ptr = AnyPtr(
-                self.parent->type, self.parent->address, self.parent->caps
-            );
-            new (r) AnyRef(ptr, self.acr);
+            new (r) AnyRef(self.parent->address, self.acr, self.parent->caps);
             return;
         }
         case TraversalStep::ComputedAttr: {
@@ -68,28 +65,28 @@ void to_reference_chain (const Traversal& trav, void* r) {
         case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAcr(
-                parent_ref.acr, self.acr, trav.caps
+                parent_ref.acr(), self.acr, trav.caps
             ));
             return;
         }
         case TraversalStep::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainAttrFuncAcr(
-                parent_ref.acr, self.func, *self.key, trav.caps
+                parent_ref.acr(), self.func, *self.key, trav.caps
             ));
             return;
         }
         case TraversalStep::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainElemFuncAcr(
-                parent_ref.acr, self.func, self.index, trav.caps
+                parent_ref.acr(), self.func, self.index, trav.caps
             ));
             return;
         }
         case TraversalStep::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
             new (r) AnyRef(parent_ref.host, new ChainDataFuncAcr(
-                parent_ref.acr, self.func, self.index, trav.caps
+                parent_ref.acr(), self.func, self.index, trav.caps
             ));
             return;
         }
