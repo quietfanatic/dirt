@@ -62,10 +62,6 @@ bool memeq (const void* a, const void* b, std::size_t s) {
             ap += 8;
             bp += 8;
         } while (ap < ae);
-         // This is kind of iffy; it may or may not be more likely, but putting
-         // this here makes the compiler generate smaller and more linear code
-         // for the above loop.
-        [[likely]]
          // Finish off with the possibly overlapping final eight bytes.
          // Do a little math to save one register.
         std::memcpy(&av, ae, 8);
@@ -90,6 +86,10 @@ bool memeq (const void* a, const void* b, std::size_t s) {
          // prioritizing the speed of the longer strings, so here we're more
          // concerned with register usage, code size, and branch predictor
          // pressure than speed.
+        //for (u32 i = 0; i < s; i++) {
+        //    if (ap[i] != bp[i]) return false;
+        //}
+        //return true;
         if (s >= 2) {
             u16 av;
             u16 bv;

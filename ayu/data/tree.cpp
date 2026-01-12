@@ -7,13 +7,17 @@ namespace ayu {
 namespace in {
 
 void check_uniqueness (u32 s, const TreePair* p) {
-    expect(s);
-    for (u32 i = 0; i < s; i++)
-    for (u32 j = 0; j < i; j++) {
-        if(p[i].first == p[j].first) {
-            raise(e_TreeObjectKeyDuplicate, p[i].first);
-        }
-    }
+    expect(s >= 2);
+    auto e = p+s;
+    auto a = p+1;
+    do {
+        auto b = p;
+        do {
+            if (a->first == b->first) {
+                raise(e_TreeObjectKeyDuplicate, a->first);
+            }
+        } while (++b < a);
+    } while (++a < e);
 }
 
 NOINLINE

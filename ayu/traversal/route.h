@@ -21,7 +21,6 @@
 
 #pragma once
 #include "../../iri/iri.h"
-#include "../../uni/lilac.h"
 #include "../common.internal.h"
 #include "../reflection/anyref.h"
 #include "../resources/resource.h"
@@ -50,16 +49,10 @@ struct Route : in::RefCounted {
      // Returns null if this Route is a root or has a key.
     const u32* index () const noexcept;
 
-     // Walks down to the root Route (containing either a Resource or a
-     // AnyRef) and returns it.
+     // Walks down to the root Route (containing either a Resource or an AnyRef)
+     // and returns it.
     RouteRef root () const noexcept;
 
-    static void* operator new (usize s) {
-        return lilac::allocate_fixed_size(s);
-    }
-    static void operator delete (void* p, usize s) {
-        lilac::deallocate_fixed_size(p, s);
-    }
     protected:
     Route (RouteForm f) : form(f) { }
 };
@@ -123,8 +116,7 @@ IRI route_to_iri (RouteRef) noexcept;
  //   - Appending +<number> will create a Route with an elem index
  //   - Literal / and + must be percent-encoded
  //   - At the begining of the fragment, "#foo" is shorthand for "#/foo+1".
- //     This is because a lot of documents are a collection of named typed
- //     items.
+ //     This is because a lot of resources are collections of named typed items.
  // So
  //     route_from_iri("foo#/bar+3/qux")
  // is equivalent to

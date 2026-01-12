@@ -81,8 +81,12 @@ struct TraverseToTree {
                 if (desc->flags % DescFlags::AttrsNeedRebuild) {
                     return use_attrs(trav, attrs);
                 }
-                else {
+                else if (attrs->n_attrs) {
                     return use_attrs_no_rebuild(trav, attrs);
+                }
+                else {
+                    new (trav.dest) Tree(AnyArray<TreePair>());
+                    return;
                 }
             }
             else never();
@@ -97,7 +101,13 @@ struct TraverseToTree {
                 }
             }
             else if (auto elems = desc->elems()) {
-                return use_elems(trav, elems);
+                if (elems->n_elems) {
+                    return use_elems(trav, elems);
+                }
+                else {
+                    new (trav.dest) Tree(AnyArray<Tree>());
+                    return;
+                }
             }
             else never();
         }
@@ -132,7 +142,9 @@ struct TraverseToTree {
     void use_attrs_no_rebuild (
         const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
+        expect(attrs->n_attrs);
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
+        expect(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
@@ -155,9 +167,11 @@ struct TraverseToTree {
     void use_attrs (
         const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
+        expect(attrs->n_attrs);
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
          // First just build the object as though none of the attrs are
          // collapsed, then rebuild the object while collapsing attrs.
+        expect(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
@@ -175,6 +189,7 @@ struct TraverseToTree {
         }
          // Determine length for preallocation
         u32 len = object.size();
+        expect(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto flags = attrs->attr(i)->acr()->attr_flags;
              // Ignore HasDefault; it can only decrease the length by 1, and
@@ -188,6 +203,7 @@ struct TraverseToTree {
          // Allocate
         auto new_object = decltype(object)(Capacity(len));
          // Selectively flatten
+        expect(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto flags = attr->acr()->attr_flags;
@@ -250,14 +266,14 @@ struct TraverseToTree {
             AccessCB(object, [](auto& object, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
-            expect(!object);
+            expect(!object.owned());
             object = UniqueArray<TreePair>(ks.size(), [&](u32 i){
                 return TreePair{ks[i], Tree()};
             });
         }));
          // Populate values
-        auto f = expect(trav.desc()->computed_attrs())->f;
         for (auto& [key, value] : object) {
+            auto f = expect(trav.desc()->computed_attrs())->f;
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.type, key);
 
@@ -269,6 +285,7 @@ struct TraverseToTree {
             );
         }
         new (trav.dest) Tree(move(object));
+        expect(!object.owned());
     }
 
     NOINLINE static
@@ -296,13 +313,13 @@ struct TraverseToTree {
     ) {
         u32 len;
         read_length_acr(len, trav.type, trav.address, length_acr);
-        auto array = UniqueArray<Tree>(len);
-        auto f = expect(trav.desc()->computed_elems())->f;
-        for (u32 i = 0; i < array.size(); i++) {
+        auto array = UniqueArray<Tree>(Capacity(len));
+        for (u32 i = 0; i < len; i++) {
+            auto f = expect(trav.desc()->computed_elems())->f;
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.type, i);
             ToTreeTraversal<ComputedElemTraversal> child;
-            child.dest = &array[i];
+            child.dest = &array.emplace_back_expect_capacity(Tree());
             child.embed_errors = trav.embed_errors;
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AC::Read
@@ -317,23 +334,26 @@ struct TraverseToTree {
     ) {
         u32 len;
         read_length_acr(len, trav.type, trav.address, length_acr);
-        auto array = UniqueArray<Tree>(len);
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't needed for computed_elems.
-        if (array) {
-            auto f = expect(trav.desc()->contiguous_elems())->f;
-            auto ptr = f(*trav.address);
-            for (u32 i = 0; i < array.size(); i++) {
-                ToTreeTraversal<ContiguousElemTraversal> child;
-                child.dest = &array[i];
-                child.embed_errors = trav.embed_errors;
-                trav_contiguous_elem<visit>(
-                    child, trav, ptr, f, i, AC::Read
-                );
-                ptr.address = (Mu*)(
-                    (char*)child.address + child.type.cpp_size()
-                );
-            }
+        if (!len) {
+            new (trav.dest) Tree(AnyArray<Tree>());
+            return;
+        }
+        auto array = UniqueArray<Tree>(Capacity(len));
+        auto f = expect(trav.desc()->contiguous_elems())->f;
+        auto ptr = f(*trav.address);
+        expect(len);
+        for (u32 i = 0; i < len; i++) {
+            ToTreeTraversal<ContiguousElemTraversal> child;
+            child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.embed_errors = trav.embed_errors;
+            trav_contiguous_elem<visit>(
+                child, trav, ptr, f, i, AC::Read
+            );
+            ptr.address = (Mu*)(
+                (char*)child.address + child.type.cpp_size()
+            );
         }
         new (trav.dest) Tree(move(array));
     }

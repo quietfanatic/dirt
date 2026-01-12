@@ -14,7 +14,7 @@ static constexpr void check_form (const Tree& self, Form expected) {
     if (self.form != expected) in::raise_TreeWrongForm(self, expected);
 }
 
- // Don't call with s=0!
+ // Don't call with s<2!
 void check_uniqueness (u32 s, const TreePair* p);
 
 } // in
@@ -64,7 +64,7 @@ constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
     owned(v.owned()), size(v.size()),
     data{.as_object_ptr = v.impl.data}
 {
-    if (size) {
+    if (size > 1) {
          // Check for duplicate keys.  Exceptions in constructors do not trigger
          // destructors, so we don't need to clean up our data members.  NOTE:
          // If we move the data members to a subclass then we WILL need to clean

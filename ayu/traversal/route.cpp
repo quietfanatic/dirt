@@ -32,14 +32,16 @@ AnyRef reference_from_route (RouteRef rt) {
     switch (rt->form) {
         case RF::Resource: return rt->resource()->ref();
         case RF::Reference: return *rt->reference();
-        case RF::Key: return item_attr(
-            reference_from_route(rt->parent()),
-            *rt->key(), rt->parent()
-        );
-        case RF::Index: return item_elem(
-            reference_from_route(rt->parent()),
-            *rt->index(), rt->parent()
-        );
+        case RF::Key: {
+            auto self = static_cast<const in::KeyRoute*>(rt.data);
+            AnyRef parent_ref = reference_from_route(self->parent);
+            return item_attr(parent_ref, self->key, self->parent);
+        }
+        case RF::Index: {
+            auto self = static_cast<const in::IndexRoute*>(rt.data);
+            AnyRef parent_ref = reference_from_route(self->parent);
+            return item_elem(parent_ref, self->index, self->parent);
+        }
         default: never();
     }
 }
@@ -69,11 +71,12 @@ struct RouteToIRI {
     NOINLINE
     char* use_key (RouteRef rt, u32 cap) {
         expect(rt->form == RF::Key);
-        char* p = visit(rt->parent(), cap + 1 + rt->key()->size());
+        auto encoded = iri::encode(*rt->key());
+        char* p = visit(rt->parent(), cap + 1 + encoded.size());
         *p++ = '/';
         expect(rt->form == RF::Key);
-        char* r = p + rt->key()->size();
-        std::memcpy(p, rt->key()->data(), rt->key()->size());
+        char* r = p + encoded.size();
+        std::memcpy(p, encoded.data(), encoded.size());
         return r;
     }
 
