@@ -57,7 +57,6 @@ void rethrow_with_scanned_route (const AnyRef& item);
 
 struct StartTraversal : Traversal {
     const AnyRef* reference;
-    RouteRef route;
 };
 
 struct AcrTraversal : Traversal {
@@ -119,14 +118,13 @@ void trav_after_access (Traversal& child, Type t, Mu* v) {
  // their callers are prepared to allocate a lot of stack for them.
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
-    StartTraversal& child, const AnyRef& ref, RouteRef rt, AccessCaps mode
+    StartTraversal& child, const AnyRef& ref, AccessCaps mode
 ) try {
     expect(ref);
 
     child.parent = null;
     child.step = TraversalStep::Start;
     child.reference = &ref;
-    child.route = rt;
     child.caps = ref.caps();
     ref.access(mode, AccessCB(
         static_cast<Traversal&>(child),

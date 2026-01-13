@@ -102,11 +102,10 @@ AnyRef reference_from_route (RouteRef);
 ///// IRI CONVERSION
 
  // Gets an IRI corresponding to the given Route.  If the root is a resource,
- // the IRI up to the fragment will be the resource's name.  If the root is a
- // reference, the non-fragment part of the IRI will be "ayu-anonymous:".  A key
- // Route will have /key appended to the fragment, and an index Route will have
- // +index appended to the fragment.
-IRI route_to_iri (RouteRef) noexcept;
+ // the IRI up to the fragment will be the resource's name.  A key Route will
+ // have /key appended to the fragment, and an index Route will have +index
+ // appended to the fragment.
+IRI route_to_iri (RouteRef);
 
  // Parses an IRI into a Route.  All of the IRI up to the fragment will
  // be used as the resource name for the root, and the fragment will be

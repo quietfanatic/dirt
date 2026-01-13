@@ -11,7 +11,8 @@
 
 namespace ayu {
 
- // Flags to change the behavior of item_from_tree.
+ // Flags to change the behavior of item_from_tree.  You should probably ignore
+ // this for now.
 enum class FromTreeOptions {
      // If calling item_from_tree recursively, schedule swizzle and init
      // operations for after the outer call does its swizzle and init
@@ -45,8 +46,8 @@ using FTO = FromTreeOptions;
  //   3. whichever of these is highest in the description:
  //       - attrs()
  //       - elems()
- //       - keys() and attr_func()
- //       - length() and elem_func()
+ //       - keys() and computed_attrs()
+ //       - length() and computed_elems() or contiguous_elems()
  //   4. delegate()
  // If none of those descriptors are applicable, a CannotFromTree exception will
  // be thrown.

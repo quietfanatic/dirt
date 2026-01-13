@@ -108,7 +108,7 @@ struct TraverseFromTree {
         CurrentBase curb (rt, item);
         FromTreeTraversal<StartTraversal> child;
         child.tree = &tree;
-        trav_start<visit>(child, item, rt, AC::Write);
+        trav_start<visit>(child, item, AC::Write);
     }
 
     NOINLINE static

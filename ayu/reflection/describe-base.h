@@ -27,7 +27,7 @@
  // documented later in this file under various sections.  Some of the
  // descriptors take accessors, which define how to read and write a particular
  // property of an item.  All functions given to descriptors and accessors
- // should be idempotent, returning the same results whenever they are called,
+ // should be idempotent (returning the same results whenever they are called)
  // or else undesired behavior may occur.
  //
  // It is possible to declare descriptions for template classes, though it is
@@ -96,7 +96,7 @@ using AcrFlags = in::AcrFlags;
  // Passed to attr and elem
 using AttrFlags = in::AttrFlags;
 
- // Convenience since C's functions parameter syntax is kooky.
+ // Convenience since C's function parameter syntax is kooky.
 template <class F> using Function = F;
 
 template <Describable T>
@@ -143,9 +143,8 @@ struct AYU_DescribeBase {
      //
      // The provided Tree will never be the undefined Tree.
      //
-     // It is acceptable to call item_to_tree() instead a to_tree() function,
-     // but references in the item passed to item_to_tree() will not be
-     // serialized properly.
+     // At the current time, calling item_from_tree inside a from_tree callback
+     // is not allowed unless it is passed an explicit route parameter.
      //
      // TODO: Add construct_from_tree for types that refuse to be default
      // constructed no matter what.
@@ -156,7 +155,7 @@ struct AYU_DescribeBase {
 
      // This is similar to from_tree.  The difference is that after this
      // function is called, deserialization will continue with any other
-     // applicable descriptors.  The use case for this is for polymorphic types
+     // applicable descriptors.  One use case for this is for polymorphic types
      // that need to inspect the tree to know how to allocate their storage, but
      // after that will use delegate() with a more concrete type.
     static constexpr
@@ -170,16 +169,12 @@ struct AYU_DescribeBase {
      // items after those items have been properly constructed.  This is not
      // needed for most types.
      //
-     // It is acceptable to call item_from_tree() inside a from_tree function,
-     // but the inner call to item_to_tree() will not be able to deserialize
-     // references properly.
-     //
      // For compound types (types with attributes or elements), this will be
      // called first on all the child items in order, then on the parent item.
      //
      // Two things to be aware of:
      //   - If this item is in an optional attr or elem, and that attr or elem
-     //     is not assigned in the from_tree operation, then swizzle will not be
+     //     is not provided in the from_tree operation, then swizzle will not be
      //     called on it or its child items.
      //   - If this item is in a collapsed/included attr, the tree passed to
      //     swizzle will be the tree provided to the outer item that includes
@@ -217,7 +212,7 @@ struct AYU_DescribeBase {
     );
 
      // Make this type behave like another type.  `accessor` must be the result
-     // of one of the accessor functions in the ACCESSOR section below.
+     // of one of the accessor functions in the ACCESSORS section below.
      //
      // If both delegate() and other descriptors are specified, some behaviors
      // may be overridden by those other descriptors.
@@ -296,9 +291,9 @@ struct AYU_DescribeBase {
      // and "flipx" that refer to specific matrixes, and still allow an
      // arbitrary matrix to be specified with a list of numbers.
      //
-     // There cannot be more than 1000 values.  If there are close to that many,
-     // you should probably be using a binary search or hash table anyway,
-     // instead of the linear search this library provides.
+     // There cannot be more than 1000 values.  If there are anywhere close to
+     // that many, you should probably use a binary search or hash table in
+     // to_tree and from_tree, instead of the linear search this library uses.
     template <ValueDcrFor<T>... Values> requires (
         requires (T v) { v == v; v = v; }
     ) static constexpr
@@ -376,8 +371,8 @@ struct AYU_DescribeBase {
      //   - invisible: This attribute will not be read when serializing, but it
      //     will still be written when deserializing (unless it's also optional
      //     or ignored, which it probably should be).  If your attribute has a
-     //     readonly accessor, you probably want to make it invisible; otherwise
-     //     it will make the whole item readonly.
+     //     readonly accessor, you probably want to make it invisible and
+     //     ignored.
      //   - ignored: This attribute will not be written when deserializing, but
      //     it will still be read when serializing (unless it's also invisible,
      //     which it probably should be).  Implies optional.  Use this if you
@@ -462,7 +457,7 @@ struct AYU_DescribeBase {
      //
      // During serialization, the list of keys will be determined with
      // `accessor`'s read operation, and for each key, the attribute's value
-     // will be set using the computed_attrs() descriptor.
+     // will be determined using the computed_attrs() descriptor.
      //
      // During deserialization, `accessor`'s write operation will be called with
      // the list of keys provided in the Tree, and it should throw
@@ -582,13 +577,12 @@ struct AYU_DescribeBase {
         M T2::* mp, AttrFlags flags = {}
     ) { return elem(member(mp), flags); }
 
-     // Use this for array-like items of variable length (or fixed-size items
-     // with very long length).  The accessor must have a child type of either
-     // u32 or u64 (one of which is usize aka size_t).
-     // Regardless of the type, its returned value cannot be more than the max
-     // array size of 0x7fffffff or 2,147,483,647.  If you need to work with
-     // array-like items larger than that, you should probably be using a binary
-     // format.
+     // Use this for array-like items of variable length (or fixed but very long
+     // length).  The accessor must have a child type of either u32 or u64 (one
+     // of which is usize aka size_t).  Regardless of the type, its returned
+     // value cannot be more than the max array size of 0x7fffffff or
+     // 2,147,483,647.  If you need to work with array-like items larger than
+     // that, you should probably be using a binary format.
      //
      // Writing to this accessor may clear the contents of the item.
      //
@@ -596,11 +590,10 @@ struct AYU_DescribeBase {
      // determined by calling `accessor`s read method.
      //
      // When deserializing, the `accessor`'s write operation will be called with
-     // the length of the provided array Tree, and it should throw
-     // WrongLength if it doesn't like the provided length.  If `accessor` is
-     // readonly, then instead its read operation will be called, and the
-     // provided array Tree's length must match its output exactly or
-     // WrongLength will be thrown.
+     // the length of the provided array Tree, and it should throw WrongLength
+     // if it doesn't like the provided length.  If `accessor` is readonly, then
+     // instead its read operation will be called, and the provided array Tree's
+     // length must match its output exactly or WrongLength will be thrown.
      //
      // If length() is present, computed_elems() or contiguous_elems() must also
      // be present, and elems() must not be present.
@@ -628,7 +621,7 @@ struct AYU_DescribeBase {
         Function<AnyRef(T&, u32)>*
     );
 
-     // Use this for objects that have elements of identical laid out
+     // Use this for objects that have elements of uniform type laid out
      // sequentially in memory.  The provided function must return an AnyPtr to
      // the 0th element, and each subsequent element must be sizeof(Element)
      // bytes after the next one, for a total number of elements equal to
@@ -692,10 +685,9 @@ struct AYU_DescribeBase {
     static constexpr AcrFlags prefer_expanded = in::AcrFlags::PreferExpanded;
 
      // This accessor gives access to a non-static data member of a class by
-     // means of a pointer-to-member.  This accessor will be addressable and
-     // reverse_addressable.  Obviously this is only available for class and
-     // union C++ types, and will cause a compile-time error when used on
-     // scalar C++ types.
+     // means of a pointer-to-member.  This accessor will be addressable.
+     // Obviously this is only available for class and union C++ types, and will
+     // cause a compile-time error when used on scalar C++ types.
      //
      // For attr() and elem(), you can pass the pointer-to-member directly and
      // it's as if you had used member().  If you need to specify any accessor
@@ -714,7 +706,7 @@ struct AYU_DescribeBase {
     );
 
      // Give access to a const non-static data member.  This accessor will be
-     // readonly, and is addressable and reverse_addressable.
+     // readonly, and is addressable.
     template <SameOrBase<T> T2, Describable M> static constexpr
     AccessorFromTo<T, M> auto const_member (
         const M T2::* mp, AcrFlags = {}
@@ -723,8 +715,7 @@ struct AYU_DescribeBase {
      // Give access to a base class.  This can be any type where a C++ reference
      // to the derived class can be implicitly cast to a reference to the base
      // class, and a reference to the base class can be static_cast<>()ed to a
-     // reference to the derived class.  This accessor is addressable and
-     // reverse_addressable.
+     // reference to the derived class.  This accessor is addressable.
     template <Describable M> requires (
         requires (T* t, M* m) { m = t; t = static_cast<T*>(m); }
     ) static constexpr
@@ -828,10 +819,9 @@ struct AYU_DescribeBase {
      // embedded in the accessor with move().  This accessor is not constexpr,
      // so it cannot be used directly in an AYU_DESCRIBE block, and can only be
      // used inside computed_attrs, computed_elems, or anyref_func.  It is not
-     // addressable.  There is no corresponding variable_pointer accessor
-     // because if you're in an computed_attrs or computed_elems, you can just
-     // convert the pointer directly to an ayu::AnyRef instead of using an
-     // accessor.
+     // addressable.  There is no corresponding variable_ptr accessor because if
+     // you're in an computed_attrs or computed_elems, you can just convert the
+     // pointer directly to an ayu::AnyRef instead of using an accessor.
      //
      // This is intended to be used for proxy types along with
      // children_addressable.
@@ -857,15 +847,16 @@ struct AYU_DescribeBase {
      // ignored.
      //
      // anyref_func and anyptr_func are not valid accessors for the keys and
-     // length descriptors.
+     // length descriptors because their type is not known ahead of time.
     static constexpr
     AccessorFrom<T> auto anyref_func (
         Function<AnyRef(T&)>*, AcrFlags = {}
     );
+
      // An accessor that gives access to a child item through an ayu::AnyPtr.
-     // Like anyref_func but simpler.  Don't return empty or null from this.
-     // The returned AnyPtr must not be readonly unless this accessor also has
-     // the readonly flag.
+     // Like anyref_func but simpler and also addressable.  Don't return empty
+     // or null from this.  The returned AnyPtr must not be readonly unless this
+     // accessor also has the readonly flag.
     static constexpr
     AccessorFrom<T> auto anyptr_func (
         Function<AnyPtr(T&)>*, AcrFlags = {}

@@ -23,7 +23,7 @@ struct TraverseGetKeys {
         UniqueArray<AnyString> keys;
         GetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
-        trav_start<visit>(child, item, rt, AC::Read);
+        trav_start<visit>(child, item, AC::Read);
         return keys;
     }
 
@@ -118,7 +118,7 @@ struct TraverseSetKeys {
         UniqueArray<AnyString> keys = move(ks);
         SetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
-        trav_start<visit_and_verify>(child, item, rt, AC::Read);
+        trav_start<visit_and_verify>(child, item, AC::Read);
     }
 
     static
@@ -290,7 +290,7 @@ struct TraverseAttr {
         GetAttrTraversal<StartTraversal> child;
         child.get_key = &key;
         child.r = &r;
-        trav_start<visit>(child, item, rt, AC::Read);
+        trav_start<visit>(child, item, AC::Read);
         return r;
     }
 
@@ -479,7 +479,7 @@ struct TraverseElem {
         GetElemTraversal<StartTraversal> child;
         child.index = index;
         child.r = &r;
-        trav_start<visit>(child, item, rt, AC::Read);
+        trav_start<visit>(child, item, AC::Read);
     }
 
     NOINLINE static

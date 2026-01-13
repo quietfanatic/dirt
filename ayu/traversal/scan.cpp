@@ -53,7 +53,7 @@ struct TraverseScan {
         child.context = &ctx;
         child.rt = base_rt;
         child.collapse_optional = false;
-        trav_start<visit>(child, base_item, base_rt, AC::Read);
+        trav_start<visit>(child, base_item, AC::Read);
         currently_scanning = false;
         return ctx.done;
     }
@@ -91,7 +91,7 @@ struct TraverseScan {
         child.context = &ctx;
         child.rt = base_rt;
         child.collapse_optional = false;
-        trav_start<visit>(child, base_item, base_rt, AC::Read);
+        trav_start<visit>(child, base_item, AC::Read);
         currently_scanning = false;
         return ctx.done;
     }

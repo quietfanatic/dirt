@@ -31,9 +31,7 @@ struct TraverseToTree {
         ToTreeTraversal<StartTraversal> child;
         child.dest = &r;
         child.embed_errors = opts % TTO::EmbedErrors;
-        trav_start<visit>(
-            child, item, rt, AC::Read
-        );
+        trav_start<visit>(child, item, AC::Read);
         plog("to_tree end");
     }
 

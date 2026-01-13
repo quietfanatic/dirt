@@ -120,7 +120,7 @@ struct RouteToIRI {
 };
 } // in
 
-IRI route_to_iri (RouteRef rt) noexcept {
+IRI route_to_iri (RouteRef rt) {
     if (!rt) return IRI();
     RouteToIRI rti;
     char* p = rti.visit(rt, 1);
