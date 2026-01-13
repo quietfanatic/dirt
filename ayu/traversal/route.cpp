@@ -48,8 +48,6 @@ AnyRef reference_from_route (RouteRef rt) {
 
 namespace in {
 
-static constexpr IRI anonymous_iri = "ayu-anonymous:";
-
 struct RouteToIRI {
     UniqueString fragment;
     const IRI* base;
@@ -58,7 +56,15 @@ struct RouteToIRI {
     char* use_base (RouteRef rt, u32 cap) {
         switch (rt->form) {
             case RF::Resource: base = &rt->resource()->name(); break;
-            case RF::Reference: base = &anonymous_iri; break;
+            case RF::Reference: {
+                 // Scuffed comparison with address in lieu of an actual route
+                 // comparison function.
+                if (current_base && &*current_base->route == &*rt) {
+                    base = &anonymous_iri;
+                    break;
+                }
+                else raise(e_RouteUnresolvable, "Cannot call route_to_iri on an anonymous reference-root-route unless it's the current anonymous item.");
+            }
             default: never();
         }
         expect(cap > 0);
@@ -142,9 +148,14 @@ SharedRoute route_from_iri (const IRI& iri) {
     auto p = fragment.begin();
     auto end = fragment.end();
     SharedRoute r;
-    if (current_base && root_iri == current_base->iri()) {
-         // Allow addressing an item that isn't necessarily in a resource
-        new (&r) SharedRoute(current_base->route);
+    if (root_iri == anonymous_iri) {
+        if (current_base && current_base->route->reference()) {
+             // Allow addressing an item that isn't necessarily in a resource
+            new (&r) SharedRoute(current_base->route);
+        }
+        else raise (e_RouteUnresolvable, cat(
+            "Cannot call route_from_iri with ", anonymous_iri.spec(), " unless there is a current anonymous item."
+        ));
     }
     else {
         new (&r) SharedRoute(ResourceRef(root_iri));

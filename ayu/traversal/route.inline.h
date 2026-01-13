@@ -78,10 +78,11 @@ inline RouteRef Route::root () const noexcept {
 }
 
 inline const IRI& CurrentBase::iri () const noexcept {
-    if (!iri_) [[unlikely]] {
-        iri_ = route_to_iri(route).chop_fragment();
+    switch (route->form) {
+        case RF::Resource: return route->resource()->name();
+        case RF::Reference: return anonymous_iri;
+        default: never();
     }
-    return iri_;
 }
 
 } // ayu

@@ -66,8 +66,7 @@ struct SharedRoute {
     constexpr SharedRoute () { }
      // Constructs a root Route from a Resource.
     explicit SharedRoute (ResourceRef) noexcept;
-     // Constructs a root Route from an anonymous item.  as_iri() will return
-     // "ayu-anonymous:", and reference_from_route will return this AnyRef.
+     // Constructs a root Route from an anonymous item.
     explicit SharedRoute (const AnyRef&) noexcept;
      // Append an attribute key or an element index to the Route.
     SharedRoute (SharedRoute parent, AnyString key) noexcept;
@@ -135,7 +134,10 @@ inline AnyRef reference_from_iri (const IRI& iri) {
     return reference_from_route(rt);
 }
 
-constexpr ErrorCode e_RouteIRIInvalid = "ayu::e_RouteIRIInvalid";
+ // If an item is currently being traversed that isn't associated with a
+ // resource, this IRI will be temporarily assigned to it.  That item is known
+ // as the "current anonymous item", and there can only be one of it at a time.
+static constexpr IRI anonymous_iri = "ayu:anon";
 
 ///// CURRENT BASE MANAGEMENT
 
@@ -186,9 +188,17 @@ struct CurrentBase {
         expect(route);
     }
 
-    mutable IRI iri_; // Lazily generated
     const CurrentBase* old;
 };
+
+///// ERROR CODES
+
+ // route_from_iri was given an IRI that is invalid or doesn't have a proper
+ // route fragment.
+constexpr ErrorCode e_RouteIRIInvalid = "ayu::e_RouteIRIInvalid";
+ // route_from_iri or route_to_iri tried to process an anonymous item, but it
+ // was not the current anonymous item.
+constexpr ErrorCode e_RouteUnresolvable = "ayu::e_RouteUnresolvable";
 
 } // namespace ayu
 

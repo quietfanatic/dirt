@@ -29,7 +29,10 @@ enum class FromTreeOptions {
      // item_from_tree cannot check that these conditions are true, so if you
      // use this flag when they are not true, you will likely corrupt memory.
      //
-     // For non-recursive item_from_tree calls, this flag has no effect.
+     // For non-recursive item_from_tree calls, this flag has no effect.  If
+     // this flag is passed to item_from_tree, then item_from_tree must be given
+     // an explicit route.  This is to prevent losing track of the current
+     // anonymous item.
     DelaySwizzle = 1,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(FromTreeOptions)

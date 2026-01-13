@@ -79,6 +79,7 @@ struct TraverseFromTree {
         if (opts % FTO::DelaySwizzle && IFTContext::current) {
              // Delay swizzle and inits to the outer item_from_tree call.  Basically
              // this just means keep the current context instead of making a new one.
+            if (!rt) raise(e_General, "Cannot call item_from_tree with FTO::DelaySwizzle without an explicit route parameter.");
             start_without_context(item, tree, rt);
         }
         else start_with_context(item, tree, rt);
