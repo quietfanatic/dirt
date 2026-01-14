@@ -45,17 +45,14 @@ AYU_DESCRIBE(control::StatementStorageBase,
 )
 
 AYU_DESCRIBE(control::Statement,
-    values_custom(
-        [](const Statement& a, const Statement&){
-            return !a.storage;
-        },
-        [](Statement& a, const Statement&){
-            a = {};
-        },
-        value_ptr(ayu::Tree::array(), &empty_Statement)
-    ),
+    to_tree([](const Statement& v){
+        if (!v) return ayu::Tree::array();
+        else return ayu::Tree();
+    }),
     from_tree([](Statement& v, const ayu::Tree& t){
         auto a = Slice<ayu::Tree>(t);
+        v = {};
+        if (!a) return true;
          // Empty array should be caught by value above
         auto name = Str(a[0]);
         auto command = require_command(name);
@@ -66,6 +63,7 @@ AYU_DESCRIBE(control::Statement,
                 " but got ", a.size() - 1, ')'
             ));
         }
+        expect(!v.storage);
         v.storage = (StatementStorageBase*)
             ayu::dynamic_default_new(command->storage_type);
         v.storage->command = command;

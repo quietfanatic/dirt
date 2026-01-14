@@ -8,19 +8,14 @@ static constexpr AnyVal empty_AnyVal;
 } using namespace in;
 } using namespace ayu;
 
- // We need to use values_custom
 AYU_DESCRIBE(ayu::AnyVal,
-    values_custom(
-        [](const AnyVal& a, const AnyVal& b) -> bool {
-            expect(!b);
-            return !a;
-        },
-        [](AnyVal& a, const AnyVal& b) {
-            expect(!b);
-            a = AnyVal();
-        },
-        value_ptr(Tree::array(), &empty_AnyVal)
-    ),
+     // Special treatment for empty array to represent the empty AnyVal.
+    to_tree([](const AnyVal& v){
+        return !v ? Tree::array() : Tree();
+    }),
+    from_tree([](AnyVal& v, const Tree& t){
+        return !Slice<Tree>(t) && (v = {}, true);
+    }),
     elems(
         elem(value_funcs<Type>(
             [](const AnyVal& v){ return v.type; },
