@@ -99,7 +99,10 @@ struct TraverseToTree {
                 }
             }
             else if (auto elems = desc->elems()) {
-                if (elems->n_elems) {
+                if (desc->flags % DescFlags::ElemsNeedRebuild) {
+                    return use_elems_collapse(trav, elems);
+                }
+                else if (elems->n_elems) {
                     return use_elems(trav, elems);
                 }
                 else {
@@ -302,6 +305,33 @@ struct TraverseToTree {
             );
             child.dest->flags |= child.acr->tree_flags;
         }
+        new (trav.dest) Tree(move(array));
+    }
+
+    NOINLINE static
+    void use_elems_collapse (
+        const ToTreeTraversal<>& trav, const ElemsDcrPrivate* elems
+    ) {
+        expect(elems->n_elems);
+        auto array = UniqueArray<Tree>(Capacity(elems->n_elems));
+        expect(elems->n_elems);
+        for (u32 i = 0; i < elems->n_elems; i++) {
+            auto acr = elems->elem(i)->acr();
+            ToTreeTraversal<ElemTraversal> child;
+            child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.embed_errors = trav.embed_errors;
+            trav_elem<visit>(
+                child, trav, acr, i, AC::Read
+            );
+            child.dest->flags |= child.acr->tree_flags;
+        }
+        expect(array.size() >= 1);
+        Tree collapsed = move(array.back());
+        array.pop_back();
+        if (collapsed.form != Form::Array) {
+            raise(e_General, "Collapsed elem did not serialize to an Array tree.");
+        }
+        array.append(AnyArray<Tree>(move(collapsed)));
         new (trav.dest) Tree(move(array));
     }
 

@@ -55,11 +55,24 @@ namespace ayu::test {
         void foo ();
     };
 
+     // TODO: test contiguous_elems
     struct ElemsTest {
         std::vector<int> xs;
     };
 
-     // Test usage of keys() with type AnyArray<AnyString>
+
+    struct ElemTestCollapse {
+        float a;
+        float b;
+        float c;
+        ElemTest d;
+    };
+
+    struct ElemTestCollapse2 {
+        float a;
+        ElemsTest b;
+    };
+
     struct AttrsTest2 {
         std::unordered_map<AnyString, int> xs;
     };
@@ -154,6 +167,20 @@ AYU_DESCRIBE(ayu::test::ElemsTest,
     computed_elems([](ElemsTest& v, u32 i){
         return AnyRef(&v.xs.at(i));
     })
+)
+AYU_DESCRIBE(ayu::test::ElemTestCollapse,
+    elems(
+        elem(&ElemTestCollapse::a),
+        elem(&ElemTestCollapse::b),
+        elem(&ElemTestCollapse::c),
+        elem(&ElemTestCollapse::d, collapse)
+    )
+)
+AYU_DESCRIBE(ayu::test::ElemTestCollapse2,
+    elems(
+        elem(&ElemTestCollapse2::a),
+        elem(&ElemTestCollapse2::b, collapse)
+    )
 )
 AYU_DESCRIBE(ayu::test::AttrsTest2,
     keys(mixed_funcs<AnyArray<AnyString>>(
@@ -371,6 +398,29 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
         item_from_string(&est, "[5 2 0 4]");
     }, "item_from_tree with length and computed_elems doesn't throw");
     is(est.xs.at(3), 4, "item_from_tree works with computed_elems");
+
+    auto etc = ElemTestCollapse{4.5, 5.5, 6.5, {7.5, 8.5, 9.5}};
+    auto etct = item_to_tree(&etc);
+    is(etct, tree_from_string("[4.5 5.5 6.5 7.5 8.5 9.5]"), "item_to_tree with collapsed elem");
+    auto from_tree_etc = tree_from_string("[2.2 3.3 4.4 5.5 6.6 7.7]");
+    item_from_tree(&etc, from_tree_etc);
+    is(etc.d.y, 6.6f, "item_from_tree with collapsed elem");
+
+    auto etc2 = ElemTestCollapse2{4.0, {{6, 5, 4, 3, 2}}};
+    auto etc2t = item_to_tree(&etc2);
+    is(etc2t, tree_from_string("[4 6 5 4 3 2]"), "item_to_tree with variadic collapsed elem");
+    auto from_tree_etc2 = tree_from_string("[5.5 2 3 4 5]");
+    item_from_tree(&etc2, from_tree_etc2);
+    is(etc2.b.xs.size(), 4u, "item_from_tree with variadic collapsed elem");
+    is(etc2.b.xs[1], 3);
+    etc2 = ElemTestCollapse2{6.0, {}};
+    etc2t = item_to_tree(&etc2);
+    is(etc2t, tree_from_string("[6]"), "item_to_tree with variadic collapsed elem (empty)");
+    from_tree_etc2 = tree_from_string("[7.7]");
+    item_from_tree(&etc2, from_tree_etc2);
+    is(etc2.b.xs.size(), 0u, "item_from_tree with variadic collapsed elem (empty)");
+
+    is(item_get_length(&etc), 6u, "item_get_length");
 
     auto ast2 = AttrsTest2{{{"a", 11}, {"b", 22}}};
     auto keys = item_get_keys(&ast2);

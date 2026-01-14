@@ -396,14 +396,23 @@ struct TraverseGetLength {
         return len;
     } catch (...) { rethrow_with_route(rt); }
 
-    static
+    NOINLINE static
     void visit (u32& len, Type t, Mu* v) {
         auto desc = DescriptionPrivate::get(t);
         if (auto acr = desc->length_acr()) {
             read_length_acr(len, t, v, acr);
         }
         else if (auto elems = desc->elems()) {
-            len = elems->chop_flag(AttrFlags::Invisible);
+            if (desc->flags % DescFlags::ElemsNeedRebuild) {
+                u32 collapsed_i = elems->n_elems - 1;
+                auto elem = elems->elem(collapsed_i);
+                expect(elem->acr()->attr_flags % AttrFlags::Collapse);
+                elem->acr()->read(*v, AccessCB(len, &visit));
+                len += collapsed_i;
+            }
+            else {
+                len = elems->chop_flag(AttrFlags::Invisible);
+            }
         }
         else if (auto acr = desc->delegate_acr()) {
             acr->read(*v, AccessCB(len, &visit));
@@ -436,9 +445,21 @@ struct TraverseSetLength {
             write_length_acr(len, t, v, acr);
         }
         else if (auto elems = desc->elems()) {
-            u32 min = elems->chop_flag(AttrFlags::Optional);
-            if (len < min || len > elems->n_elems) {
-                raise_LengthRejected(t, min, elems->n_elems, len);
+            if (desc->flags % DescFlags::ElemsNeedRebuild) {
+                 // Calling set_length on an item with a collapsed elem might
+                 // not do what you want, because the acceptable length might
+                 // depend on earlier non-collapsed elems.
+                u32 collapsed_i = elems->n_elems - 1;
+                auto elem = elems->elem(collapsed_i);
+                expect(elem->acr()->attr_flags % AttrFlags::Collapse);
+                len -= collapsed_i; // Should be safe to overwrite
+                elem->acr()->write(*v, AccessCB(len, &visit));
+            }
+            else {
+                u32 min = elems->chop_flag(AttrFlags::Optional);
+                if (len < min || len > elems->n_elems) {
+                    raise_LengthRejected(t, min, elems->n_elems, len);
+                }
             }
         }
         else if (auto acr = desc->delegate_acr()) {
@@ -495,7 +516,15 @@ struct TraverseElem {
             }
         }
         else if (auto elems = desc->elems()) {
-            use_elems(trav, elems);
+            if (desc->flags % DescFlags::ElemsNeedRebuild &&
+                trav.index >= u32(elems->n_elems - 1)
+            ) {
+                use_collapsed_elems(trav, elems, u32(elems->n_elems - 1));
+            }
+            else {
+                if (trav.index >= elems->n_elems) return;
+                use_elems(trav, elems);
+            }
         }
         else if (auto acr = desc->delegate_acr()) {
             use_delegate(trav, acr);
@@ -507,11 +536,22 @@ struct TraverseElem {
     void use_elems (
         const GetElemTraversal<>& trav, const ElemsDcrPrivate* elems
     ) {
-        if (trav.index > elems->n_elems) return;
         auto acr = elems->elem(trav.index)->acr();
         ReturnRefTraversal<ElemTraversal> child;
         child.r = trav.r;
         trav_elem<return_ref>(child, trav, acr, trav.index, AC::Read);
+    }
+
+    NOINLINE static
+    void use_collapsed_elems (
+        const GetElemTraversal<>& trav, const ElemsDcrPrivate* elems,
+        u32 collapsed_i
+    ) {
+        auto acr = elems->elem(collapsed_i)->acr();
+        GetElemTraversal<ElemTraversal> child;
+        child.r = trav.r;
+        child.index = trav.index - collapsed_i;
+        trav_elem<visit>(child, trav, acr, collapsed_i, AC::Read);
     }
 
     NOINLINE static
@@ -622,13 +662,25 @@ void raise_AttrRejected (Type item_type, const AnyString& key) {
 }
 
 void raise_LengthRejected (Type item_type, u32 min, u32 max, u32 got) {
-    UniqueString mess = min == max ? cat(
-        "Item of type ", item_type.name(), " given wrong length ", got,
-        " (expected ", min, ")"
-    ) : cat(
-        "Item of type ", item_type.name(), " given wrong length ", got,
-        " (expected between ", min, " and ", max, ")"
-    );
+    UniqueString mess;
+    if (max == u32(-1)) {
+        mess = cat(
+            "Item of type ", item_type.name(), " given wrong length ",
+            got, " (expected at least ", min, ")"
+        );
+    }
+    else if (min == max) {
+        mess = cat(
+            "Item of type ", item_type.name(), " given wrong length ", got,
+            " (expected ", min, ")"
+        );
+    }
+    else {
+        mess = cat(
+            "Item of type ", item_type.name(), " given wrong length ", got,
+            " (expected between ", min, " and ", max, ")"
+        );
+    }
     raise(e_LengthRejected, move(mess));
 }
 

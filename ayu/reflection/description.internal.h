@@ -25,11 +25,12 @@ static void ERROR_cannot_have_more_than_1000_attrs () { }
 static void ERROR_cannot_have_more_than_1000_elems () { }
 static void ERROR_cannot_have_more_than_1000_values () { }
 static void ERROR_cannot_have_non_computed_name_after_computed_name () { }
-static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
 static void ERROR_cannot_have_non_optional_elem_after_optional_elem () { }
+static void ERROR_cannot_have_non_collapse_elem_after_collapse_elem () { }
+static void ERROR_cannot_have_non_invisible_elem_after_invisible_elem () { }
 static void ERROR_conflicting_flags_on_attr () { }
+static void ERROR_conflicting_flags_on_elem () { }
 static void ERROR_description_doesnt_have_name_or_computed_name () { }
-static void ERROR_elem_cannot_have_collapse_flag () { }
 static void ERROR_elem_cannot_have_collapse_optional_flag () { }
 static void ERROR_element_is_not_a_descriptor_for_this_type () { }
 static void ERROR_elems_cannot_be_combined_with_length_and_computed_elems () { }
@@ -481,9 +482,6 @@ struct ElemDcrWith : ElemDcr<T> {
     constexpr ElemDcrWith (const Acr& a, AttrFlags flags) :
         acr(constexpr_acr(a))
     {
-        if (flags % in::AttrFlags::Collapse) {
-            ERROR_elem_cannot_have_collapse_flag();
-        }
         if (flags % in::AttrFlags::CollapseOptional) {
             ERROR_elem_cannot_have_collapse_optional_flag();
         }
@@ -506,6 +504,7 @@ struct ElemsDcrWith : ElemsDcr<T> {
     {
         if (sizeof...(Elems) > 1000) ERROR_cannot_have_more_than_1000_elems();
         bool have_optional = false;
+        bool have_collapse = false;
         bool have_invisible = false;
         u16 i = 0;
         elems.for_each([&]<class Elem>(const Elem& elem){
@@ -514,6 +513,15 @@ struct ElemsDcrWith : ElemsDcr<T> {
             }
             else if (have_optional) {
                 ERROR_cannot_have_non_optional_elem_after_optional_elem();
+            }
+            if (elem.acr.attr_flags % AttrFlags::Collapse) {
+                if (elem.acr.attr_flags %
+                    (AttrFlags::Optional|AttrFlags::Invisible|AttrFlags::Ignored)
+                ) ERROR_conflicting_flags_on_elem();
+                have_collapse = true;
+            }
+            else if (have_collapse) {
+                ERROR_cannot_have_non_collapse_elem_after_collapse_elem();
             }
             if (elem.acr.attr_flags % AttrFlags::Invisible) {
                 have_invisible = true;
@@ -524,6 +532,13 @@ struct ElemsDcrWith : ElemsDcr<T> {
             offsets[i++] = static_cast<const ComparableAddress*>(&elem)
                          - static_cast<const ComparableAddress*>(this);
         });
+    }
+    constexpr bool need_rebuild () {
+        bool r = false;
+        elems.for_each([&](const auto& elem){
+            r |= elem.acr.attr_flags % AttrFlags::Collapse;
+        });
+        return r;
     }
 };
 
@@ -776,6 +791,10 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
             AYU_APPLY_OFFSET(ElemsDcr, elems)
             if (!(header.flags % DescFlags::Preference)) {
                 header.flags |= DescFlags::PreferArray;
+            }
+            Dcr* elems = desc.template get<Dcr>(0);
+            if (elems->need_rebuild()) {
+                header.flags |= DescFlags::ElemsNeedRebuild;
             }
         }
         else if constexpr (std::is_base_of_v<LengthDcr<T>, Dcr>) {

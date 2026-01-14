@@ -222,7 +222,10 @@ struct TraverseFromTree {
                 }
             }
             else if (auto elems = desc->elems()) {
-                return use_elems(trav, elems);
+                if (desc->flags % DescFlags::ElemsNeedRebuild) {
+                    return use_elems_collapse(trav, elems);
+                }
+                else return use_elems(trav, elems);
             }
              // fallthrough
         }
@@ -594,6 +597,35 @@ struct TraverseFromTree {
             child.tree = &array[i];
             trav_elem<visit>(child, trav, acr, i, AC::Write);
         }
+        finish_item(trav);
+    }
+
+    NOINLINE static
+    void use_elems_collapse (
+        const FromTreeTraversal<>& trav, const ElemsDcrPrivate* elems
+    ) {
+         // We can only check the lower bound right now.  The upper bound will
+         // be checked by the collapsed child item.
+        u32 collapsed_i = elems->n_elems - 1;
+        expect(trav.tree->form == Form::Array);
+        auto array = Slice<Tree>(*trav.tree);
+        if (array.size() < collapsed_i) {
+            raise_LengthRejected(trav.type, collapsed_i, u32(-1), array.size());
+        }
+        for (u32 i = 0; i < collapsed_i; i++) {
+            auto acr = elems->elem(i)->acr();
+            expect(!(acr->attr_flags % AttrFlags::Ignored));
+            FromTreeTraversal<ElemTraversal> child;
+            child.tree = &array[i];
+            trav_elem<visit>(child, trav, acr, i, AC::Write);
+        }
+        auto acr = elems->elem(collapsed_i)->acr();
+        expect(acr->attr_flags % AttrFlags::Collapse);
+        FromTreeTraversal<ElemTraversal> child;
+        Tree collapsed = Tree(AnyArray(array.slice(collapsed_i)));
+        child.tree = &collapsed;
+        trav_elem<visit>(child, trav, acr, collapsed_i, AC::Write);
+
         finish_item(trav);
     }
 

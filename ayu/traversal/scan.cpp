@@ -91,6 +91,7 @@ struct TraverseScan {
         child.context = &ctx;
         child.rt = base_rt;
         child.collapse_optional = false;
+        child.collapsed_elem_shift = 0;
         trav_start<visit>(child, base_item, AC::Read);
         currently_scanning = false;
         return ctx.done;
@@ -171,6 +172,7 @@ struct TraverseScan {
                 child.rt = child_rt;
             }
             child.collapse_optional = acr->attr_flags % AttrFlags::CollapseOptional;
+            child.collapsed_elem_shift = 0;
             trav_attr<visit>(child, trav, acr, attr->key, AC::Read);
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
@@ -199,6 +201,7 @@ struct TraverseScan {
             child.context = trav.context;
             child.rt = child_rt;
             child.collapse_optional = false;
+            child.collapsed_elem_shift = 0;
             trav_computed_attr<visit>(
                 child, trav, ref, f, key, AC::Read
             );
@@ -214,7 +217,19 @@ struct TraverseScan {
             SharedRoute child_rt;
             ScanTraversal<ElemTraversal> child;
             child.context = trav.context;
-            if (trav.collapse_optional) [[unlikely]] {
+            child.collapsed_elem_shift = trav.collapsed_elem_shift;
+            if (acr->attr_flags % AttrFlags::Collapse) {
+                if (trav.collapse_optional) [[unlikely]] {
+                     // Not sure how this interacts with collapse_optional on
+                     // parent, but I think we can ignore it?
+                    if (i >= 1) {
+                        raise(e_General, "collapse_optional on array bigger than 1");
+                    }
+                }
+                child.rt = trav.rt;
+                child.collapsed_elem_shift += i;
+            }
+            else if (trav.collapse_optional) [[unlikely]] {
                  // It'd be weird to specify collapse_optional when the child
                  // item uses non-computed elems, but it's valid.
                 if (i >= 1) {
@@ -223,7 +238,7 @@ struct TraverseScan {
                 child.rt = trav.rt;
             }
             else {
-                child_rt = SharedRoute(trav.rt, i);
+                child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
                 child.rt = child_rt;
             }
             child.collapse_optional = false;
@@ -252,10 +267,11 @@ struct TraverseScan {
                 child.rt = trav.rt;
             }
             else {
-                child_rt = SharedRoute(trav.rt, i);
+                child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
                 child.rt = child_rt;
             }
             child.collapse_optional = false;
+            child.collapsed_elem_shift = 0;
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AC::Read
             );
@@ -278,6 +294,7 @@ struct TraverseScan {
             ScanTraversal<ContiguousElemTraversal> child;
             child.context = trav.context;
             child.collapse_optional = false;
+            child.collapsed_elem_shift = 0;
             if (trav.collapse_optional) {
                 if (i >= 1) {
                     raise(e_General, "collapse_optional on array bigger than 1");
@@ -285,7 +302,7 @@ struct TraverseScan {
                 child.rt = trav.rt;
             }
             else {
-                child_rt = SharedRoute(trav.rt, i);
+                child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
                 child.rt = child_rt;
             }
             trav_contiguous_elem<visit>(
@@ -303,6 +320,7 @@ struct TraverseScan {
         child.context = trav.context;
         child.rt = trav.rt;
         child.collapse_optional = trav.collapse_optional;
+        child.collapsed_elem_shift = trav.collapsed_elem_shift;
         trav_delegate<visit>(child, trav, acr, AC::Read);
     }
 };

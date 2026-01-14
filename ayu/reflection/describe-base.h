@@ -559,14 +559,31 @@ struct AYU_DescribeBase {
      //     deserializing.  If it is not provided, `accessor`'s write operation
      //     will not be called (normally LengthRejected would be thrown).  All
      //     optional elements must be on the end of the elems list.
+     //   - collapse: This element must be an array-like type.  The element's
+     //     array representation will be flattened into the parent's array
+     //     representation.  This is only valid on the final element, and is
+     //     incompatible with optional, invisible, and ignored.  When
+     //     deserializing, the earlier non-collapsed sibling elements will be
+     //     deserialized before the length of the collapsed element is written,
+     //     so its type and thereby its length can depend on the value of
+     //     previous elements.  This can be used to implement a command-like
+     //     structure, where the first element is a command name, and the rest
+     //     are arguments to the command, whose types and number depend on which
+     //     command was named.  When looking up elements by index, the index
+     //     will be adjusted accordingly.  For example, if the parent item has 3
+     //     elements, the last of which is collapsed, and index 4 is requested
+     //     from the parent, it will return index 2 of the collapsed child
+     //     element (each non-collapsed sibling element subtracts 1 from the
+     //     index).  Unlike with the collapse flag on object-like types, you
+     //     cannot provide a non-collapsed Tree representation of the array.
      //   - castable: Consider this elem a candidate for upcasting.
+     //   - include: Shortcut for collapse | castable.
      //   - invisible: This elem will not be serialized during the to_tree
      //     operation.  You probably want optional or ignored on this elem too.
      //     There can't be any non-invisible elems following the invisible
      //     elems.
      //   - ignored: This elem will not be written during the from_tree
-     //     operation.  If any elem has the ignored flag, all elems after it
-     //     must also have the ignored flag.
+     //     operation.  This does not need to be the final element.
     template <AccessorFrom<T> Acr> static constexpr
     ElemDcrFor<T> auto elem (
         const Acr& accessor, AttrFlags = {}

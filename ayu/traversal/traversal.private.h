@@ -40,6 +40,9 @@ struct Traversal {
          // ToTreeTraversal: Catch and embed errors instead of throwing them.
         bool embed_errors;
     };
+     // Only used by ScanTraversal.  Shifts indexes of routes over to account
+     // for collapsed elems.
+    u32 collapsed_elem_shift;
 
     const DescriptionPrivate* desc () const {
         return DescriptionPrivate::get(type);

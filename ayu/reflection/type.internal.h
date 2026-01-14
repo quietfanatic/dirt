@@ -32,10 +32,11 @@ enum class DescFlags : u8 {
      // Select between union members
     NameComputed = 1 << 2,
     ElemsContiguous = 1 << 3,
-     // Can select some faster algorithms when this is false.
+     // Can select some faster algorithms when these are false.
     AttrsNeedRebuild = 1 << 4,
+    ElemsNeedRebuild = 1 << 5,
      // Faster values() processing
-    ValuesAllStrings = 1 << 5,
+    ValuesAllStrings = 1 << 6,
 };
 DECLARE_ENUM_BITWISE_OPERATORS(DescFlags)
 
