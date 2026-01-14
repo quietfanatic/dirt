@@ -52,15 +52,16 @@ static Tree AnyRef_to_tree (const AnyRef& v) {
     auto iri = route_to_iri(rt);
     return Tree(iri.relative_to(current_base->iri()));
 }
-static void AnyRef_from_tree (AnyRef& v, const Tree& tree) {
+static bool AnyRef_from_tree (AnyRef& v, const Tree& tree) {
     switch (tree.form) {
         case Form::Null: break;
         case Form::String: if (!Str(tree)) raise(e_General,
-            "Cannot deserialize AnyRef from empty IRI.  To make the null AnyRef, use null."
+            "Cannot deserialize AnyRef from empty IRI.  To make the empty AnyRef, use null."
         ); break;
         default: raise_FromTreeFormRejected(Type::For<AnyRef>(), tree.form);
     }
     v = AnyRef();
+    return true;
 }
 static void AnyRef_swizzle (AnyRef& v, const Tree& tree) {
     if (tree.form == Form::Null) return;

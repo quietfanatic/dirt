@@ -393,10 +393,10 @@ static ayu::Tree input_to_tree (const Input& input) {
     }
     return ayu::Tree(move(a));
 }
-static void input_from_tree (Input& input, const ayu::Tree& tree) {
+static bool input_from_tree (Input& input, const ayu::Tree& tree) {
     auto a = Slice<ayu::Tree>(tree);
     input = {};
-    if (!a) return;
+    if (!a) return true;
     for (auto& e : a) {
         if (e.form == ayu::Form::Number) {
             if (input.type != InputType::None) {
@@ -425,6 +425,7 @@ static void input_from_tree (Input& input, const ayu::Tree& tree) {
     if (input.type == InputType::None) {
         ayu::raise(ayu::e_General, "Input has modifiers but no actual code");
     }
+    return true;
 }
 
 static ayu::Tree input_to_tree_no_modifiers (const InputNoModifiers& input) {
@@ -451,15 +452,15 @@ static ayu::Tree input_to_tree_no_modifiers (const InputNoModifiers& input) {
     }
 }
 
-static void input_from_tree_no_modifiers (InputNoModifiers& input, const ayu::Tree& tree) {
+static bool input_from_tree_no_modifiers (InputNoModifiers& input, const ayu::Tree& tree) {
     switch (tree.form) {
         case ayu::Form::String: {
             input = InputNoModifiers(input_from_string(Str(tree)));
-            break;
+            return true;
         }
         case ayu::Form::Number: {
             input = InputNoModifiers(input_from_integer(i32(tree)));
-            break;
+            return true;
         }
         default: ayu::raise(e_General, "InputNoModifiers wasn't given a string or integer");
     }

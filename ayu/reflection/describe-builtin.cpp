@@ -10,7 +10,7 @@ using namespace ayu;
 #define AYU_DESCRIBE_SCALAR(type) \
 AYU_DESCRIBE(type, \
     to_tree([](const type& v){ return Tree(v); }), \
-    from_tree([](type& v, const Tree& t){ v = type(t); }) \
+    from_tree([](type& v, const Tree& t){ v = type(t); return true; }) \
 )
 
 AYU_DESCRIBE_SCALAR(std::nullptr_t)
@@ -31,7 +31,7 @@ AYU_DESCRIBE_SCALAR(uni::AnyString)
 #undef AYU_DESCRIBE_SCALAR
 AYU_DESCRIBE(uni::UniqueString,
     to_tree([](const UniqueString& v){ return Tree(AnyString(v)); }),
-    from_tree([](UniqueString& v, const Tree& t){ v = AnyString(t); })
+    from_tree([](UniqueString& v, const Tree& t){ v = AnyString(t); return true; })
 )
 
  // Str is a reference-like type so it can't be deserialized because the data
@@ -58,5 +58,6 @@ AYU_DESCRIBE(iri::IRI,
     }),
     from_tree([](IRI& v, const Tree& t){
         v = IRI(Str(t), current_base->iri());
+        return true;
     })
 )

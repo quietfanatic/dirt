@@ -126,7 +126,9 @@ struct AYU_DescribeBase {
      // for serialization.  For most types this should not be needed; for
      // aggregate types you usually want attrs() or elems(), and for scalar
      // types delegate() or values().  For more complex types, however, you can
-     // use this and from_tree() to control serialization.
+     // use this and from_tree() to control serialization.  If the function
+     // returns an empty (undefined, not null) Tree, then serialization will
+     // continue with other applicable descriptors.
     static constexpr
     DescriptorFor<T> auto to_tree (
         Function<Tree(const T&)>*
@@ -141,26 +143,21 @@ struct AYU_DescribeBase {
      // elems, but the from_tree process will ignore the attrs and elems and
      // will not recursively call their swizzle or init descriptors.
      //
+     // If the return value is false, deserialization will continue with any
+     // other applicable descriptors.  You can use this to set up storage ahead
+     // of time or handle special deserialization scenarios that values() isn't
+     // powerful enough to handle.
+     //
      // The provided Tree will never be the undefined Tree.
      //
-     // At the current time, calling item_from_tree inside a from_tree callback
-     // is not allowed unless it is passed an explicit route parameter.
+     // You are allowed to call item_from_tree inside the from_tree callback,
+     // but references will not work properly in the item you call it on.
      //
      // TODO: Add construct_from_tree for types that refuse to be default
      // constructed no matter what.
     static constexpr
     DescriptorFor<T> auto from_tree (
-        Function<void(T&, const Tree&)>*
-    );
-
-     // This is similar to from_tree.  The difference is that after this
-     // function is called, deserialization will continue with any other
-     // applicable descriptors.  One use case for this is for polymorphic types
-     // that need to inspect the tree to know how to allocate their storage, but
-     // after that will use delegate() with a more concrete type.
-    static constexpr
-    DescriptorFor<T> auto before_from_tree (
-        Function<void(T&, const Tree&)>*
+        Function<bool(T&, const Tree&)>*
     );
 
      // If your type needs extra work to link it to other items after
@@ -507,11 +504,11 @@ struct AYU_DescribeBase {
      //   - Any swizzle or init operations that could be performed in the same
      //     serialization operation.
      // It may be invalidated by:
-     //   - The before_from_tree() function of this item, if it exists.
+     //   - The from_tree() function of this item, if it exists.
      //   - Writing to the keys() accessor of this item (or length() accessor
      //     for computed_elems and contiguous_elems()).
      //   - Writing to sibling items that are ordered before this one.
-     //   - The before_from_tree(), length() setter, or keys() setter of any
+     //   - The from_tree(), length() setter, or keys() setter of any
      //     recursive parent items of this one.
      //   - Running program logic outside of serialization operations.
      // In addition, as long as the AnyRef would still be valid, a second call

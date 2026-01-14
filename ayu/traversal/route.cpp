@@ -210,6 +210,7 @@ AYU_DESCRIBE(ayu::SharedRoute,
         auto rel = Str(t);
         auto iri = IRI(rel, current_base->iri());
         v = route_from_iri(iri);
+        return true;
     })
 );
 

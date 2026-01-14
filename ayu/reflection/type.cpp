@@ -208,6 +208,7 @@ AYU_DESCRIBE(ayu::Type,
     from_tree([](Type& v, const Tree& t){
         if (t.form == Form::Null) v = Type();
         else v = Type(Str(t));
+        return true;
     })
 )
 

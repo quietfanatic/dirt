@@ -120,5 +120,6 @@ AYU_DESCRIBE(glow::RGBA8,
                 ayu::Type::For<RGBA8>(), t.form
             );
         }
+        return true;
     })
 )

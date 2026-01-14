@@ -37,33 +37,37 @@ struct TraverseToTree {
 
 ///// PICK STRATEGY
 
-    NOINLINE static
+    static // not noinline
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const ToTreeTraversal<>&>(tr);
         auto desc = trav.desc();
         if (trav.embed_errors) {
-            visit_embedding_errors(trav);
+            visit_embedding_errors(trav, desc);
         }
-         // The majority of items are [[likely]] to be atomic.
-        else if (auto to_tree = desc->to_tree()) [[likely]] {
+        else if (auto to_tree = desc->to_tree()) {
             use_to_tree(trav, to_tree->f);
         }
-        else if (auto values = desc->values()) {
+        else after_to_tree(trav, desc);
+    }
+
+    static
+    void after_to_tree (
+        const ToTreeTraversal<>& trav, const DescriptionPrivate* desc
+    ) {
+        if (auto values = desc->values()) {
             use_values(trav, values);
         }
         else no_value_match(trav, desc);
     }
 
     NOINLINE static
-    void visit_embedding_errors (const ToTreeTraversal<>& trav) try {
-        auto desc = trav.desc();
+    void visit_embedding_errors (
+        const ToTreeTraversal<>& trav, const DescriptionPrivate* desc
+    ) try {
         if (auto to_tree = desc->to_tree()) [[likely]] {
             use_to_tree(trav, to_tree->f);
         }
-        else if (auto values = desc->values()) {
-            use_values(trav, values);
-        }
-        else no_value_match(trav, desc);
+        else after_to_tree(trav, trav.desc());
     }
     catch (...) { wrap_exception(trav); }
 
@@ -120,9 +124,12 @@ struct TraverseToTree {
 
 ///// STRATEGIES
 
-    static
+    NOINLINE static
     void use_to_tree (const ToTreeTraversal<>& trav, ToTreeFunc<Mu>* f) {
         new (trav.dest) Tree(f(*trav.address));
+        if (trav.dest->form == Form::Undefined) {
+            after_to_tree(trav, trav.desc());
+        }
     }
 
     NOINLINE static

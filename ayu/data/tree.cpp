@@ -154,7 +154,7 @@ AYU_DESCRIBE(ayu::Form,
  // we'll save that for when we need it.
 AYU_DESCRIBE(ayu::Tree,
     to_tree([](const Tree& v){ return v; }),
-    from_tree([](Tree& v, const Tree& t){ v = t; })
+    from_tree([](Tree& v, const Tree& t){ v = t; return true; })
 )
 
 #ifndef TAP_DISABLE_TESTS

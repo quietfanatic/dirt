@@ -113,7 +113,7 @@ namespace ayu::test {
 
 AYU_DESCRIBE(ayu::test::ToTreeTest,
     to_tree([](const ToTreeTest& x){ return Tree(x.value); }),
-    from_tree([](ToTreeTest& x, const Tree& t){ x.value = int(t); })
+    from_tree([](ToTreeTest& x, const Tree& t){ x.value = int(t); return true; })
 )
 const ValuesTest vtnan = VTNAN;
 AYU_DESCRIBE(ayu::test::ValuesTest,

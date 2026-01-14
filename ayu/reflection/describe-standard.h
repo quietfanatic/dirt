@@ -238,6 +238,7 @@ AYU_DESCRIBE_TEMPLATE(
                 ayu::Type::For<std::unordered_set<T>>().name()
             ));
         }
+        return true;
     })
 )
 
@@ -271,6 +272,7 @@ AYU_DESCRIBE_TEMPLATE(
                 ayu::Type::For<std::set<T>>().name()
             ));
         }
+        return true;
     })
 )
 
@@ -361,23 +363,9 @@ AYU_DESCRIBE_TEMPLATE(
             for (uni::usize i = 0; i < n; i++) {
                 v[i] = s[i];
             }
+            return true;
         }
-        else if (tree.form == ayu::Form::Array) {
-            auto a = uni::Slice<ayu::Tree>(tree);
-            if (a.size() != n) {
-                ayu::raise_LengthRejected(
-                    ayu::Type::For<char[n]>(), n, n, a.size()
-                );
-            }
-            for (uni::usize i = 0; i < n; i++) {
-                v[i] = char(a[i]);
-            }
-        }
-        else {
-            ayu::raise_FromTreeFormRejected(
-                ayu::Type::For<char[n]>(), tree.form
-            );
-        }
+        else return false; // fall through to length+contiguous_elems
     }),
      // Allow accessing individual elements like an array
     desc::length(desc::template constant<uni::usize>(n)),

@@ -54,7 +54,7 @@ AYU_DESCRIBE(control::Statement,
         },
         value_ptr(ayu::Tree::array(), &empty_Statement)
     ),
-    before_from_tree([](Statement& v, const ayu::Tree& t){
+    from_tree([](Statement& v, const ayu::Tree& t){
         auto a = Slice<ayu::Tree>(t);
          // Empty array should be caught by value above
         auto name = Str(a[0]);
@@ -69,6 +69,7 @@ AYU_DESCRIBE(control::Statement,
         v.storage = (StatementStorageBase*)
             ayu::dynamic_default_new(command->storage_type);
         v.storage->command = command;
+        return false;
     }),
     delegate(anyptr_func([](Statement& v)->ayu::AnyPtr{
         return ayu::AnyPtr(

@@ -43,7 +43,7 @@ using namespace ayu;
 
 AYU_DESCRIBE(std::string,
     to_tree([](const std::string& v){ return Tree(Str(v)); }),
-    from_tree([](std::string& v, const Tree& t){ v = std::string(Str(t)); })
+    from_tree([](std::string& v, const Tree& t){ v = std::string(Str(t)); return true; })
 )
 AYU_DESCRIBE(std::u16string,
     to_tree([](const std::u16string& v){
@@ -53,6 +53,7 @@ AYU_DESCRIBE(std::u16string,
      // it for testing
     from_tree([](std::u16string& v, const Tree& t){
         v = uni::to_utf16(Str(t));
+        return true;
     })
 )
 

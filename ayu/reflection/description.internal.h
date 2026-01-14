@@ -221,7 +221,7 @@ struct ToTreeDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
-using FromTreeFunc = void(T&, const Tree&);
+using FromTreeFunc = bool(T&, const Tree&);
 template <class T>
 struct FromTreeDcr : AttachedDescriptor<T> {
     FromTreeFunc<T>* f;
@@ -666,7 +666,6 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
     bool have_computed_name = false;
     bool have_to_tree = false;
     bool have_from_tree = false;
-    bool have_before_from_tree = false;
     bool have_swizzle = false;
     bool have_init = false;
     bool have_flags = false;
@@ -729,9 +728,6 @@ constexpr FullDescription<T, std::remove_cvref_t<Dcrs>...> make_description (
         }
         else if constexpr (std::is_base_of_v<FromTreeDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(FromTreeDcr, from_tree)
-        }
-        else if constexpr (std::is_base_of_v<BeforeFromTreeDcr<T>, Dcr>) {
-            AYU_APPLY_OFFSET(BeforeFromTreeDcr, before_from_tree)
         }
         else if constexpr (std::is_base_of_v<SwizzleDcr<T>, Dcr>) {
             AYU_APPLY_OFFSET(SwizzleDcr, swizzle)

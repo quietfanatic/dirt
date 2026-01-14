@@ -156,37 +156,18 @@ struct TraverseFromTree {
     static // not noinline
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const FromTreeTraversal<>&>(tr);
-        if (!(trav.caps % AC::Write)) {
-            raise(e_General, "Tried to do from_tree operation on a readonly reference?");
-        }
         auto desc = trav.desc();
-        if (auto before = desc->before_from_tree()) {
-            use_before(trav, before->f);
+        if (auto from_tree = desc->from_tree()) {
+            use_from_tree(trav, from_tree->f);
         }
-        else after_before(trav, desc);
+        else after_from_tree(trav, desc);
     }
 
     NOINLINE static
-    void use_before (const FromTreeTraversal<>& trav, FromTreeFunc<Mu>* f) {
-        f(*trav.address, *trav.tree);
-        after_before(trav, trav.desc());
-    }
-
-    NOINLINE static
-    void after_before (
+    void after_from_tree (
         const FromTreeTraversal<>& trav, const DescriptionPrivate* desc
     ) {
-         // If description has a from_tree, just use that.
-        if (auto from_tree = desc->from_tree()) [[likely]] {
-             // Check this ahead of time for better tail calling capabilities
-            if (!!desc->swizzle_offset | !!desc->init_offset) {
-                use_from_tree_swizzle_init(trav, from_tree->f);
-            }
-            else from_tree->f(*trav.address, *trav.tree);
-        }
-         // Now check for values.  Values can be of any tree form now, not just
-         // atomic forms.
-        else if (auto values = desc->values()) {
+        if (auto values = desc->values()) {
             if (desc->flags % DescFlags::ValuesAllStrings) {
                 if (trav.tree->form == Form::String) {
                     use_values_all_strings(trav, values);
@@ -243,16 +224,19 @@ struct TraverseFromTree {
 ///// FROM TREE STRATEGY
 
     NOINLINE static
-    void use_from_tree_swizzle_init (
+    void use_from_tree (
         const FromTreeTraversal<>& trav, FromTreeFunc<Mu>* f
     ) {
-        f(*trav.address, *trav.tree);
-        register_swizzle_init(trav, trav.desc());
+        if (f(*trav.address, *trav.tree)) {
+            finish_item(trav);
+        }
+        else after_from_tree(trav, trav.desc());
     }
 
 ///// OBJECT STRATEGIES
 
-
+     // TODO: simplify this, is isn't worth all the branches now that we have a
+     // fast allocator.
     static
     void use_attrs (
         const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs

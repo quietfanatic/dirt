@@ -155,9 +155,9 @@ void Document::check_unique (Str name) {
 }
 
  // Use named functions instead of lambdas for easier debugging
-static void Document_before_from_tree (Document& v, const Tree& t) {
+static bool Document_from_tree (Document& v, const Tree& t) {
      // Each of these checked cases should reliably cause an error later
-    if (t.form != Form::Object) [[unlikely]] return;
+    if (t.form != Form::Object) [[unlikely]] return false;
     auto o = Slice<TreePair>(t);
     v = {};
     for (auto& [key, value] : o) {
@@ -168,6 +168,7 @@ static void Document_before_from_tree (Document& v, const Tree& t) {
         void* p = v.allocate_with_name_expect_unique(t, key);
         dynamic_default_construct(t, p);
     }
+    return false;
 }
 
 static AnyArray<AnyString> Document_get_keys (const Document& v) {
@@ -202,7 +203,7 @@ static AnyRef Document_computed_attrs (Document& v, const AnyString& k) {
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::Document,
-    before_from_tree(&Document_before_from_tree),
+    from_tree(&Document_from_tree),
     keys(mixed_funcs<AnyArray<AnyString>>(
         &Document_get_keys, &Document_set_keys
     )),
