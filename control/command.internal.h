@@ -67,8 +67,6 @@ struct StatementStorage :
 
 ///// ANALYZING COMMAND FUNCTIONS
 
- // This is called CallCommand because it shows up in the backtrace of calling
- // commands (the command function probably gets inlined into ::call here).
 template <auto& f, class F = decltype(f)>
 struct CommandCaller;
 template <auto& f, class... Pars>
@@ -92,16 +90,6 @@ struct CommandCaller<f, void(&)(Pars...)> {
     }
 };
 
-//template <auto&, class...>
-//struct CommandCallerLambda;
-//template <auto& f, class T, class... Pars>
-//struct CommandCallerLambda<f, void(T::*)(Pars...)> :
-//    CommandCaller<f, void(&)(Pars...)>
-//{ };
-//
-//template <auto& f, class T> requires { T::operator(); }
-//struct CommandCaller<f, T> : CommandCallerLambda<f, T, &T::operator()> { };
-
 void register_command (const Command*);
 
  // Based on the std::tuple description, but more efficient because
@@ -114,7 +102,7 @@ struct StatementStorageElems {
     auto make (std::index_sequence<is...>) {
         return desc::elems(
              // Command was written in before_from_tree, so ignore it in
-             // from_tree.  TODO: use member here, not base
+             // from_tree.
             desc::elem(
                 desc::template base<StatementStorageBase>(), desc::ignored
             ),

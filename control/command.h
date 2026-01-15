@@ -28,14 +28,14 @@ struct Command {
     const char* desc_d;
     u32 name_s;
     u32 desc_s;
+    u32 min;
+    u32 max;
     constexpr StaticString name () const {
         return StaticString(name_d, name_s);
     }
     constexpr StaticString description () const {
         return StaticString(desc_d, desc_s);
     }
-    u32 min;
-    u32 max;
     consteval Command (
         void(* c )(StatementStorageBase*),
         ayu::Type t,
@@ -73,6 +73,7 @@ constexpr control::Command _control_command_##f ( \
 [[maybe_unused]] inline const bool _control_init_##f = \
     (control::register_command(&_control_command_##f), false);
 #endif
+
 ///// STATEMENT
 
  // The structure you create to use a command.  TODO: creation on the C++ side
@@ -83,7 +84,7 @@ struct Statement {
     StatementStorageBase* storage;
 
     constexpr Statement (StatementStorageBase* s = null) : storage(s) { }
-    constexpr Statement (Statement&& o) : storage(o.storage) { 
+    constexpr Statement (Statement&& o) : storage(o.storage) {
         o.storage = null;
     }
     constexpr Statement& operator= (Statement&& o) {

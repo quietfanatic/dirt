@@ -29,8 +29,6 @@ const Command* require_command (Str name) {
     else ayu::raise(e_CommandNotFound, name);
 }
 
-static constexpr Statement empty_Statement;
-
 } using namespace control;
 
 AYU_DESCRIBE(control::StatementStorageBase,

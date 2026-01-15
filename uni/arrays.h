@@ -1101,18 +1101,18 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     bool owned () const {
         if constexpr (ac::is_Any) {
-            if (impl.sizex2_with_owned & 1) {
-                expect(impl.data);
-                return true;
-            }
-            else return false;
+             // Erase these expects in release build because they can make the
+             // compiler turn non-branching code into branching code.
+#ifndef NDEBUG
+            expect(!(impl.sizex2_with_owned & 1) || impl.data);
+#endif
+            return impl.sizex2_with_owned & 1;
         }
         else if constexpr (ac::supports_owned) {
-            if (impl.data) return true;
-            else {
-                expect(!impl.size);
-                return false;
-            }
+#ifndef NDEBUG
+            expect(impl.data || !impl.size);
+#endif
+            return impl.data;
         }
         else return false;
     }
