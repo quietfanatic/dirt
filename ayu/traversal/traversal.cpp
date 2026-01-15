@@ -112,7 +112,7 @@ void Traversal::wrap_exception () const {
 
 NOINLINE
 void rethrow_with_scanned_route (const AnyRef& base_item) {
-    RouteRef base_rt = current_base->route;
+    RouteRef base_rt = current_base;
     AnyRef base_ref = reference_from_route(base_rt);
     SharedRoute found_rt;
     try {

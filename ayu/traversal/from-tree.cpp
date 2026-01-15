@@ -117,7 +117,7 @@ struct TraverseFromTree {
         if (ctx.swizzle_ops) {
             ctx.swizzle_ops.consume([](SwizzleOp&& op){
                 expect(!op.base->parent());
-                CurrentBase curb (op.base);
+                CurrentBase curb (move(op.base));
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
                         op.f(*v, op.tree);
@@ -126,6 +126,7 @@ struct TraverseFromTree {
                 catch (...) {
                     rethrow_with_scanned_route(op.item);
                 }
+                expect(!op.base);
             });
              // Swizzling might add more swizzle ops; this will happen if we're
              // swizzling a pointer which points to a separate resource; that
@@ -135,7 +136,7 @@ struct TraverseFromTree {
         else if (ctx.init_ops) {
             ctx.init_ops.consume([](InitOp&& op){
                 expect(!op.base->parent());
-                CurrentBase curb (op.base);
+                CurrentBase curb (move(op.base));
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
                         op.f(*v);
@@ -144,6 +145,7 @@ struct TraverseFromTree {
                 catch (...) {
                     rethrow_with_scanned_route(op.item);
                 }
+                expect(!op.base);
             });
              // Initting might add more swizzle or init ops.  It'd be weird, but
              // it's allowed for an init() to load another resource.
@@ -723,7 +725,7 @@ struct TraverseFromTree {
          // an init, but almost no types are going to have both.
         if (auto swizzle = desc->swizzle()) {
             auto& op = IFTContext::current->swizzle_ops.emplace_back(
-                current_base->route, AnyRef(), swizzle->f, *trav.tree
+                current_base, AnyRef(), swizzle->f, *trav.tree
             );
             trav.to_reference(&op.item);
         }
@@ -734,7 +736,7 @@ struct TraverseFromTree {
                 if (init->order >= init_ops[i-1].order) break;
             }
             auto& op = init_ops.emplace(
-                i, current_base->route, AnyRef(), init->f, init->order
+                i, current_base, AnyRef(), init->f, init->order
             );
             trav.to_reference(&op.item);
         }

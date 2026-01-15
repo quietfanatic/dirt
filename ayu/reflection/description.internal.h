@@ -228,11 +228,6 @@ struct FromTreeDcr : AttachedDescriptor<T> {
 };
 
 template <class T>
-struct BeforeFromTreeDcr : AttachedDescriptor<T> {
-    FromTreeFunc<T>* f;
-};
-
-template <class T>
 using SwizzleFunc = void(T&, const Tree&);
 template <class T>
 struct SwizzleDcr : AttachedDescriptor<T> {

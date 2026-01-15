@@ -59,7 +59,7 @@ struct RouteToIRI {
             case RF::Reference: {
                  // Scuffed comparison with address in lieu of an actual route
                  // comparison function.
-                if (current_base && &*current_base->route == &*rt) {
+                if (current_base && &*current_base == &*rt) {
                     base = &anonymous_iri;
                     break;
                 }
@@ -149,9 +149,9 @@ SharedRoute route_from_iri (const IRI& iri) {
     auto end = fragment.end();
     SharedRoute r;
     if (root_iri == anonymous_iri) {
-        if (current_base && current_base->route->reference()) {
+        if (current_base && current_base->reference()) {
              // Allow addressing an item that isn't necessarily in a resource
-            new (&r) SharedRoute(current_base->route);
+            new (&r) SharedRoute(current_base);
         }
         else raise (e_RouteUnresolvable, cat(
             "Cannot call route_from_iri with ", anonymous_iri.spec(), " unless there is a current anonymous item."
@@ -198,7 +198,7 @@ SharedRoute route_from_iri (const IRI& iri) {
 
 static Tree route_to_tree (const RouteRef& v) {
     auto iri = route_to_iri(v);
-    auto rel = iri.relative_to(current_base->iri());
+    auto rel = iri.relative_to(current_base_iri());
     return Tree(rel);
 }
 
@@ -208,7 +208,7 @@ AYU_DESCRIBE(ayu::SharedRoute,
     to_tree([](const SharedRoute& v){ return route_to_tree(v); }),
     from_tree([](SharedRoute& v, const Tree& t){
         auto rel = Str(t);
-        auto iri = IRI(rel, current_base->iri());
+        auto iri = IRI(rel, current_base_iri());
         v = route_from_iri(iri);
         return true;
     })

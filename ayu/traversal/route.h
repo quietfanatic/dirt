@@ -156,39 +156,37 @@ static constexpr IRI anonymous_iri = "ayu:anon";
  // don't touch those functions.
 struct CurrentBase;
 
- // Null if there is no current base.  This will never be null during a
- // traversal operation, and by extension during any to_tree or from_tree
- // function.  It is not guaranteed to be non-null during a computed_attr or
- // computed_elem function, or during any accessor functions, because those
- // could be called by using AnyRefs, not just during traversals.
-inline const CurrentBase* current_base = null;
+ // Empty if there is no current base.  If not empty, it's always a Reosurce
+ // Route or a Reference Route.
+inline SharedRoute current_base;
+
+ // Returns IRI for the current base, or empty if there is none.
+const IRI& current_base_iri () noexcept;
 
 struct CurrentBase {
-    SharedRoute route; // Always a Resource Route or Reference Route.
-    const IRI& iri () const noexcept;
+    SharedRoute old;
 
-     // Creating a CurrentBase object will set the current base to the given
-     // route's root (and its corresponding IRI) and destroying it will revert
-     // the current base to what it was before.  You can have multiple
-     // CurrentBase objects and they act like a stack.  They must be destroying
-     // in reverse order of construction.
-    CurrentBase (RouteRef rt) : route(rt->root()) {
-        old = current_base;
-        current_base = this;
+     // Creating a CurrentBase object will set the current base and destroying
+     // it will revert the current base to what it was before.  You can have
+     // multiple CurrentBase objects and they act like a stack.  They must be
+     // destroyed in reverse order of construction.
+
+     // Constructor with a RouteRef and an AnyRef.  Will take the root of the
+     // passed-in route, or a route with the item if its empty.
+    CurrentBase (RouteRef rt, const AnyRef& item) {
+        old = move(current_base);
+        current_base = rt ? SharedRoute(rt->root()) : SharedRoute(item);
     }
-    CurrentBase (RouteRef rt, const AnyRef& item) :
-        route(rt ? SharedRoute(rt->root()) : SharedRoute(item))
-    {
-        old = current_base;
-        current_base = this;
+
+     // Direct constructor.  This must be a root route.
+    CurrentBase (SharedRoute rt) {
+        expect(!rt->parent());
+        old = move(current_base);
+        current_base = move(rt);
     }
     ~CurrentBase () {
-        expect(current_base == this);
-        current_base = old;
-        expect(route);
+        current_base = move(old);
     }
-
-    const CurrentBase* old;
 };
 
 ///// ERROR CODES

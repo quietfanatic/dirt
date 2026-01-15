@@ -94,9 +94,6 @@ struct DescriptionPrivate : DescriptionHeaderFor<Mu> {
     const FromTreeDcr<Mu>* from_tree () const {
         return offset_get<FromTreeDcr<Mu>>(this, from_tree_offset);
     }
-    const BeforeFromTreeDcr<Mu>* before_from_tree () const {
-        return offset_get<BeforeFromTreeDcr<Mu>>(this, before_from_tree_offset);
-    }
     const SwizzleDcr<Mu>* swizzle () const {
         return offset_get<SwizzleDcr<Mu>>(this, swizzle_offset);
     }

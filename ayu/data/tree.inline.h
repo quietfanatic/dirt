@@ -94,6 +94,9 @@ constexpr Tree::Tree (Tree&& o) {
 constexpr Tree::Tree (const Tree& o) :
     form(o.form), flags(o.flags), floaty(o.floaty), owned(o.owned), size(o.size), data(o.data)
 {
+    if (!std::is_constant_evaluated()) {
+        std::memcpy((void*)this, &o, sizeof(Tree));
+    }
     if (owned) {
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
@@ -119,7 +122,12 @@ constexpr Tree& Tree::operator= (const Tree& o) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }
-    form = o.form; flags = o.flags; floaty = o.floaty; owned = o.owned; size = o.size; data = o.data;
+    if (std::is_constant_evaluated()) {
+        form = o.form; flags = o.flags; floaty = o.floaty; owned = o.owned; size = o.size; data = o.data;
+    }
+    else {
+        std::memcpy((void*)this, &o, sizeof(Tree));
+    }
     if (owned) {
          // data.as_*_ptr should never be null if the refcounted bit is set
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;

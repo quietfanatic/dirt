@@ -77,9 +77,11 @@ inline RouteRef Route::root () const noexcept {
     return r;
 }
 
-inline const IRI& CurrentBase::iri () const noexcept {
-    switch (route->form) {
-        case RF::Resource: return route->resource()->name();
+inline const IRI& current_base_iri () noexcept {
+    static constexpr IRI empty;
+    if (!current_base) return empty;
+    switch (current_base->form) {
+        case RF::Resource: return current_base->resource()->name();
         case RF::Reference: return anonymous_iri;
         default: never();
     }

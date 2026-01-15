@@ -54,10 +54,10 @@ AYU_DESCRIBE(uni::StaticString,
 
 AYU_DESCRIBE(iri::IRI,
     to_tree([](const IRI& v){
-        return Tree(v.relative_to(current_base->iri()));
+        return Tree(v.relative_to(current_base_iri()));
     }),
     from_tree([](IRI& v, const Tree& t){
-        v = IRI(Str(t), current_base->iri());
+        v = IRI(Str(t), current_base_iri());
         return true;
     })
 )

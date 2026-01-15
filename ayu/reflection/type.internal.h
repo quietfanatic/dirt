@@ -68,7 +68,6 @@ struct DescriptionHeader : IdentityAccessor, ComparableAddress {
 
     u16 to_tree_offset = 0;
     u16 from_tree_offset = 0;
-    u16 before_from_tree_offset = 0;
     u16 swizzle_offset = 0;
     u16 init_offset = 0;
     u16 values_offset = 0;

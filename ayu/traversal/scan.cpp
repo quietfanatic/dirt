@@ -441,10 +441,9 @@ bool scan_resource_references (ResourceRef res, ScanReferencesCB cb) {
 
 bool scan_universe_pointers (ScanPointersCB cb) {
     if (current_base) {
-        auto rt = current_base->route;
-        if (auto ref = rt->reference())
+        if (auto ref = current_base->reference())
         if (auto address = ref->address()) {
-           scan_pointers(address, rt, cb);
+           scan_pointers(address, current_base, cb);
         }
     }
     for (auto& [_, res] : universe().resources) {
@@ -458,9 +457,8 @@ bool scan_universe_references (ScanReferencesCB cb) {
      // a Resource, first scan the currently-being-serialized item, but only if
      // it's not in a Resource (so we don't duplicate work).
     if (current_base) {
-        auto rt = current_base->route;
-        if (auto ref = rt->reference())
-        if (scan_references(*ref, rt, cb)) {
+        if (auto ref = current_base->reference())
+        if (scan_references(*ref, current_base, cb)) {
             return true;
         }
     }

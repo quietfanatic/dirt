@@ -50,7 +50,7 @@ static Tree AnyRef_to_tree (const AnyRef& v) {
     if (!v) return Tree(null);
     auto rt = reference_to_route(v);
     auto iri = route_to_iri(rt);
-    return Tree(iri.relative_to(current_base->iri()));
+    return Tree(iri.relative_to(current_base_iri()));
 }
 static bool AnyRef_from_tree (AnyRef& v, const Tree& tree) {
     switch (tree.form) {
@@ -65,7 +65,7 @@ static bool AnyRef_from_tree (AnyRef& v, const Tree& tree) {
 }
 static void AnyRef_swizzle (AnyRef& v, const Tree& tree) {
     if (tree.form == Form::Null) return;
-    auto iri = IRI(Str(tree), current_base->iri());
+    auto iri = IRI(Str(tree), current_base_iri());
     auto rt = route_from_iri(iri);
     v = reference_from_route(rt);
 }
