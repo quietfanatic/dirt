@@ -350,10 +350,9 @@ AYU_DESCRIBE_TEMPLATE(
         using namespace uni;
         auto computed = []{
             return desc::computed_name([]()->AnyString{
-                return cat("geo::GMat<",
-                    ayu::Type::For<T>().name(), ", ",
-                    std::to_string(cols), ", ",
-                    std::to_string(rows), '>'
+                return cat(
+                    "geo::GMat<", ayu::Type::For<T>().name(),
+                    ", ", cols, ", ", rows, '>'
                 );
             });
         };
@@ -417,11 +416,17 @@ AYU_DESCRIBE_TEMPLATE(
                 desc::value("rot180", GMat<T, 2, 2>(-1, 0, 0, -1))
             );
         }
+        else if constexpr (cols == rows) {
+            return desc::values(
+                desc::value(double(GNAN), GMat<T, cols, rows>(GNAN)),
+                desc::value(0, GMat<T, cols, rows>()),
+                desc::value(1, GMat<T, cols, rows>(1))
+            );
+        }
         else {
             return desc::values(
                 desc::value(double(GNAN), GMat<T, cols, rows>(GNAN)),
-                desc::value(0, &GMat<T, cols, rows>()),
-                desc::value(1, &GMat<T, cols, rows>(1))
+                desc::value(0, GMat<T, cols, rows>())
             );
         }
     }(),
