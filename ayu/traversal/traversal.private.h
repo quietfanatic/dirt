@@ -112,6 +112,7 @@ using VisitFunc = void(const Traversal&);
 
 template <VisitFunc& visit> NOINLINE
 void trav_after_access (Traversal& child, Type t, Mu* v) {
+    if (!v) [[unlikely]] return;  // TODO TODO TODO make this not possible
     child.type = t;
     child.address = v;
     visit(child);

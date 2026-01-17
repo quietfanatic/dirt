@@ -365,6 +365,12 @@ AYU_DESCRIBE_TEMPLATE_END(AYU_DESCRIBE_ESCAPE(params), AYU_DESCRIBE_ESCAPE(T))
 #define AYU_DESCRIBE_INSTANTIATE(T) \
 template const AYU_Description<T> AYU_Describe<T>::AYU_description;
 
+ // Force non-instantiation (must be explicitly instantiated in another
+ // compilation unit).
+#define AYU_DESCRIBE_EXTERN(T) \
+extern template struct AYU_Description<T>; \
+extern template const AYU_Description<T> AYU_Describe<T>::AYU_description;
+
 #define AYU_FRIEND_DESCRIBE(T) \
     friend struct AYU_Describe<T>;
 

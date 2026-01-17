@@ -63,8 +63,8 @@ are supported in quoted strings.
 - `\\xXX` = UTF-8 byte with a two-digit hexadecimal value, which may be part of
   a multibyte UTF-8 sequence, but must not be an unmatched leading or
   continuation byte.
-- `\uXXXX` = A UTF-16 code unit, which may be part of a surrogate pair, but
-  must not be a lone surrogate.  A sequence of multiple adjacent `\uXXXX`s will
+- `\\uXXXX` = A UTF-16 code unit, which may be part of a surrogate pair, but
+  must not be a lone surrogate.  A sequence of multiple adjacent `\\uXXXX`s will
   be converted together from UTF-16 to UTF-8.
 
 Some of these escape sequences may be obscure or useless, but they're included
@@ -106,7 +106,7 @@ arrays instead.
 
 Comments start with `--` and continue to the end of the line.  There are no
 multi-line comments, but you can fake them with a string in an unused shortcut.
-Readers must not allow comments to change the sematics of the document.
+Readers must not allow comments to change the semantics of the document.
 
 Comments cannot start in the middle of an unquoted string, because `-` is a
 valid character for unquoted strings.
