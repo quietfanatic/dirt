@@ -45,6 +45,9 @@ using char32 = char32_t;
 using Null = std::nullptr_t;
 constexpr Null null = nullptr;
 
+ // Canonical empty struct
+struct Nothing { friend auto operator<=> (Nothing, Nothing) = default; };
+
 #ifdef nan
     #warning "Somebody defined nan as a macro, undefining it"
     #undef nan

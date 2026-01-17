@@ -2337,7 +2337,8 @@ bool operator== (
 }
 
  // I can't be bothered to learn what <=> is supposed to return.  They should
- // have just made it int.
+ // have just made it int.  TODO: We actually need to work with the different
+ // between partial ordering and non-partial ordering to support floats.
 template <class ac, class T, class B>
 constexpr auto operator<=> (
     const ArrayInterface<ac, T>& a, const B& b
