@@ -58,6 +58,25 @@ inline UniqueString ascii_to_lower (Str s) {
     });
 }
 
+inline bool ascii_eqi (Str a, Str b) {
+    if (a.size() != b.size()) return false;
+    for (u32 i = 0; i < a.size(); i++) {
+        char ac = a[i];
+        char bc = b[i];
+        if (ac != bc) {
+            if ((ac ^ bc) == 0x20) {
+                 // If they differ by only the case bit, we only need to check that
+                 // one of them is alphabetical.
+                ac |= 0x20;
+                if (ac >= 'a' && ac <= 'z') { }
+                else return false;
+            }
+            else return false;
+        }
+    }
+    return true;
+}
+
  // Returns the number of decimal digits in the unsigned number.  Can return 1
  // through 20.  You can also think of this as 1+floor(log10(v)) except it
  // returns 1 for 0 instead of -inf.
