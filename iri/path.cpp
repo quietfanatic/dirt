@@ -1,5 +1,6 @@
 #include "path.h"
 
+#include <unistd.h>
 #include "../uni/strings.h"
 #include "../whereami/whereami.h"
 #include <filesystem>
@@ -97,7 +98,7 @@ Str path_extension (Str path) noexcept {
 
 ///// FILE SCHEME IRIS
 
-static IRI current_working_directory;
+constinit IRI current_working_directory;
 
 const IRI& working_directory () noexcept {
      // Not threadsafe, but IRIs use unthreadsafe reference counting anyway.
@@ -105,35 +106,42 @@ const IRI& working_directory () noexcept {
     return current_working_directory;
 }
 
+NOINLINE
 void update_working_directory () noexcept {
      // Make sure to tack a / on the end or relative resolving won't work
-    current_working_directory = expect(from_fs_path(
-        cat(fs::current_path().generic_u8string(), '/')
-    ));
+    char* cwd = get_current_dir_name();
+    auto slashed = cat((const char*)cwd, '/');
+    std::free(cwd);
+    current_working_directory = expect(from_fs_path(slashed));
+}
+
+NOINLINE static
+IRI get_program_location () {
+    int len = wai_getExecutablePath(nullptr, 0, nullptr);
+    require(len > 0);
+    auto path = new char [len];
+    require(wai_getExecutablePath(path, len, nullptr) == len);
+    IRI r = from_fs_path(Str(path, len));
+    expect(r);
+     // Promote the IRI's AnyString to static, unless someone replaced IRI's
+     // string type with something incompatible.
+    if (requires { r.spec_.impl.sizex2_with_owned; }) {
+        auto& sx2wo = r.spec_.impl.sizex2_with_owned;
+        const_cast<usize&>(sx2wo) &= ~1;
+    }
+    delete[] path;
+    return r;
 }
 
 const IRI& program_location () noexcept {
-    static IRI r = []{
-        int len = wai_getExecutablePath(nullptr, 0, nullptr);
-        require(len > 0);
-        auto path = new char [len];
-        require(wai_getExecutablePath(path, len, nullptr) == len);
-        IRI r = from_fs_path(Str(path, len));
-        expect(r);
-         // Promote the IRI's AnyString to static, unless someone replaced IRI's
-         // string type with something incompatible.
-        if (requires { r.spec_.impl.sizex2_with_owned; }) {
-            auto& sx2wo = r.spec_.impl.sizex2_with_owned;
-            const_cast<usize&>(sx2wo) &= ~1;
-        }
-        delete[] path;
-        return r;
-    }();
+    static constinit IRI r;
+    if (!r) r = get_program_location();
     return r;
 }
 
 ///// TO/FROM FILESYSTEM PATHS
 
+NOINLINE
 IRI from_fs_path (Str path, const IRI& base) noexcept {
     if (!path) return IRI();
     auto encoded = encode_path(path);
@@ -181,6 +189,7 @@ IRI from_fs_path (Str path, const IRI& base) noexcept {
     );
 }
 
+NOINLINE
 UniqueString to_fs_path (const IRI& iri) noexcept {
     require(iri.scheme() == "file");
     require(!iri.authority());  // authority can exist if empty
