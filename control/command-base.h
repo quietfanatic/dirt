@@ -41,11 +41,11 @@ struct CommandBase {
 
      // Named constructor because there's no way to provide explicit template
      // arguments for a normal constructor.
-    template <auto& f, u32 min, class... Extra>
+    template <auto f, u32 min, class... Extra>
     static consteval Cmd function (
         StaticString n, Extra&&... extra
     ) {
-        using Convert = ConvertFunctionToArgsTupleHandler<Cmd, f, min>;
+        using Convert = ConvertToArgsTupleHandler<Cmd, f, min>;
         return Cmd(
             Convert::get_handler(),
             ayu::Type::For_constexpr<typename Convert::type>(),
@@ -53,11 +53,11 @@ struct CommandBase {
         );
     }
 
-    template <auto& f, class... Extra>
+    template <auto f, class... Extra>
     static consteval Cmd collapsed (
         StaticString n, Extra&&... extra
     ) {
-        using Convert = ConvertFunctionToCollapsedHandler<Cmd, f>;
+        using Convert = ConvertToCollapsedHandler<Cmd, f>;
         return Cmd(
             Convert::get_handler(),
             ayu::Type::For_constexpr<typename Convert::type>(),
@@ -102,10 +102,21 @@ constexpr uni::ErrorCode e_CommandNotFound = "control::e_CommandNotFound";
 
 #define CONTROL_COMMAND_FUNCTION(Cmd, f, min, ...) \
 constexpr Cmd _control_command_##f = \
-    Cmd::function<f, min>(#f __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::function<&f, min>(#f __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##f)
 
 #define CONTROL_COMMAND_COLLAPSED(Cmd, f, ...) \
 constexpr Cmd _control_command_##f = \
-    Cmd::collapsed<f>(#f __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::collapsed<&f>(#f __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##f)
+
+#define CONTROL_COMMAND_METHOD(Cmd, Ctx, m, min, ...) \
+constexpr Cmd _control_command_##m = \
+    Cmd::function<&Ctx::m, min>(#m __VA_OPT__(,) __VA_ARGS__); \
+CONTROL_REGISTER_COMMAND(_control_command_##m)
+
+#define CONTROL_COMMAND_METHOD_COLLAPSED(Cmd, Ctx, m, ...) \
+constexpr Cmd _control_command_##m = \
+    Cmd::collapsed<&Ctx::m>(#m __VA_OPT__(,) __VA_ARGS__); \
+CONTROL_REGISTER_COMMAND(_control_command_##m)
+
