@@ -113,34 +113,34 @@ struct ConvertToArgsTupleHandler<
 };
 
 template <class Cmd, auto f, class Args>
-typename Cmd::Return collapsed_handle (typename Cmd::Context ctx, void* args) {
+typename Cmd::Return collapse_handle (typename Cmd::Context ctx, void* args) {
     return f(ctx, *(Args*)args);
 }
 
 template <class Cmd, auto f, class Args>
-typename Cmd::Return collapsed_handle_method (typename Cmd::Context ctx, void* args) {
+typename Cmd::Return collapse_handle_method (typename Cmd::Context ctx, void* args) {
     return (ctx.*f)(*(Args*)args);
 }
 
  // This technically doesn't belong here
 template <class Cmd, auto f, class F = decltype(f)>
-struct ConvertToCollapsedHandler;
+struct ConvertToCollapseHandler;
 template <class Cmd, auto f, class Ret, class Ctx, class Args>
-struct ConvertToCollapsedHandler<
+struct ConvertToCollapseHandler<
     Cmd, f, Ret(*)(Ctx, Args)
 > {
     using type = std::remove_cvref_t<Args>;
     static constexpr auto get_handler () {
-        return &collapsed_handle<Cmd, f, type>;
+        return &collapse_handle<Cmd, f, type>;
     }
 };
 template <class Cmd, auto f, class Ret, class Ctx, class Args>
-struct ConvertToCollapsedHandler<
+struct ConvertToCollapseHandler<
     Cmd, f, Ret(Ctx::*)(Args)
 > {
     using type = std::remove_cvref_t<Args>;
     static constexpr auto get_handler () {
-        return &collapsed_handle_method<Cmd, f, type>;
+        return &collapse_handle_method<Cmd, f, type>;
     }
 };
 

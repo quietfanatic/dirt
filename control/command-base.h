@@ -54,10 +54,10 @@ struct CommandBase {
     }
 
     template <auto f, class... Extra>
-    static consteval Cmd collapsed (
+    static consteval Cmd collapse (
         StaticString n, Extra&&... extra
     ) {
-        using Convert = ConvertToCollapsedHandler<Cmd, f>;
+        using Convert = ConvertToCollapseHandler<Cmd, f>;
         return Cmd(
             Convert::get_handler(),
             ayu::Type::For_constexpr<typename Convert::type>(),
@@ -105,9 +105,9 @@ constexpr Cmd _control_command_##f = \
     Cmd::function<&f, min>(#f __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##f)
 
-#define CONTROL_COMMAND_COLLAPSED(Cmd, f, ...) \
+#define CONTROL_COMMAND_COLLAPSE(Cmd, f, ...) \
 constexpr Cmd _control_command_##f = \
-    Cmd::collapsed<&f>(#f __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::collapse<&f>(#f __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##f)
 
 #define CONTROL_COMMAND_METHOD(Cmd, Ctx, m, min, ...) \
@@ -115,8 +115,8 @@ constexpr Cmd _control_command_##m = \
     Cmd::function<&Ctx::m, min>(#m __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##m)
 
-#define CONTROL_COMMAND_METHOD_COLLAPSED(Cmd, Ctx, m, ...) \
+#define CONTROL_COMMAND_METHOD_COLLAPSE(Cmd, Ctx, m, ...) \
 constexpr Cmd _control_command_##m = \
-    Cmd::collapsed<&Ctx::m>(#m __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::collapse<&Ctx::m>(#m __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##m)
 
