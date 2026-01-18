@@ -42,7 +42,6 @@
 #pragma once
 
 #include <cstring>
-#include <utility>
 #include "common.h"
 #include "assertions.h"
 
