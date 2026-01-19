@@ -338,40 +338,43 @@ bool realloc_cache (auto& cache, AnyPtr ptr, RouteRef rt) {
     return false;
 }
 
+NOINLINE
+void gen_route_cache () {
+    plog("Generate route cache begin");
+    route_cache.reserve(256);
+    scan_universe_pointers(CallbackRef<bool(AnyPtr, RouteRef)>(
+        route_cache, [](auto& cache, AnyPtr ptr, RouteRef rt)
+    {
+         // We're deliberately ignoring the case where the same typed
+         // pointer turns up twice in the data tree.  If this happens, we're
+         // probably dealing with some sort of shared_ptr-like situation,
+         // and in that case it shouldn't matter which route gets cached.
+         // It could theoretically be a problem if the pointers differ in
+         // readonlyness, but that should probably never happen.
+        expect(cache.owned());
+        if (cache.size() < cache.capacity()) {
+            expect(rt);
+            cache.emplace_back_expect_capacity(ptr, rt);
+            return false;
+        }
+        else return realloc_cache(cache, ptr, rt);
+    }));
+    plog("Generate route cache sort");
+     // Disable refcounting while sorting
+    auto uncounted = route_cache.reinterpret<Pair<AnyPtr, RouteRef>>();
+    std::sort(uncounted.begin(), uncounted.end(),
+        [](const auto& a, const auto& b){ return a.first < b.first; }
+    );
+    have_route_cache = true;
+    plog("Generate route cache end");
+#ifdef AYU_PROFILE
+    fprintf(stderr, "Route cache entries: %ld\n", route_cache.size());
+#endif
+}
+
 bool get_route_cache () {
     if (!keep_route_cache_count) return false;
-    if (!have_route_cache) {
-        plog("Generate route cache begin");
-        route_cache.reserve(256);
-        scan_universe_pointers(CallbackRef<bool(AnyPtr, RouteRef)>(
-            route_cache, [](auto& cache, AnyPtr ptr, RouteRef rt)
-        {
-             // We're deliberately ignoring the case where the same typed
-             // pointer turns up twice in the data tree.  If this happens, we're
-             // probably dealing with some sort of shared_ptr-like situation,
-             // and in that case it shouldn't matter which route gets cached.
-             // It could theoretically be a problem if the pointers differ in
-             // readonlyness, but that should probably never happen.
-            expect(cache.owned());
-            if (cache.size() < cache.capacity()) {
-                expect(rt);
-                cache.emplace_back_expect_capacity(ptr, rt);
-                return false;
-            }
-            else return realloc_cache(cache, ptr, rt);
-        }));
-        plog("Generate route cache sort");
-         // Disable refcounting while sorting
-        auto uncounted = route_cache.reinterpret<Pair<AnyPtr, RouteRef>>();
-        std::sort(uncounted.begin(), uncounted.end(),
-            [](const auto& a, const auto& b){ return a.first < b.first; }
-        );
-        have_route_cache = true;
-        plog("Generate route cache end");
-#ifdef AYU_PROFILE
-        fprintf(stderr, "Route cache entries: %ld\n", route_cache.size());
-#endif
-    }
+    if (!have_route_cache) gen_route_cache();
     return true;
 }
 
@@ -408,12 +411,14 @@ void clear_route_cache () {
 
 } using namespace in;
 
+NOINLINE
 bool scan_pointers (
     AnyPtr base_item, RouteRef base_rt, ScanPointersCB cb
 ) {
     return TraverseScan::start_pointers(base_item, base_rt, cb);
 }
 
+NOINLINE
 bool scan_references (
     const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
 ) {

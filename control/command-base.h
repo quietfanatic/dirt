@@ -65,6 +65,7 @@ struct CommandBase {
         );
     }
 
+     // TODO: put hashes in the registry for better cache locality?
     static UniqueArray<const Cmd*> registry;
 
     NOINLINE void init () const {
