@@ -25,7 +25,7 @@ namespace uni {
  // Also, be aware that this returns true on equality and false on inequality,
  // the opposite of memcmp.
 
-constexpr
+NOINLINE constexpr
 bool memeq (const void* a, const void* b, std::size_t s) {
      // Only run this on architectures that we know have reasonably fast
      // misaligned access.
@@ -85,24 +85,28 @@ bool memeq (const void* a, const void* b, std::size_t s) {
          // There isn't really anything satisfying to do here.  We're
          // prioritizing the speed of the longer strings, so here we're more
          // concerned with register usage, code size, and branch predictor
-         // pressure than speed.
+         // pressure than raw speed.
+
+         // Naive version
         //for (u32 i = 0; i < s; i++) {
         //    if (ap[i] != bp[i]) return false;
         //}
         //return true;
-        if (s >= 2) {
-            u16 av;
-            u16 bv;
-            std::memcpy(&av, ap + s - 2, 2);
-            std::memcpy(&bv, bp + s - 2, 2);
-            if (av != bv) return false;
-        }
-        return ap[0] == bp[0];
-         // Here's a cool branchless version.  Unfortunately it tends to use
-         // more registers and compiles larger.
-        //return !((ap[s-1] ^ bp[s-1])
-        //       | (ap[s>>1] ^ bp[s>>1])
-        //       | (ap[0] ^ bp[0]));
+
+         // Smallest version (for if we're inlined)
+        //if (s >= 2) {
+        //    u16 av;
+        //    u16 bv;
+        //    std::memcpy(&av, ap + s - 2, 2);
+        //    std::memcpy(&bv, bp + s - 2, 2);
+        //    if (av != bv) return false;
+        //}
+        //return ap[0] == bp[0];
+
+         // Branchless version (for noinline)
+        return !((ap[s-1] ^ bp[s-1])
+               | (ap[s>>1] ^ bp[s>>1])
+               | (ap[0] ^ bp[0]));
     }
     else return true;
 }
