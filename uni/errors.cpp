@@ -9,11 +9,19 @@
 namespace uni {
 
 const char* Error::what () const noexcept {
-    what_cache = cat(code, "; ", details);
-    if (tags) {
-        encat(what_cache, Caterator("", tags.size(), [&](usize i){
-            return cat("\n    {", tags[i].first, ": ", tags[i].second, '}');
-        }));
+    usize len = code.size() + 2 + details.size();
+    for (usize i = 0; i < tags.size(); i++) {
+        len += 5 + tags[i].first.size() + 2 + tags[i].second.size();
+    }
+    what_cache = UniqueString(Capacity(len));
+    what_cache.append_expect_capacity(code);
+    what_cache.append_expect_capacity("; ");
+    what_cache.append_expect_capacity(details);
+    for (usize i = 0; i < tags.size(); i++) {
+        what_cache.append_expect_capacity("\n    ");
+        what_cache.append_expect_capacity(tags[i].first);
+        what_cache.append_expect_capacity(": ");
+        what_cache.append_expect_capacity(tags[i].second);
     }
     return what_cache.c_str();
 }
