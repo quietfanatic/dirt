@@ -149,22 +149,27 @@ i32 input_to_integer (Input input) noexcept {
     }
 }
 
+ // Round structure up to 32 bytes.  Currently, the longest input name is
+ // audiofastforward at 16.
+static constexpr u8 input_name_max_size = 22;
+
 // Make a sorted table of (hashed) input names for a binary search.  We could
 // make an open-addressing hash table instead, but that would take more space,
 // and efficiency isn't that important here; this is just for deserialization,
 // not for ordinary runtime lookups.
 struct TableEntry {
     u32 hash;
-    u32 size;
-    const char* name;
-    Input input;
+    char name [input_name_max_size];
+    u8 size;
+    InputType type;
+    i32 code;
 };
 
 static constexpr auto inputs_by_hash = []{
     constexpr TableEntry unsorted [] = {
-#define KEY(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Key, .code = c}},
+#define KEY(n, c) {hash32(n), n, std::strlen(n), InputType::Key, c},
 #define ALT(n, c) KEY(n, c)
-#define BTN(n, c) {hash32(n), std::strlen(n), n, {.type = InputType::Button, .code = c}},
+#define BTN(n, c) {hash32(n), n, std::strlen(n), InputType::Button, c},
 #define BTN_ALT(n, c) BTN(n, c)
 #include "keys-table.h"
     };
@@ -176,6 +181,10 @@ static constexpr auto inputs_by_hash = []{
     std::sort(r.begin(), r.end(), [](const auto& a, const auto& b){
         return a.hash < b.hash;
     });
+    for (usize i = 0; i < r.size()-1; i++) {
+         // No collisions allowed
+        expect(r[i].hash != r[i+1].hash);
+    }
     return r;
 }();
 
@@ -193,8 +202,8 @@ struct CodeRanges {
 static constexpr CodeRanges code_ranges = []{
     CodeRanges r;
     for (auto& entry : inputs_by_hash) {
-        auto code = entry.input.code;
-        if (entry.input.type == InputType::Key) {
+        auto code = entry.code;
+        if (entry.type == InputType::Key) {
             if (code & 1<<30) {
                 if (code < r.min_high) r.min_high = code;
                 if (code > r.max_high) r.max_high = code;
@@ -204,7 +213,7 @@ static constexpr CodeRanges code_ranges = []{
                 if (code > r.max_low) r.max_low = code;
             }
         }
-        else if (entry.input.type == InputType::Button) {
+        else if (entry.type == InputType::Button) {
             if (code < r.min_btn) r.min_btn = code;
             if (code > r.max_btn) r.max_btn = code;
         }
@@ -235,9 +244,9 @@ static constexpr auto inputs_by_code = []{
     };
     for (u32 hash : keys) {
         for (u32 i = 0; i < inputs_by_hash.size(); i++) {
-            if (inputs_by_hash[i].input.type == InputType::Key) {
+            if (inputs_by_hash[i].type == InputType::Key) {
                 if (hash == inputs_by_hash[i].hash) {
-                    auto code = inputs_by_hash[i].input.code;
+                    auto code = inputs_by_hash[i].code;
                     if (code & 1<<30) r.high[code - code_ranges.min_high] = i;
                     else r.low[code - code_ranges.min_low] = i;
                     break;
@@ -251,9 +260,9 @@ static constexpr auto inputs_by_code = []{
     };
     for (u32 hash : btns) {
         for (u32 i = 0; i < inputs_by_hash.size(); i++) {
-            if (inputs_by_hash[i].input.type == InputType::Button) {
+            if (inputs_by_hash[i].type == InputType::Button) {
                 if (hash == inputs_by_hash[i].hash) {
-                    auto code = inputs_by_hash[i].input.code;
+                    auto code = inputs_by_hash[i].code;
                     r.btn[code - code_ranges.min_btn] = i;
                     break;
                 }
@@ -283,7 +292,7 @@ void raise_UnknownInput (Str name) {
 [[gnu::optimize("-fno-thread-jumps","-fno-split-paths")]]
 Input input_from_string (Str name) {
     if (!name) return Input{};
-    if (name.size() > 32) {
+    if (name.size() > input_name_max_size) {
         raise_UnknownInput(name);
     }
     u32 hash = hash32(name);
@@ -302,7 +311,10 @@ Input input_from_string (Str name) {
         if (!up) e = mid;
     }
     if (b < inputs_by_hash.size() && inputs_by_hash[b].hash == hash) {
-        return inputs_by_hash[b].input;
+        return Input{
+            .type = inputs_by_hash[b].type,
+            .code = inputs_by_hash[b].code
+        };
     }
     else raise_UnknownInput(name);
 }
