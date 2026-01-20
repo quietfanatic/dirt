@@ -409,7 +409,8 @@ struct AYU_DescribeBase {
      // similar to the name parameter of values.  When serializing, if the
      // serialized attribute's value is equal to this Tree, it will be left out
      // of the object, and when deserializing, if the attribute is left out of
-     // the object, it will be deserialized from this Tree.
+     // the object, it will be deserialized from this Tree (unless this attr has
+     // the optional flag).
      //
      // Because you can't create dynamically-allocated storage at runtime, to
      // make the default value a non-empty array or object, you need to declare
@@ -798,6 +799,10 @@ struct AYU_DescribeBase {
         Function<void(T&, const M&)>* set,
         AcrFlags = {}
     );
+
+     // Generic two-function accessor.
+    template <class Getter, class Setter> static constexpr
+    AccessorFrom<T> auto funcs (Getter, Setter, AcrFlags = {});
 
      // This makes an accessor to any child item such that the parent and child
      // types can be assigned to eachother with operator=.  It is not

@@ -231,6 +231,48 @@ void MixedFuncsAcr1<To>::_access (
     if (mode % AC::Write) self->setter(from, move(tmp));
 }
 
+ // funcs
+
+template <class From, class Getter, class Setter>
+struct FuncsAcr : FunctiveAcr {
+    using To =
+        std::remove_cvref_t<decltype(
+            (*(Getter*)null)(*(From*)null)
+        )>;
+    using AcrFromType = From;
+    using AcrToType = To;
+    [[no_unique_address]] Getter getter;
+    [[no_unique_address]] Setter setter;
+    explicit constexpr FuncsAcr (Getter g, Setter s, AcrFlags flags) :
+        FunctiveAcr(
+            AF::Functive, &_access,
+            flags | AcrFlags::Unaddressable
+        ),
+        getter(g), setter(s)
+    { }
+    static void _access (
+        const Accessor* acr, Mu& f, AccessCB cb, AccessCaps mode
+    ) {
+        auto self = static_cast<const FuncsAcr<From, Getter, Setter>*>(acr);
+        auto& from = reinterpret_cast<From&>(f);
+        if constexpr (
+            std::is_trivially_default_constructible_v<To> &&
+            std::is_trivially_copy_constructible_v<To>
+        ) {
+            To tmp;
+            if (mode % AC::Read) [[likely]] new (&tmp) To(self->getter(from));
+            cb(Type::For<To>(), (Mu*)&tmp);
+            if (mode % AC::Write) [[likely]] self->setter(from, move(tmp));
+        }
+        else {
+            if (mode % AC::Read) [[likely]];
+            To tmp = mode % AC::Read ? self->getter(from) : To();
+            cb(Type::For<To>(), (Mu*)&tmp);
+            if (mode % AC::Write) [[likely]] self->setter(from, move(tmp));
+        }
+    }
+};
+
 /// assignable
 
 template <class From, class To>

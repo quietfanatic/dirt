@@ -89,11 +89,11 @@ AYU_DESCRIBE(glow::TextureMinFilter,
 
 AYU_DESCRIBE(glow::Texture,
     attrs(
-        attr("target", value_funcs<TextureTarget>(
+        attr("target", funcs(
             [](const Texture& v){ return TextureTarget(v.target); },
             [](Texture& v, TextureTarget m){ v = Texture(m); }
         ), optional),
-        attr("wrap", value_funcs<TextureWrap>(
+        attr("wrap", funcs(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                  // Can't return both S and T so just pick one
@@ -106,8 +106,8 @@ AYU_DESCRIBE(glow::Texture,
                 glTexParameteri(v.target, GL_TEXTURE_WRAP_S, m);
                 glTexParameteri(v.target, GL_TEXTURE_WRAP_T, m);
             }
-        ), optional),
-        attr("wrap_s", value_funcs<TextureWrap>(
+        ), optional|invisible),
+        attr_default("wrap_s", funcs(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                 i32 r = 0;
@@ -118,8 +118,8 @@ AYU_DESCRIBE(glow::Texture,
                 glBindTexture(v.target, v.id);
                 glTexParameteri(v.target, GL_TEXTURE_WRAP_S, m);
             }
-        ), optional),
-        attr("wrap_t", value_funcs<TextureWrap>(
+        ), "GL_REPEAT", optional),
+        attr_default("wrap_t", funcs(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                 i32 r = 0;
@@ -127,10 +127,11 @@ AYU_DESCRIBE(glow::Texture,
                 return TextureWrap(r);
             },
             [](Texture& v, TextureWrap m){
+                glBindTexture(v.target, v.id);
                 glTexParameteri(v.target, GL_TEXTURE_WRAP_T, m);
             }
-        ), optional),
-        attr("mag_filter", value_funcs<TextureMagFilter>(
+        ), "GL_REPEAT", optional),
+        attr_default("mag_filter", funcs(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                 i32 r = 0;
@@ -141,8 +142,8 @@ AYU_DESCRIBE(glow::Texture,
                 glBindTexture(v.target, v.id);
                 glTexParameteri(v.target, GL_TEXTURE_MAG_FILTER, m);
             }
-        ), optional),
-        attr("min_filter", value_funcs<TextureMinFilter>(
+        ), "GL_LINEAR", optional),
+        attr_default("min_filter", funcs(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                 i32 r = 0;
@@ -153,8 +154,8 @@ AYU_DESCRIBE(glow::Texture,
                 glBindTexture(v.target, v.id);
                 glTexParameteri(v.target, GL_TEXTURE_MAG_FILTER, m);
             }
-        ), optional),
-        attr("filter", value_funcs<TextureMagFilter>(
+        ), "GL_NEAREST_MIPMAP_LINEAR", optional),
+        attr("filter", funcs(
             [](const Texture& v){
                 glBindTexture(v.target, v.id);
                 i32 r = 0;
@@ -166,7 +167,7 @@ AYU_DESCRIBE(glow::Texture,
                 glTexParameteri(v.target, GL_TEXTURE_MAG_FILTER, m);
                 glTexParameteri(v.target, GL_TEXTURE_MIN_FILTER, m);
             }
-        ), optional)
+        ), optional|invisible)
          // We won't bother supporting the more exotic parameters unless we
          //  need them.
     )

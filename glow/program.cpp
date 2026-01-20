@@ -127,7 +127,7 @@ AYU_DESCRIBE(glow::ShaderType,
 
 AYU_DESCRIBE(glow::Shader,
     attrs(
-        attr("type", value_funcs<ShaderType>(
+        attr("type", funcs(
             [](const Shader& v){
                 if (v.id) {
                     i32 type = 0;
@@ -143,7 +143,7 @@ AYU_DESCRIBE(glow::Shader,
                 }
             }
         )),
-        attr("source", value_funcs<AnyString>(
+        attr("source", funcs(
             [](const Shader& v){
                 require(v.id);
                 i32 len = 0;
@@ -153,8 +153,8 @@ AYU_DESCRIBE(glow::Shader,
                 glGetShaderSource(v.id, len, null, r.mut_data());
                 return r;
             },
-            [](Shader& v, AnyString s){
-                const char* src_p = s.c_str();
+            [](Shader& v, const AnyString& s){
+                const char* src_p = s.data();
                 i32 src_len = s.size();
                 glShaderSource(v.id, 1, &src_p, &src_len);
             }

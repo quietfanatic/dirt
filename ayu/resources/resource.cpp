@@ -696,7 +696,7 @@ AYU_DESCRIBE(ayu::ResourceState,
     )
 )
 AYU_DESCRIBE(ayu::SharedResource,
-    delegate(const_ref_funcs<IRI>(
+    delegate(funcs(
         [](const SharedResource& v) -> const IRI& {
              // TODO: Make relative to current resource?
             return v->name();

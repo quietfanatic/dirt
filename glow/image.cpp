@@ -45,7 +45,7 @@ AYU_DESCRIBE(glow::Image,
 
 AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
      // TODO: Allow parsing hex string as an option?
-    length(value_funcs<usize>(
+    length(funcs(
         [](const UniqueImagePixelsProxy& image){
             return usize(area(image.size));
         },

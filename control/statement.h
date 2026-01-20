@@ -63,12 +63,12 @@ AYU_DESCRIBE_TEMPLATE(
         return !uni::Slice<ayu::Tree>(t);
     }),
     desc::elems(
-        desc::elem(desc::template value_funcs<uni::AnyString>(
+        desc::elem(desc::template funcs(
             [](const control::Statement<Cmd>& v)->uni::AnyString{
                 if (!v) return "";
                 return v.command->name;
             },
-            [](control::Statement<Cmd>& v, uni::AnyString m){
+            [](control::Statement<Cmd>& v, uni::Str m){
                 v = {};
                 v.command = Cmd::get(m);
                 v.args = ayu::dynamic_default_new(v.command->args_type);

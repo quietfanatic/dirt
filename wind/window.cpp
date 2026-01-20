@@ -79,15 +79,15 @@ geo::IVec Window::size () const {
 
 AYU_DESCRIBE(wind::Window,
     attrs(
-        attr("title", value_funcs<AnyString>(
+        attr("title", funcs(
             [](const Window& window){
                 return AnyString(SDL_GetWindowTitle(window));
             },
-            [](Window& window, AnyString title){
+            [](Window& window, Str title){
                 SDL_SetWindowTitle(window, title.c_str());
             }
         ), optional),
-        attr("size", value_funcs<geo::IVec>(
+        attr("size", funcs(
             [](const Window& window){
                 return window.size();
             },

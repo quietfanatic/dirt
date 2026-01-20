@@ -232,6 +232,14 @@ AccessorFromTo<T, M> auto AYU_DescribeBase<T>::mixed_funcs (
     return in::MixedFuncsAcr<T, M>(g, s, flags);
 }
 
+template <Describable T>
+template <class Getter, class Setter> constexpr
+AccessorFrom<T> auto AYU_DescribeBase<T>::funcs (
+    Getter g, Setter s, AcrFlags flags
+) {
+    return in::FuncsAcr<T, Getter, Setter>(g, s, flags);
+}
+
  // TODO: optimize for pointers
 template <Describable T>
 template <Describable M>
