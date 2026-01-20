@@ -313,7 +313,9 @@ AYU_DESCRIBE_TEMPLATE(
             });
         }
         else {
-            return desc::delegate(desc::template assignable<ayu::AnyRef>());
+            return desc::delegate(
+                ayu::in::PtrToAnyRefAcr<T*>(ayu::in::AcrFlags{})
+            );
         }
     }()
 )

@@ -80,6 +80,7 @@ enum class AcrForm : u8 {
     ConstantPtr,
     AnyRefFunc,
     AnyPtrFunc,
+    PtrToAnyRef,
     Functive, // Miscellaneous functive accessor that doesn't need destructing
     Variable,
     Chain,
@@ -98,6 +99,7 @@ void access_RefFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_ConstantPtr (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_AnyRefFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_AnyPtrFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
+void access_PtrToAnyRef (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Functive (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Variable (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Chain (const Accessor*, Mu&, AccessCB, AccessCaps);
@@ -112,6 +114,7 @@ constexpr AccessFunc* access_table [] = {
     access_ConstantPtr,
     access_AnyRefFunc,
     access_AnyPtrFunc,
+    access_PtrToAnyRef,
     access_Functive,
     access_Variable,
     access_Chain,

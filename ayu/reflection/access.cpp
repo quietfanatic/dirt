@@ -61,6 +61,22 @@ void access_AnyPtrFunc (
     cb(ptr.type(), ptr.address);
 }
 
+void access_PtrToAnyRef (
+    const Accessor* acr, Mu& from, AccessCB cb, AccessCaps
+) {
+    auto self = static_cast<const PtrToAnyRefAcr<Mu>*>(acr);
+    Type type = self->type();
+    AnyPtr ptr = AnyPtr(type, *(Mu**)&from);
+     // AnyPtr can be type-punned to AnyRef
+    AnyRef& ref = ptr;
+    cb(ayu::Type::For<AnyRef>(), (Mu*)&ref);
+    if (ref.acr() && ref.acr()->form != AcrForm::Identity) {
+        raise(e_General, "Native pointer-derived AnyRef was written with non-identity accessor.  Writing native pointers with complicated AnyRefs is NYI.");
+    }
+    AnyPtr casted = ptr.upcast_to(type);
+    *(Mu**)&from = casted.address;
+}
+
 void access_Functive (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {

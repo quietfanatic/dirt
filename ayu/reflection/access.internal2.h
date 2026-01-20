@@ -294,6 +294,25 @@ struct AssignableAcr : FunctiveAcr {
     { }
 };
 
+template <class From>
+struct PtrToAnyRefAcr : Accessor {
+    using AcrFromType = From;
+    using AcrToType = AnyRef;
+     // Sadly we can't embed the type directly here, since Type::For_constexpr
+     // can't reference incomplete types.  However, this thunk is way smaller
+     // than what Assignable<From*, AnyRef> would generate.
+    Type (* type )();
+    explicit constexpr PtrToAnyRefAcr (AcrFlags flags) :
+        Accessor(AF::PtrToAnyRef, flags | AcrFlags::Unaddressable),
+        type([]{
+            static_assert(!std::is_const_v<std::remove_pointer_t<From>>,
+                "Accessors to const pointers are NYI"
+            );
+            return Type::For<std::remove_pointer_t<From>>();
+        })
+    { }
+};
+
 /// variable
 
 template <class From, class To>
