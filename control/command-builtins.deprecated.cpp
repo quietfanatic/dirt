@@ -1,4 +1,4 @@
-#include "command.h"
+#include "command.deprecated.h"
 
 #include "../uni/io.h"
 

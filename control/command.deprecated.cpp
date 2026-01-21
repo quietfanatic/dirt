@@ -1,4 +1,4 @@
-#include "command.h"
+#include "command.deprecated.h"
 
 #include "../ayu/reflection/describe.h"
 #include "../ayu/traversal/from-tree.h"
@@ -68,6 +68,7 @@ AYU_DESCRIBE(control::Statement,
         return false;
     }),
     delegate(anyptr_func([](Statement& v)->ayu::AnyPtr{
+        if (!v.storage) return ayu::AnyPtr();
         return ayu::AnyPtr(
             v.storage->command->storage_type,
             (ayu::Mu*)v.storage
