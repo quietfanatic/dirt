@@ -100,6 +100,8 @@ struct TraverseScan {
     NOINLINE static
     void visit (const Traversal& tr) {
         auto& trav = static_cast<const ScanTraversal<>&>(tr);
+         // TODO TODO TODO make this not possible somehow
+        if (!trav.address) [[unlikely]] return;
         trav.context->cb(trav);
     }
 
