@@ -170,12 +170,11 @@ template <Describable T>
 template <Describable M>
     requires (requires (T* t, M* m) { m = t; t = static_cast<T*>(m); }) constexpr
 AccessorFromTo<T, M> auto AYU_DescribeBase<T>::base (AcrFlags flags) {
-    if constexpr (
-        static_cast<M*>((T*)null) == null
-    ) {
+    if constexpr (std::is_pointer_interconvertible_base_of_v<M, T>) {
          // BaseAcr is kinda heavy because it may have to deal with virtual
          // bases, so if the base is the first base (offset 0), use a special
-         // Acr that doesn't need to store any data.
+         // Acr that doesn't need to store any data.  Unfortunately this is only
+         // detected when the class is standard-layout.
         return in::ReinterpretAcr<T, M>(flags);
     }
     else return in::BaseAcr<T, M>(flags);
