@@ -25,8 +25,81 @@ static u32 read_u32 (const u8* in) {
     return in[0] << 24 | in[1] << 16 | in[2] << 8 | in[3] << 0;
 }
 
-static u8 hash_pixel (RGBA8 px) {
-    return (px.r*3 + px.g*5 + px.b*7 + px.a*11) % 64;
+static u8 hash_pixel (u8 r, u8 g, u8 b, u8 a) {
+    return (r*3 + g*5 + b*7 + a*11) % 64;
+}
+
+NOINLINE static
+int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
+    RGBA8 history [64] = {};
+    RGBA8 current {0, 0, 0, 255};
+    while (out != out_end) {
+        if (in == in_end) [[unlikely]] return 1;
+         // Ordering these by rough likelihood for a pixel-art game with
+         // transparent sprites.
+        if (*in < 0b01000000) { // QOI_OP_INDEX
+            u8 index = *in & 0b00111111;
+            current = history[index];
+            *out++ = history[index];
+            in += 1;
+            continue;
+        }
+        else if (*in >= 0b11000000) {
+            if (*in < 0b11111110) { // QOI_OP_RUN
+                 // Force consolidation early
+                u8 buf [4] = {current.r, current.g, current.b, current.a};
+                if (*in == 0b11111101) { // special case maximum length
+                    if (62 > out_end - out) [[unlikely]] return -1;
+                    for (u32 i = 0; i < 62; i++) {
+                        std::memcpy(out++, buf, 4);
+                    }
+                    in += 1;
+                    continue;
+                }
+                else {
+                    u32 len = (*in & 0b00111111) + 1;
+                    if (len > out_end - out) [[unlikely]] return -1;
+                    #pragma GCC novector
+                    do { std::memcpy(out++, buf, 4); } while (--len);
+                    in += 1;
+                    continue;
+                }
+            }
+            else { // QOI_OP_RGB or QOI_OP_RGBA
+                current.r = in[1];
+                current.g = in[2];
+                current.b = in[3];
+                if (*in == 0b11111111) {
+                    current.a = in[4];
+                    in += 1;
+                }
+                in += 4;
+                goto new_pixel;
+            }
+        }
+        else if (*in >= 0b10000000) { // QOI_OP_LUMA
+            i8 dg = (*in & 0b00111111) - 32;
+            i8 drmdg = ((in[1] & 0b11110000) >> 4) - 8;
+            i8 dbmdg = ((in[1] & 0b00001111) >> 0) - 8;
+            current.r += drmdg + dg;
+            current.g += dg;
+            current.b += dbmdg + dg;
+            in += 2;
+            goto new_pixel;
+        }
+        else { // QOI_OP_DIFF
+            current.r += ((*in & 0b00110000) >> 4) - 2;
+            current.g += ((*in & 0b00001100) >> 2) - 2;
+            current.b += ((*in & 0b00000011) >> 0) - 2;
+            in += 1;
+            goto new_pixel;
+        }
+        new_pixel:
+        *out++ = current;
+        history[hash_pixel(current.r, current.g, current.b, current.a)] = current;
+    }
+    if (in != in_end) [[unlikely]] return -1;
+    return 0;
 }
 
 UniqueImage load_image_from_file (AnyString filename) {
@@ -50,72 +123,13 @@ UniqueImage load_image_from_file (AnyString filename) {
     in += 14;
     in_end -= 8;
 
-    RGBA8 history [64] = {};
-    RGBA8 current = {0,0,0,255};
-    while (out != out_end) {
-        if (in == in_end) raise_LoadImageFailed(filename, "Not enough data");
-        switch (*in & 0b11000000) {
-            case 0b00000000: {
-                u8 index = *in & 0b00111111;
-                current = history[index];
-                *out++ = current;
-                in++;
-                continue;
-            }
-            case 0b01000000: {
-                current.r += ((*in & 0b00110000) >> 4) - 2;
-                current.g += ((*in & 0b00001100) >> 2) - 2;
-                current.b += ((*in & 0b00000011) >> 0) - 2;
-                *out++ = current;
-                in++;
-                goto update_history;
-            }
-            case 0b10000000: {
-                i8 dg = (*in & 0b00111111) - 32;
-                i8 drmdg = ((in[1] & 0b11110000) >> 4) - 8;
-                i8 dbmdg = ((in[1] & 0b00001111) >> 0) - 8;
-                current.r += drmdg + dg;
-                current.g += dg;
-                current.b += dbmdg + dg;
-                *out++ = current;
-                in += 2;
-                goto update_history;
-            }
-            case 0b11000000: {
-                 // One of these branches could probably be eliminated
-                if (*in == 0b11111110) {
-                    current.r = in[1];
-                    current.g = in[2];
-                    current.b = in[3];
-                    *out++ = current;
-                    in += 4;
-                    goto update_history;
-                }
-                else if (*in == 0b11111111) {
-                    current.r = in[1];
-                    current.g = in[2];
-                    current.b = in[3];
-                    current.a = in[4];
-                    *out++ = current;
-                    in += 5;
-                    goto update_history;
-                }
-                else {
-                    u8 len = (*in & 0b00111111) + 1;
-                    if (len > out_end - out) goto too_much;
-                    do { *out++ = current; } while (--len);
-                    in += 1;
-                    continue;
-                }
-            }
-        }
-        update_history:
-        history[hash_pixel(current)] = current;
+    int res = decode_qoi(out, out_end, in, in_end);
+    if (res) [[unlikely]] {
+        raise_LoadImageFailed(filename,
+            res > 0 ? StaticString("Too much data") : StaticString("Not enough data")
+        );
     }
-    if (in != in_end) {
-        too_much:
-        raise_LoadImageFailed(filename, "Too much data");
-    }
+
     return r;
 }
 
