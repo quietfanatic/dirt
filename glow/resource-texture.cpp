@@ -49,7 +49,7 @@ static tap::TestSet tests ("dirt/glow/resource-texture", []{
     TestEnvironment env;
 
     ResourceTexture tex;
-    tex.source = iri::IRI("test:/image.png");
+    tex.source = iri::IRI("test:/image.qoi");
     tex.load();
     auto size = tex.size();
     is(size, IVec{7, 5}, "Created texture has correct size");

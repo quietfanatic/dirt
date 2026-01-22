@@ -15,7 +15,7 @@
         filter: GL_LINEAR
     }]
     file_image: [glow::ResourceImage {
-        source: image.png
+        source: image.qoi
     }]
     texture2: [glow::ImageTexture {
         image: #file_image

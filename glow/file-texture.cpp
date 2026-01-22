@@ -27,7 +27,7 @@ static tap::TestSet tests ("dirt/glow/file-texture", []{
 
     TestEnvironment env;
 
-    FileTexture tex (ayu::resource_filename(iri::IRI("test:/image.png")));
+    FileTexture tex (ayu::resource_filename(iri::IRI("test:/image.qoi")));
     auto size = tex.size();
     is(size, IVec{7, 5}, "Created texture has correct size");
 

@@ -337,10 +337,9 @@ AYU_DESCRIBE_TEMPLATE(
     })
 )
 
- // Special case for char[n], mainly to allow string literals to be passed to
- // ayu::dump without surprising behavior.  Note that the deserialization from
- // string must be given exactly n characters and !WILL NOT NUL-TERMINATE! the
- // char[n].
+ // Special case for char[n].  Note that the deserialization from string must be
+ // given exactly n characters and !WILL NOT NUL-TERMINATE! the char[n].  TODO:
+ // Make it work more like C where unspecified characters are filled with NUL
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(char[n]),
