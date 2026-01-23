@@ -6,11 +6,18 @@ namespace glow {
 
  // A type representing a color with 32bpp depth.  If you want to use floats,
  // you should probably just use a Vec4.
-struct RGBA8 {
-    u8 r;
-    u8 g;
-    u8 b;
-    u8 a;
+struct alignas(4) RGBA8 {
+    union {
+        struct {
+            u8 r;
+            u8 g;
+            u8 b;
+            u8 a;
+        };
+         // NOTE: this is not the same as the uint32 conversions!  It will be
+         // byte-swapped on little-endian machines.
+        uint32 repr;
+    };
     constexpr RGBA8 (u8 r, u8 g, u8 b, u8 a) :
         r(r), g(g), b(b), a(a)
     { }
