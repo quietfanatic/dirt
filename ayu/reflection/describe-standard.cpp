@@ -37,6 +37,10 @@ namespace ayu::in {
             }), '>'
         );
     }
+    [[gnu::noclone]] NOINLINE
+    AnyString make_array_name (Type t, u32 len) noexcept {
+        return cat(t.name(), '[', len, ']');
+    }
 } // ayu::in
 
 using namespace ayu;

@@ -141,9 +141,15 @@ using Constructor = void(void*);
 template <class T>
 using Destructor = void(T*);
 
-template <class T>
+ // These functions can waste a lot of space for how infrequently they're
+ // called--the majority are never even ever called.  In particular, for array
+ // types, the compiler likes to fully unroll the constructor and destructor
+ // loops, even for large counts and complex elements.  Mark these as cold to
+ // prevent this.  This saved 20k compiled size in a fixed-size-array-heavy
+ // program.
+template <class T> [[gnu::cold]]
 void generic_default_construct (void* p) { new (p) T; }
-template <class T>
+template <class T> [[gnu::cold]]
 void generic_destroy (T* p) { p->~T(); }
 
 inline void trivial_default_construct (void*) { }

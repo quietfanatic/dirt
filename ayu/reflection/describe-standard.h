@@ -26,6 +26,7 @@ namespace ayu::in {
     AnyString make_pointer_name (Type t, int flags) noexcept;
     AnyString make_template_name_1 (StaticString prefix, Type t) noexcept;
     AnyString make_variadic_name (StaticString prefix, const Type* types, u32 len) noexcept;
+    AnyString make_array_name (Type t, u32 len) noexcept;
 } // ayu::in
 
  // std::optional serializes to [] for nullopt and [value] for value.  To make
@@ -326,10 +327,8 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(T[n]),
     desc::computed_name([]{
-        return uni::AnyString(uni::cat(
-            ayu::Type::For<T>().name(),
-            '[', n, ']'
-        ));
+        static_assert(n <= 0x7fffffff);
+        return ayu::in::make_array_name(ayu::Type::For<T>(), n);
     }),
     desc::length(desc::template constant<uni::usize>(n)),
     desc::contiguous_elems([](T(& v )[n]){
@@ -344,7 +343,8 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(char[n]),
     desc::computed_name([]{
-        return uni::AnyString(uni::cat("char[", n, ']'));
+        static_assert(n <= 0x7fffffff);
+        return ayu::in::make_array_name(ayu::Type::For<char>(), n);
     }),
      // Serialize as a string
     desc::to_tree([](const char(& v )[n]){
