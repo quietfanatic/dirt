@@ -52,9 +52,13 @@
 
 ///// BOILERPLATE
 
-#ifndef TAP_REMOVE_TESTS
-
 #pragma once
+#ifdef TAP_REMOVE_TESTS
+namespace tap {
+template <class... Args>
+void allow_testing (Args&&...) { }
+}
+#else
 
 #include <cstring>
 #include <cstdlib>
