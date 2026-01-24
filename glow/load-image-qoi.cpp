@@ -35,8 +35,9 @@ static u32 read_u32 (const u8* in) {
 
 static constexpr
 u8 hash_pixel (u8 r, u8 g, u8 b, u8 a) {
-    return (r*3 + g*5 + b*7 + a*11) % 64;
+    return (r*3 + g*5 + b*7 + a*11) & 63;
 }
+
 
  // Returns 0 if successful, + if too much input, - if too little input.
 NOINLINE static
@@ -44,10 +45,9 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
     RGBA8 history [64] = {};
      // We're primarily keeping the pixel coalesced in one register, because the
      // two most common ops (index and run) only care about the coalesced form.
-     // However, predeclare the individual registers so we can use them across
-     // the goto.
     RGBA8 px = {0, 0, 0, 255};
-     // These have to be u8 because they are specced to wrap around.
+     // However, predeclare the individual registers so we can use them across
+     // the goto.  These have to be u8 because they are specced to wrap around.
     u8 r, g, b, a;
      // Special semi- or fully-paranoid tweak to allow an optimization. [1]
 #ifdef GLOW_DECODE_QOI_PARANOID
@@ -57,11 +57,10 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
     history[59].a = 255;
 #endif
     while (out < out_end && in < in_end) {
-         // Ordering these by rough likelihood for a pixel-art game with
-         // transparent sprites.
+         // Ordering these by rough likelihood for a pixel-art game with a flat
+         // art style.
         if (*in < 0b01000000) [[likely]] { // QOI_OP_INDEX
-            u8 index = *in & 0b00111111;
-            px.repr = history[index].repr;
+            px.repr = history[*in].repr;
             (out++)->repr = px.repr;
 #ifdef GLOW_DECODE_QOI_PARANOID
             if (px.repr == 0) [[unlikely]] history[0].repr = px.repr;
@@ -71,19 +70,32 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
         }
         else if (*in >= 0b11000000) {
             if (*in < 0b11111110) [[likely]] { // QOI_OP_RUN
-                 // This will be much faster if we can round the run size up to
-                 // a power of 2.  Fortunately, we can almost always do so,
-                 // because we have extra room in the output buffer.  Turns out,
-                 // checking if we have extra room is free, because we have to
-                 // check for buffer overflow anyway, and we can skip the
-                 // overflow check if the extra room check passes.
-                u32 len = (*in & 0b00111111) + 1;
+                 // Most runs are 1, 2, or 62.  We could special-case the
+                 // smallest runs, but I don't think it's worth the extra branch
+                 // mispredictions.
+                u32 len = u32(*in) - 0b11000000 + 1;
                 RGBA8* real_end = out + len;
-                 // 8 seems to be how much the compiler wants to unroll and
-                 // vectorize the loop, so we'll go with that.
-                u32 optimistic_len = (len + 7) & ~7;
-                RGBA8* optimistic_end = out + optimistic_len;
-                if (optimistic_end > out_end) [[unlikely]] {
+                 // If we have extra room, we can round up the run length to a
+                 // multiple of 8 so the compiler can vectorize it without a
+                 // bunch of tail-cleanup branches.  It'd be simpler to
+                 // explicitly do 8 at a time, which would skip the rounding up
+                 // calculation, but then the compiler always makes a worse loop
+                 // (it seems to invent an integer loop count variable instead
+                 // of comparing pointers like we asked it to).
+                 //
+                 // Note that this two-loop setup is still more compact what the
+                 // compiler would generate if left to its own devices.  I wish
+                 // I had RISC-V vectors.
+                RGBA8* optimistic_end = out + ((len + 7) & ~7);
+                if (optimistic_end <= out_end) {
+                    expect(out < optimistic_end);
+                    while (out < optimistic_end) {
+                        (out++)->repr = px.repr;
+                    }
+                    out = real_end;
+                }
+                else [[unlikely]] {
+                     // No extra room, so we have to be precise.
                     if (real_end > out_end) [[unlikely]] break;
                     expect(out < real_end);
                      // This should happen at most once or twice so don't unroll
@@ -94,29 +106,22 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
                         (out++)->repr = px.repr;
                     }
                 }
-                else {
-                    expect (out < optimistic_end);
-                    while (out < optimistic_end) {
-                        (out++)->repr = px.repr;
-                    }
-                    out = real_end;
-                }
                 in += 1;
                 continue;
             }
             else { // QOI_OP_RGB or QOI_OP_RGBA
-                 // A number of hacky hacks to make this path branchless
+                 // Some hacky hacks to make this path branchless
                 r = in[1];
                 g = in[2];
                 b = in[3];
                 a = ((volatile u8*)in)[4];
                 if (*in == 0b11111110) a = px.a;
-                in += *in - 250;
+                in += *in - 0b11111110 + 4;
                 goto new_pixel;
             }
         }
-        else if (*in >= 0b10000000) { // QOI_OP_LUMA
-            i8 dg = (*in & 0b00111111) - 32;
+        else if (*in >= 0b10000000) [[likely]] { // QOI_OP_LUMA
+            i8 dg = *in - 0b10000000 - 32;
             i8 dr_g = ((in[1] & 0b11110000) >> 4) - 8;
             i8 db_g = ((in[1] & 0b00001111) >> 0) - 8;
             r = px.r + dr_g + dg;
@@ -202,9 +207,8 @@ UniqueImage load_image_from_file (AnyString filename) {
  // threaten our optimization even more.
  //
  // So I'm just gonna assume that will never happen.  If an encoder wants to
- // spend that much effort to occasionally save a pittance of bytes (typically 4
- // and at most 252 for a specially-crafted file) it should be spending those
- // cycles on DEFLATE or something instead.
-
+ // spend that much effort to occasionally save a pittance of bytes, it should
+ // be spending those cycles on DEFLATE or something instead.
+ //
  // Alternatively, you can #define GLOW_DECODE_QOI_PARANOID to make sure all
  // possible scenarios are covered, at a slight performance loss.
