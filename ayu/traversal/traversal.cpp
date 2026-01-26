@@ -3,8 +3,8 @@
 
 namespace ayu::in {
 
-static void to_reference_parent_addressable (const Traversal&, void*);
-static void to_reference_chain (const Traversal&, void*);
+static void to_reference_parent_addressable (const Traversal&, void*) noexcept;
+static void to_reference_chain (const Traversal&, void*) noexcept;
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
@@ -18,14 +18,13 @@ void Traversal::to_reference (void* r) const noexcept {
         new (r) AnyRef(*self.reference);
     }
     else if (parent->caps % AC::Address) {
-         // This won't tail call for some reason
-        to_reference_parent_addressable(*this, r);
+        return to_reference_parent_addressable(*this, r);
     }
-    else to_reference_chain(*this, r);
+    else return to_reference_chain(*this, r);
 }
 
 NOINLINE static
-void to_reference_parent_addressable (const Traversal& trav, void* r) {
+void to_reference_parent_addressable (const Traversal& trav, void* r) noexcept {
     switch (trav.step) {
         case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
@@ -58,7 +57,7 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) {
 }
 
 NOINLINE static
-void to_reference_chain (const Traversal& trav, void* r) {
+void to_reference_chain (const Traversal& trav, void* r) noexcept {
     AnyRef parent_ref;
     trav.parent->to_reference(&parent_ref);
     switch (trav.step) {

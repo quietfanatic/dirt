@@ -5,9 +5,9 @@ namespace in {
 NOINLINE
 void delete_Tree_data (Tree&) noexcept;
 
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_TreeWrongForm (const Tree&, Form);
-[[noreturn]]
+[[noreturn, gnu::cold]]
 void raise_TreeCantRepresent (StaticString, const Tree&);
 
 static constexpr void check_form (const Tree& self, Form expected) {
@@ -136,7 +136,7 @@ constexpr Tree& Tree::operator= (const Tree& o) {
 }
 
 constexpr Tree::~Tree () {
-    if (owned) [[unlikely]] {
+    if (owned) {
         auto header = SharableBuffer<char>::header(data.as_char_ptr);
         if (!--header->ref_count) in::delete_Tree_data(*this);
     }

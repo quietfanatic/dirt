@@ -50,10 +50,14 @@ inline SharedRoute::SharedRoute (SharedRoute p, u32 i) noexcept :
     data(new in::IndexRoute(move(p), i))
 { }
 
+ // Incorrent warning here, "warning: ‘<anonymous>’ may be used uninitialized"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
 inline ResourceRef Route::resource () const noexcept {
     if (form != RF::Resource) return {};
     else return static_cast<const in::ResourceRoute*>(this)->resource;
 }
+#pragma GCC diagnostic pop
 inline const AnyRef* Route::reference () const noexcept {
     if (form != RF::Reference) return null;
     else return &static_cast<const in::ReferenceRoute*>(this)->reference;

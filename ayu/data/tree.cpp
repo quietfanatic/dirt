@@ -1,5 +1,6 @@
 #include "tree.h"
 
+#include <cmath>
 #include "../reflection/describe.h"
 #include "../traversal/to-tree.h"
 
@@ -22,36 +23,30 @@ void check_uniqueness (u32 s, const TreePair* p) {
 
 NOINLINE
 void delete_Tree_data (Tree& t) noexcept {
-     // Manually delete all the elements.  We can't call UniqueArray<*>'s
+     // Manually delete all the elements.  We can't call UniqueArray's
      // destructor because we've already run the reference count down to 0, and
      // it debug-asserts that the reference count is 1.
     expect(t.owned);
-    switch (t.form) {
-        case Form::String: {
-            SharableBuffer<const char>::deallocate(t.data.as_char_ptr);
-            break;
-        }
-        case Form::Array: {
-            for (auto& e : Slice<Tree>(t)) {
-                e.~Tree();
-            }
-            SharableBuffer<const Tree>::deallocate(t.data.as_array_ptr);
-            break;
-        }
-        case Form::Object: {
-            for (auto& p : Slice<TreePair>(t)) {
-                p.~TreePair();
-            }
-            SharableBuffer<const TreePair>::deallocate(t.data.as_object_ptr);
-            break;
-        }
-        case Form::Error: {
-            t.data.as_error_ptr->~exception_ptr();
-            SharableBuffer<const std::exception_ptr>::deallocate(t.data.as_error_ptr);
-            break;
-        }
-        default: never();
+    if (t.form == Form::String) {
+        SharableBuffer<const char>::deallocate(t.data.as_char_ptr);
     }
+    else if (t.form == Form::Array) {
+        for (auto& e : Slice<Tree>(t)) [[likely]] {
+            e.~Tree();
+        }
+        SharableBuffer<const Tree>::deallocate(t.data.as_array_ptr);
+    }
+    else if (t.form == Form::Object) {
+        for (auto& p : Slice<TreePair>(t)) [[likely]] {
+            p.~TreePair();
+        }
+        SharableBuffer<const TreePair>::deallocate(t.data.as_object_ptr);
+    }
+    else if (t.form == Form::Error) [[unlikely]] {
+        t.data.as_error_ptr->~exception_ptr();
+        SharableBuffer<const std::exception_ptr>::deallocate(t.data.as_error_ptr);
+    }
+    else never();
 }
 
 void raise_TreeWrongForm (const Tree& t, Form form) {
@@ -73,10 +68,17 @@ static bool tree_eq_bool (const Tree& a, const Tree& b) noexcept {
     return a.data.as_bool == b.data.as_bool;
 }
 static bool tree_eq_number (const Tree& a, const Tree& b) noexcept {
-    if (!a.floaty && !b.floaty) return a.data.as_i64 == b.data.as_i64;
-    double av = a.floaty ? a.data.as_double : a.data.as_i64;
-    double bv = b.floaty ? b.data.as_double : b.data.as_i64;
-    return av == bv || (av != av && bv != bv);
+    if (!a.floaty & !b.floaty) [[likely]] {
+        return a.data.as_i64 == b.data.as_i64;
+    }
+    else {
+        double af = a.floaty ? a.data.as_double : a.data.as_i64;
+        double bf = b.floaty ? b.data.as_double : b.data.as_i64;
+        if (!std::isunordered(af, bf)) [[likely]] {
+            return af == bf;
+        }
+        else return af != af && bf != bf;
+    }
 }
 static bool tree_eq_string (const Tree& a, const Tree& b) noexcept {
     return a.data.as_char_ptr == b.data.as_char_ptr
