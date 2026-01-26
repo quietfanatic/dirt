@@ -503,7 +503,7 @@ struct std::tuple_element<i, geo::GVec<T, n>> {
 #include "../uni/strings.h"
 template <class T, uni::usize n>
 struct tap::Show<geo::GVec<T, n>> {
-    uni::UniqueString show (const geo::GVec<T, n>& v) {
+    static uni::UniqueString show (const geo::GVec<T, n>& v) {
         return uni::cat('[', uni::Caterator(
             ", ", n, [&v](uni::usize i){ return v[i]; }
         ), ']');

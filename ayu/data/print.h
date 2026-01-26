@@ -40,7 +40,7 @@ constexpr ErrorCode e_PrintOptionsInvalid = "ayu::e_PrintOptionsInvalid";
 
 template <>
 struct tap::Show<ayu::Tree> {
-    uni::UniqueString show (const ayu::Tree& t) const {
+    static uni::UniqueString show (const ayu::Tree& t) {
         return tree_to_string(t, ayu::PrintOptions::Compact);
     }
 };

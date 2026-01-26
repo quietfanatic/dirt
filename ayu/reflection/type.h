@@ -173,7 +173,7 @@ struct std::hash<ayu::Type> {
 
 template <>
 struct tap::Show<ayu::Type> {
-    uni::UniqueString show (ayu::Type v) { return v.name(); }
+    static uni::UniqueString show (ayu::Type v) { return v.name(); }
 };
 
 #endif

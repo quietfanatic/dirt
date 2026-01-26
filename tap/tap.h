@@ -106,6 +106,7 @@ void plan (unsigned num_tests);
 void done_testing ();
 
  // Run a test.  If succeeded is true, the test passes, otherwise it fails.
+ // TODO: check if we need this wrapper
 bool ok_bool (bool succeeded, uni::Str name = "");
 template <class T>
 bool ok (T s, uni::Str n = "") { return ok_bool(!!s, n); }
@@ -213,8 +214,11 @@ void set_print (void(*)(uni::Str));
  // TODO: allow wholesale replacement of showing for ayu
 template <class T>
 struct Show {
-    uni::UniqueString show (const T&);
+    static uni::UniqueString show (const T&);
 };
+
+template <class T>
+using Shower = uni::UniqueString (const T&);
 
  // Print a message as diagnostics.  Should not contain newlines.
 void diag (uni::Str message);

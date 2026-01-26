@@ -39,12 +39,10 @@ inline bool operator == (RGBA8 a, RGBA8 b) {
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"
-namespace tap {
-    template <>
-    struct Show<glow::RGBA8> {
-        uni::UniqueString show (const glow::RGBA8& v) {
-            return uni::cat("RGBA(", v.r, ", ", v.g, ", ", v.b, ", ", v.a, ')');
-        }
-    };
-}
+template <>
+struct tap::Show<glow::RGBA8> {
+    static uni::UniqueString show (const glow::RGBA8& v) {
+        return uni::cat("RGBA(", v.r, ", ", v.g, ", ", v.b, ", ", v.a, ')');
+    }
+};
 #endif
