@@ -1,6 +1,7 @@
 #pragma once
 
 #include <charconv>
+#include <cmath>
 #include "arrays.h"
 #include "text.h"
 
@@ -137,20 +138,20 @@ struct StringConversion<bool> {
 template <class T> requires (std::is_integral_v<T>)
 struct StringConversion<T> {
     using Self = StringConversion<T>;
-    T v;
-    u8 count;
-    StringConversion (T v) : v(v) { }
+    bool sign;
+    std::make_unsigned_t<T> v;
+    u32 count;
+    StringConversion (T v_) : sign(v_ < 0), v(sign ? -v_ : v_) { }
      // Get a close upper bound for the number of digits.
     ALWAYS_INLINE constexpr usize size () {
-        bool sign = v < 0;
-        count = count_decimal_digits(sign ? -v : v);
+        count = count_decimal_digits(v);
         expect(count > 0);
-        return count + sign;
+        return usize(count) + sign;
     }
     constexpr char* write (char* out) const {
-        bool sign = v < 0;
-        if (sign) *out++ = '-';
-        return write_decimal_digits(out, count, sign ? -v : v);
+        *out = '-';
+        out += sign;
+        return write_decimal_digits(out, count, v);
     }
 };
 
@@ -163,19 +164,20 @@ struct StringConversion<T> {
     char digits [in::max_digits<T>];
     u32 len;
     constexpr StringConversion (T v) {
-        if (v != v) {
-            std::memcpy(digits, "+nan", len = 4);
-        }
-        else if (v == std::numeric_limits<T>::infinity()) {
-            std::memcpy(digits, "+inf", len = 4);
-        }
-        else if (v == -std::numeric_limits<T>::infinity()) {
-            std::memcpy(digits, "-inf", len = 4);
-        }
-        else {
+        if (std::isfinite(v)) {
             auto [ptr, ec] = std::to_chars(digits, digits + in::max_digits<T>, v);
             expect(ec == std::errc());
             len = ptr - digits;
+            expect(len <= in::max_digits<T>);
+        }
+        else if (v > 0) {
+            std::memcpy(digits, "+inf", len = 4);
+        }
+        else if (v < 0) {
+            std::memcpy(digits, "-inf", len = 4);
+        }
+        else {
+            std::memcpy(digits, "+nan", len = 4);
         }
     }
     ALWAYS_INLINE constexpr usize size () const { return len; }
@@ -215,9 +217,7 @@ struct StringConversion<T> {
 
 namespace in {
 
-ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, usize b) {
-    expect(a + b >= a);
-    expect(a + b >= b);
+ALWAYS_INLINE constexpr void cat_add_no_overflow (usize& a, u32 b) {
     a += b;
 }
 
@@ -298,9 +298,7 @@ UniqueString cat (Head&& h, const Tail&... t) {
         return move(h);
     }
     else return in::cat_construct(
-        typename StringConversion<std::remove_cvref_t<Head>>::Self(
-            std::forward<Head>(h)
-        ),
+        typename StringConversion<std::remove_cvref_t<Head>>::Self(h),
         typename StringConversion<std::remove_cvref_t<Tail>>::Self(t)...
     );
 }
