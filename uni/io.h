@@ -178,11 +178,24 @@ inline void File::close (Str path_err) noexcept {
 }
 
 inline UniqueString string_from_file (AnyString path) {
-    return File(move(path)).read();
+    return File(path).read(path);
 }
 
 inline void string_to_file (Str content, AnyString path) {
     File(path, "wb").write(content, path);
+}
+
+inline UniqueArray<u8> array_from_file (AnyString path) {
+    auto s = string_from_file(move(path));
+    UniqueArray<u8> r;
+    r.impl.size = s.impl.size;
+    r.impl.data = (u8*)s.impl.data;
+    s.impl = {};
+    return r;
+}
+
+inline void array_to_file (Slice<u8> content, AnyString path) {
+    string_to_file(content.reinterpret<char>(), move(path));
 }
 
 inline Dir::Dir (AnyString path) :
