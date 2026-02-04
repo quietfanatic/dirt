@@ -1,5 +1,6 @@
 #include "load-image.h"
 
+#include "../uni/endian.h"
 #include "../uni/io.h"
 #include "gl.h"
 
@@ -27,10 +28,6 @@ void load_texture_from_file (u32 target, AnyString filename) {
         image.size.x, image.size.y, 0,
         GL_RGBA, GL_UNSIGNED_BYTE, image.pixels
     );
-}
-
-static u32 read_u32 (const u8* in) {
-    return in[0] << 24 | in[1] << 16 | in[2] << 8 | in[3] << 0;
 }
 
 static constexpr
@@ -156,8 +153,8 @@ UniqueImage load_image_from_file (AnyString filename) {
     }
     const u8* in = file.reinterpret<u8>().begin();
     const u8* in_end = file.reinterpret<u8>().end();
-    u32 width = read_u32(in + 4);
-    u32 height = read_u32(in + 8);
+    u32 width = read_u32be(in + 4);
+    u32 height = read_u32be(in + 8);
     u64 len = width * height;
     if (len > 400000000) raise_LoadImageFailed(filename, "Image is too large");
      // Ignore channels and colorspace for now.
