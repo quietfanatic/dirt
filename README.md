@@ -18,9 +18,11 @@ into its own repo.  So far there is:
    scalar utilities.
  - gl\_api: A version of the OpenGL API written with macros, so you can
    customize it to mean whatever you want.
- - glow: Some thin wrappers around OpenGL objects for use with ayu.
+ - glow: Image loading and some thin wrappers around OpenGL objects for use with
+   ayu.
+ - snd: Some audio codecs.
  - control: Types representing keyboard and mouse inputs, and a command system,
-   all made to work with ayu.
+   all made to work with ayu and SDL2.
  - whereami: Get the directory of the executable.
    From https://github.com/gpakosz/whereami
  - wind: A thin wrapper around SDL\_Window for use with ayu.
@@ -32,5 +34,5 @@ but the interface and organization are subject to change without notice.
 
 Most of the code here requires C++20.
 
-This repo has no build workflow of its own yet.  I've been testing it out with
-gcc, but theoretically it should compile with clang and msvc with a little work,
+This repo has no build workflow of its own yet.  I've been using it with gcc,
+but it might compile with clang and msvc with a little work.
