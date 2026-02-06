@@ -31,12 +31,9 @@ UniqueAudio audio_from_file (AnyString filename) {
     return audio_from_array(content, filename);
 }
 
-static
-bool operator== (const UniqueAudio& a, const UniqueAudio& b) {
-    return a.n_channels == b.n_channels
-        && a.n_samples == b.n_samples
-        && a.sample_rate == b.sample_rate
-        && std::memcmp(a.samples, b.samples, a.n_channels * a.n_samples) == 0;
+void audio_to_file_qoa (const UniqueAudio& au, AnyString filename) {
+    auto contents = audio_to_array_qoa(au);
+    array_to_file(contents, move(filename));
 }
 
 } using namespace snd;
@@ -45,6 +42,16 @@ bool operator== (const UniqueAudio& a, const UniqueAudio& b) {
 #include "../tap/tap.h"
 #include "../whereami/whereami.h"
 #include "../uni/io.h"
+
+namespace snd {
+    static
+    bool operator== (const UniqueAudio& a, const UniqueAudio& b) {
+        return a.n_channels == b.n_channels
+            && a.n_samples == b.n_samples
+            && a.sample_rate == b.sample_rate
+            && std::memcmp(a.samples, b.samples, a.n_channels * a.n_samples) == 0;
+    }
+}
 
 static tap::TestSet tests ("dirt/snd/audio", []{
     using namespace tap;

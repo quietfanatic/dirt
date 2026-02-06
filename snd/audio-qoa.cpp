@@ -470,7 +470,6 @@ struct QOAEncoder {
         last_scalefactor = best_scalefactor;
         channel_state = best_state;
         write_u64be(out, best_slice);
-        samples_left -= slice_samples;
     }
 
     EncodeFrameReturn encode_frame (
@@ -503,6 +502,7 @@ struct QOAEncoder {
                 in += 1;
             }
             in += (slice_samples - 1) * n_channels;
+            samples_left -= slice_samples;
             frame_slices -= 1;
         }
         return {out, in};
@@ -525,9 +525,9 @@ struct QOAEncoder {
         while (samples_left) {
             auto r = encode_frame(out, in);
             out = r.out; in = r.in;
+            expect(out <= out_end);
+            expect(in <= in_end);
         }
-        expect(out == out_end);
-        expect(in == in_end);
     }
 };
 

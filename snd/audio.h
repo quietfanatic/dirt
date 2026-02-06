@@ -21,8 +21,8 @@ struct UniqueAudio {
 
     UniqueAudio (u32 c, u32 s, u32 r) :
         n_channels(c), n_samples(s), sample_rate(r),
-         // Temporary until we make the qoa decoder stop properly
-        samples(new i16[c * s])
+         // A little extra room makes access easier
+        samples(new i16[c * s + 4])
     { }
 
     constexpr
