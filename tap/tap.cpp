@@ -1,6 +1,5 @@
 #include "tap.h"
 
-#ifdef TAP_SELF_TEST
 #ifndef TAP_DISABLE_TESTS
 
 #include <string>
@@ -205,6 +204,7 @@ void list_tests () {
 
 ///// Self tests
 
+#ifdef TAP_SELF_TEST
 static tap::TestSet tap_self_tests ("dirt/tap/tap", []{
     using namespace tap;
     plan(49);
@@ -271,11 +271,10 @@ static tap::TestSet tap_self_tests ("dirt/tap/tap", []{
         }, 32, "try_is catches and fails on exception");
     });
 });
+#endif // #ifdef TAP_SELF_TEST
 
 } // tap
-
-#endif
-#endif
+#endif // #ifndef TAP_DISABLE_TESTS
 
 #ifdef TAP_ENABLE_MAIN
 int main (int argc, char** argv) {
