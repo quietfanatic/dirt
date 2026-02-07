@@ -12,7 +12,11 @@ inline unsigned num_tested = 0;
 inline unsigned num_failed = 0;
 inline unsigned num_to_todo = 0;
 inline bool block_todo = false;
-inline uni::AnyString todo_excuse;
+union TodoExcuse {
+    uni::AnyString s {};
+    ~TodoExcuse () { }
+};
+inline constinit TodoExcuse todo_excuse;
 inline void(* print )(uni::Str) = [](uni::Str s){
     std::fwrite(s.data(), 1, s.size(), stdout);
 };
@@ -244,16 +248,16 @@ bool fail (uni::Str name) {
 inline
 void todo (unsigned num, uni::AnyString excuse) {
     in::num_to_todo = num;
-    in::todo_excuse = std::move(excuse);
+    in::todo_excuse.s = std::move(excuse);
 }
 template <class F>
 void todo (uni::AnyString excuse, F code) {
-    auto old_excuse = std::move(in::todo_excuse);
+    auto old_excuse = std::move(in::todo_excuse.s);
     auto old_block_todo = in::block_todo;
-    in::todo_excuse = std::move(excuse);
+    in::todo_excuse.s = std::move(excuse);
     in::block_todo = true;
     std::forward<F>(code)();
-    in::todo_excuse = std::move(old_excuse);
+    in::todo_excuse.s = std::move(old_excuse);
     in::block_todo = old_block_todo;
 }
 inline

@@ -110,7 +110,7 @@ bool ok_bool (bool succeeded, uni::Str name) {
     if (!succeeded) in::num_failed += 1;
     uni::UniqueString suffix;
     if (in::num_to_todo || in::block_todo) {
-        suffix = uni::cat(" # TODO ", in::todo_excuse);
+        suffix = uni::cat(" # TODO ", in::todo_excuse.s);
         if (in::num_to_todo) in::num_to_todo--;
     }
     uni::UniqueString m = uni::cat(
