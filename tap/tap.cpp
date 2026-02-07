@@ -35,8 +35,8 @@ void diag_didnt_throw (const std::type_info& expected) {
 }
 
 void diag_unexpected_g (Mu& g, Shower<Mu>& gs, Mu& e, Shower<Mu>& es) {
-    diag(uni::cat("Expected ", gs(g)));
-    diag(uni::cat("     got ", es(e)));
+    diag(uni::cat("     Got ", gs(g)));
+    diag(uni::cat("Expected ", es(e)));
 }
 
 void diag_exception_failed_check_s (Mu& g, Shower<Mu>& gs) {
@@ -96,6 +96,7 @@ TestSet::TestSet (uni::AnyString n, void(* c )()) :
 void plan (unsigned num_tests) {
     in::num_planned = num_tests;
     in::num_tested = 0;
+    in::num_failed = 0;
     in::num_to_todo = 0;
     in::print(uni::cat("1..", num_tests, "\n"));
 }
@@ -106,6 +107,7 @@ void done_testing () {
 
 bool ok_bool (bool succeeded, uni::Str name) {
     in::num_tested += 1;
+    if (!succeeded) in::num_failed += 1;
     uni::UniqueString suffix;
     if (in::num_to_todo || in::block_todo) {
         suffix = uni::cat(" # TODO ", in::todo_excuse);

@@ -9,12 +9,13 @@ struct Mu;
  // Global state
 inline unsigned num_planned = 0;
 inline unsigned num_tested = 0;
-inline void(* print )(uni::Str) = [](uni::Str s){
-    std::fwrite(s.data(), 1, s.size(), stdout);
-};
+inline unsigned num_failed = 0;
 inline unsigned num_to_todo = 0;
 inline bool block_todo = false;
 inline uni::AnyString todo_excuse;
+inline void(* print )(uni::Str) = [](uni::Str s){
+    std::fwrite(s.data(), 1, s.size(), stdout);
+};
 
  // Internal helpers
 
@@ -85,7 +86,7 @@ bool is (const A& got, const B& expected, uni::Str name) {
             else res = std::strcmp(g, e) == 0;
         }
         else res = got == expected;
-        if (ok(res)) return true;
+        if (ok(res, name)) return true;
         else {
             in::diag_unexpected(got, expected);
             return false;
@@ -259,6 +260,8 @@ inline
 void set_print (void(* f )(uni::Str)) {
     in::print = f;
 }
+inline
+unsigned failures () { return in::num_failed; }
 
 ///// Default show
 
@@ -293,7 +296,7 @@ uni::UniqueString Show<T>::show (const T& v) {
     }
     else if constexpr (std::is_same_v<T, in::plusminus>) {
         return uni::cat(
-            "within +/- ", v.range, " of ", v.center
+            v.center, " +/- ", v.range
         );
     }
     else {

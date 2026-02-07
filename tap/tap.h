@@ -223,6 +223,9 @@ using Shower = uni::UniqueString (const T&);
  // Print a message as diagnostics.  Should not contain newlines.
 void diag (uni::Str message);
 
+ // Returns how many failures have happened so far
+unsigned failures ();
+
 ///// UH-OH
 
  // When everything is wrong and you can't even continue testing.  Immediately
