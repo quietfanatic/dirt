@@ -55,6 +55,7 @@ struct Voice {
     }
     void set_volume (float v) {
         if (v < 0 || v > 16) in::raise_VoiceUnsupported("volume out of range");
+        volume = v;
     }
     float get_speed () const {
         return speed * (1.f/0x100'0000);
