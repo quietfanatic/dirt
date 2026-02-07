@@ -21,9 +21,10 @@ struct Voice {
     float volume = 1.f; // Can be above 1 at the risk of clipping
      // 8:24.  Does not keep pitch constant.
     i32 speed = speed_scale;
-     // These are 31:32 in samples.
-    i64 loop_start = 0;
-    i64 loop_end = -1; // <0 means no loop
+     // These are in samples.
+    i32 loop_start = 0;
+    i32 loop_end = -1; // <0 means no loop
+     // 31:32 in samples
     i64 position = 0;
 
      // Some calculation helpers
@@ -77,25 +78,25 @@ struct Voice {
     }
     double get_loop_start_seconds () const {
         if (!audio) return 0;
-        return loop_start * seconds_per_chronon();
+        return loop_start * seconds_per_sample();
     }
     void set_loop_start_seconds (double v) {
         if (!audio) return;
-        i64 p = v * chronons_per_second() + 0.5;
-        if (p < 0 || p >> 32 > audio->n_samples) in::raise_VoiceUnsupported("loop_start out of range");
+        i32 p = v * samples_per_second() + 0.5;
+        if (p < 0 || p > i32(audio->n_samples)) in::raise_VoiceUnsupported("loop_start out of range");
         loop_start = p;
     }
     double get_loop_end_seconds () const {
         if (!audio) return 0;
         if (loop_end < 0) return geo::GNAN;
-        return loop_end * seconds_per_chronon();
+        return loop_end * seconds_per_sample();
     }
     void set_loop_end_seconds (double v) {
         if (!audio) return;
         if (std::isnan(v)) { loop_end = -1; return; }
-        i64 p = v * chronons_per_second() + 0.5;
+        i32 p = v * samples_per_second() + 0.5;
         if (p < 0) in::raise_VoiceUnsupported("loop_end out of range");
-        i64 limit = n_chronons();
+        i32 limit = i32(audio->n_samples);
         loop_end = p > limit ? limit : p;
     }
 };

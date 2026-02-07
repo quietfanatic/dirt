@@ -85,7 +85,7 @@ void Mixer::mix (
         i64 in_pos = v.position;
         expect(in_pos >= 0);
          // Figure out how much input we can get before doing something weird
-        i64 in_end = v.loop_end < 0 ? v.n_chronons() : v.loop_end;
+        i64 in_end = v.loop_end < 0 ? v.n_chronons() : i64(v.loop_end) << 32;
          // How fast to consume the input compared to the output.
         i64 in_speed = (i64(v.speed) << 8) * v.audio->sample_rate / out_rate;
         expect(in_speed >= 0);
@@ -183,7 +183,7 @@ void Mixer::mix (
                 continue;
             }
             else {
-                in_pos -= v.loop_end - v.loop_start;
+                in_pos -= i64(v.loop_end - v.loop_start) << 32;
                 goto process;
             }
         }
@@ -224,7 +224,7 @@ static tap::TestSet tests ("dirt/snd/mixer", []{
     Voice v1;
     v1.audio = &in1;
     v1.loop_start = 0; // TODO: test non-zero loop_start
-    v1.loop_end = 520 * Voice::chronons_per_sample;
+    v1.loop_end = 520;
 
     Mixer mixer;
     mixer.play_on_free_channel(v0);
