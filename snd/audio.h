@@ -21,7 +21,7 @@ struct UniqueAudio {
 
     UniqueAudio (u32 c, u32 s, u32 r) :
         n_channels(c), n_samples(s), sample_rate(r),
-         // A little extra room makes access easier
+         // A little extra room makes vectorizing easier
         samples(new i16[c * s + 4])
     { }
 

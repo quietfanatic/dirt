@@ -94,10 +94,10 @@ struct Voice {
     void set_loop_end_seconds (double v) {
         if (!audio) return;
         if (std::isnan(v)) { loop_end = -1; return; }
+        if (!std::isfinite(v)) { loop_end = audio->n_samples; return; }
         i32 p = v * samples_per_second() + 0.5;
-        if (p < 0) in::raise_VoiceUnsupported("loop_end out of range");
-        i32 limit = i32(audio->n_samples);
-        loop_end = p > limit ? limit : p;
+        if (p < 0 || p > i32(audio->n_samples)) in::raise_VoiceUnsupported("loop_end out of range");
+        loop_end = p;
     }
 };
 
