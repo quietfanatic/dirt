@@ -23,7 +23,13 @@ struct UniqueAudio {
         n_channels(c), n_samples(s), sample_rate(r),
          // A little extra room makes vectorizing easier
         samples(new i16[c * s + 4])
-    { }
+    {
+         // Go ahead and zero out the extra space to prevent popping when
+         // reaching the end of the audio.
+        for (usize i = 0; i < 4; i++) {
+            samples[c * s + i] = 0;
+        }
+    }
 
     constexpr
     ~UniqueAudio () {
