@@ -96,85 +96,51 @@ void Mixer::mix (
          // and multiplies the volume in.
         float w_mul = (1.f/0x8000'0000'0000) * v.volume;
         process:
-        if (v.audio->n_channels == 1) {
-             // Mono
-            expect(out_len > 0);
-            for (; out_i < out_len; out_i++) {
-                if (in_pos >= in_end) goto stop_or_loop;
-                u32 in_i = u64(in_pos) >> 32;
-                float t = u32(in_pos);
+        expect(out_len > 0);
+        bool stereo = v.audio->n_channels > 1;
+        for (; out_i < out_len; out_i++) {
+            if (in_pos >= in_end) goto stop_or_loop;
+            u32 in_i = u64(in_pos) >> 32;
+            float t = u32(in_pos);
 #if __SSE4_1__
-                auto w_adds = _mm_set_ps(0, 0, 0, -w_add);
-                auto w_muls = _mm_set_ps(0, 0, w_mul, -w_mul);
+             // (right-to-left) r1 l1 r0 l0
+            auto w_adds = _mm_set_ps(0, 0, -w_add, -w_add);
+            auto w_muls = _mm_set_ps(w_mul, w_mul, -w_mul, -w_mul);
 
-                auto ws = _mm_set1_ps(t);
-                ws = _mm_add_ps(ws, w_adds);
-                ws = _mm_mul_ps(ws, w_muls);
+            auto ws = _mm_set1_ps(t);
+            ws = _mm_add_ps(ws, w_adds);
+            ws = _mm_mul_ps(ws, w_muls);
 
-                auto s16s = _mm_loadu_si32((u32*)(in + in_i));
-                auto ss = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(s16s));
-
-                ss = _mm_mul_ps(ss, ws);
-                ss = _mm_add_ps(ss, _mm_shuffle_ps(ss, ss, _MM_SHUFFLE(2,3,0,1)));
-                 // Not sure if this cast causes a domain-switch delay but
-                 // casting floats to doubles seems less likely to than floats
-                 // to i32s.  If the delay does happen it's still worth it.
-                auto acc = _mm_castpd_ps(_mm_load_sd((double*)(out+out_i)));
-                ss = _mm_add_ps(ss, acc);
-                _mm_store_sd((double*)(out+out_i), _mm_castps_pd(ss));
-#else
-                float w0 = (t - w_add) * -w_mul;
-                float w1 = t * w_mul;
-                float s0 = in[in_i];
-                float s1 = in[in_i+1];
-                float s = s0 * w0 + s1 * w1;
-                out[out_i][0] += s;
-                out[out_i][1] += s;
-#endif
-                in_pos += in_speed;
+            auto s16s = _mm_loadu_si64((u64*)(in + (in_i << stereo)));
+            if (!stereo) {
+                s16s = _mm_unpacklo_epi16(s16s, s16s);
             }
-        }
-        else if (v.audio->n_channels == 2) {
-             // Stereo
-            expect(out_len > 0);
-            for (; out_i < out_len; out_i++) {
-                if (in_pos >= in_end) goto stop_or_loop;
-                u32 in_i = u64(in_pos) >> 32;
-                float t = u32(in_pos);
-#if __SSE4_1__
-                 // (right-to-left) r1 l1 r0 l0
-                auto w_adds = _mm_set_ps(0, 0, -w_add, -w_add);
-                auto w_muls = _mm_set_ps(w_mul, w_mul, -w_mul, -w_mul);
+            auto ss = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(s16s));
 
-                auto ws = _mm_set1_ps(t);
-                ws = _mm_add_ps(ws, w_adds);
-                ws = _mm_mul_ps(ws, w_muls);
+            ss = _mm_mul_ps(ss, ws);
+            ss = _mm_add_ps(ss, _mm_shuffle_ps(ss, ss, _MM_SHUFFLE(1,0,3,2)));
 
-                auto s16s = _mm_loadu_si64((u64*)(in + in_i * 2));
-                auto ss = _mm_cvtepi32_ps(_mm_cvtepi16_epi32(s16s));
-
-                ss = _mm_mul_ps(ss, ws);
-                ss = _mm_add_ps(ss, _mm_shuffle_ps(ss, ss, _MM_SHUFFLE(1,0,3,2)));
-
-                auto acc = _mm_castpd_ps(_mm_load_sd((double*)(out+out_i)));
-                ss = _mm_add_ps(ss, acc);
-                _mm_store_sd((double*)(out+out_i), _mm_castps_pd(ss));
+            auto acc = _mm_castpd_ps(_mm_load_sd((double*)(out+out_i)));
+            ss = _mm_add_ps(ss, acc);
+            _mm_store_sd((double*)(out+out_i), _mm_castps_pd(ss));
 #else
-                float w0 = (t - w_add) * -w_mul;
-                float w1 = t * w_mul;
-                float l0 = in[in_i*2];
-                float r0 = in[in_i*2+1];
-                float l1 = in[in_i*2+2];
-                float r1 = in[in_i*2+3];
-                float l = l0 * w0 + l1 * w1;
-                float r = r0 * w0 + r1 * w1;
-                out[out_i][0] += l;
-                out[out_i][1] += r;
-#endif
-                in_pos += in_speed;
+            float w0 = (t - w_add) * -w_mul;
+            float w1 = t * w_mul;
+            float l0 = in[in_i << stereo];
+            float r0 = in[(in_i << stereo) + 1];
+            float l1 = in[(in_i << stereo) + 2];
+            float r1 = in[(in_i << stereo) + 3];
+            if (!stereo) {
+                r1 = l1 = r0;
+                r0 = l0;
             }
+            float l = l0 * w0 + l1 * w1;
+            float r = r0 * w0 + r1 * w1;
+            out[out_i][0] += l;
+            out[out_i][1] += r;
+#endif
+            in_pos += in_speed;
         }
-        else never();
         v.position = in_pos;
         continue;
         stop_or_loop: {
