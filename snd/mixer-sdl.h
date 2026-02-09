@@ -43,6 +43,16 @@ struct MixerSDL {
         core.set_volume(channel, v);
         unlock();
     }
+    void fade (u32 channel, float v, float fade_time) {
+        lock();
+        core.fade(channel, v, fade_time);
+        unlock();
+    }
+    void fade_with_speed (u32 channel, float v, float fade_speed) {
+        lock();
+        core.fade_with_speed(channel, v, fade_speed);
+        unlock();
+    }
 
      // Manually lock.  Don't forget to unlock!
     void lock () { SDL_LockAudioDevice(sdl_device); }

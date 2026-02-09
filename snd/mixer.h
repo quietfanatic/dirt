@@ -14,9 +14,9 @@ struct VoiceSpec {
     UniqueAudio* audio = null;
     float volume = 1.f; // Can be above 1 at the risk of clipping
     float speed = 1.f; // Does not keep pitch constant
-    double loop_start = 0; // In seconds
+    double loop_start = 0; // In seconds, will be snapped to input samples
     double loop_end = geo::GNAN; // NAN means no loop, INF means end of audio
-    double position = 0;
+    double start_position = 0;
 
      // Throws e_VoiceParameterInvalid if:
      //   - audio is null or isn't mono or stereo
@@ -24,6 +24,7 @@ struct VoiceSpec {
      //   - speed isn't between 0 and 16
      //   - loop_start is outside audio
      //   - loop_end is negative or before loop_start
+     //   - start_position is outside audio
     void validate () const;
 
      // Calls validate() before converting.  We're using out-conversions instead
@@ -37,16 +38,18 @@ struct VoiceSpec {
 
 struct VoiceImp {
     UniqueAudio* audio = null;
-    float volume = 1.f; // This is still floating point though
-     // 8:24.  Does not keep pitch constant.
+     // This is in chronons (31:32 in input samples)
+    i64 position = 0;
+     // 7:24.  Does not keep pitch constant.
     i32 speed = 0x100'0000;
-     // These are in samples.
+     // These are in input samples.
     i32 loop_start = 0;
     i32 loop_end = -1; // <0 means no loop
-     // This is in chronons (31:32 in samples)
-    i64 position = 0;
+    float volume = 1.f; // This is still floating point though
+    float fade_volume = 1.f; // No fade if same as volume
+    float fade_velocity = geo::GNAN; // Signed, in volume units per second
 
-     // Does not validate (not much need to)
+     // Does not validate (not much need to).  Does not preserve fade state.
     operator VoiceSpec ();
 };
 
@@ -71,8 +74,16 @@ struct Mixer {
     void stop_all ();
 
      // Set the volume of a channel.  Replaces the original volume instead of
-     // multiplying with it.
+     // multiplying with it.  Cancels any fades.
     void set_volume (u32 channel, float volume);
+
+     // Fade to the given volume over the given amount of time (in seconds).  If
+     // already fading, stops the old fade and uses the partially-faded current
+     // volume as the new start volume.
+    void fade (u32 channel, float fade_volume, float fade_time);
+     // Fade at the given speed (volume units per second, e.g. fade_speed=0.2
+     // fades from 0.6 to 0 in 3 seconds).
+    void fade_with_speed (u32 channel, float fade_volume, float fade_speed);
 
      // Run the mixer.
      //   - out: pointer to out_len pairs of floats.  Should not be prezeroed.

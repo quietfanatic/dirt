@@ -44,6 +44,8 @@ void VoiceSpec::validate () const {
     if (loop_end < loop_start) {
         mess = "loop_end is before loop_start"; goto bad;
     }
+    if (start_position >= 0) { }
+    else { mess = "start_position out of range"; goto bad; }
     return;
     bad: raise(e_VoiceParameterInvalid, mess);
 }
@@ -57,13 +59,14 @@ VoiceSpec::operator VoiceImp () const {
 VoiceImp VoiceSpec::assume_valid () const {
     return VoiceImp{
         .audio = audio,
-        .volume = volume,
+        .position = geo::round(start_position * chronons_per_second(audio)),
         .speed = geo::round(speed * speed_scale),
         .loop_start = i32(geo::round(loop_start * samples_per_second(audio))),
         .loop_end = std::isnan(loop_end) ? -1
             : loop_end > n_seconds(audio) ? i32(audio->n_samples)
             : i32(geo::round(loop_end * samples_per_second(audio))),
-        .position = geo::round(position * chronons_per_second(audio))
+        .volume = volume,
+        .fade_volume = volume
     };
 }
 
@@ -74,7 +77,7 @@ VoiceImp::operator VoiceSpec () {
         .speed = speed / speed_scale,
         .loop_start = loop_start * seconds_per_sample(audio),
         .loop_end = loop_end * seconds_per_sample(audio),
-        .position = position * seconds_per_chronon(audio)
+        .start_position = position * seconds_per_chronon(audio)
     };
 }
 
@@ -107,10 +110,34 @@ void Mixer::stop_all () {
 }
 
 void Mixer::set_volume (u32 channel, float v) {
-    if (v >= 0 || v < 16) { }
+    if (v >= 0 && v <= 16) { }
     else { raise(e_VoiceParameterInvalid, "volume out of range"); }
     if (channel >= voices.size()) return;
     voices[channel].volume = v;
+    voices[channel].fade_volume = v; // cancel fade
+}
+
+void Mixer::fade (u32 channel, float v, float fade_time) {
+    if (v >= 0 && v <= 16) { }
+    else { raise(e_VoiceParameterInvalid, "fade_volume out of range"); }
+    if (fade_time > 0) { }
+    else { raise(e_VoiceParameterInvalid, "fade_time out of range"); }
+    if (channel >= voices.size()) return;
+    voices[channel].fade_volume = v;
+    float diff = v - voices[channel].volume;
+    voices[channel].fade_velocity = diff / fade_time;
+}
+
+void Mixer::fade_with_speed (u32 channel, float v, float fade_speed) {
+    if (v >= 0 && v <= 16) { }
+    else { raise(e_VoiceParameterInvalid, "fade_volume out of range"); }
+    if (std::isnan(fade_speed)) {
+        raise(e_VoiceParameterInvalid, "fade_speed out of range");
+    }
+    if (channel >= voices.size()) return;
+    voices[channel].fade_volume = v;
+    float diff = v - voices[channel].volume;
+    voices[channel].fade_velocity = std::copysign(v, diff);
 }
 
  // This is awkward because we're combining fixed-point and floating-point math,
@@ -254,6 +281,15 @@ void mix_voice (
     }
      // Done looping, so write position back to voice
     v.position = in_pos;
+     // Apply fade
+    if (!std::isnan(v.fade_velocity)) {
+        v.volume += v.fade_velocity * float(out_len) / out_rate;
+         // If we pass the goal, stop
+        if ((v.fade_volume - v.volume < 0) != (v.fade_velocity < 0)) {
+            v.volume = v.fade_volume;
+            v.fade_velocity = geo::GNAN;
+        }
+    }
 }
 
 [[gnu::hot, gnu::noclone]]
