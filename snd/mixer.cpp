@@ -78,12 +78,12 @@ VoiceImp::operator VoiceSpec () {
     };
 }
 
-void Mixer::play (const VoiceImp& v, u32 channel) {
+void Mixer::play (u32 channel, const VoiceImp& v) {
     if (channel >= voices.size()) grow_voices(voices, channel);
     voices[channel] = v;
 }
 
-u32 Mixer::play_on_free_channel (const VoiceImp& v, u32 minimum) {
+u32 Mixer::play_on_free_channel (u32 minimum, const VoiceImp& v) {
     u32 channel;
     for (channel = minimum; channel < voices.size(); channel += 1) {
         if (!voices[channel].audio) goto found;
@@ -104,6 +104,13 @@ void Mixer::stop_all () {
     for (auto& v : voices) {
         v.audio = null;
     }
+}
+
+void Mixer::set_volume (u32 channel, float v) {
+    if (v >= 0 || v < 16) { }
+    else { raise(e_VoiceParameterInvalid, "volume out of range"); }
+    if (channel >= voices.size()) return;
+    voices[channel].volume = v;
 }
 
  // This is awkward because we're combining fixed-point and floating-point math,
@@ -301,8 +308,8 @@ static tap::TestSet tests ("dirt/snd/mixer", []{
     v1.loop_end = 520;
 
     Mixer mixer;
-    mixer.play_on_free_channel(v0);
-    mixer.play_on_free_channel(v1);
+    mixer.play_on_free_channel(0, v0);
+    mixer.play_on_free_channel(0, v1);
 
     mixer.mix(out, 512, 48000);
 

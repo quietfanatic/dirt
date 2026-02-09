@@ -62,13 +62,17 @@ struct Mixer {
 
      // Play voice on specific channel.  If the channel is already playing a
      // voice, will stop the old voice.  The voice data will be copied.
-    void play (const VoiceImp&, u32 channel);
+    void play (u32 channel, const VoiceImp&);
      // Play voice on an unused channel, which must be at least minimum.  Returns
      // the actual channel picked.
-    u32 play_on_free_channel (const VoiceImp&, u32 minimum = 0);
+    u32 play_on_free_channel (u32 minimum, const VoiceImp&);
 
     void stop (u32 channel);
     void stop_all ();
+
+     // Set the volume of a channel.  Replaces the original volume instead of
+     // multiplying with it.
+    void set_volume (u32 channel, float volume);
 
      // Run the mixer.
      //   - out: pointer to out_len pairs of floats.  Should not be prezeroed.

@@ -18,14 +18,14 @@ struct MixerSDL {
      // to pause the audio.
     void stop_output ();
 
-    void play (const VoiceImp& v, u32 channel) {
+    void play (u32 channel, const VoiceImp& v) {
         lock();
-        core.play(v, channel);
+        core.play(channel, v);
         unlock();
     }
-    void play_on_free_channel (const VoiceImp& v, u32 minimum = 0) {
+    void play_on_free_channel (u32 minimum, const VoiceImp& v) {
         lock();
-        core.play_on_free_channel(v, minimum);
+        core.play_on_free_channel(minimum, v);
         unlock();
     }
     void stop (u32 channel) {
@@ -36,6 +36,11 @@ struct MixerSDL {
     void stop_all () {
         lock();
         core.stop_all();
+        unlock();
+    }
+    void set_volume (u32 channel, float v) {
+        lock();
+        core.set_volume(channel, v);
         unlock();
     }
 
