@@ -220,7 +220,6 @@ void qoa_decode_slice (
     u32 scalefactor_i = slice >> 60;
     auto& table = residual_lookup[scalefactor_i];
     slice <<= 4;
-     // TODO partial final slice
     auto out_end = out + (20 * n_channels);
     #pragma GCC unroll 0
     do {
@@ -370,7 +369,12 @@ UniqueAudio audio_from_array_qoa (Slice<u8> contents, Str filename) {
         } while (frame < in_end);
          // Allocate (add some overhead because the decoder doesn't know how to
          // stop in the middle of a slice)
-        r.samples = new i16 [r.n_channels * ((r.n_samples + 19) / 20 * 20)];
+        usize size = r.n_channels * ((r.n_samples + 19) / 20 * 20);
+         // Plus the normal 4 overhead for UniqueAudio.
+        r.samples = new i16 [size + 4];
+        for (u32 i = 0; i < 4; i++) {
+            r.samples[size + i] = 0;
+        }
          // Decode
         qoa_decode_frames(r.samples, in, n_frames, r.n_channels);
     }

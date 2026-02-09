@@ -292,6 +292,10 @@ void mix_voice (
     }
 }
 
+#ifndef NDEBUG
+StereoFloat last_output = {};
+#endif
+
 [[gnu::hot, gnu::noclone]]
 void Mixer::mix (
     StereoFloat*__restrict out, u32 out_len, u32 out_rate
@@ -304,6 +308,24 @@ void Mixer::mix (
     for (auto& v : voices) {
         mix_voice(out, out_len, out_rate, v);
     }
+#ifndef NDEBUG
+    StereoFloat lo;
+    lo[0] = last_output[0];
+    lo[1] = last_output[1];
+    for (auto o = out; o < out + out_len; o++) {
+        if (std::abs(lo[0] - (*o)[0]) > 0.5
+         || std::abs(lo[1] - (*o)[1]) > 0.5
+        ) [[unlikely]] {
+            fprintf(stderr, "Mixer: pop detected: [%g %g] -> [%g %g]\n",
+                lo[0], lo[1], (*o)[0], (*o)[1]
+            );
+        }
+        lo[0] = (*o)[0];
+        lo[1] = (*o)[1];
+    }
+    last_output[0] = lo[0];
+    last_output[1] = lo[1];
+#endif
 }
 
 } using namespace snd;

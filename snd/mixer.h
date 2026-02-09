@@ -46,7 +46,7 @@ struct VoiceImp {
     i32 loop_start = 0;
     i32 loop_end = -1; // <0 means no loop
     float volume = 1.f; // This is still floating point though
-    float fade_volume = 1.f; // No fade if same as volume
+    float fade_volume = 1.f;
     float fade_velocity = geo::GNAN; // Signed, in volume units per second
 
      // Does not validate (not much need to).  Does not preserve fade state.
