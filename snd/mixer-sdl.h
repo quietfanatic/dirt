@@ -1,6 +1,6 @@
 #pragma once
 
- // This is a wrapper around Mixer that uses SDL locking.
+ // This is a wrapper around Mixer that outputs to an SDL audio device.
 
 #include <SDL2/SDL_audio.h>
 #include "mixer.h"
@@ -19,25 +19,29 @@ struct MixerSDL {
     void stop_output ();
 
     void play (const VoiceImp& v, u32 channel) {
-        SDL_LockAudioDevice(sdl_device);
+        lock();
         core.play(v, channel);
-        SDL_UnlockAudioDevice(sdl_device);
+        unlock();
     }
     void play_on_free_channel (const VoiceImp& v, u32 minimum = 0) {
-        SDL_LockAudioDevice(sdl_device);
+        lock();
         core.play_on_free_channel(v, minimum);
-        SDL_UnlockAudioDevice(sdl_device);
+        unlock();
     }
     void stop (u32 channel) {
-        SDL_LockAudioDevice(sdl_device);
+        lock();
         core.stop(channel);
-        SDL_UnlockAudioDevice(sdl_device);
+        unlock();
     }
     void stop_all () {
-        SDL_LockAudioDevice(sdl_device);
+        lock();
         core.stop_all();
-        SDL_UnlockAudioDevice(sdl_device);
+        unlock();
     }
+
+     // Manually lock.  Don't forget to unlock!
+    void lock () { SDL_LockAudioDevice(sdl_device); }
+    void unlock () { SDL_UnlockAudioDevice(sdl_device); }
 };
 
 } // snd
