@@ -17,6 +17,8 @@ struct UniqueAudio {
     i16* data () { return samples; }
     const i16* data () const { return samples; }
 
+    double n_seconds () const { return double(n_samples) / sample_rate; }
+
     constexpr UniqueAudio () { }
 
     UniqueAudio (u32 c, u32 s, u32 r) :

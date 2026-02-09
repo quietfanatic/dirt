@@ -18,12 +18,12 @@ struct MixerSDL {
      // to pause the audio.
     void stop_output ();
 
-    void play (const Voice& v, u32 channel) {
+    void play (const VoiceImp& v, u32 channel) {
         SDL_LockAudioDevice(sdl_device);
         core.play(v, channel);
         SDL_UnlockAudioDevice(sdl_device);
     }
-    void play_on_free_channel (const Voice& v, u32 minimum = 0) {
+    void play_on_free_channel (const VoiceImp& v, u32 minimum = 0) {
         SDL_LockAudioDevice(sdl_device);
         core.play_on_free_channel(v, minimum);
         SDL_UnlockAudioDevice(sdl_device);

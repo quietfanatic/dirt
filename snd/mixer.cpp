@@ -1,6 +1,7 @@
 #include "mixer.h"
 
 #include <cmath>
+#include "../geo/scalar.h"
 #include "../uni/indestructible.h"
 
 #ifdef __SSE4_1__
@@ -12,12 +13,8 @@ using namespace uni;
 
 namespace in {
 
-void raise_VoiceUnsupported (StaticString mess) {
-    raise(e_VoiceUnsupported, mess);
-}
-
 NOINLINE
-void grow_voices (UniqueArray<Voice>& vs, u32 channel) {
+void grow_voices (UniqueArray<VoiceImp>& vs, u32 channel) {
     require(channel <= Mixer::highest_channel);
     vs.reserve_plenty(channel + 1);
     expect(channel + 1 <= vs.capacity());
@@ -26,25 +23,74 @@ void grow_voices (UniqueArray<Voice>& vs, u32 channel) {
 
 } using namespace in;
 
-void Mixer::play (const Voice& voice, u32 channel) {
-    if (voice.audio->n_channels != 1 && voice.audio->n_channels != 2) {
-        raise_VoiceUnsupported("Audio n_channels must be 1 or 2");
+void VoiceSpec::validate () const {
+    StaticString mess;
+    if (!audio) { mess = "audio is null"; goto bad; }
+    if (audio->n_channels != 1 && audio->n_channels != 2) {
+        mess = "audio->n_channels isn't 1 or 2"; goto bad;
     }
-    if (channel >= voices.size()) grow_voices(voices, channel);
-    voices[channel] = voice;
+    if (audio->n_channels > u32(i32(geo::GINF))) {
+        mess = "audio->samples is too large"; goto bad;
+    }
+     // Use positive comparisons to reject NANs
+    if (volume >= 0 && volume <= 16) { }
+    else { mess = "volume out of range"; goto bad; }
+    if (speed >= 0 && speed <= 16) { }
+    else { mess = "speed out of range"; goto bad; }
+    if (loop_start >= 0 && loop_start <= n_seconds(audio)) { }
+    else { mess = "loop_start out of range"; goto bad; }
+     // Except this one, NAN is valid for loop_end
+    if (loop_end < 0) { mess = "loop_end out of range"; goto bad; }
+    if (loop_end < loop_start) {
+        mess = "loop_end is before loop_start"; goto bad;
+    }
+    return;
+    bad: raise(e_VoiceParameterInvalid, mess);
 }
 
-u32 Mixer::play_on_free_channel (const Voice& voice, u32 minimum) {
-    if (voice.audio->n_channels != 1 && voice.audio->n_channels != 2) {
-        raise_VoiceUnsupported("Audio n_channels must be 1 or 2");
-    }
+VoiceSpec::operator VoiceImp () const {
+    if (!audio) return VoiceImp();
+    validate();
+    return assume_valid();
+}
+
+VoiceImp VoiceSpec::assume_valid () const {
+    return VoiceImp{
+        .audio = audio,
+        .volume = volume,
+        .speed = geo::round(speed * speed_scale),
+        .loop_start = i32(geo::round(loop_start * samples_per_second(audio))),
+        .loop_end = std::isnan(loop_end) ? -1
+            : loop_end > n_seconds(audio) ? i32(audio->n_samples)
+            : i32(geo::round(loop_end * samples_per_second(audio))),
+        .position = geo::round(position * chronons_per_second(audio))
+    };
+}
+
+VoiceImp::operator VoiceSpec () {
+    return VoiceSpec{
+        .audio = audio,
+        .volume = volume,
+        .speed = speed / speed_scale,
+        .loop_start = loop_start * seconds_per_sample(audio),
+        .loop_end = loop_end * seconds_per_sample(audio),
+        .position = position * seconds_per_chronon(audio)
+    };
+}
+
+void Mixer::play (const VoiceImp& v, u32 channel) {
+    if (channel >= voices.size()) grow_voices(voices, channel);
+    voices[channel] = v;
+}
+
+u32 Mixer::play_on_free_channel (const VoiceImp& v, u32 minimum) {
     u32 channel;
     for (channel = minimum; channel < voices.size(); channel += 1) {
         if (!voices[channel].audio) goto found;
     }
     grow_voices(voices, channel);
     found:
-    voices[channel] = voice;
+    voices[channel] = v;
     return channel;
 }
 
@@ -69,7 +115,8 @@ void Mixer::stop_all () {
  // be noticable.
 [[gnu::hot, gnu::noclone]] static
 void mix_voice (
-    StereoFloat*__restrict out, u32 out_len, u32 out_rate, Voice&__restrict v
+    StereoFloat*__restrict out, u32 out_len, u32 out_rate,
+    VoiceImp&__restrict v
 ) {
     if (!v.audio) return;
     const i16*__restrict in = v.audio->samples;
@@ -86,7 +133,7 @@ void mix_voice (
      // sample.
     i64 in_noncontinuity = v.loop_end >= 0
         ? i64(v.loop_end - 1) << 32
-        : v.n_chronons();
+        : n_chronons(v.audio);
      // This is the "one" value for the first lerp weight.
     float w_add = 0x1'0000'0000;
      // This simultaneously:
@@ -134,6 +181,7 @@ void mix_voice (
         else if (in_pos >= i64(v.loop_end) << 32) {
              // We're looping!
             in_pos -= i64(v.loop_end - v.loop_start) << 32;
+            expect(in_pos < i64(v.loop_end) << 32);
             goto redo;
         }
         else {
@@ -245,9 +293,9 @@ static tap::TestSet tests ("dirt/snd/mixer", []{
         in1.samples[i*2+1] = -i;
     }
 
-    Voice v0;
+    VoiceImp v0;
     v0.audio = &in0;
-    Voice v1;
+    VoiceImp v1;
     v1.audio = &in1;
     v1.loop_start = 0; // TODO: test non-zero loop_start
     v1.loop_end = 520;
