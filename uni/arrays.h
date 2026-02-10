@@ -2209,7 +2209,7 @@ struct ArrayInterface {
             std::memcpy(
                 (void*)(dat + offset),
                 self.impl.data + (offset + count),
-                old_size - (offset + count)
+                (old_size - (offset + count)) * sizeof(T)
             );
             --self.header().ref_count;
             return dat;

@@ -10,6 +10,7 @@
 #endif
 
 namespace uni::lilac {
+
 namespace in {
 
 struct alignas(page_size) Page {
@@ -265,6 +266,11 @@ void deallocate_small (void* p, Page*& first_partial, u32 slot_size) noexcept {
     expect(((char*)p - (char*)page - page_overhead) % slot_size == 0);
     expect(page_valid(page, slot_size));
 #ifndef NDEBUG
+     // Check watchpoint
+    if (debug_protect > p && debug_protect < (char*)p + slot_size) {
+        fprintf(stderr, "uni::lilac::debug_protect was deallocated!  Dumping core.\n");
+        *(char*)0 = 0;
+    }
      // In debug mode, write trash to freed memory
     for (u32 i = 0; i < slot_size >> 3; i++) {
         ((u64*)p)[i] = 0xbacafeeddeadbeef;

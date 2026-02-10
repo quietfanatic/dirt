@@ -102,6 +102,11 @@ Block allocate_block (usize) noexcept;
  // Dump some stats to stderr, but only if compiled with UNI_LILAC_PROFILE
 void dump_profile () noexcept;
 
+ // In debug builds, crash if the region containing this gets deallocated.  Only
+ // detects deallocations smaller than 4080 bytes, since larger deallocations
+ // just get sent to free().
+inline constinit const void* debug_protect = null;
+
 namespace in {
 
 ///// CUSTOMIZATION
