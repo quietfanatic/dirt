@@ -18,6 +18,8 @@ struct MixerSDL {
      // to pause the audio.
     void stop_output ();
 
+    ~MixerSDL () { stop_output(); }
+
     void play (u32 channel, const VoiceImp& v) {
         lock();
         core.play(channel, v);
@@ -51,6 +53,11 @@ struct MixerSDL {
     void fade_with_speed (u32 channel, float v, float fade_speed) {
         lock();
         core.fade_with_speed(channel, v, fade_speed);
+        unlock();
+    }
+    void fade_out (u32 channel, float fade_time) {
+        lock();
+        core.fade_out(channel, fade_time);
         unlock();
     }
 

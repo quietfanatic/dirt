@@ -48,6 +48,7 @@ struct VoiceImp {
     float volume = 1.f; // This is still floating point though
     float fade_volume = 1.f;
     float fade_velocity = geo::GNAN; // Signed, in volume units per second
+    bool fade_out = false; // If true, stop after fading
 
      // Does not validate (not much need to).  Does not preserve fade state.
     operator VoiceSpec ();
@@ -84,6 +85,10 @@ struct Mixer {
      // Fade at the given speed (volume units per second, e.g. fade_speed=0.2
      // fades from 0.6 to 0 in 3 seconds).
     void fade_with_speed (u32 channel, float fade_volume, float fade_speed);
+
+     // Fade to zero over the given time and then stop.  All other fade commands
+     // will be ignored until the fade out stops.
+    void fade_out (u32 channel, float fade_time);
 
      // Run the mixer.
      //   - out: pointer to out_len pairs of floats.  Should not be prezeroed.
