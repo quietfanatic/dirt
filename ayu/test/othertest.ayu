@@ -1,6 +1,6 @@
 ﻿ -- Note, this file starts with a BOM
 [ayu::Document {
-    ext_ref:[ayu::AnyRef testfile.ayu#/foo+1]
+    ext_link:[ayu::Link testfile.ayu#/foo+1]
     ext_pointer:[std::string* testfile.ayu#/bar+1]
     a:[i32 3]
     b:[i32 4]

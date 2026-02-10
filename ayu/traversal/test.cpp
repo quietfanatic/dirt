@@ -98,15 +98,15 @@ namespace ayu::test {
     };
     enum ScalarElemTest : u8 {
     };
-    struct InternalRefTest {
+    struct InternalLinkTest {
         int a;
         int b;
         int* p;
     };
-    struct ChainRefTest {
-        AnyRef ref;
+    struct ChainLinkTest {
+        Link link;
          // Make this non-addressable to test chaining an elem func onto a
-         // non-addressable reference.
+         // non-addressable link.
         std::vector<int> target;
     };
 } using namespace ayu::test;
@@ -165,7 +165,7 @@ AYU_DESCRIBE(ayu::test::ElemsTest,
         }
     )),
     computed_elems([](ElemsTest& v, u32 i){
-        return AnyRef(&v.xs.at(i));
+        return Link(&v.xs.at(i));
     })
 )
 AYU_DESCRIBE(ayu::test::ElemTestCollapse,
@@ -199,7 +199,7 @@ AYU_DESCRIBE(ayu::test::AttrsTest2,
         }
     )),
     computed_attrs([](AttrsTest2& v, const AnyString& k){
-        return AnyRef(&v.xs.at(k));
+        return Link(&v.xs.at(k));
     })
 )
 AYU_DESCRIBE(ayu::test::DelegateTest,
@@ -251,17 +251,17 @@ AYU_DESCRIBE(ayu::test::ScalarElemTest,
         ))
     )
 )
-AYU_DESCRIBE(ayu::test::InternalRefTest,
+AYU_DESCRIBE(ayu::test::InternalLinkTest,
     attrs(
-        attr("a", &InternalRefTest::a),
-        attr("b", &InternalRefTest::b),
-        attr("p", &InternalRefTest::p)
+        attr("a", &InternalLinkTest::a),
+        attr("b", &InternalLinkTest::b),
+        attr("p", &InternalLinkTest::p)
     )
 )
-AYU_DESCRIBE(ayu::test::ChainRefTest,
+AYU_DESCRIBE(ayu::test::ChainLinkTest,
     attrs(
-        attr("ref", &ChainRefTest::ref),
-        attr("target", member(&ChainRefTest::target, unaddressable))
+        attr("link", &ChainLinkTest::link),
+        attr("target", member(&ChainLinkTest::target, unaddressable))
     )
 )
 
@@ -269,7 +269,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     using namespace tap;
     ok(Type("ayu::test::MemberTest"), "Description was registered");
 
-    auto try_to_tree = [](AnyRef item, Str tree, Str name){
+    auto try_to_tree = [](Link item, Str tree, Str name){
         try_is(
             [&item]{ return item_to_tree(item); },
             tree_from_string(tree),
@@ -376,7 +376,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     int answer = 0;
     doesnt_throw([&]{
         answer = item_elem(&est, 5).get_as<int>();
-    }, "item_elem and AnyRef::get_as");
+    }, "item_elem and Link::get_as");
     is(answer, 21, "item_elem gives correct answer");
     throws_code<e_External>(
         [&]{ item_elem(&est, 6); },
@@ -391,7 +391,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(est.xs.size(), 9u, "item_set_length grow");
     doesnt_throw([&]{
         item_elem(&est, 8).set_as<int>(99);
-    }, "item_elem and AnyRef::set_as");
+    }, "item_elem and Link::set_as");
     is(est.xs.at(8), 99, "writing to elem works");
     try_to_tree(&est, "[1 3 6 10 15 0 0 0 99]", "item_to_tree with length and computed_elems");
     doesnt_throw([&]{
@@ -431,7 +431,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     answer = 0;
     doesnt_throw([&]{
         answer = item_attr(&ast2, "b").get_as<int>();
-    }, "item_attr and AnyRef::get_as");
+    }, "item_attr and Link::get_as");
     is(answer, 22, "item_attr gives correct answer");
     throws_code<e_External>([&]{
         item_attr(&ast2, "c");
@@ -442,7 +442,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(ast2.xs.at("c"), 0, "item_set_keys added key");
     doesnt_throw([&]{
         item_attr(&ast2, "d").set_as<int>(999);
-    }, "item_attr and AnyRef::set_as");
+    }, "item_attr and Link::set_as");
     is(ast2.xs.at("d"), 999, "writing to attr works");
     try_to_tree(&ast2, "{c:0,d:999}", "item_to_tree with keys and computed_attrs");
     doesnt_throw([&]{
@@ -491,26 +491,26 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     });
     is(set, ScalarElemTest(0xcd), "Can use elems() on scalar type (from_tree)");
 
-    InternalRefTest irt = {3, 4, null};
-    irt.p = &irt.a;
-    try_to_tree(&irt, "{a:3 b:4 p:#/a}", "Can serialize item with internal refs");
+    InternalLinkTest ilt = {3, 4, null};
+    ilt.p = &ilt.a;
+    try_to_tree(&ilt, "{a:3 b:4 p:#/a}", "Can serialize item with internal links");
     doesnt_throw([&]{
-        item_from_string(&irt, "{a:5 b:6 p:#/b}");
+        item_from_string(&ilt, "{a:5 b:6 p:#/b}");
     });
-    is(irt.p, &irt.b, "Can deserialize item with internal refs");
+    is(ilt.p, &ilt.b, "Can deserialize item with internal links");
 
-    ChainRefTest crt = {null, {5, 4, 3}};
-    crt.ref = AnyRef(&crt)["target"][1];
-    try_is([&]{ return crt.ref.get_as<int>(); }, 4, "Can read from complex unaddressable ref");
-    doesnt_throw([&]{ crt.ref.set_as<int>(6); }, "Can write to complex unaddressable ref");
+    ChainLinkTest crt = {null, {5, 4, 3}};
+    crt.link = Link(&crt)["target"][1];
+    try_is([&]{ return crt.link.get_as<int>(); }, 4, "Can read from complex unaddressable link");
+    doesnt_throw([&]{ crt.link.set_as<int>(6); }, "Can write to complex unaddressable link");
     is(crt.target[1], 6);
-    try_to_tree(&crt, "{ref:#/target+1 target:[5 6 3]}", "Can serialize item with complex unaddressable ref");
+    try_to_tree(&crt, "{link:#/target+1 target:[5 6 3]}", "Can serialize item with complex unaddressable link");
     doesnt_throw([&]{
-        item_from_string(&crt, "{ref:#/target+2 target:[0 2 9 6]}");
+        item_from_string(&crt, "{link:#/target+2 target:[0 2 9 6]}");
     });
-    is(crt.ref, AnyRef(&crt)["target"][2], "Can deserialize item with complex unaddressable ref");
-    try_is([&]{ return crt.ref.get_as<int>(); }, 9, "Can read from complex unaddressable ref after deserializing");
-    doesnt_throw([&]{ crt.ref.set_as<int>(7); }, "Can write to complex unaddressable ref after deserializing");
+    is(crt.link, Link(&crt)["target"][2], "Can deserialize item with complex unaddressable link");
+    try_is([&]{ return crt.link.get_as<int>(); }, 9, "Can read from complex unaddressable link after deserializing");
+    doesnt_throw([&]{ crt.link.set_as<int>(7); }, "Can write to complex unaddressable link after deserializing");
     is(crt.target[2], 7);
 
     done_testing();

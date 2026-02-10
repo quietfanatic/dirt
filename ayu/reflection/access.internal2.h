@@ -295,15 +295,15 @@ struct AssignableAcr : FunctiveAcr {
 };
 
 template <class From>
-struct PtrToAnyRefAcr : Accessor {
+struct PtrToLinkAcr : Accessor {
     using AcrFromType = From;
-    using AcrToType = AnyRef;
+    using AcrToType = Link;
      // Sadly we can't embed the type directly here, since Type::For_constexpr
      // can't reference incomplete types.  However, this thunk is way smaller
-     // than what Assignable<From*, AnyRef> would generate.
+     // than what Assignable<From*, Link> would generate.
     Type (* type )();
-    explicit constexpr PtrToAnyRefAcr (AcrFlags flags) :
-        Accessor(AF::PtrToAnyRef, flags | AcrFlags::Unaddressable),
+    explicit constexpr PtrToLinkAcr (AcrFlags flags) :
+        Accessor(AF::PtrToLink, flags | AcrFlags::Unaddressable),
         type([]{
             static_assert(!std::is_const_v<std::remove_pointer_t<From>>,
                 "Accessors to const pointers are NYI"
@@ -366,19 +366,19 @@ struct ConstantPtrAcr : TypedAcr {
     { }
 };
 
-/// anyref_func
+/// link_func
 
  // This is a little awkward because we can't transfer the flags from the
- // calculated AnyRef's acr to this one.  We'll just have to hope we don't
+ // calculated Link's acr to this one.  We'll just have to hope we don't
  // miss anything important.
 template <class From>
-struct AnyRefFuncAcr : Accessor {
+struct LinkFuncAcr : Accessor {
     using AcrFromType = From;
-    AnyRef(* f )(From&);
-    explicit constexpr AnyRefFuncAcr (
-        AnyRef(* f )(From&), AcrFlags flags
+    Link(* f )(From&);
+    explicit constexpr LinkFuncAcr (
+        Link(* f )(From&), AcrFlags flags
     ) :
-        Accessor(AF::AnyRefFunc, flags), f(f)
+        Accessor(AF::LinkFunc, flags), f(f)
     { }
 };
 

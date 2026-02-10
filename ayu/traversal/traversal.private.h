@@ -8,9 +8,9 @@
 namespace ayu::in {
 
  // This tracks the decisions that were made during a serialization operation.
- // It's primary purpose is to allow creating an AnyRef to the current item in
- // case the current item is not addressable, but without having to start over
- // from the beginning, and without requiring any heap allocations otherwise.
+ // It's primary purpose is to allow creating a Link to the current item in case
+ // the current item is not addressable, but without having to start over from
+ // the beginning, and without requiring any heap allocations otherwise.
  //
  // A Traversal has two dimensions of subtyping.  One is the particular step
  // being performed (attr, elem, delegate, etc), here called the TraversalStep.
@@ -27,7 +27,7 @@ enum class TraversalStep : u8 {
 struct Traversal {
     const Traversal* parent;
     Type type;
-    Mu* address;
+    Mu* address;  // May only be valid while this object is alive.
     TraversalStep step;
      // Cumulative access capabilities for all items traversed so far.  This is
      // unused by to_tree traversal, because it only ever does read accesses.
@@ -48,18 +48,18 @@ struct Traversal {
         return DescriptionPrivate::get(type);
     }
 
-    void to_reference (void* r) const noexcept;
+    void to_link (void* r) const noexcept;
     [[noreturn, gnu::cold]]
     void wrap_exception () const;
 };
 
 [[noreturn, gnu::cold]]
-void rethrow_with_scanned_route (const AnyRef& item);
+void rethrow_with_scanned_route (const Link& item);
 
 ///// TRAVERSAL SUFFIXES
 
 struct StartTraversal : Traversal {
-    const AnyRef* reference;
+    const Link* base_item;
 };
 
 struct AcrTraversal : Traversal {
@@ -93,17 +93,17 @@ struct ContiguousElemTraversal : PtrTraversal {
 
 ///// COMMON TRAVERSAL PREFIX
 
-struct ReturnRefTraversalHead {
-    AnyRef* r;
+struct ReturnLinkTraversalHead {
+    Link* r;
 };
 
 template <class T = Traversal>
-struct ReturnRefTraversal : ReturnRefTraversalHead, T { };
+struct ReturnLinkTraversal : ReturnLinkTraversalHead, T { };
 
-inline void return_ref (const Traversal& tr) {
-    auto& trav = static_cast<const ReturnRefTraversal<>&>(tr);
+inline void return_link (const Traversal& tr) {
+    auto& trav = static_cast<const ReturnLinkTraversal<>&>(tr);
     expect(!trav.r->acr_p);
-    trav.to_reference(trav.r);
+    trav.to_link(trav.r);
 }
 
 ///// GENERIC TRAVERSAL FUNCTIONS
@@ -122,15 +122,15 @@ void trav_after_access (Traversal& child, Type t, Mu* v) {
  // their callers are prepared to allocate a lot of stack for them.
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
-    StartTraversal& child, const AnyRef& ref, AccessCaps mode
+    StartTraversal& child, const Link& item, AccessCaps mode
 ) try {
-    expect(ref);
+    expect(item);
 
     child.parent = null;
     child.step = TraversalStep::Start;
-    child.reference = &ref;
-    child.caps = ref.caps();
-    ref.access(mode, AccessCB(
+    child.base_item = &item;
+    child.caps = item.caps();
+    item.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
     ));
@@ -153,14 +153,14 @@ void trav_acr (
 catch (...) { child.wrap_exception(); }
 
 template <VisitFunc& visit> ALWAYS_INLINE
-void trav_ref (
+void trav_link (
     RefTraversal& child, const Traversal& parent,
-    const AnyRef& ref, AccessCaps mode
+    const Link& link, AccessCaps mode
 ) try {
     child.parent = &parent;
-    child.caps = parent.caps * ref.caps();
-     // TODO: disassemble this ref to save stack space
-    ref.access(mode, AccessCB(
+    child.caps = parent.caps * link.caps();
+     // TODO: disassemble this link to save stack space
+    link.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
     ));
@@ -194,12 +194,12 @@ void trav_attr (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_attr (
     ComputedAttrTraversal& child, const Traversal& parent,
-    const AnyRef& ref, AttrFunc<Mu>* func, const AnyString& key, AccessCaps mode
+    const Link& link, AttrFunc<Mu>* func, const AnyString& key, AccessCaps mode
 ) {
     child.step = TraversalStep::ComputedAttr;
     child.func = func;
     child.key = &key;
-    trav_ref<visit>(child, parent, ref, mode);
+    trav_link<visit>(child, parent, link, mode);
 }
 
 template <VisitFunc& visit> ALWAYS_INLINE
@@ -213,12 +213,12 @@ void trav_elem (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_elem (
     ComputedElemTraversal& child, const Traversal& parent,
-    const AnyRef& ref, ElemFunc<Mu>* func, u32 index, AccessCaps mode
+    const Link& link, ElemFunc<Mu>* func, u32 index, AccessCaps mode
 ) {
     child.step = TraversalStep::ComputedElem;
     child.func = func;
     child.index = index;
-    trav_ref<visit>(child, parent, ref, mode);
+    trav_link<visit>(child, parent, link, mode);
 }
 
 template <VisitFunc& visit> ALWAYS_INLINE

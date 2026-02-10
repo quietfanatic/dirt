@@ -1,4 +1,4 @@
 [ayu::Document {
     val:[i32 4]
-    ref:[i32* rec1.ayu#/val+1]
+    link:[i32* rec1.ayu#/val+1]
 }]

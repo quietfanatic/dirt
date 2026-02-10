@@ -1,5 +1,5 @@
 #include "access.private.h"
-#include "anyref.h"
+#include "link.h"
 #include "description.private.h"
 
 namespace ayu::in {
@@ -40,12 +40,12 @@ void access_ConstantPtr (
     cb(self->type, const_cast<Mu*>(self->pointer));
 }
 
-void access_AnyRefFunc (
+void access_LinkFunc (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
-    auto self = static_cast<const AnyRefFuncAcr<Mu>*>(acr);
+    auto self = static_cast<const LinkFuncAcr<Mu>*>(acr);
     auto ref = self->f(from);
-     // Don't need to check caps as AnyRef::access will check them.
+     // Don't need to check caps as Link::access will check them.
     ref.access(mode, cb);
 }
 
@@ -61,17 +61,17 @@ void access_AnyPtrFunc (
     cb(ptr.type(), ptr.address);
 }
 
-void access_PtrToAnyRef (
+void access_PtrToLink (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps
 ) {
-    auto self = static_cast<const PtrToAnyRefAcr<Mu>*>(acr);
+    auto self = static_cast<const PtrToLinkAcr<Mu>*>(acr);
     Type type = self->type();
     AnyPtr ptr = AnyPtr(type, *(Mu**)&from);
-     // AnyPtr can be type-punned to AnyRef
-    AnyRef& ref = ptr;
-    cb(ayu::Type::For<AnyRef>(), (Mu*)&ref);
+     // AnyPtr can be type-punned to Link
+    Link& ref = ptr;
+    cb(ayu::Type::For<Link>(), (Mu*)&ref);
     if (ref.acr() && ref.acr()->form != AcrForm::Identity) {
-        raise(e_General, "Native pointer-derived AnyRef was written with non-identity accessor.  Writing native pointers with complicated AnyRefs is NYI.");
+        raise(e_General, "Native pointer-derived Link was written with non-identity accessor.  Writing native pointers with complicated Links is NYI.");
     }
     AnyPtr casted = ptr.upcast_to(type);
     *(Mu**)&from = casted.address;
@@ -123,7 +123,7 @@ void access_ChainAttrFunc (
     auto outer_mode = mode | AC::Read;
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
-            AnyRef inter = frame.self->f(*iv, frame.self->key);
+            Link inter = frame.self->f(*iv, frame.self->key);
              // Make sure we aren't given stricter caps than we had before.
             expect(contains(inter.caps(), frame.self->caps));
             inter.access(frame.mode, frame.cb);
@@ -143,7 +143,7 @@ void access_ChainElemFunc (
     auto outer_mode = mode | AC::Read;
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
-            AnyRef inter = frame.self->f(*iv, frame.self->index);
+            Link inter = frame.self->f(*iv, frame.self->index);
             expect(contains(inter.caps(), frame.self->caps));
             inter.access(frame.mode, frame.cb);
         })

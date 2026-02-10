@@ -16,7 +16,7 @@ NOINLINE
 void delete_Route (const Route* p) noexcept {
     switch (p->form) {
         case RF::Resource: delete static_cast<const ResourceRoute*>(p); break;
-        case RF::Reference: delete static_cast<const ReferenceRoute*>(p); break;
+        case RF::Link: delete static_cast<const LinkRoute*>(p); break;
         case RF::Key: delete static_cast<const KeyRoute*>(p); break;
         case RF::Index: delete static_cast<const IndexRoute*>(p); break;
         default: never();
@@ -27,20 +27,20 @@ void delete_Route (const Route* p) noexcept {
 
  // It would be nice to be able to use Traversal for this, but Routes are kind
  // of inside-out compared to traversals, so we'd have to reverse it first.
-AnyRef reference_from_route (RouteRef rt) {
-    if (!rt) return AnyRef();
+Link link_from_route (RouteRef rt) {
+    if (!rt) return Link();
     switch (rt->form) {
-        case RF::Resource: return rt->resource()->ref();
-        case RF::Reference: return *rt->reference();
+        case RF::Resource: return rt->resource()->link();
+        case RF::Link: return *rt->link();
         case RF::Key: {
             auto self = static_cast<const in::KeyRoute*>(rt.data);
-            AnyRef parent_ref = reference_from_route(self->parent);
-            return item_attr(parent_ref, self->key, self->parent);
+            Link parent_link = link_from_route(self->parent);
+            return item_attr(parent_link, self->key, self->parent);
         }
         case RF::Index: {
             auto self = static_cast<const in::IndexRoute*>(rt.data);
-            AnyRef parent_ref = reference_from_route(self->parent);
-            return item_elem(parent_ref, self->index, self->parent);
+            Link parent_link = link_from_route(self->parent);
+            return item_elem(parent_link, self->index, self->parent);
         }
         default: never();
     }
@@ -48,6 +48,7 @@ AnyRef reference_from_route (RouteRef rt) {
 
 namespace in {
 
+ // TODO: #/foo+1 -> #foo shortcut
 struct RouteToIRI {
     UniqueString fragment;
     const IRI* base;
@@ -56,14 +57,14 @@ struct RouteToIRI {
     char* use_base (RouteRef rt, u32 cap) {
         switch (rt->form) {
             case RF::Resource: base = &rt->resource()->name(); break;
-            case RF::Reference: {
+            case RF::Link: {
                  // Scuffed comparison with address in lieu of an actual route
                  // comparison function.
                 if (current_base && &*current_base == &*rt) {
                     base = &anonymous_iri;
                     break;
                 }
-                else raise(e_RouteUnresolvable, "Cannot call route_to_iri on an anonymous reference-root-route unless it's the current anonymous item.");
+                else raise(e_RouteUnresolvable, "Cannot call route_to_iri on an anonymous link-root-route unless it's the current anonymous item.");
             }
             default: never();
         }
@@ -113,7 +114,7 @@ struct RouteToIRI {
     char* visit (RouteRef rt, u32 cap) {
         switch (rt->form) {
             case RF::Resource:
-            case RF::Reference: return use_base(rt, cap);
+            case RF::Link: return use_base(rt, cap);
             case RF::Key: return use_key(rt, cap);
             case RF::Index:
                 if (*rt->index() < 10) {
@@ -149,7 +150,7 @@ SharedRoute route_from_iri (const IRI& iri) {
     auto end = fragment.end();
     SharedRoute r;
     if (root_iri == anonymous_iri) {
-        if (current_base && current_base->reference()) {
+        if (current_base && current_base->link()) {
              // Allow addressing an item that isn't necessarily in a resource
             new (&r) SharedRoute(current_base);
         }

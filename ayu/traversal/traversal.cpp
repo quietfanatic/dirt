@@ -3,43 +3,43 @@
 
 namespace ayu::in {
 
-static void to_reference_parent_addressable (const Traversal&, void*) noexcept;
-static void to_reference_chain (const Traversal&, void*) noexcept;
+static void to_link_parent_addressable (const Traversal&, void*) noexcept;
+static void to_link_chain (const Traversal&, void*) noexcept;
 
  // noexcept because any user code called from here should be confirmed to
  // already work without throwing.
 NOINLINE
-void Traversal::to_reference (void* r) const noexcept {
+void Traversal::to_link (void* r) const noexcept {
     if (caps % AC::Address) {
-        new (r) AnyRef(AnyPtr(type, address, caps));
+        new (r) Link(AnyPtr(type, address, caps));
     }
     else if (step == TraversalStep::Start) {
         auto& self = static_cast<const StartTraversal&>(*this);
-        new (r) AnyRef(*self.reference);
+        new (r) Link(*self.base_item);
     }
     else if (parent->caps % AC::Address) {
-        return to_reference_parent_addressable(*this, r);
+        return to_link_parent_addressable(*this, r);
     }
-    else return to_reference_chain(*this, r);
+    else return to_link_chain(*this, r);
 }
 
 NOINLINE static
-void to_reference_parent_addressable (const Traversal& trav, void* r) noexcept {
+void to_link_parent_addressable (const Traversal& trav, void* r) noexcept {
     switch (trav.step) {
         case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
             expect(self.parent->caps % AC::Address);
-            new (r) AnyRef(self.parent->address, self.acr, self.parent->caps);
+            new (r) Link(self.parent->address, self.acr, self.parent->caps);
             return;
         }
         case TraversalStep::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
-            new (r) AnyRef(self.func(*self.parent->address, *self.key));
+            new (r) Link(self.func(*self.parent->address, *self.key));
             return;
         }
         case TraversalStep::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
-            new (r) AnyRef(self.func(*self.parent->address, self.index));
+            new (r) Link(self.func(*self.parent->address, self.index));
             return;
         }
         case TraversalStep::ContiguousElem: {
@@ -49,7 +49,7 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) noexcept {
             data.address = (Mu*)(
                 (char*)data.address + self.index * desc->cpp_size
             );
-            new (r) AnyRef(data);
+            new (r) Link(data);
             return;
         }
         default: never();
@@ -57,35 +57,35 @@ void to_reference_parent_addressable (const Traversal& trav, void* r) noexcept {
 }
 
 NOINLINE static
-void to_reference_chain (const Traversal& trav, void* r) noexcept {
-    AnyRef parent_ref;
-    trav.parent->to_reference(&parent_ref);
+void to_link_chain (const Traversal& trav, void* r) noexcept {
+    Link parent_link;
+    trav.parent->to_link(&parent_link);
     switch (trav.step) {
         case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
-            new (r) AnyRef(parent_ref.host, new ChainAcr(
-                parent_ref.acr(), self.acr, trav.caps
+            new (r) Link(parent_link.host, new ChainAcr(
+                parent_link.acr(), self.acr, trav.caps
             ));
             return;
         }
         case TraversalStep::ComputedAttr: {
             auto& self = static_cast<const ComputedAttrTraversal&>(trav);
-            new (r) AnyRef(parent_ref.host, new ChainAttrFuncAcr(
-                parent_ref.acr(), self.func, *self.key, trav.caps
+            new (r) Link(parent_link.host, new ChainAttrFuncAcr(
+                parent_link.acr(), self.func, *self.key, trav.caps
             ));
             return;
         }
         case TraversalStep::ComputedElem: {
             auto& self = static_cast<const ComputedElemTraversal&>(trav);
-            new (r) AnyRef(parent_ref.host, new ChainElemFuncAcr(
-                parent_ref.acr(), self.func, self.index, trav.caps
+            new (r) Link(parent_link.host, new ChainElemFuncAcr(
+                parent_link.acr(), self.func, self.index, trav.caps
             ));
             return;
         }
         case TraversalStep::ContiguousElem: {
             auto& self = static_cast<const ContiguousElemTraversal&>(trav);
-            new (r) AnyRef(parent_ref.host, new ChainDataFuncAcr(
-                parent_ref.acr(), self.func, self.index, trav.caps
+            new (r) Link(parent_link.host, new ChainDataFuncAcr(
+                parent_link.acr(), self.func, self.index, trav.caps
             ));
             return;
         }
@@ -98,27 +98,27 @@ void Traversal::wrap_exception () const {
     try { throw; }
     catch (Error& e) {
         if (e.get_tag("ayu::route")) throw;
-        AnyRef ref;
-        to_reference(&ref);
-        rethrow_with_scanned_route(ref);
+        Link item;
+        to_link(&item);
+        rethrow_with_scanned_route(item);
     }
     catch (...) {
-        AnyRef ref;
-        to_reference(&ref);
-        rethrow_with_scanned_route(ref);
+        Link item;
+        to_link(&item);
+        rethrow_with_scanned_route(item);
     }
 }
 
 NOINLINE
-void rethrow_with_scanned_route (const AnyRef& base_item) {
+void rethrow_with_scanned_route (const Link& item) {
     RouteRef base_rt = current_base;
-    AnyRef base_ref = reference_from_route(base_rt);
+    Link base_item = link_from_route(base_rt);
     SharedRoute found_rt;
     try {
-        scan_references_ignoring_no_refs_to_children(
-            base_ref, base_rt,
-            [&](const AnyRef& item, RouteRef rt) {
-                return item == base_item && (found_rt = rt, true);
+        scan_links_ignoring_no_links_to_children(
+            base_item, base_rt,
+            [&](const Link& link, RouteRef rt) {
+                return link == item && (found_rt = rt, true);
             }
         );
     }

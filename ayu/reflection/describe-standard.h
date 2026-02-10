@@ -18,7 +18,7 @@
 #include "../traversal/compound.h"
 #include "../traversal/to-tree.h"
 #include "../traversal/from-tree.h"
-#include "anyref.h"
+#include "link.h"
 #include "describe-base.h"
 
 namespace ayu::in {
@@ -168,8 +168,8 @@ AYU_DESCRIBE_TEMPLATE(
     desc::computed_attrs([](std::unordered_map<std::string, T>& v, const uni::AnyString& k){
         auto iter = v.find(k);
         return iter != v.end()
-            ? ayu::AnyRef(&iter->second)
-            : ayu::AnyRef();
+            ? ayu::Link(&iter->second)
+            : ayu::Link();
     })
 )
 
@@ -204,8 +204,8 @@ AYU_DESCRIBE_TEMPLATE(
     desc::computed_attrs([](std::map<std::string, T>& v, const uni::AnyString& k){
         auto iter = v.find(k);
         return iter != v.end()
-            ? ayu::AnyRef(&iter->second)
-            : ayu::AnyRef();
+            ? ayu::Link(&iter->second)
+            : ayu::Link();
     })
 )
 
@@ -315,7 +315,7 @@ AYU_DESCRIBE_TEMPLATE(
         }
         else {
             return desc::delegate(
-                ayu::in::PtrToAnyRefAcr<T*>(ayu::in::AcrFlags{})
+                ayu::in::PtrToLinkAcr<T*>(ayu::in::AcrFlags{})
             );
         }
     }()

@@ -1,4 +1,4 @@
-// This contains some utilities for accessing data through AnyRefs (and internal
+// This contains some utilities for accessing data through Links (and internal
 // accessor objects).  You likely do not need to use anything in this file.
 
 #pragma once
@@ -7,8 +7,8 @@
 
 namespace ayu {
 
- // This is a bitfield that communicates what kind of access is possible for a
- // reference, and what kind of access is requested for an access.
+ // This is a bitfield that communicates what kind of access is possible for an
+ // Link or Accessor, and what kind of access is requested for an access.
 enum class AccessCaps : u8 {
      // Request/allow access to either the original item or a
      // default-constructed value which will be written back to the item after

@@ -26,9 +26,9 @@ void delete_Route (const Route*) noexcept;
 void delete_Resource_if_unloaded (Resource*) noexcept;
 
 template <class T>
-using AttrFunc = AnyRef(T&, const AnyString&);
+using AttrFunc = Link(T&, const AnyString&);
 template <class T>
-using ElemFunc = AnyRef(T&, u32);
+using ElemFunc = Link(T&, u32);
 template <class T>
 using DataFunc = AnyPtr(T&);
 

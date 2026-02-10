@@ -6,7 +6,7 @@
 #include "../common.h"
 #include "../data/print.h"
 #include "../data/tree.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "route.h"
 
 namespace ayu {
@@ -39,7 +39,7 @@ using TTO = ToTreeOptions;
  //   4. delegate()
  // If none of the above are applicable, a CannotToTree exception will be
  // thrown.
-Tree item_to_tree (const AnyRef&, RouteRef rt = {}, ToTreeOptions opts = {});
+Tree item_to_tree (const Link&, RouteRef rt = {}, ToTreeOptions opts = {});
  // Slight optimization for pointers (the usual case)
 template <Describable T>
 Tree item_to_tree (T* item, RouteRef rt = {}, ToTreeOptions opts = {});
@@ -47,7 +47,7 @@ Tree item_to_tree (T* item, RouteRef rt = {}, ToTreeOptions opts = {});
 ///// Shortcuts
 
 UniqueString item_to_string (
-    const AnyRef& item, PrintOptions popts = {},
+    const Link& item, PrintOptions popts = {},
     RouteRef rt = {}, ToTreeOptions ttopts = {}
 );
 template <Describable T>
@@ -58,7 +58,7 @@ UniqueString item_to_string (
 
  // item_to_string but noexcept and automatically uses TTO::EmbedErrors.
 UniqueString show (
-    const AnyRef& item, PrintOptions popts = {},
+    const Link& item, PrintOptions popts = {},
     RouteRef rt = {}, ToTreeOptions ttopts = {}
 ) noexcept;
 template <Describable T>

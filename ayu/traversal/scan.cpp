@@ -1,7 +1,7 @@
 #include "scan.h"
 #include <algorithm>
 #include "../reflection/anyptr.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "../reflection/description.private.h"
 #include "../resources/universe.private.h"
 #include "compound.private.h"
@@ -59,32 +59,32 @@ struct TraverseScan {
     }
 
     static
-    bool start_references (
-        const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb,
-        bool ignore_no_refs_to_children
+    bool start_links (
+        const Link& base_item, RouteRef base_rt, ScanLinksCB cb,
+        bool ignore_no_links_to_children
     ) {
         using CBCB = void(decltype(cb)&, const ScanTraversal<>&);
         CBCB* cbcb = [](auto& cb, const ScanTraversal<>& trav) {
             bool done; {
-                AnyRef ref;
-                trav.to_reference(&ref);
-                done = cb(ref, trav.rt);
+                Link l;
+                trav.to_link(&l);
+                done = cb(l, trav.rt);
             }
             if (done) [[unlikely]] trav.context->done = true;
             else after_cb(trav);
         };
         CBCB* cbcb_ignore = [](auto& cb, const ScanTraversal<>& trav) {
             bool done; {
-                AnyRef ref;
-                trav.to_reference(&ref);
-                done = cb(ref, trav.rt);
+                Link l;
+                trav.to_link(&l);
+                done = cb(l, trav.rt);
             }
             if (done) [[unlikely]] trav.context->done = true;
-            else after_cb_ignoring_no_refs_to_children(trav);
+            else after_cb_ignoring_no_links_to_children(trav);
         };
         ScanContext ctx {
             CallbackRef<void(const ScanTraversal<>&)>(
-                cb, ignore_no_refs_to_children ? cbcb_ignore : cbcb
+                cb, ignore_no_links_to_children ? cbcb_ignore : cbcb
             )
         };
         ScanTraversal<StartTraversal> child;
@@ -108,7 +108,7 @@ struct TraverseScan {
     NOINLINE static
     void after_cb (const ScanTraversal<>& trav) {
         auto desc = trav.desc();
-        if (desc->type_flags % TypeFlags::NoRefsToChildren) {
+        if (desc->type_flags % TypeFlags::NoLinksToChildren) {
             return;
         }
         if (desc->preference() == DescFlags::PreferObject) {
@@ -132,7 +132,7 @@ struct TraverseScan {
     }
 
     NOINLINE static
-    void after_cb_ignoring_no_refs_to_children (const ScanTraversal<>& trav) {
+    void after_cb_ignoring_no_links_to_children (const ScanTraversal<>& trav) {
         auto desc = trav.desc();
         if (desc->preference() == DescFlags::PreferObject) {
             if (auto keys = desc->keys_acr()) {
@@ -196,8 +196,8 @@ struct TraverseScan {
         auto f = expect(trav.desc()->computed_attrs())->f;
          // Now scan for each key
         for (auto& key : keys) {
-            auto ref = f(*trav.address, key);
-            if (!ref) raise_AttrNotFound(trav.type, key);
+            auto link = f(*trav.address, key);
+            if (!link) raise_AttrNotFound(trav.type, key);
             auto child_rt = SharedRoute(trav.rt, key);
             ScanTraversal<ComputedAttrTraversal> child;
             child.context = trav.context;
@@ -205,7 +205,7 @@ struct TraverseScan {
             child.collapse_optional = false;
             child.collapsed_elem_shift = 0;
             trav_computed_attr<visit>(
-                child, trav, ref, f, key, AC::Read
+                child, trav, link, f, key, AC::Read
             );
             if (child.context->done) [[unlikely]] return;
         }
@@ -257,8 +257,8 @@ struct TraverseScan {
         read_length_acr(len, trav.type, trav.address, length_acr);
         auto f = expect(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < len; i++) {
-            auto ref = f(*trav.address, i);
-            if (!ref) raise_ElemNotFound(trav.type, i);
+            auto link = f(*trav.address, i);
+            if (!link) raise_ElemNotFound(trav.type, i);
             SharedRoute child_rt;
             ScanTraversal<ComputedElemTraversal> child;
             child.context = trav.context;
@@ -275,7 +275,7 @@ struct TraverseScan {
             child.collapse_optional = false;
             child.collapsed_elem_shift = 0;
             trav_computed_elem<visit>(
-                child, trav, ref, f, i, AC::Read
+                child, trav, link, f, i, AC::Read
             );
             child_rt = {};
             if (child.context->done) [[unlikely]] return;
@@ -421,16 +421,16 @@ bool scan_pointers (
 }
 
 NOINLINE
-bool scan_references (
-    const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
+bool scan_links (
+    const Link& base_item, RouteRef base_rt, ScanLinksCB cb
 ) {
-    return TraverseScan::start_references(base_item, base_rt, cb, false);
+    return TraverseScan::start_links(base_item, base_rt, cb, false);
 }
 
-bool scan_references_ignoring_no_refs_to_children (
-    const AnyRef& base_item, RouteRef base_rt, ScanReferencesCB cb
+bool scan_links_ignoring_no_links_to_children (
+    const Link& base_item, RouteRef base_rt, ScanLinksCB cb
 ) {
-    return TraverseScan::start_references(base_item, base_rt, cb, true);
+    return TraverseScan::start_links(base_item, base_rt, cb, true);
 }
 
 bool scan_resource_pointers (ResourceRef res, ScanPointersCB cb) {
@@ -439,17 +439,17 @@ bool scan_resource_pointers (ResourceRef res, ScanPointersCB cb) {
     return scan_pointers(value.ptr(), SharedRoute(res), cb);
 }
 
-bool scan_resource_references (ResourceRef res, ScanReferencesCB cb) {
+bool scan_resource_links (ResourceRef res, ScanLinksCB cb) {
      // TODO: use FakeRef or whatever replaces it
     auto& value = res->get_value();
     if (!value) return false;
-    return scan_references(value.ptr(), SharedRoute(res), cb);
+    return scan_links(value.ptr(), SharedRoute(res), cb);
 }
 
 bool scan_universe_pointers (ScanPointersCB cb) {
     if (current_base) {
-        if (auto ref = current_base->reference())
-        if (auto address = ref->address()) {
+        if (auto link = current_base->link())
+        if (auto address = link->address()) {
            scan_pointers(address, current_base, cb);
         }
     }
@@ -459,26 +459,26 @@ bool scan_universe_pointers (ScanPointersCB cb) {
     return false;
 }
 
-bool scan_universe_references (ScanReferencesCB cb) {
+bool scan_universe_links (ScanLinksCB cb) {
      // To allow serializing self-referential data structures that aren't inside
      // a Resource, first scan the currently-being-serialized item, but only if
      // it's not in a Resource (so we don't duplicate work).
     if (current_base) {
-        if (auto ref = current_base->reference())
-        if (scan_references(*ref, current_base, cb)) {
+        if (auto link = current_base->link())
+        if (scan_links(*link, current_base, cb)) {
             return true;
         }
     }
     for (auto& [_, res] : universe().resources) {
-        if (scan_resource_references(res, cb)) return true;
+        if (scan_resource_links(res, cb)) return true;
     }
     return false;
 }
 
 SharedRoute find_pointer (AnyPtr item) {
     if (!item) return {};
-    for (auto plr = first_plr; plr; plr = plr->next) {
-        if (AnyRef(item) == plr->reference) return plr->route;
+    for (auto pll = first_pll; pll; pll = pll->next) {
+        if (Link(item) == pll->link) return pll->route;
     }
     if (get_route_cache()) {
         if (auto it = search_route_cache(item)) {
@@ -506,17 +506,17 @@ SharedRoute find_pointer (AnyPtr item) {
     }
 }
 
-SharedRoute find_reference (const AnyRef& item) {
+SharedRoute find_link (const Link& item) {
     if (!item) return {};
-    for (auto plr = first_plr; plr; plr = plr->next) {
-        if (item == plr->reference) return plr->route;
+    for (auto pll= first_pll; pll; pll = pll->next) {
+        if (item == pll->link) return pll->route;
     }
-     // Since AnyRef no longer stores its host type, when given an unaddressable
-     // AnyRef we can no longer find the host in the route cache, then scan
-     // under the host for the referent.  So if we have an unaddressable AnyRef
+     // Since Link no longer stores its host type, when given an unaddressable
+     // Link we can no longer find the host in the route cache, then scan
+     // under the host for the referent.  So if we have an unaddressable Link
      // we just gotta search the entire universe now, though this should happen
-     // rarely if ever.  If this does become a problem, we could cache AnyRefs
-     // instead of AnyPtrs, but then we'd have to define operator<=> on AnyRef.
+     // rarely if ever.  If this does become a problem, we could cache Links
+     // instead of AnyPtrs, but then we'd have to define operator<=> on Link.
     if (item.addressable() && get_route_cache()) {
         AnyPtr ptr = item.address();
         if (auto it = search_route_cache(ptr)) {
@@ -530,11 +530,11 @@ SharedRoute find_reference (const AnyRef& item) {
     else {
          // Gotta do a global search
         SharedRoute r;
-        scan_universe_references(
-            [&r, &item](const AnyRef& ref, RouteRef rt)
+        scan_universe_links(
+            [&r, &item](const Link& link, RouteRef rt)
         {
-            if (ref == item) {
-                if (!contains(ref.caps(), item.caps())) {
+            if (link == item) {
+                if (!contains(link.caps(), item.caps())) {
                     [[unlikely]] return true;
                 }
                 new (&r) SharedRoute(rt);
@@ -551,21 +551,22 @@ SharedRoute pointer_to_route (AnyPtr item) {
     else if (SharedRoute r = find_pointer(item)) {
         return r;
     }
-    else raise(e_ReferenceNotFound, cat(
+    else raise(e_LinkNotFound, cat(
         "Couldn't locate pointer target of type ", item.type().name()
     ));
 }
 
-SharedRoute reference_to_route (const AnyRef& item) {
+SharedRoute link_to_route (const Link& item) {
     if (!item) return {};
-    else if (SharedRoute r = find_reference(item)) {
+    else if (SharedRoute r = find_link(item)) {
         return r;
     }
-    else raise(e_ReferenceNotFound, cat(
-        "Couldn't locate reference target of type ", item.type().name()
+    else raise(e_LinkNotFound, cat(
+        "Couldn't locate link target of type ", item.type().name()
     ));
 }
 
+ // Don't leave yet, wait for me!
 bool currently_scanning = false;
 
 } using namespace ayu;

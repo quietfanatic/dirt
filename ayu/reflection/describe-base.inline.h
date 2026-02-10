@@ -273,10 +273,10 @@ AccessorFromTo<T, M> auto AYU_DescribeBase<T>::variable (
 }
 
 template <Describable T> constexpr
-AccessorFrom<T> auto AYU_DescribeBase<T>::anyref_func (
-    Function<AnyRef(T&)>* f, AcrFlags flags
+AccessorFrom<T> auto AYU_DescribeBase<T>::link_func (
+    Function<Link(T&)>* f, AcrFlags flags
 ) {
-    return in::AnyRefFuncAcr<T>(f, flags);
+    return in::LinkFuncAcr<T>(f, flags);
 }
 template <Describable T> constexpr
 AccessorFrom<T> auto AYU_DescribeBase<T>::anyptr_func (

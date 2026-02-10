@@ -1,18 +1,17 @@
-// A Route is an intermediate step between an AnyRef and an IRI.  A valid
-// Route can be easily converted to and from a valid IRI.  A Route can
-// also be easily converted to a AnyRef, but converting a AnyRef to a
-// Route may require scanning a lot of data.  The functions for doing these
-// conversions are in scan.h.
+// A Route is an intermediate step between a Link and an IRI.  A valid Route can
+// be easily converted to and from a valid IRI.  A Route can also be easily
+// converted to a Link, but converting a Link to a Route may require scanning a
+// lot of data.  The functions for doing these conversions are in scan.h.
 //
 // You shouldn't have to use this class directly, but I guess you can if you
 // want to.
 //
 // Internally, a Route is a recursive object that is a symbolic representation
-// of an AnyRef, explaining how to reach the referend from the root Resource by a
+// of a Link, explaining how to reach the referend from the root Resource by a
 // chain of item_attr() and item_elem() calls.  In ADT syntax, it looks like
 //
 //     data Route = ResourceRoute Resource
-//                | ReferenceRoute AnyRef
+//                | LinkRoute Link
 //                | KeyRoute Route AnyString
 //                | IndexRoute Route u32
 //
@@ -22,14 +21,14 @@
 #pragma once
 #include "../../iri/iri.h"
 #include "../common.internal.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "../resources/resource.h"
 
 namespace ayu {
 
 enum class RouteForm : u8 {
     Resource,
-    Reference,
+    Link,
     Key,
     Index,
 };
@@ -40,8 +39,8 @@ struct Route : in::RefCounted {
     RouteForm form;
      // Returns empty if this is not a resource root.
     ResourceRef resource () const noexcept;
-     // Returns null if this is not a reference root.
-    const AnyRef* reference () const noexcept;
+     // Returns null if this is not a link root.
+    const Link* link () const noexcept;
      // Returns empty if this is a root.
     RouteRef parent () const noexcept;
      // Returns null if this Route is a root or has an index.
@@ -49,7 +48,7 @@ struct Route : in::RefCounted {
      // Returns null if this Route is a root or has a key.
     const u32* index () const noexcept;
 
-     // Walks down to the root Route (containing either a Resource or an AnyRef)
+     // Walks down to the root Route (containing either a Resource or a Link)
      // and returns it.
     RouteRef root () const noexcept;
 
@@ -67,7 +66,7 @@ struct SharedRoute {
      // Constructs a root Route from a Resource.
     explicit SharedRoute (ResourceRef) noexcept;
      // Constructs a root Route from an anonymous item.
-    explicit SharedRoute (const AnyRef&) noexcept;
+    explicit SharedRoute (const Link&) noexcept;
      // Append an attribute key or an element index to the Route.
     SharedRoute (SharedRoute parent, AnyString key) noexcept;
     SharedRoute (SharedRoute parent, u32 index) noexcept;
@@ -93,10 +92,10 @@ struct RouteRef {
 
 ///// REFERENCE CONVERSION
 
- // Convert a Route to a AnyRef.  This will not have to do any scanning,
- // so it should be fairly quick.  Well, quicker than reference_to_route.
- // reference_to_route is in scan.h
-AnyRef reference_from_route (RouteRef);
+ // Convert a Route to a Link.  This will not have to do any scanning, so it
+ // should be fairly quick.  Well, quicker than link_to_route anyway.
+ // link_to_route is in scan.h
+Link link_from_route (RouteRef);
 
 ///// IRI CONVERSION
 
@@ -119,19 +118,18 @@ IRI route_to_iri (RouteRef);
  //     route_from_iri("foo#/bar+3/qux")
  // is equivalent to
  //     Route(Route(Route(Route(Resource("foo")), "bar"), 3), "qux")
- // and calling reference_from_route on that is equivalent to
+ // and calling link_from_route on that is equivalent to
  //     Resource("foo")["bar"][3]["qux"]
  //
  // Throws if a + is followed by something that isn't a positive integer, or if
  // the IRI is just plain invalid.
 SharedRoute route_from_iri (const IRI& iri);
 
- // Go straight from an IRI to a reference.  If you're using the resource
- // system, you probably want to use the two-argument form of ayu::track
- // instead.
-inline AnyRef reference_from_iri (const IRI& iri) {
+ // Go straight from an IRI to a Link.  If you're using the resource system, you
+ // probably want to use the two-argument form of ayu::track instead.
+inline Link link_from_iri (const IRI& iri) {
     auto rt = route_from_iri(iri);
-    return reference_from_route(rt);
+    return link_from_route(rt);
 }
 
  // If an item is currently being traversed that isn't associated with a
@@ -148,8 +146,8 @@ static constexpr IRI anonymous_iri = "ayu:anon";
  // reference strings are read and written relative to this base IRI.  The
  // current base is set during most traversal operations.  If the traversal
  // operation is passed a route, the base route is the root of that route.  If
- // not, it's an anonymous reference route of whatever reference was passed to
- // the traversal operation.
+ // not, it's an anonymous link route of whatever link was passed to the
+ // traversal operation.
  //
  // During a to_tree or from_tree descriptor function, the current base will
  // always be set.  The only traversals it isn't set for are scans, and scans
@@ -171,9 +169,9 @@ struct CurrentBase {
      // multiple CurrentBase objects and they act like a stack.  They must be
      // destroyed in reverse order of construction.
 
-     // Constructor with a RouteRef and an AnyRef.  Will take the root of the
+     // Constructor with a RouteRef and a Link.  Will take the root of the
      // passed-in route, or a route with the item if its empty.
-    CurrentBase (RouteRef rt, const AnyRef& item) {
+    CurrentBase (RouteRef rt, const Link& item) {
         old = move(current_base);
         current_base = rt ? SharedRoute(rt->root()) : SharedRoute(item);
     }

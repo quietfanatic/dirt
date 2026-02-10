@@ -18,7 +18,7 @@ struct GetKeysTraversal : GetKeysTraversalHead, T { };
 struct TraverseGetKeys {
 
     static
-    UniqueArray<AnyString> start (const AnyRef& item, RouteRef rt) {
+    UniqueArray<AnyString> start (const Link& item, RouteRef rt) {
         CurrentBase curb (rt, item);
         UniqueArray<AnyString> keys;
         GetKeysTraversal<StartTraversal> child;
@@ -92,7 +92,7 @@ struct TraverseGetKeys {
 
 NOINLINE
 AnyArray<AnyString> item_get_keys (
-    const AnyRef& item, RouteRef rt
+    const Link& item, RouteRef rt
 ) {
     return TraverseGetKeys::start(item, rt);
 }
@@ -112,7 +112,7 @@ struct TraverseSetKeys {
 
     static
     void start (
-        const AnyRef& item, AnyArray<AnyString> ks, RouteRef rt
+        const Link& item, AnyArray<AnyString> ks, RouteRef rt
     ) {
         CurrentBase curb (rt, item);
         UniqueArray<AnyString> keys = move(ks);
@@ -266,7 +266,7 @@ struct TraverseSetKeys {
 } using namespace in;
 
 void item_set_keys (
-    const AnyRef& item, AnyArray<AnyString> keys, RouteRef rt
+    const Link& item, AnyArray<AnyString> keys, RouteRef rt
 ) {
     TraverseSetKeys::start(item, move(keys), rt);
 }
@@ -278,15 +278,15 @@ struct GetAttrTraversalHead {
 };
 
 template <class T = Traversal>
-struct GetAttrTraversal : GetAttrTraversalHead, ReturnRefTraversal<T> { };
+struct GetAttrTraversal : GetAttrTraversalHead, ReturnLinkTraversal<T> { };
 
 struct TraverseAttr {
     NOINLINE static
-    AnyRef start (
-        const AnyRef& item, const AnyString& key, RouteRef rt
+    Link start (
+        const Link& item, const AnyString& key, RouteRef rt
     ) {
         CurrentBase curb (rt, item);
-        AnyRef r;
+        Link r;
         GetAttrTraversal<StartTraversal> child;
         child.get_key = &key;
         child.r = &r;
@@ -318,9 +318,9 @@ struct TraverseAttr {
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->key == *trav.get_key) {
-                ReturnRefTraversal<AttrTraversal> child;
+                ReturnLinkTraversal<AttrTraversal> child;
                 child.r = trav.r;
-                trav_attr<return_ref>(
+                trav_attr<return_link>(
                     child, trav, attr->acr(), attr->key, AC::Read
                 );
                 return;
@@ -343,11 +343,11 @@ struct TraverseAttr {
 
     NOINLINE static
     void use_computed_attrs (const GetAttrTraversal<>& trav, AttrFunc<Mu>* f) {
-        if (AnyRef ref = f(*trav.address, *trav.get_key)) {
-            ReturnRefTraversal<ComputedAttrTraversal> child;
+        if (Link link = f(*trav.address, *trav.get_key)) {
+            ReturnLinkTraversal<ComputedAttrTraversal> child;
             child.r = trav.r;
-            trav_computed_attr<return_ref>(
-                child, trav, move(ref), f, *trav.get_key, AC::Read
+            trav_computed_attr<return_link>(
+                child, trav, move(link), f, *trav.get_key, AC::Read
             );
         }
     }
@@ -364,15 +364,15 @@ struct TraverseAttr {
 };
 
 NOINLINE
-AnyRef item_maybe_attr (
-    const AnyRef& item, const AnyString& key, RouteRef rt
+Link item_maybe_attr (
+    const Link& item, const AnyString& key, RouteRef rt
 ) {
     return TraverseAttr::start(item, key, rt);
 }
 
 NOINLINE
-AnyRef item_attr (const AnyRef& item, const AnyString& key, RouteRef rt) {
-    AnyRef r = TraverseAttr::start(item, key, rt);
+Link item_attr (const Link& item, const AnyString& key, RouteRef rt) {
+    Link r = TraverseAttr::start(item, key, rt);
     if (!r) {
         try { raise_AttrNotFound(item.type(), key); }
         catch (...) { rethrow_with_route(rt); }
@@ -387,7 +387,7 @@ namespace in {
  // This is simple enough we don't need to use the traversal system.
 struct TraverseGetLength {
     static
-    u32 start (const AnyRef& item, RouteRef rt) try {
+    u32 start (const Link& item, RouteRef rt) try {
          // We still need to set current base in case user code is called,
          // because it's API-visible.
         CurrentBase curb (rt, item);
@@ -423,7 +423,7 @@ struct TraverseGetLength {
 
 } // in
 
-u32 item_get_length (const AnyRef& item, RouteRef rt) {
+u32 item_get_length (const Link& item, RouteRef rt) {
     return TraverseGetLength::start(item, rt);
 }
 
@@ -433,7 +433,7 @@ namespace in {
 
 struct TraverseSetLength {
     static
-    void start (const AnyRef& item, u32 len, RouteRef rt) try {
+    void start (const Link& item, u32 len, RouteRef rt) try {
         CurrentBase curb (rt, item);
         item.read(AccessCB(len, &visit));
     } catch (...) { rethrow_with_route(rt); }
@@ -474,7 +474,7 @@ struct TraverseSetLength {
 
 } // in
 
-void item_set_length (const AnyRef& item, u32 len, RouteRef rt) {
+void item_set_length (const Link& item, u32 len, RouteRef rt) {
     if (len > AnyArray<Tree>::max_size_) {
         raise_LengthOverflow(len);
     }
@@ -490,12 +490,12 @@ struct GetElemTraversalHead {
 };
 
 template <class T = Traversal>
-struct GetElemTraversal : GetElemTraversalHead, ReturnRefTraversal<T> { };
+struct GetElemTraversal : GetElemTraversalHead, ReturnLinkTraversal<T> { };
 
 struct TraverseElem {
 
     NOINLINE static
-    void start (const AnyRef& item, u32 index, RouteRef rt, AnyRef& r) {
+    void start (const Link& item, u32 index, RouteRef rt, Link& r) {
         CurrentBase curb (rt, item);
         GetElemTraversal<StartTraversal> child;
         child.index = index;
@@ -537,9 +537,9 @@ struct TraverseElem {
         const GetElemTraversal<>& trav, const ElemsDcrPrivate* elems
     ) {
         auto acr = elems->elem(trav.index)->acr();
-        ReturnRefTraversal<ElemTraversal> child;
+        ReturnLinkTraversal<ElemTraversal> child;
         child.r = trav.r;
-        trav_elem<return_ref>(child, trav, acr, trav.index, AC::Read);
+        trav_elem<return_link>(child, trav, acr, trav.index, AC::Read);
     }
 
     NOINLINE static
@@ -556,12 +556,12 @@ struct TraverseElem {
 
     NOINLINE static
     void use_computed_elems (const GetElemTraversal<>& trav, ElemFunc<Mu>* f) {
-        AnyRef ref = f(*trav.address, trav.index);
-        if (!ref) return;
-        ReturnRefTraversal<ComputedElemTraversal> child;
+        Link link = f(*trav.address, trav.index);
+        if (!link) return;
+        ReturnLinkTraversal<ComputedElemTraversal> child;
         child.r = trav.r;
-        trav_computed_elem<return_ref>(
-            child, trav, ref, f, trav.index, AC::Read
+        trav_computed_elem<return_link>(
+            child, trav, move(link), f, trav.index, AC::Read
         );
     }
 
@@ -579,9 +579,9 @@ struct TraverseElem {
         ptr.address = (Mu*)(
             (char*)ptr.address + trav.index * ptr.type().cpp_size()
         );
-        ReturnRefTraversal<ContiguousElemTraversal> child;
+        ReturnLinkTraversal<ContiguousElemTraversal> child;
         child.r = trav.r;
-        trav_contiguous_elem<return_ref>(
+        trav_contiguous_elem<return_link>(
             child, trav, ptr, f, trav.index, AC::Read
         );
     }
@@ -599,16 +599,16 @@ struct TraverseElem {
 
 } // in
 
-AnyRef item_maybe_elem (
-    const AnyRef& item, u32 index, RouteRef rt
+Link item_maybe_elem (
+    const Link& item, u32 index, RouteRef rt
 ) {
-    AnyRef r;
+    Link r;
     TraverseElem::start(item, index, rt, r);
     return r;
 }
 
-AnyRef item_elem (const AnyRef& item, u32 index, RouteRef rt) {
-    AnyRef r;
+Link item_elem (const Link& item, u32 index, RouteRef rt) {
+    Link r;
     TraverseElem::start(item, index, rt, r);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }

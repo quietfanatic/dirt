@@ -78,9 +78,9 @@ enum class AcrForm : u8 {
     Member,
     RefFunc,
     ConstantPtr,
-    AnyRefFunc,
+    LinkFunc,
     AnyPtrFunc,
-    PtrToAnyRef,
+    PtrToLink,
     Functive, // Miscellaneous functive accessor that doesn't need destructing
     Variable,
     Chain,
@@ -97,9 +97,9 @@ void access_Reinterpret (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Member (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_RefFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_ConstantPtr (const Accessor*, Mu&, AccessCB, AccessCaps);
-void access_AnyRefFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
+void access_LinkFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_AnyPtrFunc (const Accessor*, Mu&, AccessCB, AccessCaps);
-void access_PtrToAnyRef (const Accessor*, Mu&, AccessCB, AccessCaps);
+void access_PtrToLink (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Functive (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Variable (const Accessor*, Mu&, AccessCB, AccessCaps);
 void access_Chain (const Accessor*, Mu&, AccessCB, AccessCaps);
@@ -112,9 +112,9 @@ constexpr AccessFunc* access_table [] = {
     access_Member,
     access_RefFunc,
     access_ConstantPtr,
-    access_AnyRefFunc,
+    access_LinkFunc,
     access_AnyPtrFunc,
-    access_PtrToAnyRef,
+    access_PtrToLink,
     access_Functive,
     access_Variable,
     access_Chain,
@@ -130,8 +130,8 @@ struct Accessor {
      // references to overflow the count it won't be deleted.  I doubt you'll
      // care.  (Usually refcounts are marked mutable, but that's illegal in
      // constexpr classes.)  Note also that the refcount starts at 1, so when
-     // constructing an AnyRef or a ChainAcr with a new Accessor*, don't call
-     // inc() on it.
+     // constructing a Link or a ChainAcr with a new Accessor*, don't call inc()
+     // on it.
     u32 ref_count = 1;
     AcrForm form;
     AccessCaps caps;

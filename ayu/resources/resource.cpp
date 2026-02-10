@@ -3,7 +3,7 @@
 #include "../../uni/io.h"
 #include "../data/parse.h"
 #include "../data/print.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "../reflection/anyval.h"
 #include "../reflection/describe-standard.h"
 #include "../reflection/describe.h"
@@ -68,7 +68,7 @@ static void raise_would_break (
 ) {
     UniqueString mess = cat(
         (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
-        "loading resources would break ", breaks.size(), " reference(s): \n"
+        "loading resources would break ", breaks.size(), " link(s): \n"
     );
      // TODO: encat
     for (usize i = 0; i < breaks.size(); ++i) {
@@ -183,8 +183,8 @@ void Resource::set_value (AnyVal&& value) {
     data->state = RS::Loaded;
 }
 
-AnyRef Resource::operator[] (const AnyString& key) { return ref()[key]; }
-AnyRef Resource::operator[] (u32 index) { return ref()[index]; }
+Link Resource::operator[] (const AnyString& key) { return link()[key]; }
+Link Resource::operator[] (u32 index) { return link()[index]; }
 
 ///// CONSTRUCTION, DESTRUCTION
 
@@ -333,28 +333,28 @@ static void really_unload (ResourceData* data) {
 
 struct ResourceScanInfo {
     ResourceData* data;
-    UniqueArray<AnyRef> outgoing_refs;
+    UniqueArray<Link> outgoing_links;
 };
  // TODO: replace with binary search
-using RefsToReses = std::unordered_map<AnyRef, ResourceData*>;
+using LinksToReses = std::unordered_map<Link, ResourceData*>;
 
-static void reach_reference (
+static void reach_link (
     const UniqueArray<ResourceScanInfo>& scan_info,
-    const RefsToReses& refs_to_reses,
-    const AnyRef& item
+    const LinksToReses& links_to_reses,
+    const Link& item
 ) {
-    auto it = refs_to_reses.find(item);
-    if (it == refs_to_reses.end()) {
-         // Reference is already invalid?  Either that or it points to the
-         // root set, which we didn't bother studying because we already
-         // know it's reachable.
+    auto it = links_to_reses.find(item);
+    if (it == links_to_reses.end()) {
+         // Link is already invalid?  Either that or it points to the root set,
+         // which we didn't bother studying because we already know it's
+         // reachable.
         return;
     }
     auto to_data = it->second;
     if (to_data->reachable) return;
     to_data->reachable = true;
-    for (auto& ref : scan_info[to_data->node_id].outgoing_refs) {
-        reach_reference(scan_info, refs_to_reses, ref);
+    for (auto& link : scan_info[to_data->node_id].outgoing_links) {
+        reach_link(scan_info, links_to_reses, link);
     }
 }
 
@@ -371,7 +371,7 @@ void unload (Slice<ResourceRef> to_unload) {
         if (data->state != RS::Loaded) continue;
          // Assign integer ID for indexing
         data->node_id = scan_info.size();
-        scan_info.emplace_back_expect_capacity(data, UniqueArray<AnyRef>());
+        scan_info.emplace_back_expect_capacity(data, UniqueArray<Link>());
          // Our root set for the reachability traversal is all resources that
          // have a reference count but were not explicitly requested to be
          // unloaded.
@@ -402,24 +402,24 @@ void unload (Slice<ResourceRef> to_unload) {
     }
      // Collect as much info as we can from one scan.  Unfortunately we can't
      // traverse the data graph directly, because finding out what Resource a
-     // reference points to requires a full scan itself.  We don't have to cache
-     // as much data as reference_to_route though; we only need to keep track of
-     // the Route's root, not the whole Route itself.
-    auto refs_to_reses = std::unordered_map<AnyRef, ResourceData*>();
+     // link points to requires a full scan itself.  We don't have to cache as
+     // much data as link_to_route though; we only need to keep track of the
+     // Route's root, not the whole Route itself.
+    auto links_to_reses = std::unordered_map<Link, ResourceData*>();
     for (auto& info : scan_info) {
          // TODO: Don't generate routes if we're throwing them away
-        scan_resource_references(info.data,
-            [&refs_to_reses, &info](const AnyRef& item, RouteRef)
+        scan_resource_links(info.data,
+            [&links_to_reses, &info](const Link& item, RouteRef)
         {
-             // Don't need to enumerate references for resources in the root
-             // set, because they start out reachable.
+             // Don't need to enumerate links for resources in the root set,
+             // because they start out reachable.
             if (!info.data->root) {
-                refs_to_reses.emplace(item, info.data);
+                links_to_reses.emplace(item, info.data);
             }
             item.read([&info](Type t, Mu* v){
-                if (t == Type::For<AnyRef>()) {
-                    info.outgoing_refs.emplace_back(
-                        *reinterpret_cast<AnyRef*>(v)
+                if (t == Type::For<Link>()) {
+                    info.outgoing_links.emplace_back(
+                        *reinterpret_cast<Link*>(v)
                     );
                 }
             });
@@ -428,12 +428,12 @@ void unload (Slice<ResourceRef> to_unload) {
     }
      // Now traverse the graph starting with the tracked items and roots.
     for (auto& g : universe().tracked) {
-        scan_references(
+        scan_links(
             g, {},
-            [&scan_info, refs_to_reses](const AnyRef& item, RouteRef)
+            [&scan_info, links_to_reses](const Link& item, RouteRef)
         {
-            if (item.type() == Type::For<AnyRef>()) {
-                reach_reference(scan_info, refs_to_reses, item);
+            if (item.type() == Type::For<Link>()) {
+                reach_link(scan_info, links_to_reses, item);
             }
             return false;
         });
@@ -441,8 +441,8 @@ void unload (Slice<ResourceRef> to_unload) {
     for (auto& info : scan_info) {
         if (info.data->root) {
             info.data->reachable = true;
-            for (auto& ref : scan_info[info.data->node_id].outgoing_refs) {
-                reach_reference(scan_info, refs_to_reses, ref);
+            for (auto& link : scan_info[info.data->node_id].outgoing_links) {
+                reach_link(scan_info, links_to_reses, link);
             }
         }
     }
@@ -475,16 +475,16 @@ void force_unload (ResourceRef res) noexcept {
 }
 
 struct Update {
-    AnyRef ref_ref;
-    AnyRef new_ref;
+    Link link2link;
+    Link new_link;
 };
 
 NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
-        update.ref_ref.write(
+        update.link2link.write(
             AccessCB(move(update), [](Update&& update, Type t, Mu* v){
-                expect(t == Type::For<AnyRef>());
-                reinterpret_cast<AnyRef&>(*v) = move(update.new_ref);
+                expect(t == Type::For<Link>());
+                reinterpret_cast<Link&>(*v) = move(update.new_link);
             })
         );
     });
@@ -546,30 +546,30 @@ void reload (Slice<ResourceRef> reses) {
          // If we're reloading everything, no need to do any scanning.
          // TODO: what about tracked variables???
         if (others) {
-             // First build mapping of old refs to locations
-            std::unordered_map<AnyRef, SharedRoute> old_refs;
+             // First build mapping of old links to locations
+            std::unordered_map<Link, SharedRoute> old_links;
             for (auto& rov : rovs) {
-                scan_references(
+                scan_links(
                     rov.old_value.ptr(), SharedRoute(rov.res),
-                    [&old_refs](const AnyRef& ref, RouteRef rt) {
-                        old_refs.emplace(ref, rt);
+                    [&old_links](const Link& link, RouteRef rt) {
+                        old_links.emplace(link, rt);
                         return false;
                     }
                 );
             }
-             // Then build set of ref-refs to update.
+             // Then build set of link-links to update.
             UniqueArray<Break> breaks;
-            auto check_ref =
-                [&updates, &old_refs, &breaks](AnyRef ref_ref, RouteRef rt)
+            auto check_link =
+                [&updates, &old_links, &breaks](Link link2link, RouteRef rt)
             {
-                 // TODO: check for AnyPtr as well?
-                if (ref_ref.type() != Type::For<AnyRef>()) return false;
-                AnyRef ref = ref_ref.get_as<AnyRef>();
-                auto iter = old_refs.find(ref);
-                if (iter == old_refs.end()) return false;
+                 // TODO: check for AnyPtr as well as a shortcut?
+                if (link2link.type() != Type::For<Link>()) return false;
+                Link link = link2link.get_as<Link>();
+                auto iter = old_links.find(link);
+                if (iter == old_links.end()) return false;
                 try {
-                    AnyRef new_ref = reference_from_route(iter->second);
-                    updates.emplace_back(move(ref_ref), move(new_ref));
+                    Link new_link = link_from_route(iter->second);
+                    updates.emplace_back(move(link2link), move(new_link));
                 }
                 catch (std::exception&) {
                     breaks.emplace_back(rt, iter->second);
@@ -577,10 +577,10 @@ void reload (Slice<ResourceRef> reses) {
                 return false;
             };
             for (auto tracked : universe().tracked) {
-                scan_references(tracked, {}, check_ref);
+                scan_links(tracked, {}, check_link);
             }
             for (auto other : others) {
-                scan_resource_references(other, check_ref);
+                scan_resource_links(other, check_link);
             }
             if (breaks) {
                 raise_would_break(e_ResourceReloadWouldBreak, move(breaks));
@@ -592,8 +592,7 @@ void reload (Slice<ResourceRef> reses) {
         expect(!rovs);
         throw;
     }
-     // Commit step.  TODO: Update references now and roll them back if
-     // necessary
+     // Commit step.  TODO: Update links now and roll them back if necessary
     if (ResourceTransaction::depth) {
         struct ReloadCommitter : Committer {
             UniqueArray<ROV> rovs;
@@ -694,8 +693,8 @@ void untrack_ptr (AnyPtr item) noexcept {
 #endif
 }
 
-AnyRef track_ptr (AnyPtr item, const IRI& loc) {
-    AnyRef r = reference_from_iri(loc);
+Link track_ptr (AnyPtr item, const IRI& loc) {
+    Link r = link_from_iri(loc);
     track_ptr(item);
     return r;
 }
@@ -799,39 +798,39 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{
         item_from_string(&rt, cat('"', input->name().spec(), "#/bar+1\""));
     }, "Can read route from tree");
-    AnyRef ref;
+    Link link;
     doesnt_throw([&]{
-        ref = reference_from_route(rt);
-    }, "reference_from_route");
+        link = link_from_route(rt);
+    }, "link_from_route");
     doesnt_throw([&]{
-        is(ref.get_as<std::string>(), "qux", "reference_from_route got correct item");
+        is(link.get_as<std::string>(), "qux", "link_from_route got correct item");
     });
     doc = &output->value().as<ayu::Document>();
-    ref = output["asdf"][1].address_as<i32>();
+    link = output["asdf"][1].address_as<i32>();
     doesnt_throw([&]{
-        rt = reference_to_route(ref);
+        rt = link_to_route(link);
     });
-    is(item_to_tree(&rt), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "reference_to_route works");
-    doc->new_<AnyRef>(output["bar"][1]);
-    doesnt_throw([&]{ save(output); }, "save with reference");
+    is(item_to_tree(&rt), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "link_to_route works");
+    doc->new_<Link>(output["bar"][1]);
+    doesnt_throw([&]{ save(output); }, "save with link");
     doc->new_<i32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
     is(tree_from_file(resource_filepath(output->name())), tree_from_string(
-        "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _0:[ayu::AnyRef #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
-    ), "File was saved with correct reference as route");
+        "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _0:[ayu::Link #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
+    ), "File was saved with correct link as route");
     throws_code<e_OpenFailed>([&]{
         load(badinput);
-    }, "Can't load file with incorrect reference in it");
+    }, "Can't load file with incorrect link in it");
 
     doesnt_throw([&]{
         unload(input);
         load(input2);
-    }, "Can load second file referencing first");
-    is(input->state(), RS::Loaded, "Loading second file referencing first file loads first file");
+    }, "Can load second file linked to first");
+    is(input->state(), RS::Loaded, "Loading second file linked to first file loads first file");
     std::string* bar;
     doesnt_throw([&]{
         bar = input["bar"][1];
-    }, "can use [] syntax on resources and references");
+    }, "can use [] syntax on resources and links");
     is(
         input2["ext_pointer"][1].get_as<std::string*>(),
         bar,
@@ -851,36 +850,36 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     );
     throws_code<e_ResourceUnloadWouldBreak>([&]{
         unload(input);
-    }, "Can't unload resource when there are references to it");
+    }, "Can't unload resource when there are link to it");
     doesnt_throw([&]{
         unload(input2);
         unload(input);
-    }, "Can unload if we unload the referring resource first");
+    }, "Can unload if we unload the linking resource first");
     doesnt_throw([&]{
         load(rec1);
-    }, "Can load resources with reference cycle");
+    }, "Can load resources with link cycle");
     throws_code<e_ResourceUnloadWouldBreak>([&]{
         unload(rec1);
-    }, "Can't unload part of a reference cycle 1");
+    }, "Can't unload part of a link cycle 1");
     throws_code<e_ResourceUnloadWouldBreak>([&]{
         unload(rec2);
-    }, "Can't unload part of a reference cycle 2");
+    }, "Can't unload part of a link cycle 2");
     doesnt_throw([&]{
         unload({rec1, rec2});
-    }, "Can unload reference cycle by unload both resources at once");
+    }, "Can unload link cycle by unload both resources at once");
      // TODO: test that calling unload unloads dependent resources if there are
      // no SharedResource handles pointing to them.
 
     load(rec1);
-    int* old_p = rec1["ref"][1].get_as<int*>();
+    int* old_p = rec1["link"][1].get_as<int*>();
     int* global_p = old_p;
     ayu::track(global_p);
 
     doesnt_throw([&]{
         reload(rec2);
-    }, "Can reload file with references to it");
-    int* new_p = rec1["ref"][1].get_as<int*>();
-    isnt(new_p, old_p, "Reference to reloaded file was updated");
+    }, "Can reload file with links to it");
+    int* new_p = rec1["link"][1].get_as<int*>();
+    isnt(new_p, old_p, "Link to reloaded file was updated");
     is(global_p, new_p, "Global was updated.");
 
     throws_code<e_ResourceTypeRejected>([&]{

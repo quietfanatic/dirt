@@ -6,7 +6,7 @@
 #include "../common.h"
 #include "../data/parse.h"
 #include "../data/tree.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "route.h"
 
 namespace ayu {
@@ -18,8 +18,8 @@ enum class FromTreeOptions {
      // operations for after the outer call does its swizzle and init
      // operations respectively.  This will allow items to cyclically reference
      // one another, but can only be used if
-     //   A: the provided reference will still be valid later on (e.g it's not
-     //      the address of a stack temporary that's about to be moved into a
+     //   A: the provided link will still be valid later on (e.g it's not the
+     //      address of a stack temporary that's about to be moved into a
      //      container), and
      //   B: the item's treatment will not change based on its value.  For
      //      instance, this is not usable on the elements of a
@@ -55,7 +55,7 @@ using FTO = FromTreeOptions;
  // If none of those descriptors are applicable, a CannotFromTree exception will
  // be thrown.
 void item_from_tree (
-    const AnyRef&, const Tree&, RouteRef rt = {},
+    const Link&, const Tree&, RouteRef rt = {},
     FromTreeOptions opts = {}
 );
  // Slight optimization for pointers (the usual case)

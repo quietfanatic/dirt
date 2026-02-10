@@ -8,7 +8,7 @@
 namespace ayu {
 using namespace in;
 
-void dump_refs (Slice<AnyRef> rs) {
+void dump_refs (Slice<Link> rs) {
     switch (rs.size()) {
         case 0: warn_utf8("[]\n"); break;
         case 1: {

@@ -11,11 +11,11 @@ struct ResourceRoute : Route {
         Route(RF::Resource), resource(move(res))
     { expect(resource); }
 };
-struct ReferenceRoute : Route {
-    AnyRef reference;
-    ReferenceRoute (AnyRef ref) :
-        Route(RF::Reference), reference(move(ref))
-    { expect(reference); }
+struct LinkRoute : Route {
+    Link link;
+    LinkRoute (Link l) :
+        Route(RF::Link), link(move(l))
+    { expect(link); }
 };
 struct ChildRoute : Route {
     SharedRoute parent;
@@ -40,8 +40,8 @@ struct IndexRoute : ChildRoute {
 inline SharedRoute::SharedRoute (ResourceRef res) noexcept :
     data(new in::ResourceRoute(res))
 { }
-inline SharedRoute::SharedRoute (const AnyRef& ref) noexcept :
-    data(new in::ReferenceRoute(ref))
+inline SharedRoute::SharedRoute (const Link& l) noexcept :
+    data(new in::LinkRoute(l))
 { }
 inline SharedRoute::SharedRoute (SharedRoute p, AnyString k) noexcept :
     data(new in::KeyRoute(move(p), move(k)))
@@ -58,9 +58,9 @@ inline ResourceRef Route::resource () const noexcept {
     else return static_cast<const in::ResourceRoute*>(this)->resource;
 }
 #pragma GCC diagnostic pop
-inline const AnyRef* Route::reference () const noexcept {
-    if (form != RF::Reference) return null;
-    else return &static_cast<const in::ReferenceRoute*>(this)->reference;
+inline const Link* Route::link () const noexcept {
+    if (form != RF::Link) return null;
+    else return &static_cast<const in::LinkRoute*>(this)->link;
 }
 inline RouteRef Route::parent () const noexcept {
     if (u8(form) < u8(RF::Key)) return {};
@@ -86,7 +86,7 @@ inline const IRI& current_base_iri () noexcept {
     if (!current_base) return empty;
     switch (current_base->form) {
         case RF::Resource: return current_base->resource()->name();
-        case RF::Reference: return anonymous_iri;
+        case RF::Link: return anonymous_iri;
         default: never();
     }
 }

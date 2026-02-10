@@ -30,16 +30,16 @@ struct AnyPtr {
         AnyPtr(t, a, !(caps % AC::Write))
     { require(caps & AC::Address); } // TODO: raise exception instead
 
-     // Coercion from pointer is explicit for AnyPtr* and AnyRef* to avoid
+     // Coercion from pointer is explicit for AnyPtr* and Link* to avoid
      // mistakes.  Watch out for when you're working with template parameters!
-    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
+    template <Describable T> explicit(IsAnyPtrOrLink<T>)
     AnyPtr (T* a) :
         address((Mu*)a),
         type_p(Type::For<T>().data)
     { }
 
      // Coercion from const pointer.
-    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
+    template <Describable T> explicit(IsAnyPtrOrLink<T>)
     AnyPtr (const T* a) :
         address((Mu*)a),
         type_i(reinterpret_cast<usize>(Type::For<T>().data) | 1)
@@ -107,9 +107,9 @@ struct AnyPtr {
         return AC::AllowEverything ^ AccessCaps(readonly());
     }
 
-    // Cheat code!  You can pretend an AnyPtr is an AnyRef (but not vice versa).
-    operator AnyRef& () { return reinterpret_cast<AnyRef&>(*this); }
-    operator const AnyRef& () const { return reinterpret_cast<const AnyRef&>(*this); }
+    // Cheat code!  You can pretend an AnyPtr is a Link (but not vice versa).
+    operator Link& () { return reinterpret_cast<Link&>(*this); }
+    operator const Link& () const { return reinterpret_cast<const Link&>(*this); }
 };
 
  // AnyPtrs have a slightly evil property where a readonly pointer can equal a

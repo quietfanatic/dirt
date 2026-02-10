@@ -10,13 +10,13 @@ namespace in {
 
 struct SwizzleOp {
     SharedRoute base;
-    AnyRef item;
+    Link item;
     SwizzleFunc<Mu>* f;
     Tree tree;
 };
 struct InitOp {
     SharedRoute base;
-    AnyRef item;
+    Link item;
     InitFunc<Mu>* f;
     double order;
 };
@@ -67,7 +67,7 @@ struct TraverseFromTree {
 
     static
     void start (
-        const AnyRef& item, const Tree& tree, RouteRef rt,
+        const Link& item, const Tree& tree, RouteRef rt,
         FromTreeOptions opts
     ) {
         plog("from_tree start");
@@ -88,7 +88,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void start_with_context (
-        const AnyRef& item, const Tree& tree, RouteRef rt
+        const Link& item, const Tree& tree, RouteRef rt
     ) {
          // Start a resource transaction so that dependency loads are all or
          // nothing.
@@ -104,7 +104,7 @@ struct TraverseFromTree {
 
     NOINLINE static
     void start_without_context (
-        const AnyRef& item, const Tree& tree, RouteRef rt
+        const Link& item, const Tree& tree, RouteRef rt
     ) {
         CurrentBase curb (rt, item);
         FromTreeTraversal<StartTraversal> child;
@@ -556,7 +556,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, const TreePair& pair, AttrFunc<Mu>* f
     ) {
         auto& [key, value] = pair;
-        AnyRef ref = f(*trav.address, key);
+        Link ref = f(*trav.address, key);
         if (!ref) raise_AttrNotFound(trav.type, key);
         FromTreeTraversal<ComputedAttrTraversal> child;
         child.tree = &value;
@@ -721,13 +721,13 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav,
         const DescriptionPrivate* desc
     ) {
-         // We're repeating the to_reference work if there's both a swizzle and
+         // We're repeating the to_link work if there's both a swizzle and
          // an init, but almost no types are going to have both.
         if (auto swizzle = desc->swizzle()) {
             auto& op = IFTContext::current->swizzle_ops.emplace_back(
-                current_base, AnyRef(), swizzle->f, *trav.tree
+                current_base, Link(), swizzle->f, *trav.tree
             );
-            trav.to_reference(&op.item);
+            trav.to_link(&op.item);
         }
         if (auto init = desc->init()) {
             auto& init_ops = IFTContext::current->init_ops;
@@ -736,9 +736,9 @@ struct TraverseFromTree {
                 if (init->order >= init_ops[i-1].order) break;
             }
             auto& op = init_ops.emplace(
-                i, current_base, AnyRef(), init->f, init->order
+                i, current_base, Link(), init->f, init->order
             );
-            trav.to_reference(&op.item);
+            trav.to_link(&op.item);
         }
     }
 
@@ -779,7 +779,7 @@ struct TraverseFromTree {
 } using namespace in;
 
 void item_from_tree (
-    const AnyRef& item, const Tree& tree, RouteRef rt,
+    const Link& item, const Tree& tree, RouteRef rt,
     FromTreeOptions opts
 ) {
     TraverseFromTree::start(item, tree, rt, opts);

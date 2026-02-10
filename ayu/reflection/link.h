@@ -1,41 +1,42 @@
-// An AnyRef is a reference-like class that can point to an item of any type
-// that is known to AYU, that is, any type that has an AYU_DESCRIBE description.
+// A Link is a reference-like class that can point to an item of any type that
+// is known to AYU, that is, any type that has an AYU_DESCRIBE description.
 //
-// An AnyRef can reference any item that can be accessed through an accessor
-// (see describe-base.h), even if its address cannot be taken.  So for instance,
-// if a class has an abstract property that can only be accessed with methods
-// called "get_size" and "set_size", then a AnyRef would let you refer to
-// that abstract property as though it's a single item.
+// A Link can point to any item that can be accessed through an accessor (see
+// describe-base.h), even if its address cannot be taken.  So for instance, if a
+// class has an abstract property that can only be accessed with methods called
+// "get_size" and "set_size", then a Link would let you refer to that abstract
+// property as though it's a single item.
 //
 // Just as with C++ native references or pointers, there is no way to check that
-// the lifetime of the AnyRef does not exceed the lifetime of the referred-to
-// item, so take care not to dereference a AnyRef after its item goes away.
+// the lifetime of the Link does not exceed the lifetime of the referred-to
+// item, so take care not to dereference a Link after its item goes away.
 //
-// Objects of the AnyRef class themselves are immutable.  Internally they
-// contain a raw pointer to a parent object and a possibly-refcounted pointer to
-// an accessor, so they are cheap to copy, but not threadsafe.
+// Objects of the Link class themselves are immutable.  Internally they contain
+// a raw pointer to a parent object and a possibly-refcounted pointer to an
+// accessor, so they are cheap to copy, but not threadsafe.
 //
-// AnyRefs can be read from with read() which takes a callback or get_as<>()
-// which returns the referenced value after copying it with operator=.
+// Links can be read from with read() which takes a callback or get_as<>() which
+// returns the linked-to value after copying it with operator=.
 //
-// AnyRefs can be written with write() which takes a callback or set_as<>()
-// which assigns the referenced value with operator=.  write() may or may not
-// clear the item's value before calling the callback, so if you want to keep
-// the item's original value, use modify().  Some AnyRefs are readonly, and
-// trying to write to them will throw WriteReadonly.
+// Links can be written with write() which takes a callback or set_as<>() which
+// assigns the referenced value with operator=.  write() may or may not clear
+// the item's value before calling the callback, so if you want to keep the
+// item's original value, use modify().  Some Links are readonly, and trying to
+// write to them will throw WriteReadonly.
 //
-// An AnyRef can be implicitly cast to a raw C++ pointer if the item it points
-// to is addressable.  A readonly AnyRef can only be cast to a const pointer.  A
-// raw C++ pointer can be implicitly cast to an AnyRef if the pointed-to type is
-// known to AYU.
+// An Link can be implicitly cast to a raw C++ pointer if the item it points to
+// is addressable and has a type that can be upcasted to the pointer's type.  A
+// readonly Link can only be cast to a const pointer.  A raw C++ pointer can be
+// implicitly cast to a Link if the pointed-to type is known to AYU.
 //
-// There is an empty AnyRef, which has no type and no value.  There are also
-// typed "null" AnyRefs, which have a type but no value, and are equivalent to
-// typed null pointers.  operator bool returns false for both of these, so to
+// There is an empty Link, which has no type and no value.  There are also typed
+// "null" Links, which have a type but no value, and are equivalent to typed
+// null pointers.  For the most part you don't have to think about the
+// difference between these.  operator bool returns false for both, so to
 // differentiate them, call .type(), which will return the empty Type for the
-// empty AnyRef.  read(), write(), and modify() can be called on typed null
-// AnyRefs, but not the empty AnyRef.  get_as<>() and set_as<>() will segfault
-// on empty or null AnyRefs.
+// empty Link.  read(), write(), and modify() can be called on typed null Links,
+// but not the empty Link.  get_as<>() and set_as<>() will segfault on empty or
+// null Links.
 
 #pragma once
 #include <type_traits>
@@ -44,7 +45,7 @@
 
 namespace ayu {
 
-struct AnyRef {
+struct Link {
     Mu* host;
     union { // Same representation as AnyPtr
         const void* acr_p;
@@ -53,62 +54,62 @@ struct AnyRef {
 
 ///// CONSTRUCTION
 
-     // The empty AnyRef will cause null derefs if you do anything with it.
-    constexpr AnyRef (Null n = null) : host(n), acr_p(n) { }
+     // The empty Link will cause null derefs if you do anything with it.
+    constexpr Link (Null n = null) : host(n), acr_p(n) { }
 
      // Construct from internal data.
-    AnyRef (Mu* h, const in::Accessor* a) : host(h), acr_p(a) { }
-    AnyRef (Mu* h, const in::Accessor* a, AccessCaps caps) :
+    Link (Mu* h, const in::Accessor* a) : host(h), acr_p(a) { }
+    Link (Mu* h, const in::Accessor* a, AccessCaps caps) :
         host(h), acr_i(reinterpret_cast<usize>(a) | !(caps % AC::Write))
     { }
 
-     // Construct from a AnyPtr.  Explicit because AnyPtr& can be implicitly
-     // reinterpreted as AnyRef&, and that is preferred.
-    explicit AnyRef (AnyPtr p) : host(p.address), acr_p(p.type_p) { }
+     // Construct from an AnyPtr.  Explicit because AnyPtr& can be implicitly
+     // reinterpreted as Link&, and that is preferred.
+    explicit Link (AnyPtr p) : host(p.address), acr_p(p.type_p) { }
 
-     // Construct from native pointer.  Explicit for AnyPtr* and AnyRef*,
+     // Construct from native pointer.  Explicit for AnyPtr* and Link*,
      // because that's likely to be a mistake.
-    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
-    AnyRef (T* p) : host((Mu*)p), acr_p(Type::For<T>().data) { }
-    template <Describable T> explicit(IsAnyPtrOrAnyRef<T>)
-    AnyRef (const T* p) : host((Mu*)p), acr_i(
+    template <Describable T> explicit(IsAnyPtrOrLink<T>)
+    Link (T* p) : host((Mu*)p), acr_p(Type::For<T>().data) { }
+    template <Describable T> explicit(IsAnyPtrOrLink<T>)
+    Link (const T* p) : host((Mu*)p), acr_i(
         reinterpret_cast<usize>(Type::For<T>().data) | 1
     ) { }
 
      // Construct from unknown pointer and type
-    AnyRef (Type t, Mu* p) : host(p), acr_p(t.data) { }
-    AnyRef (Type t, Mu* p, bool readonly) : host(p), acr_i(
+    Link (Type t, Mu* p) : host(p), acr_p(t.data) { }
+    Link (Type t, Mu* p, bool readonly) : host(p), acr_i(
         reinterpret_cast<usize>(t.data) | readonly
     ) { }
 
      // Construct from an object and an accessor for that object.  This is
      // intended to be used in computed_attrs and computed_elems functions in
      // AYU_DESCRIBE blocks.  The first argument must be an instance of the type
-     // being described, and the second argument must be one of the
-     // accessor-generating functions in describe-base.h (the same thing you
-     // would pass to, say attr or elem).
+     // being described, and the second argument must be one of the accessor-
+     // generating functions in describe-base.h (the same thing you would pass
+     // to attr or elem).
     template <Describable From, AccessorFrom<From> Acr>
-    AnyRef (From& h, Acr&& a) : AnyRef(&h, new Acr(move(a))) { }
+    Link (From& h, Acr&& a) : Link(&h, new Acr(move(a))) { }
 
      // Copy and move construction and assignment
-    AnyRef (const AnyRef& o) : host(o.host), acr_p(o.acr_p) {
+    Link (const Link& o) : host(o.host), acr_p(o.acr_p) {
         if (acr_p) acr()->inc();
     }
-    AnyRef (AnyRef&& o) :
+    Link (Link&& o) :
         host(o.host), acr_p(o.acr_p)
     {
         o.host = null;
         o.acr_p = null;
     }
-    AnyRef& operator = (const AnyRef& o) {
-        this->~AnyRef();
+    Link& operator = (const Link& o) {
+        this->~Link();
         host = o.host;
         acr_p = o.acr_p;
         if (acr_p) acr()->inc();
         return *this;
     }
-    AnyRef& operator = (AnyRef&& o) {
-        this->~AnyRef();
+    Link& operator = (Link&& o) {
+        this->~Link();
         host = o.host;
         acr_p = o.acr_p;
         o.host = null;
@@ -116,7 +117,7 @@ struct AnyRef {
         return *this;
     }
 
-    constexpr ~AnyRef () { if (acr_p) acr()->dec(); }
+    constexpr ~Link () { if (acr_p) acr()->dec(); }
 
 ///// INFO
 
@@ -127,7 +128,7 @@ struct AnyRef {
         return reinterpret_cast<const in::Accessor*>(acr_i & ~1);
     }
 
-     // Get type of referred-to item.  Gives empty Type for empty AnyRef.
+     // Get type of referred-to item.  Gives empty Type for empty Link.
     Type type () const {
         if (!acr_p) [[unlikely]] return Type();
         Type r;
@@ -149,7 +150,7 @@ struct AnyRef {
         return caps() % AC::Write;
     }
 
-     // Throws ReferenceUnaddressable if this AnyRef is not addressable.
+     // Throws AddressUnaddressable if this Link is not addressable.
     AnyPtr address () const {
         if (!acr_p) [[unlikely]] return AnyPtr();
         AnyPtr r;
@@ -160,7 +161,7 @@ struct AnyRef {
         return r;
     }
 
-     // Can throw either TypeCantCast or ReferenceUnaddressable
+     // Can throw either TypeCantCast or LinkUnaddressable
     Mu* address_as (Type t) const {
         if (!acr_p) [[unlikely]] return null;
         return address().upcast_to(t).address;
@@ -240,8 +241,8 @@ struct AnyRef {
 
      // These are just wrappers around item_attr and item_elem, but they're
      // extern so that we don't pull too many dependencies into this header.
-    AnyRef operator [] (const AnyString& key) const;
-    AnyRef operator [] (u32 index) const;
+    Link operator [] (const AnyString& key) const;
+    Link operator [] (u32 index) const;
 
 ///// ERRORS
 
@@ -250,13 +251,13 @@ struct AnyRef {
 
 ///// COMPARISON
 
- // AnyRef comparison is best-effort.  If two AnyRefs were constructed
- // differently but happen to point to the same item, they might be considered
- // unequal.  This should be rare though.  Similarly to AnyPtr (and native
- // pointers) access capabilities are ignored when comparing AnyRefs, so a
- // readonly or unaddressable ref may compare equal to a writeable or
- // addressable ref (provided other details of the refs are identical).
-inline bool operator == (const AnyRef& a, const AnyRef& b) {
+ // Link comparison is best-effort.  If two Links were constructed differently
+ // but happen to point to the same item, they might be considered unequal.
+ // This should be rare though.  Similarly to AnyPtr (and native pointers)
+ // access capabilities are ignored when comparing Links, so a readonly or
+ // unaddressable ref may compare equal to a writeable or addressable ref
+ // (provided other details of the refs are identical).
+inline bool operator == (const Link& a, const Link& b) {
     if (a.host != b.host) return false;
     if (!a.acr() | !b.acr()) return a.acr() == b.acr();
     return *a.acr() == *b.acr();
@@ -264,9 +265,10 @@ inline bool operator == (const AnyRef& a, const AnyRef& b) {
 
 ///// ERROR CODES
 
- // Tried to write through a readonly AnyRef.
+ // TODO: merge these
+ // Tried to write through a readonly Link.
 constexpr ErrorCode e_WriteReadonly = "ayu::e_WriteReadonly";
- // Tried to get the address of an AnyRef, but it doesn't support addressing.
+ // Tried to get the address of a Link, but it doesn't support addressing.
 constexpr ErrorCode e_AddressUnaddressable = "ayu::e_AddressUnaddressable";
  // Generic access denied (unknown reason; should probably never happen)
 constexpr ErrorCode e_AccessDenied = "ayu::e_AccessDenied";
@@ -275,10 +277,10 @@ constexpr ErrorCode e_AccessDenied = "ayu::e_AccessDenied";
 
 ///// HASH
 
- // Allow AnyRef to be a key in unordered_map
+ // Allow Link to be a key in unordered_map
 template <>
-struct std::hash<ayu::AnyRef> {
-    std::size_t operator () (const ayu::AnyRef& r) const {
+struct std::hash<ayu::Link> {
+    std::size_t operator () (const ayu::Link& r) const {
         return uni::hash_combine(
             hash<ayu::Mu*>()(r.host),
             r.acr_p ? hash<ayu::in::Accessor>()(*r.acr()) : 0

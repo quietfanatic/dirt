@@ -24,7 +24,7 @@ struct TraverseToTree {
 
      // NOINLINE this because it generates a lot of code with trav_start
     NOINLINE static
-    void start (Tree& r, const AnyRef& item, RouteRef rt, ToTreeOptions opts) {
+    void start (Tree& r, const Link& item, RouteRef rt, ToTreeOptions opts) {
         plog("to_tree start");
         CurrentBase curb (rt, item);
         KeepRouteCache klc;
@@ -427,14 +427,14 @@ struct TraverseToTree {
 
 } using namespace in;
 
-Tree item_to_tree (const AnyRef& item, RouteRef rt, ToTreeOptions opts) {
+Tree item_to_tree (const Link& item, RouteRef rt, ToTreeOptions opts) {
     Tree r;
     TraverseToTree::start(r, item, rt, opts);
     return r;
 }
 
 UniqueString item_to_string (
-    const AnyRef& item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
+    const Link& item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) {
     Tree t;
     TraverseToTree::start(t, item, rt, ttopts);
@@ -442,7 +442,7 @@ UniqueString item_to_string (
 }
 
 UniqueString show (
-    const AnyRef& item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
+    const Link& item, PrintOptions popts, RouteRef rt, ToTreeOptions ttopts
 ) noexcept {
     return item_to_string(item, popts, rt, ttopts | TTO::EmbedErrors);
 }

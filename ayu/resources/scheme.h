@@ -15,8 +15,8 @@ namespace ayu {
  // the virtual methods is just the path part of the name, and is always
  // canonicalized and absolute.
  //
- // Currently, resources from a scheme are only allowed to reference other
- // resources from the same scheme.
+ // Currently, resources in a scheme are only allowed to link to other resources
+ // in the same scheme.
  //
  // If no ResourceSchemes are active, then a default resource scheme with the
  // name "file" will be used, which maps resource names to files on disk.
@@ -28,15 +28,14 @@ struct ResourceScheme {
     const AnyString name;
 
      // If you want to do some of your own validation besides the standard IRI
-     // validation.  If this returns false, UnacceptableResourceName will
-     // be thrown.  The provided IRI will always be valid and will not have a
-     // #fragment.
+     // validation.  If this returns false, ResourceNameRejected will be thrown.
+     // The provided IRI will always be valid and will not have a #fragment.
     virtual bool accepts_name (const IRI&) const { return true; }
      // If you want to limit the allowed top-level types of your resources.
      // This is called when load(), reload(), save(), or set_value() is called
      // on a resource of this scheme, or a resource of this scheme is
      // constructed with a specific provided value.  If this returns false,
-     // UnacceptableResourceType will be thrown.
+     // ResourceTypeRejected will be thrown.
      // TODO: provide name as well
     virtual bool accepts_type (Type) const { return true; }
      // Turn an IRI into a filename.  If "" is returned, it means there is no

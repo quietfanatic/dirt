@@ -40,14 +40,14 @@
  //
  // The list of descriptors passed to AYU_DESCRIBE may be empty, in which case
  // the type cannot be serialized or deserialized, but it can still be used with
- // AnyRef and AnyVal, etc.
+ // Link and AnyVal, etc.
 
 #pragma once
 #include <type_traits>
 #include "../common.h"
 #include "../data/tree.h"
 #include "access.internal2.h"
-#include "anyref.h"
+#include "link.h"
 #include "description.internal.h"
 #include "type.h"
 
@@ -151,7 +151,7 @@ struct AYU_DescribeBase {
      // The provided Tree will never be the undefined Tree.
      //
      // You are allowed to call item_from_tree inside the from_tree callback,
-     // but references will not work properly in the item you call it on.
+     // but links will not work properly in the item you call it on.
      //
      // TODO: Add construct_from_tree for types that refuse to be default
      // constructed no matter what.
@@ -247,22 +247,22 @@ struct AYU_DescribeBase {
 
      // Specify flags for this type specifically.  Currently there are one and a
      // half supported flags:
-     //   - no_refs_to_children: Forbid other items from referencing recursive
-     //     child items of this type.  This item itself can still be referenced.
-     //     This allows the reference-to-route scanning system to save time by
-     //     skipping this item's children.
-     //   - no_refs_from_children: Forbid this item's recursive children from
-     //     containing references.  This is not currently enforced, and is for
+     //   - no_links_to_children: Forbid other items from linking to child items
+     //     of this type and their recursive children.  This item itself can
+     //     still be linked.  This allows the link-to-route scanning system to
+     //     save time by skipping this item's children.
+     //   - no_link_from_children: Forbid this item's recursive children from
+     //     containing links.  This is not currently enforced, and is for
      //     documentation purposes only.  There are some types which will cause
-     //     confusing breakages when they contain references--most notably,
-     //     std::set and std::unordered_set.
+     //     confusing breakages when they contain links (most notably, std::set
+     //     and std::unordered_set).
     static constexpr
     DescriptorFor<T> auto flags (
         TypeFlags
     );
 
-    static constexpr TypeFlags no_refs_to_children = in::TypeFlags::NoRefsToChildren;
-    static constexpr TypeFlags no_refs_from_children = in::TypeFlags::NoRefsFromChildren;
+    static constexpr TypeFlags no_links_to_children = in::TypeFlags::NoLinksToChildren;
+    static constexpr TypeFlags no_links_from_children = in::TypeFlags::NoLinksFromChildren;
 
     ///// DESCRIPTORS FOR ENUM-LIKE TYPES
 
@@ -458,14 +458,13 @@ struct AYU_DescribeBase {
      // will be determined using the computed_attrs() descriptor.
      //
      // During deserialization, `accessor`'s write operation will be called with
-     // the list of keys provided in the Tree, and it should throw
-     // MissingAttr if it isn't given an attribute it needs or
-     // UnwantedAttr if it's given an attribute it doesn't accept.  If
-     // `accessor` is a readonly accessor, then instead its `read` operation
-     // will be called, and the list of provided keys must match exactly or an
-     // exception will be thrown.  It is acceptable to ignore the provided list
-     // of keys and instead clear the item and later autovivify attributes given
-     // to computed_attrs().
+     // the list of keys provided in the Tree, and it should throw MissingAttr
+     // if it isn't given an attribute it needs or UnwantedAttr if it's given an
+     // attribute it doesn't accept.  If `accessor` is a readonly accessor, then
+     // instead its `read` operation will be called, and the list of provided
+     // keys must match exactly or an exception will be thrown.  It is
+     // acceptable to ignore the provided list of keys and instead clear the
+     // item and later autovivify attributes given to computed_attrs().
      //
      // If keys() is present, computed_attrs() must also be present, and attrs()
      // must not be present.
@@ -477,28 +476,28 @@ struct AYU_DescribeBase {
     );
 
      // Provide a way to read or write arbitrary attributes.  The function is
-     // expected to return an ayu::AnyRef corresponding to the attribute with
-     // the given key.  You can create that AnyRef any way you like, such as by
+     // expected to return an ayu::Link corresponding to the attribute with
+     // the given key.  You can create that Link any way you like, such as by
      // using a pointer to the child item, or by using a pointer to the parent
      // item plus an accessor (see ACCESSORS).  If the parent item has no
-     // attribute with the given key, you should return an empty or null AnyRef.
+     // attribute with the given key, you should return an empty or null Link.
      //
      // This may be called with a key that was not in the output of the `keys`
-     // accessor.  If that happens, you should return an empty AnyRef (or
+     // accessor.  If that happens, you should return an empty Link (or
      // autovivify if you want).
      //
-     // Be careful not to return an AnyRef to a temporary and then use that
-     // AnyRef past the temporary's lifetime.  For AYU serialization functions,
-     // the AnyRef will only be used while the serialization function is
-     // running, or while a KeepLocationCache object is active.  But if you keep
-     // the AnyRef yourself by doing, say,
-     //     ayu::AnyRef ref = ayu::AnyRef(&object)["foo"];
+     // Be careful not to return a Link to a temporary and then use that Link
+     // past the temporary's lifetime.  For AYU serialization functions, the
+     // Link will only be used while the serialization function is running, or
+     // while a KeepLocationCache object is active.  But if you keep the Link
+     // yourself by doing, say,
+     //     ayu::Link link = ayu::Link(&object)["foo"];
      // then it's as if you had written something like
      //     Foo& foo = object.get_ref_to_foo();
-     // and it's your responsibility not to keep the AnyRef around longer than
-     // the referred item's lifetime.
+     // and it's your responsibility not to keep the Link around longer than
+     // the linked item's lifetime.
      //
-     // The returned AnyRef must not be invalidated by:
+     // The returned Link must not be invalidated by:
      //   - Reading or writing any items that would come after this one in a
      //     serialization operation, including child items of this item and
      //     sibling items that are ordered after this one.
@@ -512,10 +511,10 @@ struct AYU_DescribeBase {
      //   - The from_tree(), length() setter, or keys() setter of any
      //     recursive parent items of this one.
      //   - Running program logic outside of serialization operations.
-     // In addition, as long as the AnyRef would still be valid, a second call
+     // In addition, as long as the Link would still be valid, a second call
      // to the computed_attrs function must return the same or an equivalent
-     // AnyRef (equivalent because if this item is unaddressable, its memory
-     // address may be different between calls, so the AnyRef doesn't have to be
+     // Link (equivalent because if this item is unaddressable, its memory
+     // address may be different between calls, so the Link doesn't have to be
      // exactly the same, but it must be functionally the same: it must have the
      // same access capabilities, and reading and writing it must have the same
      // effects).
@@ -524,7 +523,7 @@ struct AYU_DescribeBase {
      // must not be present.
     static constexpr
     DescriptorFor<T> auto computed_attrs (
-        Function<AnyRef(T&, const AnyString&)>*
+        Function<Link(T&, const AnyString&)>*
     );
 
     ///// DESCRIPTORS FOR ARRAY-LIKE TYPES
@@ -620,20 +619,20 @@ struct AYU_DescribeBase {
     );
 
      // Use this to provide a way to read and write elements at arbitrary
-     // indexes.  The return value must be an ayu::AnyRef, which can be created
+     // indexes.  The return value must be an ayu::Link, which can be created
      // any way you like, including by using an accessor.
      //
      // This might be called with an out-of-bounds index.  If that happens, you
-     // should return an empty or null AnyRef.
+     // should return an empty or null Link.
      //
-     // The rules for validity and consistency of the returned AnyRef are the
-     // same as those for computed_attrs().
+     // The rules for validity and consistency of the returned Link are the same
+     // as those for computed_attrs().
      //
      // If computed_elems() is present, length() must also be present, and
      // elems() and contiguous_elems() must not be present.
     static constexpr
     DescriptorFor<T> auto computed_elems (
-        Function<AnyRef(T&, u32)>*
+        Function<Link(T&, u32)>*
     );
 
      // Use this for objects that have elements of uniform type laid out
@@ -646,7 +645,7 @@ struct AYU_DescribeBase {
      // return null if the length is 0, but must not return null otherwise.
      //
      // The memory range must stay valid and consistent according to similar
-     // rules to the AnyRef returned by computed_attrs().
+     // rules to the Link returned by computed_attrs().
      //
      // If contiguous_elems() is present, length() must also be present, and
      // elems() and computed_elems() must not be present.
@@ -743,7 +742,7 @@ struct AYU_DescribeBase {
      // functions, the address will only be used while the serialization
      // function is still running or while a KeepLocationCache object is active,
      // but if you take the address yourself using, say,
-     //     Foo* ptr = AnyRef(&object)["foo"];
+     //     Foo* ptr = Link(&object)["foo"];
      // and the AYU_DESCRIPTION of object's type has an attr "foo" with a
      // ref_func, then it's as if you said something like
      //     Foo* ptr = &object.get_foo_ref();
@@ -800,7 +799,8 @@ struct AYU_DescribeBase {
         AcrFlags = {}
     );
 
-     // Generic two-function accessor.
+     // Generic two-function accessor.  In some cases, this will be more
+     // efficient than *_funcs, and in some cases it will be less.
     template <class Getter, class Setter> static constexpr
     AccessorFrom<T> auto funcs (Getter, Setter, AcrFlags = {});
 
@@ -837,10 +837,10 @@ struct AYU_DescribeBase {
      // Like constant(), but provides read-write access to a variable which is
      // embedded in the accessor with move().  This accessor is not constexpr,
      // so it cannot be used directly in an AYU_DESCRIBE block, and can only be
-     // used inside computed_attrs, computed_elems, or anyref_func.  It is not
+     // used inside computed_attrs, computed_elems, or link_func.  It is not
      // addressable.  There is no corresponding variable_ptr accessor because if
      // you're in an computed_attrs or computed_elems, you can just convert the
-     // pointer directly to an ayu::AnyRef instead of using an accessor.
+     // pointer directly to an ayu::Link instead of using an accessor.
      //
      // This is intended to be used for proxy types along with
      // children_addressable.
@@ -849,32 +849,31 @@ struct AYU_DescribeBase {
         M&& var, AcrFlags = {}
     );
 
-     // An accessor that gives access to a child item by means of an ayu::AnyRef
+     // An accessor that gives access to a child item by means of an ayu::Link
      // instead of a C++ reference.  This and anyptr_func are the only accessors
      // whose child type can vary depending on the parent item it's applied to.
      //
      // Unlike computed_attrs and computed_elems, you should not return an empty
-     // AnyRef from this function, or you may get null pointer derefs down
+     // Link from this function, or you may get null pointer derefs down
      // the line.
      //
-     // This accessor is considered unaddressable, even if the returned anyref
+     // This accessor is considered unaddressable, even if the returned Link
      // is addressable.  Use anyptr_func to give access to an arbitrarily-typed
      // addressable item.
      //
-     // The returned AnyRef must not be readonly unless this accessor is also
-     // readonly.  Any prefer_* flags on the returned AnyRef will probably be
-     // ignored.
+     // The returned Link must not be readonly unless this accessor is also
+     // readonly.  Any prefer_* flags on the Link will probably be ignored.
      //
-     // anyref_func and anyptr_func are not valid accessors for the keys and
+     // link_func and anyptr_func are not valid accessors for the keys and
      // length descriptors because their type is not known ahead of time.
     static constexpr
-    AccessorFrom<T> auto anyref_func (
-        Function<AnyRef(T&)>*, AcrFlags = {}
+    AccessorFrom<T> auto link_func (
+        Function<Link(T&)>*, AcrFlags = {}
     );
 
      // An accessor that gives access to a child item through an ayu::AnyPtr.
-     // Like anyref_func but simpler and also addressable.  Don't return empty
-     // or null from this.  The returned AnyPtr must not be readonly unless this
+     // Like link_func but simpler and also addressable.  Don't return empty or
+     // null from this.  The returned AnyPtr must not be readonly unless this
      // accessor also has the readonly flag.
     static constexpr
     AccessorFrom<T> auto anyptr_func (

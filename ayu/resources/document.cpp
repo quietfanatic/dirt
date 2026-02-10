@@ -1,7 +1,7 @@
 #include "document.h"
 #include "../../uni/lilac.h"
 #include "../common.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "../reflection/describe.h"
 
 namespace ayu {
@@ -189,14 +189,14 @@ static void Document_set_keys (Document&, const AnyArray<AnyString>&) {
      // types of their items before they can allocate them.  TODO to investigate
      // if there's a way to support that scenario.
 }
-static AnyRef Document_computed_attrs (Document& v, const AnyString& k) {
+static Link Document_computed_attrs (Document& v, const AnyString& k) {
     if (k == "_next_id") {
-        return AnyRef(&v.next_id);
+        return Link(&v.next_id);
     }
     else {
         AnyPtr p = v.find_with_name(k);
-        if (!p) return AnyRef();
-        return AnyRef((DocumentItemHeader*)p.address - 1);
+        if (!p) return Link();
+        return Link((DocumentItemHeader*)p.address - 1);
     }
 }
 

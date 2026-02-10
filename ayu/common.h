@@ -38,8 +38,8 @@ struct Type;
  // reflection/anyptr.h
 struct AnyPtr;
 
- // reflection/anyref.h
-struct AnyRef;
+ // reflection/link.h
+struct Link;
 
  // reflection/anyval.h
 struct AnyVal;
@@ -104,11 +104,11 @@ concept Movable = Destructible<T> && requires (T&& v) { T(move(v)); };
 template <class T>
 concept Copyable = Movable<T> && requires (const T& v) { T(v); };
 
- // Checks if the type is AnyPtr or AnyRef.  This prevents some dangerous
+ // Checks if the type is AnyPtr or Link.  This prevents some dangerous
  // implicit coercions.
 template <class T>
-concept IsAnyPtrOrAnyRef = std::is_same_v<std::remove_cvref_t<T>, AnyPtr>
-                        || std::is_same_v<std::remove_cvref_t<T>, AnyRef>;
+concept IsAnyPtrOrLink = std::is_same_v<std::remove_cvref_t<T>, AnyPtr>
+                        || std::is_same_v<std::remove_cvref_t<T>, Link>;
 
  // Like std::is_base_of_v but also returns true if T and Base are the same
  // union type.
@@ -117,8 +117,8 @@ concept SameOrBase = std::is_same_v<T, Base> || std::is_base_of_v<T, Base>;
 
 ///// DEBUGGING
 
-void dump_refs (Slice<AnyRef>);
- // Primarily for debugging.  Prints item_to_string(AnyRef(&v)) to stderr
+void dump_refs (Slice<Link>);
+ // Primarily for debugging.  Prints item_to_string(Link(&v)) to stderr
 template <class... Args>
 void dump (const Args&... v) {
     dump_refs({&v...});

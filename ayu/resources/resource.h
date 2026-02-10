@@ -10,7 +10,7 @@
 #include "../../uni/transaction.h"
 #include "../common.h"
 #include "../data/print.h"
-#include "../reflection/anyref.h"
+#include "../reflection/link.h"
 #include "../reflection/anyval.h"
 
 namespace ayu {
@@ -55,19 +55,19 @@ struct Resource : in::RefCounted {
      // accepts_type.
     void set_value (AnyVal&&);
 
-     // Automatically loads and returns a reference to the value, which can be
+     // Automatically loads and returns a link to the value, which can be
      // coerced to a pointer.  If a ResourceTransaction is currently active, the
      // value will be cleared if the transaction is rolled back, leaving the
      // reference dangling.
-    AnyRef ref () { return value().ptr(); }
-     // Gets a reference to the value without automatically loading.  If the
-     // resource is RS::Unloaded, returns an empty AnyRef.
-    AnyRef get_ref () noexcept { return get_value().ptr(); }
+    Link link () { return value().ptr(); }
+     // Gets a link to the value without automatically loading.  If the resource
+     // is RS::Unloaded, returns an empty Link.
+    Link get_link () noexcept { return get_value().ptr(); }
 
      // Syntax sugar.  Extern to avoid depending on traversal/compound.h which
      // depends on route.h which depends on us.
-    AnyRef operator [] (const AnyString& key); // { return ref()[key]; }
-    AnyRef operator [] (u32 index); // { return ref()[index]; }
+    Link operator [] (const AnyString& key); // { return link()[key]; }
+    Link operator [] (u32 index); // { return link()[index]; }
 
     protected:
     Resource () { }
@@ -91,8 +91,8 @@ struct SharedResource {
     Resource& operator* () const { return *data; }
     Resource* operator-> () const { return &*data; }
     constexpr explicit operator bool () const { return !!data; }
-    AnyRef operator [] (const AnyString& key) { return (*data)[key]; }
-    AnyRef operator [] (u32 index) { return (*data)[index]; }
+    Link operator [] (const AnyString& key) { return (*data)[key]; }
+    Link operator [] (u32 index) { return (*data)[index]; }
 };
 
  // A non-owning reference to a Resource.
@@ -107,8 +107,8 @@ struct ResourceRef {
     Resource* operator-> () const { return data; }
     operator SharedResource () const { return SharedResource(data); }
     constexpr explicit operator bool () const { return !!data; }
-    AnyRef operator [] (const AnyString& key) { return (*data)[key]; }
-    AnyRef operator [] (u32 index) { return (*data)[index]; }
+    Link operator [] (const AnyString& key) { return (*data)[key]; }
+    Link operator [] (u32 index) { return (*data)[index]; }
 };
 
 inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data; }
@@ -151,10 +151,10 @@ inline void save (Slice<ResourceRef> rs, PrintOptions opts = {}) {
  // loaded resources, with special treatment for resources passed as arguments.
  //   - Resources NOT passed as arguments to unload() are considered reachable:
  //        - if there are any SharedResource handles pointing to them, or
- //        - if there is another reachable resource containing a reference to any
+ //        - if there is another reachable resource containing a link to any
  //          item inside them, or
- //        - if there is a tracked variable containing a reference to one of
- //          their items.
+ //        - if there is a tracked variable containing a link to one of their
+ //          items.
  //   - Resources passed as arguments to unload() will ignore SharedResource
  //     handles and are only considered reachable through other resources and
  //     tracked variables.  If a resource passed as an argument is found to be
@@ -165,10 +165,9 @@ inline void save (Slice<ResourceRef> rs, PrintOptions opts = {}) {
  // Calling unload() without any arguments will do a garbage collection run, but
  // without any hard requirements on what resources to unload.
  //
- // If there are resources that have a reference cycle between them, they must
- // be unloaded at the same time (this can be either from being passed as
- // arguments in the same call or from having no SharedResource handles pointing
- // to them).
+ // If there are resources that mutually link to one another, they must be
+ // unloaded at the same time (this can be either from being passed as arguments
+ // in the same call or from having no SharedResource handles pointing to them).
  //
  // This operation is fully transactional.  If a recoverable error occurs, no
  // resources will be unloaded.  If called during a ResourceTransaction and the
@@ -179,8 +178,8 @@ void unload (Slice<ResourceRef> = {});
 inline void unload (ResourceRef r) { unload(Slice<ResourceRef>(&r, 1)); }
 
  // Immediately unloads the resource without checking for reachability.  This is
- // faster, but if there are any references to items in this resource, they will
- // be left dangling.  This can still be rolled back by a ResourceTransaction.
+ // faster, but if there are any links to items in this resource, they will be
+ // left dangling.  This can still be rolled back by a ResourceTransaction.
 void force_unload (ResourceRef) noexcept;
 inline void force_unload (Slice<ResourceRef> rs) noexcept {
     for (auto& r : rs) force_unload(r);
@@ -190,20 +189,20 @@ inline void force_unload (Slice<ResourceRef> rs) noexcept {
  // the following steps:
  //   1. Moves the resource's old value to a temporary location.
  //   2. Loads a new value for the resource, as if by calling load().
- //   3. Scans other resources and tracked variables for references to this one
- //     and updates them to point to the new value instead of the old one.  If a
- //     reference would become invalid or cannot be updated, the reload is
- //     cancelled, the resource's old value is restored, and ReloadWouldBreak is
- //     thrown.
+ //   3. Scans other resources and tracked variables for links to this one and
+ //      updates them to point to the new value instead of the old one.  If a
+ //      link would become invalid or cannot be updated, the reload is
+ //      cancelled, the resource's old value is restored, and ReloadWouldBreak
+ //      is thrown.
  //   4. Destroys the old value.
  //
  // This operation is fully transactional.  If a recoverable exception is thrown
  // or if a surrounding ResourceTransaction rolls back, then the reload will be
- // cancelled, the new value will be deleted, and the old value will be
- // restored.
+ // cancelled, the new value will be deleted, and the old value and all updated
+ // links will be restored.
 void reload (ResourceRef);
  // Reload multiple resources simultaneously.  This may be necessary or simply
- // more efficient if there are reference cycles.
+ // more efficient if there are link cycles.
 void reload (Slice<ResourceRef>);
 inline void reload (ResourceRef r) { reload(Slice<ResourceRef>(&r, 1)); }
 
@@ -239,12 +238,12 @@ UniqueArray<SharedResource> loaded_resources () noexcept;
 ///// TRACKING NON-RESOURCE ITEMS
 
  // If you want to reference a resource from outside the resource system, you
- // can tell AYU to track on referencing item (usually a pointer, typically a
+ // can tell AYU to track the linking item (usually a pointer, typically a
  // global or a function-level static variable), so that it can:
- //   - update the tracked item if the resource it references is reloaded, and
- //   - not auto-unload any resources that the tracked item references.
+ //   - update the tracked item if the resource it links to is reloaded, and
+ //   - not auto-unload any resources that the tracked item links to.
  //
- // Resources should not reference a tracked variable.  If they do, they will
+ // Resources should not link to a tracked variable.  If they do, they will
  // become unserializable, because the tracked variable does not have an
  // associated Route.
  //
@@ -265,11 +264,11 @@ void untrack (T& v);
  //         program, "res:/liv/page.ayu#program"
  //     );
  //
- // If the call to reference_from_iri throws, the variable will not be tracked.
- // However, if the AnyRef fails to convert to whatever you assign it to, then
+ // If the call to link_from_iri throws, the variable will not be tracked.
+ // However, if the Link fails to convert to whatever you assign it to, then
  // the variable will still be tracked.
 template <class T> [[nodiscard]]
-AnyRef track (T& v, const IRI& loc);
+Link track (T& v, const IRI& loc);
 
 ///// RESOURCE ERROR CODES
 
@@ -290,24 +289,22 @@ constexpr ErrorCode e_ResourceValueInvalid = "ayu::e_ResourceValueInvalid";
  // Tried to perform an operation on a resource, but its state() was not valid
  // for that operation.
 constexpr ErrorCode e_ResourceStateInvalid = "ayu::e_ResourceStateInvalid";
- // Tried to unload a resource, but there's still a reference somewhere pointing
- // to an item inside it.
+ // Tried to unload a resource, but there's still a link somewhere pointing to
+ // an item inside it.
 constexpr ErrorCode e_ResourceUnloadWouldBreak = "ayu::e_ResourceUnloadWouldBreak";
- // Tried to reload a resource, but there was a reference pointing to an item
- // inside of it which couldn't be updated for some reason.
+ // Tried to reload a resource, but there was a link pointing to an item inside
+ // of it which couldn't be updated for some reason.
 constexpr ErrorCode e_ResourceReloadWouldBreak = "ayu::e_ResourceReloadWouldBreak";
- // Failed to delete a resource's source file.
-constexpr ErrorCode e_ResourceRemoveSourceFailed = "ayu::e_ResourceRemoveSourceFailed";
 
 ///// INTERNAL
 
 namespace in {
     void track_ptr (AnyPtr) noexcept;
     void untrack_ptr (AnyPtr) noexcept;
-    AnyRef track_ptr (AnyPtr, const IRI&); // not noexcept
+    Link track_ptr (AnyPtr, const IRI&); // not noexcept
 }
 template <class T> void track (T& v) { in::track_ptr(&v); }
 template <class T> void untrack (T& v) { in::untrack_ptr(&v); }
-template <class T> AnyRef track (T& v, const IRI& loc) { return in::track_ptr(&v, loc); }
+template <class T> Link track (T& v, const IRI& loc) { return in::track_ptr(&v, loc); }
 
 } // namespace ayu

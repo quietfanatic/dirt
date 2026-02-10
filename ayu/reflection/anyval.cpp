@@ -1,5 +1,5 @@
 #include "anyval.h"
-#include "anyref.h"
+#include "link.h"
 #include "describe.h"
 
 namespace ayu {
@@ -23,7 +23,7 @@ AYU_DESCRIBE(ayu::AnyVal,
                 v = AnyVal(t);
             }
         )),
-        elem(anyref_func([](AnyVal& v){ return AnyRef(v.ptr()); }))
+        elem(link_func([](AnyVal& v){ return Link(v.ptr()); }))
     )
 )
 
