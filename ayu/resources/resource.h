@@ -85,7 +85,7 @@ struct SharedResource {
      // from the source.  Will throw ResourceStateInvalid if a resource with
      // this name is already loaded or ResourceValueInvalid if value is empty.
      // This is equivalent to creating the SharedResource and then calling
-     // set_value.
+     // set_value.  TODO: remove this and add create_value or something
     SharedResource (const IRI& name, AnyVal&& value);
 
     Resource& operator* () const { return *data; }
@@ -124,8 +124,8 @@ inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data;
  // to how they were before the transaction started.
 using ResourceTransaction = Transaction<Resource>;
 
- // Loads a resource into the current purpose.  Does nothing if the resource is
- // not RS::Unloaded.  Throws if the source doesn't exist or can't be read.
+ // Loads a resource.  Does nothing if the resource is not RS::Unloaded.  Throws
+ // if the source doesn't exist or can't be read.
 void load (ResourceRef);
  // Load multiple resources.  If an error is thrown, none of the resources will
  // be loaded.
@@ -218,18 +218,19 @@ void rename (ResourceRef old_res, ResourceRef new_res);
 
  // Deletes the source of the resource.  If the source is a file, deletes the
  // file without confirmation.  Does not change the resource's state or value.
- // Does nothing if the source doesn't exist, but throws RemoveSourceFailed
- // if another error occurs (permission denied, etc.)  Calling load on the
- // resource should fail after this.
-void remove_source (const IRI&);
+ // Does nothing if the source doesn't exist.  Calling load on the resource
+ // should fail after this.  Throws ResourceNameNoFilepath if the resource
+ // doesn't have an associated filepath.
+void delete_source (const IRI&);
 
  // Returns true if the given resource's file exists on disk.  Does a pretty
  // basic test: it tries to open the file, and returns true if it can or false
- // if it can't.
+ // if it can't.  Can throw ResourceNameNoFilepath.
 bool source_exists (const IRI&);
 
- // Get the filename of the file backing this resource, if it has one.
-AnyString resource_filename (const IRI&);
+ // Get the path of the file backing this resource, if it has one.  Will return
+ // empty if there's no associated filepath instead of throwing.
+AnyString resource_filepath (const IRI&);
 
  // Returns a list of all resources with state != RS::Unloaded.  This includes
  // resources that are in the process of being loaded or reloaded.
@@ -265,6 +266,8 @@ void untrack (T& v);
  //     );
  //
  // If the call to reference_from_iri throws, the variable will not be tracked.
+ // However, if the AnyRef fails to convert to whatever you assign it to, then
+ // the variable will still be tracked.
 template <class T> [[nodiscard]]
 AnyRef track (T& v, const IRI& loc);
 
@@ -274,6 +277,9 @@ AnyRef track (T& v, const IRI& loc);
 constexpr ErrorCode e_ResourceNameInvalid = "ayu::e_ResourceNameInvalid";
  // The ResourceScheme associated with the resource name rejected the name.
 constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";
+ // The ResourceScheme associated with the resource name did not provide a
+ // filepath associated with the name.
+constexpr ErrorCode e_ResourceNameNoFilepath = "ayu::e_ResourceNoFilepath";
  // The ResourceScheme associated with the resource did not accept the type
  // provided for the resource.  This can happen either while loading from a
  // file, or when setting a resource's value programmatically.

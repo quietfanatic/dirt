@@ -8,7 +8,7 @@
 // want to.
 //
 // Internally, a Route is a recursive object that is a symbolic representation
-// of a AnyRef, explaining how to reach the referend from the root Resource by a
+// of an AnyRef, explaining how to reach the referend from the root Resource by a
 // chain of item_attr() and item_elem() calls.  In ADT syntax, it looks like
 //
 //     data Route = ResourceRoute Resource
@@ -61,8 +61,8 @@ struct Route : in::RefCounted {
 struct SharedRoute {
     in::RCP<const Route, in::delete_Route> data;
     explicit SharedRoute (const Route* p) : data(p) { }
-     // The empty Route will null-deref if you try to do anything but boolify
-     // it.  When transformed into a reference will yield the empty AnyRef.
+     // The empty SharedRoute will null-deref if you try to do anything but
+     // boolify it.
     constexpr SharedRoute () { }
      // Constructs a root Route from a Resource.
     explicit SharedRoute (ResourceRef) noexcept;

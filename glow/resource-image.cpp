@@ -8,7 +8,7 @@ namespace glow {
 
 void ResourceImage::load () {
     if (storage) return;
-    storage = load_image_from_file(ayu::resource_filename(source).c_str());
+    storage = load_image_from_file(ayu::resource_filepath(source).c_str());
 }
 
 void ResourceImage::trim () {

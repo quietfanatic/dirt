@@ -21,7 +21,7 @@ ResourceTexture::ResourceTexture (u32 target) : Texture(target) {
 
 void ResourceTexture::load () {
     glBindTexture(target, id);
-    load_texture_from_file(target, ayu::resource_filename(source));
+    load_texture_from_file(target, ayu::resource_filepath(source));
 }
 
 ResourceTexture::~ResourceTexture () { }

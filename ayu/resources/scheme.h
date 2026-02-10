@@ -40,9 +40,9 @@ struct ResourceScheme {
      // TODO: provide name as well
     virtual bool accepts_type (Type) const { return true; }
      // Turn an IRI into a filename.  If "" is returned, it means there is no
-     // valid filename for this IRI.  It is okay to return non-existent
-     // filenames.
-    virtual AnyString get_file (const IRI&) const { return ""; }
+     // valid filename for this IRI.  It is okay to return a non-existent
+     // filename: that file will be created when the resource is saved.
+    virtual AnyString get_filepath (const IRI&) const { return ""; }
      // TODO: Non-file resource schemes
 
     explicit ResourceScheme (AnyString n, bool auto_activate = true) :
@@ -85,8 +85,8 @@ struct FolderResourceScheme : ResourceScheme {
             && iri.hierarchical();
     }
 
-    AnyString get_file (const IRI& iri) const override {
-        require(iri.hierarchical());
+    AnyString get_filepath (const IRI& iri) const override {
+        if (!iri.hierarchical()) return "";
         IRI abs = IRI(iri.path().slice(1), folder);
         return iri::to_fs_path(abs);
     }

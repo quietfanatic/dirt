@@ -22,6 +22,25 @@ namespace in {
  // ResourceData is in universe.private.h for reasons
 
 [[noreturn, gnu::cold]]
+static void raise_ResourceNameNoFilepath (
+    StaticString tried, const IRI& name
+) {
+    raise(e_ResourceNameNoFilepath, cat(
+        "Can't ", tried, ' ', name.spec(), " because it has no associated filepath."
+    ));
+}
+
+[[noreturn, gnu::cold]]
+static void raise_ResourceTypeRejected (
+    StaticString tried, ResourceRef res, Type type
+) {
+    auto data = static_cast<ResourceData*>(res.data);
+    raise(e_ResourceTypeRejected, cat(
+        "Can't ", tried, ' ', data->name.spec(), " with type ", type.name()
+    ));
+}
+
+[[noreturn, gnu::cold]]
 static void raise_ResourceStateInvalid (StaticString tried, ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
     raise(e_ResourceStateInvalid, cat(
@@ -38,16 +57,6 @@ static void raise_ResourceValueEmpty (StaticString tried, ResourceRef res) {
     ));
 }
 
-[[noreturn, gnu::cold]]
-static void raise_ResourceTypeRejected (
-    StaticString tried, ResourceRef res, Type type
-) {
-    auto data = static_cast<ResourceData*>(res.data);
-    raise(e_ResourceTypeRejected, cat(
-        "Can't ", tried, ' ', data->name.spec(), " with type ", type.name()
-    ));
-}
-
 struct Break {
     SharedRoute from;
     SharedRoute to;
@@ -61,6 +70,7 @@ static void raise_would_break (
         (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
         "loading resources would break ", breaks.size(), " reference(s): \n"
     );
+     // TODO: encat
     for (usize i = 0; i < breaks.size(); ++i) {
         if (i > 5) break;
         mess = cat(move(mess),
@@ -152,6 +162,7 @@ void Resource::set_value (AnyVal&& value) {
         }
     }
     if (ResourceTransaction::depth) {
+         // TODO: use ROV (edit ROV to allow empty old_value)
         struct SetValueCommitter : Committer {
             SharedResource res;
             AnyVal old_value;
@@ -161,7 +172,7 @@ void Resource::set_value (AnyVal&& value) {
             void rollback () noexcept override {
                 auto data = static_cast<ResourceData*>(res.data.p);
                 data->value = move(old_value);
-                data->state = data->value ?  RS::Loaded : RS::Unloaded;
+                data->state = data->value ? RS::Loaded : RS::Unloaded;
             }
         };
         ResourceTransaction::add_committer(
@@ -221,8 +232,9 @@ void load (ResourceRef res) {
     data->state = RS::Loading;
     try {
         auto scheme = universe().require_scheme(data->name);
-        auto filename = scheme->get_file(data->name);
-        Tree tree = tree_from_file(move(filename));
+        auto path = scheme->get_filepath(data->name);
+        if (!path) raise_ResourceNameNoFilepath("load", data->name);
+        Tree tree = tree_from_file(move(path));
         auto tnt = verify_tree_for_scheme(res, scheme, tree);
          // Run item_from_tree on the AnyVal's value, not on the AnyVal
          // itself.  Otherwise, the associated locations will have an extra +1
@@ -263,7 +275,8 @@ void save (ResourceRef res, PrintOptions opts) {
     if (!scheme->accepts_type(data->value.type)) {
         raise_ResourceTypeRejected("save", res, data->value.type);
     }
-    auto filename = scheme->get_file(data->name);
+    auto path = scheme->get_filepath(data->name);
+    if (!path) raise_ResourceNameNoFilepath("save", data->name);
      // Do type and value separately, because the Route refers to the value,
      // not the whole AnyVal.
     KeepRouteCache klc;
@@ -273,24 +286,25 @@ void save (ResourceRef res, PrintOptions opts) {
         Tree::array(Tree(type), move(value_tree)), opts
     );
 
-    auto outfile = File(filename, "wb");
+    auto outfile = File(path, "wb");
     if (ResourceTransaction::depth) {
         struct SaveCommitter : Committer {
             AnyString contents;
+            AnyString path;
             File outfile;
-            SaveCommitter (AnyString&& c, File&& f) :
-                contents(move(c)), outfile(move(f))
+            SaveCommitter (AnyString&& c, AnyString&& p, File&& f) :
+                contents(move(c)), path(move(p)), outfile(move(f))
             { }
             void commit () noexcept override {
-                outfile.write(contents);
+                outfile.write(contents, path);
             }
         };
         ResourceTransaction::add_committer(
-            new SaveCommitter(move(contents), move(outfile))
+            new SaveCommitter(move(contents), move(path), move(outfile))
         );
     }
     else {
-        outfile.write(contents);
+        outfile.write(contents, path);
     }
 }
 
@@ -439,7 +453,7 @@ void unload (Slice<ResourceRef> to_unload) {
         auto data = static_cast<ResourceData*>(res.data);
         if (data->reachable) {
             raise(e_ResourceUnloadWouldBreak, cat(
-                "Cannot unload resource ", data->name.spec(),
+                "Can't unload ", data->name.spec(),
                 " because it is still reachable.  Further info NYI."
             ));
         }
@@ -505,8 +519,9 @@ void reload (Slice<ResourceRef> reses) {
             auto data = static_cast<ResourceData*>(res.data);
             data->state = RS::Loading;
             auto scheme = universe().require_scheme(data->name);
-            auto filename = scheme->get_file(data->name);
-            Tree tree = tree_from_file(move(filename));
+            auto path = scheme->get_filepath(data->name);
+            if (!path) raise_ResourceNameNoFilepath("reload", data->name);
+            Tree tree = tree_from_file(move(path));
             auto tnt = verify_tree_for_scheme(res, scheme, tree);
             expect(!data->value);
             data->value = AnyVal(tnt.type);
@@ -529,6 +544,7 @@ void reload (Slice<ResourceRef> reses) {
             next_other:;
         }
          // If we're reloading everything, no need to do any scanning.
+         // TODO: what about tracked variables???
         if (others) {
              // First build mapping of old refs to locations
             std::unordered_map<AnyRef, SharedRoute> old_refs;
@@ -619,21 +635,23 @@ void rename (ResourceRef old_res, ResourceRef new_res) {
     old_data->state = RS::Unloaded;
 }
 
-AnyString resource_filename (const IRI& name) {
+AnyString resource_filepath (const IRI& name) {
     auto scheme = universe().require_scheme(name);
-    return scheme->get_file(name);
+    return scheme->get_filepath(name);
 }
 
-void remove_source (const IRI& name) {
+void delete_source (const IRI& name) {
     auto scheme = universe().require_scheme(name);
-    auto filename = scheme->get_file(name);
-    remove_utf8(filename.c_str());
+    auto path = scheme->get_filepath(name);
+    if (!path) raise_ResourceNameNoFilepath("delete_source of", name);
+    remove_utf8(path.c_str());
 }
 
 bool source_exists (const IRI& name) {
     auto scheme = universe().require_scheme(name);
-    auto filename = scheme->get_file(name);
-    if (std::FILE* f = fopen_utf8(filename.c_str())) {
+    auto path = scheme->get_filepath(name);
+    if (!path) raise_ResourceNameNoFilepath("check if source_exists for", name);
+    if (std::FILE* f = fopen_utf8(path.c_str())) {
         fclose(f);
         return true;
     }
@@ -767,16 +785,16 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     is(&output->value().as<ayu::Document>(), doc, "Rename moves value without reconstructing it");
 
     doesnt_throw([&]{ save(output); }, "save");
-    is(tree_from_file(resource_filename(output->name())), tree_from_string(
+    is(tree_from_file(resource_filepath(output->name())), tree_from_string(
         "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _next_id:0}]"
     ), "Resource was saved with correct contents");
     ok(source_exists(output->name()), "source_exists returns true before deletion");
-    doesnt_throw([&]{ remove_source(output->name()); }, "remove_source");
+    doesnt_throw([&]{ delete_source(output->name()); }, "delete_source");
     ok(!source_exists(output->name()), "source_exists returns false after deletion");
     throws_code<e_OpenFailed>([&]{
-        tree_from_file(resource_filename(output->name()));
-    }, "Can't open file after calling remove_source");
-    doesnt_throw([&]{ remove_source(output->name()); }, "Can call remove_source twice");
+        tree_from_file(resource_filepath(output->name()));
+    }, "Can't open file after calling delete_source");
+    doesnt_throw([&]{ delete_source(output->name()); }, "Can call delete_source twice");
     SharedRoute rt;
     doesnt_throw([&]{
         item_from_string(&rt, cat('"', input->name().spec(), "#/bar+1\""));
@@ -798,7 +816,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{ save(output); }, "save with reference");
     doc->new_<i32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
-    is(tree_from_file(resource_filename(output->name())), tree_from_string(
+    is(tree_from_file(resource_filepath(output->name())), tree_from_string(
         "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _0:[ayu::AnyRef #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct reference as route");
     throws_code<e_OpenFailed>([&]{
