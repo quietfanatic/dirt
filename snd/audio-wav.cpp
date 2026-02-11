@@ -6,21 +6,21 @@ namespace snd {
 using namespace in;
 
  // Only s16 PCM is supported
-UniqueAudio audio_from_array_wav (Slice<u8> contents, Str filename) {
+UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename) {
     Str mess;
-    const u8* in = contents.reinterpret<u8>().begin();
-    const u8* in_end = contents.reinterpret<u8>().end();
+    const u8* in = blob.reinterpret<u8>().begin();
+    const u8* in_end = blob.reinterpret<u8>().end();
     u32 internal_size;
     u32 n_channels = 0;
     u32 sample_rate = 0;
-    if (contents.size() < 12 ||
+    if (blob.size() < 12 ||
         read_u32le(in) != read_u32le("RIFF") ||
         read_u32le(in + 8) != read_u32le("WAVE")
     ) {
         mess = "File is not WAVE format"; goto bad;
     }
     internal_size = read_u32le(in+4);
-    if (internal_size != contents.size() - 8) {
+    if (internal_size != blob.size() - 8) {
         mess = "Internal size doesn't match external size"; goto bad;
     }
     in += 12;

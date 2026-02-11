@@ -60,11 +60,11 @@ struct UniqueAudio {
     constexpr explicit operator bool () const { return samples; }
 };
 
-UniqueAudio audio_from_array (Slice<u8> content, Str filename = "");
+UniqueAudio audio_from_blob (Slice<u8> content, Str filename = "");
 UniqueAudio audio_from_file (AnyString filename);
-UniqueAudio audio_from_array_qoa (Slice<u8> contents, Str filename);
-UniqueAudio audio_from_array_wav (Slice<u8> contents, Str filename);
-UniqueArray<u8> audio_to_array_qoa (const UniqueAudio&);
+UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename);
+UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename);
+UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&);
 void audio_to_file_qoa (const UniqueAudio&, AnyString filename);
 
 constexpr ErrorCode e_LoadAudioFailed = "snd::e_LoadAudioFailed";

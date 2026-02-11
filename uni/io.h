@@ -185,7 +185,7 @@ inline void string_to_file (Str content, AnyString path) {
     File(path, "wb").write(content, path);
 }
 
-inline UniqueArray<u8> array_from_file (AnyString path) {
+inline UniqueArray<u8> blob_from_file (AnyString path) {
     auto s = string_from_file(move(path));
     UniqueArray<u8> r;
     r.impl.size = s.impl.size;
@@ -194,7 +194,7 @@ inline UniqueArray<u8> array_from_file (AnyString path) {
     return r;
 }
 
-inline void array_to_file (Slice<u8> content, AnyString path) {
+inline void blob_to_file (Slice<u8> content, AnyString path) {
     string_to_file(content.reinterpret<char>(), move(path));
 }
 
