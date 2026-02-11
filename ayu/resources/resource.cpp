@@ -737,17 +737,18 @@ AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)
 
 static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     using namespace tap;
+    using namespace iri::literals;
 
     test::TestEnvironment env;
 
-    SharedResource input (IRI("ayu-test:/testfile.ayu"));
-    SharedResource input2 (IRI("ayu-test:/othertest.ayu"));
-    SharedResource rec1 (IRI("ayu-test:/rec1.ayu"));
-    SharedResource rec2 (IRI("ayu-test:/rec2.ayu"));
-    SharedResource badinput (IRI("ayu-test:/badref.ayu"));
-    SharedResource output (IRI("ayu-test:/test-output.ayu"));
-    SharedResource unicode (IRI("ayu-test:/ユニコード.ayu"));
-    SharedResource unicode2 (IRI("ayu-test:/ユニコード2.ayu"));
+    SharedResource input ("ayu-test:/testfile.ayu"_iri);
+    SharedResource input2 ("ayu-test:/othertest.ayu"_iri);
+    SharedResource rec1 ("ayu-test:/rec1.ayu"_iri);
+    SharedResource rec2 ("ayu-test:/rec2.ayu"_iri);
+    SharedResource badinput ("ayu-test:/badref.ayu"_iri);
+    SharedResource output ("ayu-test:/test-output.ayu"_iri);
+    SharedResource unicode ("ayu-test:/ユニコード.ayu"_iri);
+    SharedResource unicode2 ("ayu-test:/ユニコード2.ayu"_iri);
 
     is(input->state(), RS::Unloaded, "Resources start out unloaded");
     doesnt_throw([&]{ load(input); }, "load");
@@ -880,8 +881,22 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     is(global_p, new_p, "Global was updated.");
 
     throws_code<e_ResourceTypeRejected>([&]{
-        load(SharedResource(IRI("ayu-test:/wrongtype.ayu")));
+        load(SharedResource("ayu-test:/wrongtype.ayu"_iri));
     }, "ResourceScheme::accepts_type rejects wrong type");
+
+    AnyString ordinary_path;
+    throws_code<e_ResourceSchemeNotFound>([&]{
+        ordinary_path = resource_filepath("file:/foo/bar"_iri);
+    }, "Can't use file:/ resource when there's a scheme registered.");
+     // Copy because deactivating modifies this array.
+    auto schemes = universe().schemes;
+    for (auto& scheme : schemes) {
+        scheme.value->deactivate();
+    }
+    doesnt_throw([&]{
+        ordinary_path = resource_filepath("file:/foo/bar"_iri);
+    }, "Can use file:/ resource when there are no schemes registered.");
+    is(ordinary_path, "/foo/bar", "file:/ IRI gives correct filepath");
 
     done_testing();
 });

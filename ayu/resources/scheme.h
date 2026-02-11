@@ -19,7 +19,8 @@ namespace ayu {
  // in the same scheme.
  //
  // If no ResourceSchemes are active, then a default resource scheme with the
- // name "file" will be used, which maps resource names to files on disk.
+ // name "file" will be used, which maps resource names directly to files in the
+ // filesystem.
  //
  // ResourceSchemes are allowed to be constructed at init time, but you can't
  // manipulate any Types until main() starts.
@@ -55,9 +56,7 @@ struct ResourceScheme {
     ResourceScheme& operator = (const ResourceScheme&) = delete;
     ResourceScheme& operator = (ResourceScheme&&) = delete;
 
-    virtual ~ResourceScheme () {
-        deactivate();
-    }
+    virtual ~ResourceScheme () { deactivate(); }
 
      // These are called in the constructor (by default) and destructor, so you
      // don't have to call them yourself.

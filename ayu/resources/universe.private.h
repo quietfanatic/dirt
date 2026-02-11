@@ -8,6 +8,7 @@
 #include "scheme.h"
 
 namespace ayu::in {
+using namespace iri::literals;
 
 struct ResourceData : Resource {
     ResourceState state = RS::Unloaded;
@@ -23,6 +24,10 @@ struct ResourceData : Resource {
     AnyVal value {};
     ResourceData (const IRI& n) : name(n) { }
 };
+
+ // The default scheme.  Don't auto_activate because this is only used when
+ // there are no active schemes.
+inline auto default_scheme = FolderResourceScheme("file", "file:/"_iri, false);
 
 struct Universe {
     UniqueArray<Hashed<ResourceRef>> resources;
@@ -42,6 +47,7 @@ struct Universe {
         auto data = new ResourceData(name);
         return resources.emplace_back(h, data).value;
     }
+
     void delete_resource (ResourceRef r) {
         for (auto& e : resources) {
             if (e.value == r) {
@@ -62,16 +68,7 @@ struct Universe {
         }
         schemes.emplace_back(h, scheme);
     }
-    const ResourceScheme* require_scheme (const IRI& name) {
-        Str scheme = name.scheme();
-        usize h = hash(scheme);
-        for (auto& s : schemes) {
-            if (s.hash == h && s.value->name == scheme) {
-                return s.value;
-            }
-        }
-        raise(e_ResourceSchemeNotFound, name.spec());
-    }
+
     void unregister_scheme (const ResourceScheme* scheme) {
         usize h = hash(scheme->name);
         for (auto& s : schemes) {
@@ -80,6 +77,22 @@ struct Universe {
                 return;
             }
         }
+    }
+
+    const ResourceScheme* require_scheme (const IRI& name) {
+        Str scheme = name.scheme();
+        if (schemes) {
+            usize h = hash(scheme);
+            for (auto& s : schemes) {
+                if (s.hash == h && s.value->name == scheme) {
+                    return s.value;
+                }
+            }
+        }
+        else {
+            if (scheme == "file") return &default_scheme;
+        }
+        raise(e_ResourceSchemeNotFound, name.spec());
     }
 };
 
