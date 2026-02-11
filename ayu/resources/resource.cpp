@@ -70,16 +70,15 @@ static void raise_would_break (
         (code == e_ResourceReloadWouldBreak ? "Re" : "Un"),
         "loading resources would break ", breaks.size(), " link(s): \n"
     );
-     // TODO: encat
     for (usize i = 0; i < breaks.size(); ++i) {
         if (i > 5) break;
-        mess = cat(move(mess),
+        encat(mess,
             "    ", route_to_iri(breaks[i].from).spec(),
             " -> ", route_to_iri(breaks[i].to).spec(), '\n'
         );
     }
     if (breaks.size() > 5) {
-        mess = cat(move(mess), "    ...and ", breaks.size() - 5, " others.\n");
+        encat(mess, "    ...and ", breaks.size() - 5, " others.\n");
     }
     breaks = {};
     raise(code, move(mess));
@@ -162,7 +161,7 @@ void Resource::set_value (AnyVal&& value) {
         }
     }
     if (ResourceTransaction::depth) {
-         // TODO: use ROV (edit ROV to allow empty old_value)
+         // Don't use ROV here so we don't force a vtable onto ROV
         struct SetValueCommitter : Committer {
             SharedResource res;
             AnyVal old_value;
@@ -543,9 +542,7 @@ void reload (Slice<ResourceRef> reses) {
             }
             next_other:;
         }
-         // If we're reloading everything, no need to do any scanning.
-         // TODO: what about tracked variables???
-        if (others) {
+        if (others || universe().tracked) {
              // First build mapping of old links to locations
             std::unordered_map<Link, SharedRoute> old_links;
             for (auto& rov : rovs) {
@@ -562,7 +559,7 @@ void reload (Slice<ResourceRef> reses) {
             auto check_link =
                 [&updates, &old_links, &breaks](Link link2link, RouteRef rt)
             {
-                 // TODO: check for AnyPtr as well as a shortcut?
+                 // TODO: check for AnyPtr as well for a shortcut?
                 if (link2link.type() != Type::For<Link>()) return false;
                 Link link = link2link.get_as<Link>();
                 auto iter = old_links.find(link);
