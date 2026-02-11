@@ -25,7 +25,9 @@ namespace ayu {
  // ResourceSchemes are allowed to be constructed at init time, but you can't
  // manipulate any Types until main() starts.
 struct ResourceScheme {
-     // Must be a valid scheme name matching [a-z][a-z0-9+.-]*
+     // Must be a valid scheme name matching [a-z][a-z0-9+.-]* and must not be
+     // the same as any other ResourceScheme name, otherwise a runtime assert
+     // will be triggered.
     const AnyString name;
 
      // If you want to do some of your own validation besides the standard IRI
@@ -66,10 +68,6 @@ struct ResourceScheme {
 
 ResourceScheme* get_resource_scheme (Str name);
 
- // The name for a resource scheme was not a valid IRI scheme.
-constexpr ErrorCode e_ResourceSchemeNameInvalid = "ayu::e_ResourceSchemeNameInvalid";
- // Tried to register a scheme name that was already registered.
-constexpr ErrorCode e_ResourceSchemeNameDuplicate = "ayu::e_ResourceSchemeNameDuplicate";
  // Tried to find a resoursce scheme that didn't exist.
 constexpr ErrorCode e_ResourceSchemeNotFound = "ayu::e_ResourceSchemeNotFound";
 

@@ -63,7 +63,7 @@ struct Universe {
         usize h = hash(scheme->name);
         for (auto& s : schemes) {
             if (s.hash == h && s.value->name == scheme->name) {
-                raise(e_ResourceSchemeNameDuplicate, scheme->name);
+                require(false);
             }
         }
         schemes.emplace_back(h, scheme);
