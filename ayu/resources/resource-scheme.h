@@ -47,7 +47,8 @@ struct ResourceScheme {
     virtual AnyString get_filepath (const IRI&) const { return ""; }
      // TODO: Non-file resource schemes
 
-    explicit ResourceScheme (AnyString n, bool auto_activate = true) :
+    constexpr explicit
+    ResourceScheme (AnyString n, bool auto_activate = true) :
         name(move(n))
     {
         if (auto_activate) activate();
@@ -94,7 +95,7 @@ struct FolderResourceScheme : ResourceScheme {
         folder(iri::from_fs_path(cat(folder, '/')))
     { }
 
-    FolderResourceScheme (
+    constexpr FolderResourceScheme (
         AnyString n, const IRI& folder, bool auto_activate = true
     ) :
         ResourceScheme(move(n), auto_activate),

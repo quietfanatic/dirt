@@ -11,7 +11,7 @@
 #include "../traversal/from-tree.h"
 #include "../traversal/scan.h"
 #include "../traversal/to-tree.h"
-#include "scheme.h"
+#include "resource-scheme.h"
 #include "universe.private.h"
 
 ///// INTERNALS

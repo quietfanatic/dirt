@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../ayu/resources/scheme.h"
+#include "../ayu/resources/resource-scheme.h"
 #include "../geo/vec.h"
 #include "../wind/window.h"
 

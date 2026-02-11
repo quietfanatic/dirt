@@ -3,7 +3,7 @@
 #include "../../iri/path.h"
 #include "../../tap/tap.h"
 #include "../resources/document.h"
-#include "../resources/scheme.h"
+#include "../resources/resource-scheme.h"
 
 namespace ayu::test {
     struct TestResourceScheme : FolderResourceScheme {
