@@ -8,7 +8,6 @@
 #include "resource.h"
 
 namespace ayu::in {
-using namespace iri::literals;
 
 struct ResourceData : Resource {
     ResourceState state = RS::Unloaded;
@@ -37,15 +36,11 @@ struct Universe {
     const ResourceScheme* require_scheme (const IRI&);
 };
 
- // TODO: constinit
-inline Universe& universe () {
-     // The memory leak detector flags the universe's resources as leaked,
-     // because at program close, the array of resource refs is destroyed
-     // without destroying the resources.  How do we solve that?  By leaking the
-     // array too!
-    static Indestructible<Universe> r;
-    return *r;
-}
+ // The memory leak detector flags the universe's resources as leaked,
+ // because at program close, the array of resource refs is destroyed
+ // without destroying the resources.  How do we solve that?  By leaking the
+ // array too!
+constinit inline Indestructible<Universe> g_universe;
 
 } // namespace ayu::in
 

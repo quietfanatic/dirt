@@ -155,7 +155,7 @@ void Resource::set_value (AnyVal&& value) {
         raise_ResourceValueEmpty("set_value", this);
     }
     if (data->name) {
-        auto scheme = universe().require_scheme(data->name);
+        auto scheme = g_universe->require_scheme(data->name);
         if (!scheme->accepts_type(v.type)) {
             raise_ResourceTypeRejected("set_value", this, v.type);
         }
@@ -191,11 +191,11 @@ SharedResource::SharedResource (const IRI& name) {
     if (!name || name.has_fragment()) {
         raise(e_ResourceNameInvalid, name.possibly_invalid_spec());
     }
-    auto scheme = universe().require_scheme(name);
+    auto scheme = g_universe->require_scheme(name);
     if (!scheme->accepts_name(name)) {
         raise(e_ResourceNameRejected, name.spec());
     }
-    new (this) SharedResource(universe().get_resource(name));
+    new (this) SharedResource(g_universe->get_resource(name));
 }
 
 SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
@@ -212,7 +212,7 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
 void in::delete_Resource_if_unloaded (Resource* res) noexcept {
     auto data = static_cast<ResourceData*>(res);
     if (data->state == RS::Unloaded) {
-        universe().delete_resource(res);
+        g_universe->delete_resource(res);
     }
 }
 
@@ -230,7 +230,7 @@ void load (ResourceRef res) {
 
     data->state = RS::Loading;
     try {
-        auto scheme = universe().require_scheme(data->name);
+        auto scheme = g_universe->require_scheme(data->name);
         auto path = scheme->get_filepath(data->name);
         if (!path) raise_ResourceNameNoFilepath("load", data->name);
         Tree tree = tree_from_file(move(path));
@@ -270,7 +270,7 @@ void save (ResourceRef res, PrintOptions opts) {
     if (!data->value) {
         raise_ResourceValueEmpty("save", res);
     }
-    auto scheme = universe().require_scheme(data->name);
+    auto scheme = g_universe->require_scheme(data->name);
     if (!scheme->accepts_type(data->value.type)) {
         raise_ResourceTypeRejected("save", res, data->value.type);
     }
@@ -324,7 +324,7 @@ static void really_unload (ResourceData* data) {
     else {
         data->value = {};
         if (!data->ref_count) {
-            universe().delete_resource(data);
+            g_universe->delete_resource(data);
         }
         else data->state = RS::Unloaded;
     }
@@ -358,7 +358,7 @@ static void reach_link (
 }
 
 void unload (Slice<ResourceRef> to_unload) {
-    auto& resources = universe().resources;
+    auto& resources = g_universe->resources;
      // TODO: Track how many loaded resources there are to preallocate this.
     auto scan_info = UniqueArray<ResourceScanInfo>(Capacity(resources.size()));
      // Start out by getting a bit of info about all loaded resources.
@@ -393,7 +393,7 @@ void unload (Slice<ResourceRef> to_unload) {
          // unloaded.  Everyone can go home.
         return;
     }
-    if (none_root && !universe().tracked) {
+    if (none_root && !g_universe->tracked) {
          // Root set is empty!  We get to skip reachability scanning and just
          // unload everything.
         scan_info.consume([](auto&& info){ really_unload(info.data); });
@@ -426,7 +426,7 @@ void unload (Slice<ResourceRef> to_unload) {
         });
     }
      // Now traverse the graph starting with the tracked items and roots.
-    for (auto& g : universe().tracked) {
+    for (auto& g : g_universe->tracked) {
         scan_links(
             g, {},
             [&scan_info, links_to_reses](const Link& item, RouteRef)
@@ -517,7 +517,7 @@ void reload (Slice<ResourceRef> reses) {
         for (auto res : reses) {
             auto data = static_cast<ResourceData*>(res.data);
             data->state = RS::Loading;
-            auto scheme = universe().require_scheme(data->name);
+            auto scheme = g_universe->require_scheme(data->name);
             auto path = scheme->get_filepath(data->name);
             if (!path) raise_ResourceNameNoFilepath("reload", data->name);
             Tree tree = tree_from_file(move(path));
@@ -531,7 +531,7 @@ void reload (Slice<ResourceRef> reses) {
         }
          // Verify step
         UniqueArray<ResourceRef> others;
-        for (auto& [name, other] : universe().resources) {
+        for (auto& [name, other] : g_universe->resources) {
             switch (other->state()) {
                 case RS::Unloaded: continue;
                 case RS::Loaded: others.emplace_back(&*other); break;
@@ -542,7 +542,7 @@ void reload (Slice<ResourceRef> reses) {
             }
             next_other:;
         }
-        if (others || universe().tracked) {
+        if (others || g_universe->tracked) {
              // First build mapping of old links to locations
             std::unordered_map<Link, SharedRoute> old_links;
             for (auto& rov : rovs) {
@@ -573,7 +573,7 @@ void reload (Slice<ResourceRef> reses) {
                 }
                 return false;
             };
-            for (auto tracked : universe().tracked) {
+            for (auto tracked : g_universe->tracked) {
                 scan_links(tracked, {}, check_link);
             }
             for (auto other : others) {
@@ -632,19 +632,19 @@ void rename (ResourceRef old_res, ResourceRef new_res) {
 }
 
 AnyString resource_filepath (const IRI& name) {
-    auto scheme = universe().require_scheme(name);
+    auto scheme = g_universe->require_scheme(name);
     return scheme->get_filepath(name);
 }
 
 void delete_source (const IRI& name) {
-    auto scheme = universe().require_scheme(name);
+    auto scheme = g_universe->require_scheme(name);
     auto path = scheme->get_filepath(name);
     if (!path) raise_ResourceNameNoFilepath("delete_source of", name);
     remove_utf8(path.c_str());
 }
 
 bool source_exists (const IRI& name) {
-    auto scheme = universe().require_scheme(name);
+    auto scheme = g_universe->require_scheme(name);
     auto path = scheme->get_filepath(name);
     if (!path) raise_ResourceNameNoFilepath("check if source_exists for", name);
     if (std::FILE* f = fopen_utf8(path.c_str())) {
@@ -656,7 +656,7 @@ bool source_exists (const IRI& name) {
 
 UniqueArray<SharedResource> loaded_resources () noexcept {
     UniqueArray<SharedResource> r;
-    for (auto& [name, rd] : universe().resources)
+    for (auto& [name, rd] : g_universe->resources)
     if (rd->state() != RS::Unloaded) {
         r.push_back(rd);
     }
@@ -670,15 +670,15 @@ namespace in {
 void track_ptr (AnyPtr item) noexcept {
     expect(item);
 #ifndef NDEBUG
-    for (auto& g : universe().tracked) {
+    for (auto& g : g_universe->tracked) {
         expect(g != item);
     }
 #endif
-    universe().tracked.push_back(item);
+    g_universe->tracked.push_back(item);
 }
 
 void untrack_ptr (AnyPtr item) noexcept {
-    auto& gs = universe().tracked;
+    auto& gs = g_universe->tracked;
     for (auto& g : gs) {
         if (g == item) {
             gs.erase(&g);
@@ -889,7 +889,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         ordinary_path = resource_filepath("file:/foo/bar"_iri);
     }, "Can't use file:/ resource when there's a scheme registered.");
      // Copy because deactivating modifies this array.
-    auto schemes = universe().schemes;
+    auto schemes = g_universe->schemes;
     for (auto& scheme : schemes) {
         scheme.value->deactivate();
     }

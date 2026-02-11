@@ -4,6 +4,7 @@
 
 namespace ayu {
 namespace in {
+using namespace iri::literals;
 
 ResourceRef Universe::get_resource (const IRI& name) {
     Str spec = expect(name.spec());
@@ -74,10 +75,10 @@ const ResourceScheme* Universe::require_scheme (const IRI& name) {
 
 void ResourceScheme::activate () const {
     require(iri::scheme_canonical(name));
-    universe().register_scheme(this);
+    g_universe->register_scheme(this);
 }
 void ResourceScheme::deactivate () const noexcept {
-    universe().unregister_scheme(this);
+    g_universe->unregister_scheme(this);
 }
 
 } // ayu

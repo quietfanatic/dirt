@@ -453,7 +453,7 @@ bool scan_universe_pointers (ScanPointersCB cb) {
            scan_pointers(address, current_base, cb);
         }
     }
-    for (auto& [_, res] : universe().resources) {
+    for (auto& [_, res] : g_universe->resources) {
         if (scan_resource_pointers(res, cb)) return true;
     }
     return false;
@@ -469,7 +469,7 @@ bool scan_universe_links (ScanLinksCB cb) {
             return true;
         }
     }
-    for (auto& [_, res] : universe().resources) {
+    for (auto& [_, res] : g_universe->resources) {
         if (scan_resource_links(res, cb)) return true;
     }
     return false;
