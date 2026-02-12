@@ -3,13 +3,16 @@
 
 #include "../../uni/indestructible.h"
 #include "../common.h"
-#include "resource-scheme.h"
+#include "scheme.h"
 
 namespace ayu::in {
 
  // The "Universe" manages the set of loaded resources and related global data.
+ // There isn't a whole lot of meaning to keeping this data all together.
 
 struct Universe {
+     // Embed hashes in the array so we don't have to dereference each pointer
+     // when we search the array.
     UniqueArray<Hashed<ResourceRef>> resources;
     UniqueArray<Hashed<ResourceScheme*>> schemes;
     UniqueArray<AnyPtr> tracked;

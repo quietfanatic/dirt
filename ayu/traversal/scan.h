@@ -103,13 +103,13 @@ bool scan_universe_pointers (ScanPointersCB cb);
 bool scan_universe_links (ScanLinksCB cb);
 
  // This is true while there is an ongoing scan.  While this is true, you cannot
- // start a new scan.
+ // start a new scan or perform any resource operations.
 extern bool currently_scanning;
 
  // link_to_route or pointer_to_route failed to find the Link.
 constexpr ErrorCode e_LinkNotFound = "ayu::e_LinkNotFound";
- // Tried to start a new scan while there's still a scan going.
-constexpr ErrorCode e_ScanWhileScanning = "ayu::e_ScanWhileScanning";
+ // Tried to do something you can't do during a scan.
+constexpr ErrorCode e_ForbiddenWhileScanning = "ayu::e_ForbiddenWhileScanning";
 
 ///// INLINES
 

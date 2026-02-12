@@ -101,6 +101,8 @@ struct ResourceScheme {
     void deactivate () noexcept;
 };
 
+ // Returns null if there's no scheme
+ResourceScheme* get_scheme (const IRI& name);
  // May throw ResourceSchemeNotFound
 ResourceScheme* require_scheme (const IRI& name);
 

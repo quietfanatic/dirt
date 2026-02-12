@@ -235,7 +235,6 @@ AnyString resource_filepath (const IRI&);
  // resources that are in the process of being loaded or reloaded.
 UniqueArray<SharedResource> loaded_resources () noexcept;
 
-
 ///// TRACKING NON-RESOURCE ITEMS
 
  // If you want to reference a resource from outside the resource system, you

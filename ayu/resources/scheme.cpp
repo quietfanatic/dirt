@@ -1,4 +1,4 @@
-#include "resource-scheme.h"
+#include "scheme.h"
 
 #include "resource.private.h"
 
@@ -27,20 +27,20 @@ void raise_ResourceNoFilepath () {
 
 void ResourceScheme::activate () {
     require(iri::scheme_canonical(name));
+    auto hash = uni::hash(name);
     auto& schemes = g_universe->schemes;
-    usize h = hash(name);
-    for (auto& s : schemes) {
-        if (s.hash == h && s.value->name == name) {
+    for (auto [h, s] : schemes) {
+        if (h == hash && s->name == name) {
             require(false);
         }
     }
-    schemes.emplace_back(h, this);
+    schemes.emplace_back(hash, this);
 }
 void ResourceScheme::deactivate () noexcept {
     auto& schemes = g_universe->schemes;
-    for (auto& s : schemes) {
-        if (s.value == this) {
-            schemes.erase(&s);
+    for (auto& p : schemes) {
+        if (p.value == this) {
+            schemes.erase(&p);
             return;
         }
     }
@@ -50,21 +50,26 @@ void ResourceScheme::deactivate () noexcept {
  // there are no active schemes.
 constinit auto default_scheme = FolderResourceScheme("file", "file:/"_iri, false);
 
-ResourceScheme* require_scheme (const IRI& name) {
+ResourceScheme* get_scheme (const IRI& name) {
     Str scheme = name.scheme();
-    auto schemes = g_universe->schemes;
-    if (schemes) {
-        usize h = hash(scheme);
-        for (auto& s : schemes) {
-            if (s.hash == h && s.value->name == scheme) {
-                return s.value;
+    if (auto schemes = g_universe->schemes) {
+        usize hash = uni::hash(scheme);
+        for (auto [h, s] : schemes) {
+            if (h == hash && s->name == scheme) {
+                return s;
             }
         }
     }
     else {
         if (scheme == "file") return &default_scheme;
     }
-    raise(e_ResourceSchemeNotFound, name.spec());
+    return null;
+}
+
+ResourceScheme* require_scheme (const IRI& name) {
+    auto r = get_scheme(name);
+    if (!r) raise(e_ResourceSchemeNotFound, name.spec());
+    return r;
 }
 
 } // ayu

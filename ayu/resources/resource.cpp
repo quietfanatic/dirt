@@ -11,7 +11,7 @@
 #include "../traversal/from-tree.h"
 #include "../traversal/scan.h"
 #include "../traversal/to-tree.h"
-#include "resource-scheme.h"
+#include "scheme.h"
 
 ///// INTERNALS
 
@@ -127,18 +127,33 @@ struct ROV {
     }
 };
 
- // Has to be pointer for in::RCP<>
-void delete_Resource_if_unloaded (Resource* res) noexcept {
-    if (res->state() != RS::Unloaded) return;
+NOINLINE static
+void delete_Resource (Resource* res) noexcept {
     auto& g_resources = g_universe->resources;
-    for (auto& r : g_resources) {
-        if (r.value == res) {
-            g_resources.erase(&r);
+    for (auto& p : g_resources) {
+        if (p.value == res) {
+            g_resources.erase(&p);
             delete res;
             return;
         }
     }
     require(false);
+}
+
+ // Has to be pointer for in::RCP<>
+void delete_Resource_if_unloaded (Resource* res) noexcept {
+    if (currently_scanning) {
+         // Last SharedResource got dropped in the middle of a scan!  We're not
+         // allowed to manipulate the resource list and we can't throw an
+         // exception in a destructor so uh...leak the resource data I guess.
+         // TODO: find a nonintrusive way to clean these up during unload.
+#ifndef NDEBUG
+        warn_utf8("Warning: A resource's refcount hit 0 during a scan.  Some resource data might be leaked.\n");
+#endif
+        return;
+    }
+    if (res->state() != RS::Unloaded) return;
+    delete_Resource(res);
 }
 
 } using namespace in;
@@ -166,6 +181,8 @@ AnyVal& Resource::get_value () noexcept {
 void Resource::set_value (AnyVal&& value) try {
     auto self = static_cast<ResourcePrivate*>(this);
     AnyVal v = move(value);
+
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot set_value while a scan is ongoing");
 
     if (self->state == RS::Loading) {
         raise_ResourceStateInvalid();
@@ -224,18 +241,19 @@ SharedResource::SharedResource (const IRI& name) {
     }
     Str spec = expect(name.spec());
     expect(spec.begin() < spec.end());
-    usize h = uni::hash(spec);
+    usize hash = uni::hash(spec);
 
      // See if this resource already exists
-    for (auto& r : g_universe->resources) {
-        if (r.hash == h && r.value->name().spec_ == spec) {
-            new (this) SharedResource(r.value);
+    for (auto [h, r] : g_universe->resources) {
+        if (h == hash && r->name().spec_ == spec) {
+            new (this) SharedResource(r);
             return;
         }
     }
      // Create new resource data
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot construct new Resource while a scan is ongoing");
     new (this) SharedResource(new ResourcePrivate(name));
-    g_universe->resources.emplace_back(h, *this);
+    g_universe->resources.emplace_back(hash, *this);
 }
 
 SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
@@ -282,6 +300,8 @@ static void load_cancel (ResourceRef res) {
 }
 
 void load (ResourceRef res) try {
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot load Resource while a scan is ongoing");
+
     auto self = static_cast<ResourcePrivate*>(res.p);
     if (self->state != RS::Unloaded) return;
     self->state = RS::Loading;
@@ -307,6 +327,8 @@ void load (ResourceRef res) try {
 }
 
 void save (ResourceRef res, PrintOptions opts) try {
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot save Resource while a scan is ongoing");
+
     auto self = static_cast<ResourcePrivate*>(res.p);
     if (self->state != RS::Loaded) raise_ResourceStateInvalid();
     if (!self->value) raise_ResourceValueEmpty();
@@ -397,13 +419,15 @@ static void reach_link (
 }
 
 void unload (Slice<ResourceRef> to_unload) try {
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot unload Resource while a scan is ongoing");
+
     auto& resources = g_universe->resources;
      // TODO: Track how many loaded resources there are to preallocate this.
     auto scan_info = UniqueArray<ResourceScanInfo>(Capacity(resources.size()));
      // Start out by getting a bit of info about all loaded resources.
     bool none_root = true;
     bool all_root = true;
-    for (auto& [hash, res] : resources) {
+    for (auto [h, res] : resources) {
         auto self = static_cast<ResourcePrivate*>(res.p);
          // Only scan loaded resources
         if (self->state != RS::Loaded) continue;
@@ -505,6 +529,7 @@ void unload (Slice<ResourceRef> to_unload) try {
 }
 
 void force_unload (ResourceRef res) noexcept {
+    require(!currently_scanning);
     auto self = static_cast<ResourcePrivate*>(res.p);
     if (self->state == RS::Unloaded) return;
     require(self->state != RS::Loading);
@@ -535,6 +560,8 @@ NOINLINE static void reload_rollback (UniqueArray<ROV>&& rovs) {
 }
 
 void reload (Slice<ResourceRef> to_reload) try {
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot reload Resource while a scan is ongoing");
+
     UniqueArray<ROV> rovs;
     for (auto res : to_reload) {
         if (res->state() == RS::Loaded) {
@@ -562,10 +589,10 @@ void reload (Slice<ResourceRef> to_reload) try {
         }
          // Verify step
         UniqueArray<ResourceRef> others;
-        for (auto& [name, other] : g_universe->resources) {
+        for (auto [h, other] : g_universe->resources) {
             switch (other->state()) {
                 case RS::Unloaded: continue;
-                case RS::Loaded: others.emplace_back(&*other); break;
+                case RS::Loaded: others.emplace_back(other); break;
                 default: raise(e_General, "Another resource is currently loading");
             }
             for (auto res : to_reload) {
@@ -699,9 +726,9 @@ bool source_exists (const IRI& name) try {
 
 UniqueArray<SharedResource> loaded_resources () noexcept {
     UniqueArray<SharedResource> r;
-    for (auto& [name, rd] : g_universe->resources)
-    if (rd->state() != RS::Unloaded) {
-        r.push_back(rd);
+    for (auto [hash, res] : g_universe->resources)
+    if (res->state() != RS::Unloaded) {
+        r.push_back(res);
     }
     return r;
 }
