@@ -32,23 +32,23 @@ static void raise_ResourceValueEmpty () {
 }
 
 [[noreturn, gnu::cold]]
-static void wrap_error_for_resource_unconstructed (
-    AnyString name, ResourceState state, StaticString operation
+static void tag_error_with_resource_data (
+    const AnyString& name, ResourceState state, StaticString operation
 ) {
     Error& e = current_error();
-    e.add_tag("ayu::ResourceName", name);
+    e.add_tag("ayu::ResourceName", move(name));
     e.add_tag("ayu::ResourceOperation", operation);
     e.add_tag("ayu::ResourceState", show(&state));
     throw e;
 }
 
 [[noreturn, gnu::cold]]
-static void wrap_error_for_resource (ResourceRef res, StaticString operation) {
-    wrap_error_for_resource_unconstructed(res->name().spec(), res->state(), operation);
+static void tag_error_with_resource (ResourceRef res, StaticString operation) {
+    tag_error_with_resource_data(res->name().spec(), res->state(), operation);
 }
 
 [[noreturn, gnu::cold]]
-static void wrap_error_for_resources (
+static void tag_error_with_resources (
     Slice<ResourceRef> reses, StaticString operation
 ) {
     Error& e = current_error();
@@ -100,22 +100,6 @@ struct TypeAndTree {
     Tree tree;
 };
 
-static TypeAndTree verify_tree_for_scheme (
-    ResourceScheme* scheme,
-    const Tree& tree
-) {
-    if (tree.form == Form::Null) {
-        raise_ResourceValueEmpty();
-    }
-    auto a = Slice<Tree>(tree);
-    if (a.size() == 2) {
-        Type type = Type(Str(a[0]));
-        scheme->validate_type(type);
-        return {type, a[1]};
-    }
-    else raise_LengthRejected(Type::For<AnyVal>(), 2, 2, a.size());
-}
-
 struct ROV {
      // Since this keeps a ref count on the ResourceData, if unload is called
      // with a ResourceData that has a ref count of 0 (but wasn't deleted
@@ -153,23 +137,19 @@ AnyVal& Resource::get_value () noexcept {
     return static_cast<ResourceData*>(this)->value;
 }
 
-void Resource::set_value (AnyVal&& value) {
+void Resource::set_value (AnyVal&& value) try {
     auto data = static_cast<ResourceData*>(this);
     AnyVal v = move(value);
-    try {
-        if (data->state == RS::Loading) {
-            raise_ResourceStateInvalid();
-        }
-        if (!v) {
-            raise_ResourceValueEmpty();
-        }
-        if (data->name) {
-            auto scheme = g_universe->require_scheme(data->name);
-            scheme->validate_type(v.type);
-        }
+
+    if (data->state == RS::Loading) {
+        raise_ResourceStateInvalid();
     }
-    catch (...) {
-        wrap_error_for_resource(this, "load");
+    if (!v) {
+        raise_ResourceValueEmpty();
+    }
+    if (data->name) {
+        auto scheme = g_universe->require_scheme(data->name);
+        scheme->validate_type(v.type);
     }
     if (ResourceTransaction::depth) {
          // Don't use ROV here so we don't force a vtable onto ROV
@@ -191,6 +171,8 @@ void Resource::set_value (AnyVal&& value) {
     }
     data->value = move(v);
     data->state = RS::Loaded;
+} catch (...) {
+    tag_error_with_resource(this, "set_value");
 }
 
 Link Resource::operator[] (const AnyString& key) { return link()[key]; }
@@ -210,7 +192,7 @@ SharedResource::SharedResource (const IRI& name) {
         scheme->validate_name(name);
     }
     catch (...) {
-        wrap_error_for_resource_unconstructed(
+        tag_error_with_resource_data(
             name.possibly_invalid_spec(), RS::Unloaded, "construct"
         );
     }
@@ -225,7 +207,7 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
         if (data->state() != RS::Unloaded) raise_ResourceStateInvalid();
     }
     catch (...) {
-        wrap_error_for_resource(*this, "construct with value");
+        tag_error_with_resource(*this, "construct with value");
     }
     data->set_value(move(v));
 }
@@ -239,6 +221,29 @@ void in::delete_Resource_if_unloaded (Resource* res) noexcept {
 
 ///// RESOURCE OPERATIONS
 
+static void load_inner (ResourceRef res, FromTreeOptions opts) {
+    auto data = static_cast<ResourceData*>(res.data);
+
+    auto scheme = g_universe->require_scheme(data->name);
+    auto path = scheme->require_filepath(data->name);
+    Tree tree = tree_from_file(move(path));
+    auto a = Slice<Tree>(tree);
+    if (a.size() != 2) {
+        raise_LengthRejected(Type::For<AnyVal>(), 2, 2, a.size());
+    }
+    Type type = Type(Str(a[0]));
+    scheme->validate_type(type);
+    expect(!data->value);
+    data->value = AnyVal(type);
+
+     // Run item_from_tree on the AnyVal's value, not on the AnyVal
+     // itself.  Otherwise, the associated locations will have an extra +1
+     // in the fragment.
+    item_from_tree(
+        data->value.ptr(), a[1], SharedRoute(res), opts
+    );
+}
+
 static void load_cancel (ResourceRef res) {
     auto data = static_cast<ResourceData*>(res.data);
     data->value = {};
@@ -250,19 +255,7 @@ void load (ResourceRef res) try {
     if (data->state != RS::Unloaded) return;
     data->state = RS::Loading;
 
-    auto scheme = g_universe->require_scheme(data->name);
-    auto path = scheme->require_filepath(data->name);
-    Tree tree = tree_from_file(move(path));
-    auto tnt = verify_tree_for_scheme(scheme, tree);
-     // Run item_from_tree on the AnyVal's value, not on the AnyVal
-     // itself.  Otherwise, the associated locations will have an extra +1
-     // in the fragment.
-    expect(!data->value);
-    data->value = AnyVal(tnt.type);
-    item_from_tree(
-        data->value.ptr(), tnt.tree, SharedRoute(res),
-        FromTreeOptions::DelaySwizzle
-    );
+    load_inner(res, FromTreeOptions::DelaySwizzle);
 
     if (ResourceTransaction::depth) {
         struct LoadCommitter : Committer {
@@ -277,10 +270,9 @@ void load (ResourceRef res) try {
         );
     }
     data->state = RS::Loaded;
-
 } catch (...) {
     load_cancel(res);
-    wrap_error_for_resource(res, "load");
+    tag_error_with_resource(res, "load");
 }
 
 void save (ResourceRef res, PrintOptions opts) try {
@@ -320,7 +312,7 @@ void save (ResourceRef res, PrintOptions opts) try {
         outfile.write(contents, path);
     }
 } catch (...) {
-    wrap_error_for_resource(res, "save");
+    tag_error_with_resource(res, "save");
 }
 
 static void really_unload (ResourceData* data) {
@@ -478,7 +470,7 @@ void unload (Slice<ResourceRef> to_unload) try {
         if (!info.data->reachable) really_unload(info.data);
     }
 } catch (...) {
-    wrap_error_for_resources(to_unload, "unload");
+    tag_error_with_resources(to_unload, "unload");
 }
 
 void force_unload (ResourceRef res) noexcept {
@@ -532,15 +524,9 @@ void reload (Slice<ResourceRef> reses) try {
         for (auto res : reses) {
             auto data = static_cast<ResourceData*>(res.data);
             data->state = RS::Loading;
-            auto scheme = g_universe->require_scheme(data->name);
-            auto path = scheme->require_filepath(data->name);
-            Tree tree = tree_from_file(move(path));
-            auto tnt = verify_tree_for_scheme(scheme, tree);
-            expect(!data->value);
-            data->value = AnyVal(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
-            item_from_tree(data->value.ptr(), tnt.tree, SharedRoute(res));
+            load_inner(res, {});
             data->state = RS::Loaded;
         }
          // Verify step
@@ -630,7 +616,7 @@ void reload (Slice<ResourceRef> reses) try {
     }
 }
 catch (...) {
-    wrap_error_for_resources(reses, "reload");
+    tag_error_with_resources(reses, "reload");
 }
 
 void rename (ResourceRef old_res, ResourceRef new_res) try {
@@ -647,7 +633,7 @@ void rename (ResourceRef old_res, ResourceRef new_res) try {
     new_data->state = RS::Loaded;
     old_data->state = RS::Unloaded;
 } catch (...) {
-    wrap_error_for_resources({old_res, new_res}, "rename");
+    tag_error_with_resources({old_res, new_res}, "rename");
 }
 
 AnyString resource_filepath (const IRI& name) try {
