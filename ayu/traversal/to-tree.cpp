@@ -69,7 +69,7 @@ struct TraverseToTree {
         }
         else after_to_tree(trav, trav.desc());
     }
-    catch (...) { wrap_exception(trav); }
+    catch (...) { embed_error(trav); }
 
     NOINLINE static
     void no_value_match (
@@ -419,7 +419,7 @@ struct TraverseToTree {
     }
 
     NOINLINE static
-    void wrap_exception (const ToTreeTraversal<>& trav) {
+    void embed_error (const ToTreeTraversal<>& trav) {
         expect(trav.embed_errors);
         new (trav.dest) Tree(std::current_exception());
     }

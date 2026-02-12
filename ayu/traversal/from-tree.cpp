@@ -123,9 +123,7 @@ struct TraverseFromTree {
                         op.f(*v, op.tree);
                     }));
                 }
-                catch (...) {
-                    rethrow_with_scanned_route(op.item);
-                }
+                catch (...) { tag_error_with_item(op.item); }
                 expect(!op.base);
             });
              // Swizzling might add more swizzle ops; this will happen if we're
@@ -142,9 +140,7 @@ struct TraverseFromTree {
                         op.f(*v);
                     }));
                 }
-                catch (...) {
-                    rethrow_with_scanned_route(op.item);
-                }
+                catch (...) { tag_error_with_item(op.item); }
                 expect(!op.base);
             });
              // Initting might add more swizzle or init ops.  It'd be weird, but

@@ -375,7 +375,7 @@ Link item_attr (const Link& item, const AnyString& key, RouteRef rt) {
     Link r = TraverseAttr::start(item, key, rt);
     if (!r) {
         try { raise_AttrNotFound(item.type(), key); }
-        catch (...) { rethrow_with_route(rt); }
+        catch (...) { tag_error_with_route(rt); }
     }
     return r;
 }
@@ -394,7 +394,7 @@ struct TraverseGetLength {
         u32 len;
         item.read(AccessCB(len, &visit));
         return len;
-    } catch (...) { rethrow_with_route(rt); }
+    } catch (...) { tag_error_with_route(rt); }
 
     NOINLINE static
     void visit (u32& len, Type t, Mu* v) {
@@ -436,7 +436,7 @@ struct TraverseSetLength {
     void start (const Link& item, u32 len, RouteRef rt) try {
         CurrentBase curb (rt, item);
         item.read(AccessCB(len, &visit));
-    } catch (...) { rethrow_with_route(rt); }
+    } catch (...) { tag_error_with_route(rt); }
 
     NOINLINE static
     void visit (u32& len, Type t, Mu* v) {
@@ -612,7 +612,7 @@ Link item_elem (const Link& item, u32 index, RouteRef rt) {
     TraverseElem::start(item, index, rt, r);
     if (!r) {
         try { raise_ElemNotFound(item.type(), index); }
-        catch (...) { rethrow_with_route(rt); }
+        catch (...) { tag_error_with_route(rt); }
     }
     return r;
 }

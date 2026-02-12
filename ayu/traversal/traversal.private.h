@@ -49,12 +49,13 @@ struct Traversal {
     }
 
     void to_link (void* r) const noexcept;
-    [[noreturn, gnu::cold]]
-    void wrap_exception () const;
 };
 
-[[noreturn, gnu::cold]]
-void rethrow_with_scanned_route (const Link& item);
+ // Add a traversal route to the current exception if it doesn't already
+ // have one.
+[[noreturn, gnu::cold]] NOINLINE void tag_error_with_route (RouteRef);
+[[noreturn, gnu::cold]] NOINLINE void tag_error_with_item (const Link&);
+[[noreturn, gnu::cold]] NOINLINE void tag_error_with_traversal (const Traversal&);
 
 ///// TRAVERSAL SUFFIXES
 
@@ -134,7 +135,7 @@ void trav_start (
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
     ));
-} catch (...) { child.wrap_exception(); }
+} catch (...) { tag_error_with_traversal(child); }
 
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_acr (
@@ -150,7 +151,7 @@ void trav_acr (
         &trav_after_access<visit>
     ));
 }
-catch (...) { child.wrap_exception(); }
+catch (...) { tag_error_with_traversal(child); }
 
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_link (
@@ -159,13 +160,13 @@ void trav_link (
 ) try {
     child.parent = &parent;
     child.caps = parent.caps * link.caps();
-     // TODO: disassemble this link to save stack space
+     // TODO: disassemble this link to save stack space?
     link.access(mode, AccessCB(
         static_cast<Traversal&>(child),
         &trav_after_access<visit>
     ));
 }
-catch (...) { child.wrap_exception(); }
+catch (...) { tag_error_with_traversal(child); }
 
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_ptr (
@@ -178,7 +179,7 @@ void trav_ptr (
         child, ptr.type(), ptr.address
     );
 }
-catch (...) { child.wrap_exception(); }
+catch (...) { tag_error_with_traversal(child); }
 
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_attr (

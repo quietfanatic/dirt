@@ -35,24 +35,11 @@ static void raise_ResourceValueEmpty () {
 static void wrap_error_for_resource_unconstructed (
     AnyString name, ResourceState state, StaticString operation
 ) {
-    try { throw; }
-    catch (Error& e) {
-        e.add_tag("ayu::ResourceName", name);
-        e.add_tag("ayu::ResourceOperation", operation);
-        e.add_tag("ayu::ResourceState", show(&state));
-        throw e;
-    }
-    catch (std::exception& ex) {
-        Error e;
-        e.code = e_External;
-        e.details = ex.what();
-        e.external = std::current_exception();
-        try { throw e; }
-        catch (Error& e) {
-            wrap_error_for_resource_unconstructed(name, state, operation);
-        }
-        catch (...) { never(); }
-    }
+    Error& e = current_error();
+    e.add_tag("ayu::ResourceName", name);
+    e.add_tag("ayu::ResourceOperation", operation);
+    e.add_tag("ayu::ResourceState", show(&state));
+    throw e;
 }
 
 [[noreturn, gnu::cold]]
@@ -64,34 +51,21 @@ static void wrap_error_for_resource (ResourceRef res, StaticString operation) {
 static void wrap_error_for_resources (
     Slice<ResourceRef> reses, StaticString operation
 ) {
-    try { throw; }
-    catch (Error& e) {
-         // Hopefully this isn't too long of an error message.
-        e.add_tag("ayu::ResourceOperation", operation);
-        for (u32 i = 0; i < reses.size(); i++) {
-            e.add_tag(
-                cat("ayu::ResourceName[", i, ']'),
-                reses[i]->name().possibly_invalid_spec()
-            );
-            auto state = reses[i]->state();
-            e.add_tag(
-                cat("ayu::ResourceState[", i, ']'),
-                show(&state)
-            );
-        }
-        throw;
+    Error& e = current_error();
+     // Hopefully this isn't too long of an error message.
+    e.add_tag("ayu::ResourceOperation", operation);
+    for (u32 i = 0; i < reses.size(); i++) {
+        e.add_tag(
+            cat("ayu::ResourceName[", i, ']'),
+            reses[i]->name().possibly_invalid_spec()
+        );
+        auto state = reses[i]->state();
+        e.add_tag(
+            cat("ayu::ResourceState[", i, ']'),
+            show(&state)
+        );
     }
-    catch (std::exception& ex) {
-        Error e;
-        e.code = e_External;
-        e.details = ex.what();
-        e.external = std::current_exception();
-        try { throw e; }
-        catch (Error& e) {
-            wrap_error_for_resources(reses, operation);
-        }
-        catch (...) { never(); }
-    }
+    throw e;
 }
 
 struct Break {

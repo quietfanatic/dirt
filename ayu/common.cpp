@@ -29,33 +29,5 @@ void dump_refs (Slice<Link> rs) {
     }
 }
 
-void in::rethrow_with_route (RouteRef rt) {
-    try { throw; }
-    catch (Error& e) {
-        if (!e.get_tag("ayu::route")) {
-            UniqueString spec = rt ?
-                route_to_iri(rt).spec() : "!(Could not find route of error)";
-            e.add_tag("ayu::route", spec);
-        }
-        throw e;
-    }
-    catch (std::exception& ex) {
-        Error e;
-        e.code = e_External;
-        {
-            e.details = cat(
-#if defined(__GXX_RTTI) || defined(_CPPRTTI)
-                demangle_cpp_name(typeid(ex).name()), ": ", ex.what()
-#else
-                "(unknown error type): ", ex.what()
-#endif
-            );
-        }
-        e.add_tag("ayu::route", route_to_iri(rt).spec());
-        e.external = std::current_exception();
-        throw e;
-    }
-}
-
 } using namespace ayu;
 

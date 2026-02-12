@@ -93,28 +93,22 @@ void to_link_chain (const Traversal& trav, void* r) noexcept {
     }
 }
 
-[[gnu::cold]] NOINLINE
-void Traversal::wrap_exception () const {
-    try { throw; }
-    catch (Error& e) {
-        if (e.get_tag("ayu::route")) throw;
-        Link item;
-        to_link(&item);
-        rethrow_with_scanned_route(item);
-    }
-    catch (...) {
-        Link item;
-        to_link(&item);
-        rethrow_with_scanned_route(item);
-    }
+[[noreturn, gnu::cold]] NOINLINE
+void tag_error_with_route_really (Error& e, RouteRef rt) {
+    UniqueString tag;
+    try { tag = route_to_iri(rt).spec(); }
+    catch (...) { }
+    if (!tag) tag = "!(Could not find route of error)";
+    e.add_tag("ayu::Route", tag);
+    throw e;
 }
 
-NOINLINE
-void rethrow_with_scanned_route (const Link& item) {
-    RouteRef base_rt = current_base;
-    Link base_item = link_from_route(base_rt);
+[[noreturn, gnu::cold]] NOINLINE
+void tag_error_with_item_really (Error& e, const Link& item) {
     SharedRoute found_rt;
-    try {
+    if (item) try {
+        RouteRef base_rt = current_base;
+        Link base_item = link_from_route(base_rt);
         scan_links_ignoring_no_links_to_children(
             base_item, base_rt,
             [&](const Link& link, RouteRef rt) {
@@ -122,8 +116,29 @@ void rethrow_with_scanned_route (const Link& item) {
             }
         );
     }
-    catch (...) { } // discard exception and leave found_rt blank
-    rethrow_with_route(found_rt);
+    catch (...) { }
+    tag_error_with_route_really(e, found_rt);
+}
+
+void tag_error_with_route (RouteRef rt) {
+    Error& e = current_error();
+    if (e.get_tag("ayu::Route")) throw e;
+    tag_error_with_route_really(e, rt);
+}
+
+void tag_error_with_item (const Link& item) {
+    Error& e = current_error();
+    if (e.get_tag("ayu::Route")) throw e;
+    tag_error_with_item_really(e, item);
+}
+
+void tag_error_with_traversal (const Traversal& trav) {
+    Error& e = current_error();
+    if (e.get_tag("ayu::Route")) throw e;
+    Link item;
+    try { trav.to_link(&item); }
+    catch (...) { }
+    tag_error_with_item_really(e, item);
 }
 
 } // ayu::in
