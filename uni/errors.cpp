@@ -27,15 +27,16 @@ const char* Error::what () const noexcept {
 }
 Error::~Error () { }
 
-const AnyString& Error::get_tag (const AnyString& name) {
+Str Error::get_tag (Str name) {
     for (auto& [n, v] : tags) {
         if (n.data() == name.data() || n == name) return v;
     }
-    static constexpr AnyString empty = "";
-    return empty;
+    return "";
 }
-void Error::add_tag (AnyString name, AnyString value) {
-    tags.emplace_back(move(name), move(value));
+void add_tag_impl (Error& e, AnyString::Impl name, AnyString::Impl value) {
+    AnyString n; n.impl = name;
+    AnyString v; v.impl = value;
+    e.tags.emplace_back(move(n), move(v));
 }
 
 Error& current_error () {
@@ -57,7 +58,7 @@ Error& current_error () {
     }
 }
 
-void raise_inner (StaticString code, AnyString::Impl details) {
+void raise_impl (StaticString code, AnyString::Impl details) {
     Error e;
     e.code = code;
     e.details.impl = details;

@@ -46,7 +46,7 @@ struct Error : std::exception {
     const char* what () const noexcept override;
 
      // Returns the value of the tag, or "" if it doesn't exist.
-    const AnyString& get_tag (const AnyString& name);
+    Str get_tag (Str name);
      // Adds the tag (doesn't check if it's already been added)
     void add_tag (AnyString name, AnyString value);
      // If you want to prevent duplicate tags, do
@@ -60,13 +60,13 @@ Error& current_error ();
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
-void raise_inner (StaticString code, AnyString::Impl details);
+void raise_impl (StaticString code, AnyString::Impl details);
 
 [[noreturn]] ALWAYS_INLINE
 void raise (StaticString code, AnyString details) {
     auto impl = details.impl;
     details.impl = {};
-    raise_inner(code, impl);
+    raise_impl(code, impl);
 }
 
  // Unspecified error
@@ -80,6 +80,14 @@ constexpr ErrorCode e_External = "uni::e_External";
 
  // Probably useless without rtti
 UniqueString demangle_cpp_name (const char* name) noexcept;
+
+void add_tag_impl (Error&, AnyString::Impl name, AnyString::Impl value);
+
+inline void Error::add_tag (AnyString name, AnyString value) {
+    auto n = name.impl; name.impl = {};
+    auto v = value.impl; value.impl = {};
+    add_tag_impl(*this, n, v);
+}
 
 } // uni
 
