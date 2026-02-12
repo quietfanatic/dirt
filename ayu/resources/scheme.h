@@ -26,17 +26,13 @@ void raise_ResourceNoFilepath ();
  // Currently, resources in a scheme are only allowed to link to other resources
  // in the same scheme.
  //
- // If no ResourceSchemes are active, then a default resource scheme with the
- // name "file" will be used, which maps resource names directly to files in the
- // filesystem.
+ // If no ResourceSchemes are active, then a default FolderResourceScheme with
+ // the name "file" will be used, which maps resource names directly to files in
+ // the filesystem.
  //
- // ResourceSchemes are allowed to be constructed at init time, but you can't
- // manipulate any Types until main() starts.
+ // ResourceSchemes are allowed to be constructed and activated at init time,
+ // but you can't use them until main starts.
 struct ResourceScheme {
-     // Must be a valid scheme name matching [a-z][a-z0-9+.-]* and must not be
-     // the same as any other ResourceScheme name, otherwise a runtime assert
-     // will be triggered.
-    const AnyString name;
 
      // If you want to do some of your own validation besides the standard IRI
      // validation.  If this returns false, ResourceNameRejected will be thrown.
@@ -74,30 +70,32 @@ struct ResourceScheme {
         return r;
     }
 
-     // By default, constructing a ResourceScheme will activate it (which is not
-     // constexprable).
-    constexpr explicit
-    ResourceScheme (AnyString n, bool auto_activate = true) :
-        name(move(n))
-    {
-        if (auto_activate) activate();
-    }
+    constexpr ResourceScheme () { }
+
+     // Constructing with a name automatically activates the scheme.  The name
+     // must be a valid IRI scheme matching [a-z][a-z0-9+.-]* and must not be
+     // the same as any other ResourceScheme name, otherwise a runtime assert
+     // will be triggered.
+    explicit
+    ResourceScheme (const AnyString& name) { activate(name); }
 
     ResourceScheme (const ResourceScheme&) = delete;
     ResourceScheme (ResourceScheme&& o) = delete;
     ResourceScheme& operator = (const ResourceScheme&) = delete;
     ResourceScheme& operator = (ResourceScheme&&) = delete;
 
+     // Destroying a ResourceScheme automatically deactivates it.
     virtual ~ResourceScheme () { deactivate(); }
 
-     // These are called in the constructor (by default) and destructor, so you
-     // don't have to call them yourself.
-    void activate ();
-     // If you deactivate a ResourceScheme while a Resource that uses it is
-     // loaded, you will not be able to save or reload the Resource, but you
-     // will be able to unload it.  Reactivating the ResourceScheme will fix
-     // this.  You could also activate a different ResourceScheme with the same
-     // name, but why would you do that.
+     // You can activate a ResourceScheme under multiple scheme names if you
+     // want.  This is less useful than it is for ResourceExtension.
+    void activate (const AnyString&) noexcept;
+     // Deactivating a ResourceScheme deactivates it for all names it was
+     // activated with.  If you deactivate a ResourceScheme while a Resource
+     // that uses it is loaded, you will not be able to save or reload the
+     // Resource, but you will be able to unload it.  Reactivating the
+     // ResourceScheme will fix this.  You could also activate a different
+     // ResourceScheme with the same name, but why would you do that.
     void deactivate () noexcept;
 };
 
@@ -106,17 +104,21 @@ ResourceScheme* get_scheme (const IRI& name);
  // May throw ResourceSchemeNotFound
 ResourceScheme* require_scheme (const IRI& name);
 
+///// ERROR CODES
+
  // Tried to find a resource scheme that didn't exist.
 constexpr ErrorCode e_ResourceSchemeNotFound = "ayu::e_ResourceSchemeNotFound";
  // The ResourceScheme associated with the resource name rejected the name.
 constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";
- // The ResourceScheme associated with the resource name did not provide a
- // filepath for its name.
-constexpr ErrorCode e_ResourceNoFilepath = "ayu::e_ResourceNoFilepath";
  // The ResourceScheme associated with the resource did not accept the type
  // provided for the resource.  This can happen either while loading from a
  // file, or when setting a resource's value programmatically.
 constexpr ErrorCode e_ResourceTypeRejected = "ayu::e_ResourceTypeRejected";
+ // The ResourceScheme associated with the resource name did not provide a
+ // filepath for its name.
+constexpr ErrorCode e_ResourceNoFilepath = "ayu::e_ResourceNoFilepath";
+
+///// FOLDER RESOURCE SCHEMES
 
  // Maps resource names to the contents of a folder.
 struct FolderResourceScheme : ResourceScheme {
@@ -134,18 +136,9 @@ struct FolderResourceScheme : ResourceScheme {
         return iri::to_fs_path(abs);
     }
 
-    FolderResourceScheme (
-        AnyString n, Str folder, bool auto_activate = true
-    ) :
-        ResourceScheme(move(n), auto_activate),
-        folder(iri::from_fs_path(cat(folder, '/')))
-    { }
-
-    constexpr FolderResourceScheme (
-        AnyString n, const IRI& folder, bool auto_activate = true
-    ) :
-        ResourceScheme(move(n), auto_activate),
-        folder(folder)
+     // Constructing from an IRI can be constexpr
+    constexpr FolderResourceScheme (const IRI& f) :
+        folder(f)
     {
         require(
             folder.scheme() == "file" &&
@@ -153,6 +146,19 @@ struct FolderResourceScheme : ResourceScheme {
             folder.path().back() == '/'
         );
     }
+     // (but not if you auto-activate it)
+    explicit FolderResourceScheme (const AnyString& n, const IRI& f) :
+        FolderResourceScheme(f)
+    { activate(n); }
+
+     // Construct with an OS path to a folder.
+    FolderResourceScheme (Str f) :
+        FolderResourceScheme(iri::from_fs_path(cat(f, '/')))
+    { }
+     // (with auto-activate)
+    explicit FolderResourceScheme (const AnyString& n, Str f) :
+        FolderResourceScheme(f)
+    { activate(n); }
 };
 
 } // namespace ayu

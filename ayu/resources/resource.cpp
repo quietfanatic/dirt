@@ -960,8 +960,8 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     }, "Can't use file:/ resource when there's a scheme registered.");
      // Copy because deactivating modifies this array.
     auto schemes = g_universe->schemes;
-    for (auto& scheme : schemes) {
-        scheme.value->deactivate();
+    for (auto& entry : schemes) {
+        entry.scheme->deactivate();
     }
     doesnt_throw([&]{
         ordinary_path = resource_filepath("file:/foo/bar"_iri);

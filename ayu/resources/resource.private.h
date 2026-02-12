@@ -10,11 +10,19 @@ namespace ayu::in {
  // The "Universe" manages the set of loaded resources and related global data.
  // There isn't a whole lot of meaning to keeping this data all together.
 
+struct ResourceSchemeEntry {
+    usize hash;
+    AnyString name;
+    ResourceScheme* scheme;
+};
+
 struct Universe {
-     // Embed hashes in the array so we don't have to dereference each pointer
-     // when we search the array.
+     // Embed hash in the array so we don't have to dereference each pointer
+     // when we search for a Resource.
     UniqueArray<Hashed<ResourceRef>> resources;
-    UniqueArray<Hashed<ResourceScheme*>> schemes;
+     // Embed name too in schemes, so we can register the same scheme under
+     // multiple names.
+    UniqueArray<ResourceSchemeEntry> schemes;
     UniqueArray<AnyPtr> tracked;
 };
 

@@ -25,38 +25,39 @@ void raise_ResourceNoFilepath () {
     raise(e_ResourceNoFilepath, "Resource has no associated filepath.");
 }
 
-void ResourceScheme::activate () {
+void ResourceScheme::activate (const AnyString& name) noexcept {
     require(iri::scheme_canonical(name));
     auto hash = uni::hash(name);
     auto& schemes = g_universe->schemes;
-    for (auto [h, s] : schemes) {
-        if (h == hash && s->name == name) {
+    for (auto& entry : schemes) {
+        if (entry.hash == hash && entry.name == name) {
             require(false);
         }
     }
-    schemes.emplace_back(hash, this);
+    schemes.emplace_back(hash, name, this);
 }
 void ResourceScheme::deactivate () noexcept {
     auto& schemes = g_universe->schemes;
-    for (auto& p : schemes) {
-        if (p.value == this) {
-            schemes.erase(&p);
-            return;
+    u32 i = 0;
+    while (i < schemes.size()) {
+        if (schemes[i].scheme == this) {
+            schemes.erase(i);
         }
+        else i++;
     }
 }
 
- // The default scheme.  Don't auto_activate because this is only used when
- // there are no active schemes.
-constinit auto default_scheme = FolderResourceScheme("file", "file:/"_iri, false);
+ // The default scheme.  Don't activate this because it is only used when there
+ // are no active schemes.
+constinit auto default_scheme = FolderResourceScheme("file:/"_iri);
 
 ResourceScheme* get_scheme (const IRI& name) {
     Str scheme = name.scheme();
     if (auto schemes = g_universe->schemes) {
         usize hash = uni::hash(scheme);
-        for (auto [h, s] : schemes) {
-            if (h == hash && s->name == scheme) {
-                return s;
+        for (auto& entry : schemes) {
+            if (entry.hash == hash && entry.name == scheme) {
+                return entry.scheme;
             }
         }
     }
