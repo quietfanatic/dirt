@@ -9,21 +9,6 @@
 
 namespace ayu::in {
 
-struct ResourceData : Resource {
-    ResourceState state = RS::Unloaded;
-     // These are only used during reachability scanning, but we have extra room
-     // for them here.
-    bool root;
-    bool reachable;
-     // This is also only used during reachability scanning, but storing it
-     // externally would require using an unordered_map (to use a UniqueArray,
-     // we need an integer index, but that's what this itself is).
-    u32 node_id;
-    IRI name;
-    AnyVal value {};
-    ResourceData (const IRI& n) : name(n) { }
-};
-
 struct Universe {
     UniqueArray<Hashed<ResourceRef>> resources;
     UniqueArray<Hashed<ResourceScheme*>> schemes;

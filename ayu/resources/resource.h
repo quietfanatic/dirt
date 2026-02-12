@@ -75,8 +75,8 @@ struct Resource : in::RefCounted {
 
  // A refcounted pointer to a Resource.
 struct SharedResource {
-    in::RCP<Resource, in::delete_Resource_if_unloaded> data;
-    constexpr SharedResource (Resource* d) : data(d) { }
+    in::RCP<Resource, in::delete_Resource_if_unloaded> p;
+    constexpr SharedResource (Resource* p) : p(p) { }
 
     constexpr SharedResource () { }
      // Refers to the resource with this name, but does not load it yet.
@@ -88,30 +88,30 @@ struct SharedResource {
      // set_value.  TODO: remove this and add create_value or something
     SharedResource (const IRI& name, AnyVal&& value);
 
-    Resource& operator* () const { return *data; }
-    Resource* operator-> () const { return &*data; }
-    constexpr explicit operator bool () const { return !!data; }
-    Link operator [] (const AnyString& key) { return (*data)[key]; }
-    Link operator [] (u32 index) { return (*data)[index]; }
+    Resource& operator* () const { return *p.p; }
+    Resource* operator-> () const { return p.p; }
+    constexpr explicit operator bool () const { return !!p.p; }
+    Link operator [] (const AnyString& key) { return (*p.p)[key]; }
+    Link operator [] (u32 index) { return (*p.p)[index]; }
 };
 
  // A non-owning reference to a Resource.
 struct ResourceRef {
-    Resource* data;
-    constexpr ResourceRef (Resource* d) : data(d) { }
+    Resource* p;
+    constexpr ResourceRef (Resource* p) : p(p) { }
 
     constexpr ResourceRef () { }
-    constexpr ResourceRef (const SharedResource& p) : data(p.data.p) { }
+    constexpr ResourceRef (const SharedResource& r) : p(r.p.p) { }
 
-    Resource& operator* () const { return *data; }
-    Resource* operator-> () const { return data; }
-    operator SharedResource () const { return SharedResource(data); }
-    constexpr explicit operator bool () const { return !!data; }
-    Link operator [] (const AnyString& key) { return (*data)[key]; }
-    Link operator [] (u32 index) { return (*data)[index]; }
+    Resource& operator* () const { return *p; }
+    Resource* operator-> () const { return p; }
+    operator SharedResource () const { return SharedResource(p); }
+    constexpr explicit operator bool () const { return !!p; }
+    Link operator [] (const AnyString& key) { return (*p)[key]; }
+    Link operator [] (u32 index) { return (*p)[index]; }
 };
 
-inline bool operator== (ResourceRef a, ResourceRef b) { return a.data == b.data; }
+inline bool operator== (ResourceRef a, ResourceRef b) { return a.p == b.p; }
 
 ///// RESOURCE OPERATIONS
 
@@ -234,6 +234,7 @@ AnyString resource_filepath (const IRI&);
  // Returns a list of all resources with state != RS::Unloaded.  This includes
  // resources that are in the process of being loaded or reloaded.
 UniqueArray<SharedResource> loaded_resources () noexcept;
+
 
 ///// TRACKING NON-RESOURCE ITEMS
 

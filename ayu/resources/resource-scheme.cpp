@@ -38,7 +38,6 @@ void ResourceScheme::activate () {
 }
 void ResourceScheme::deactivate () noexcept {
     auto& schemes = g_universe->schemes;
-    usize h = hash(name);
     for (auto& s : schemes) {
         if (s.value == this) {
             schemes.erase(&s);

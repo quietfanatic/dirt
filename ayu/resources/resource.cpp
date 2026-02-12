@@ -19,7 +19,20 @@
 namespace ayu {
 namespace in {
 
- // ResourceData is in universe.private.h for reasons
+struct ResourcePrivate : Resource {
+    AnyVal value {};
+    IRI name;
+    ResourceState state = RS::Unloaded;
+     // These are only used during reachability scanning, but we have extra room
+     // for them here.
+    bool root;
+    bool reachable;
+     // This is also only used during reachability scanning, but storing it
+     // externally would require using an unordered_map (to use a UniqueArray,
+     // we need an integer index, but that's what this itself is).
+    u32 node_id;
+    ResourcePrivate (const IRI& n) : name(n) { }
+};
 
 [[noreturn, gnu::cold]]
 static void raise_ResourceStateInvalid () {
@@ -101,28 +114,28 @@ struct TypeAndTree {
 };
 
 struct ROV {
-     // Since this keeps a ref count on the ResourceData, if unload is called
-     // with a ResourceData that has a ref count of 0 (but wasn't deleted
-     // because it was loaded), then when this object is destroyed the ref count
-     // will go back to 0 and the ResourceData will be actually deleted (unless
-     // it was rolled back).
+     // Since this keeps a ref count on the resource, if unload is called with a
+     // resource that has a ref count of 0 (but wasn't deleted because it was
+     // loaded), then when this object is destroyed the ref count will go back
+     // to 0 and the resource will be actually deleted (unless it was rolled
+     // back).
     SharedResource res;
     AnyVal old_value;
     void rollback () {
-        auto data = static_cast<ResourceData*>(res.data.p);
-        data->value = move(old_value);
-        data->state = RS::Loaded;
+        auto self = static_cast<ResourcePrivate*>(res.p.p);
+        self->value = move(old_value);
+        self->state = RS::Loaded;
     }
 };
 
+ // Has to be pointer for in::RCP<>
 void delete_Resource_if_unloaded (Resource* res) noexcept {
-    auto data = static_cast<ResourceData*>(res);
-    if (data->state != RS::Unloaded) return;
+    if (res->state() != RS::Unloaded) return;
     auto& g_resources = g_universe->resources;
     for (auto& r : g_resources) {
         if (r.value == res) {
             g_resources.erase(&r);
-            delete data;
+            delete res;
             return;
         }
     }
@@ -134,35 +147,35 @@ void delete_Resource_if_unloaded (Resource* res) noexcept {
 ///// ACCESSORS
 
 const IRI& Resource::name () const noexcept {
-    return static_cast<const ResourceData*>(this)->name;
+    return static_cast<const ResourcePrivate*>(this)->name;
 }
 ResourceState Resource::state () const noexcept {
-    return static_cast<const ResourceData*>(this)->state;
+    return static_cast<const ResourcePrivate*>(this)->state;
 }
 
 AnyVal& Resource::value () {
-    auto data = static_cast<ResourceData*>(this);
-    if (data->state == RS::Unloaded) {
-        load(ResourceRef(this));
+    auto self = static_cast<ResourcePrivate*>(this);
+    if (self->state == RS::Unloaded) {
+        load(this);
     }
-    return data->value;
+    return self->value;
 }
 AnyVal& Resource::get_value () noexcept {
-    return static_cast<ResourceData*>(this)->value;
+    return static_cast<ResourcePrivate*>(this)->value;
 }
 
 void Resource::set_value (AnyVal&& value) try {
-    auto data = static_cast<ResourceData*>(this);
+    auto self = static_cast<ResourcePrivate*>(this);
     AnyVal v = move(value);
 
-    if (data->state == RS::Loading) {
+    if (self->state == RS::Loading) {
         raise_ResourceStateInvalid();
     }
     if (!v) {
         raise_ResourceValueEmpty();
     }
-    if (data->name) {
-        auto scheme = require_scheme(data->name);
+    if (self->name) {
+        auto scheme = require_scheme(self->name);
         scheme->validate_type(v.type);
     }
     if (ResourceTransaction::depth) {
@@ -174,17 +187,17 @@ void Resource::set_value (AnyVal&& value) try {
                 res(move(r)), old_value(move(v))
             { }
             void rollback () noexcept override {
-                auto data = static_cast<ResourceData*>(res.data.p);
-                data->value = move(old_value);
-                data->state = data->value ? RS::Loaded : RS::Unloaded;
+                auto self = static_cast<ResourcePrivate*>(res.p.p);
+                self->value = move(old_value);
+                self->state = self->value ? RS::Loaded : RS::Unloaded;
             }
         };
         ResourceTransaction::add_committer(
-            new SetValueCommitter(this, move(data->value))
+            new SetValueCommitter(this, move(self->value))
         );
     }
-    data->value = move(v);
-    data->state = RS::Loaded;
+    self->value = move(v);
+    self->state = RS::Loaded;
 } catch (...) {
     tag_error_with_resource(this, "set_value");
 }
@@ -222,30 +235,29 @@ SharedResource::SharedResource (const IRI& name) {
         }
     }
      // Create new resource data
-    new (this) SharedResource(new ResourceData(name));
+    new (this) SharedResource(new ResourcePrivate(name));
     g_universe->resources.emplace_back(h, *this);
 }
 
 SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
     SharedResource(name)
 {
+    auto self = static_cast<ResourcePrivate*>(p.p);
     AnyVal v = move(value);
     try {
-        if (data->state() != RS::Unloaded) raise_ResourceStateInvalid();
+        if (self->state != RS::Unloaded) raise_ResourceStateInvalid();
     }
     catch (...) {
         tag_error_with_resource(*this, "construct with value");
     }
-    data->set_value(move(v));
+    self->set_value(move(v));
 }
 
 ///// RESOURCE OPERATIONS
 
-static void load_inner (ResourceRef res, FromTreeOptions opts) {
-    auto data = static_cast<ResourceData*>(res.data);
-
-    auto scheme = require_scheme(data->name);
-    auto path = scheme->require_filepath(data->name);
+static void load_inner (ResourcePrivate* self, FromTreeOptions opts) {
+    auto scheme = require_scheme(self->name);
+    auto path = scheme->require_filepath(self->name);
     Tree tree = tree_from_file(move(path));
     auto a = Slice<Tree>(tree);
     if (a.size() != 2) {
@@ -253,29 +265,29 @@ static void load_inner (ResourceRef res, FromTreeOptions opts) {
     }
     Type type = Type(Str(a[0]));
     scheme->validate_type(type);
-    expect(!data->value);
-    data->value = AnyVal(type);
+    expect(!self->value);
+    self->value = AnyVal(type);
 
      // Run item_from_tree on the AnyVal's value, not on the AnyVal
      // itself.  Otherwise, the associated locations will have an extra +1
      // in the fragment.
     item_from_tree(
-        data->value.ptr(), a[1], SharedRoute(res), opts
+        self->value.ptr(), a[1], SharedRoute(ResourceRef(self)), opts
     );
 }
 
 static void load_cancel (ResourceRef res) {
-    auto data = static_cast<ResourceData*>(res.data);
-    data->value = {};
-    data->state = RS::Unloaded;
+    auto self = static_cast<ResourcePrivate*>(res.p);
+    self->value = {};
+    self->state = RS::Unloaded;
 }
 
 void load (ResourceRef res) try {
-    auto data = static_cast<ResourceData*>(res.data);
-    if (data->state != RS::Unloaded) return;
-    data->state = RS::Loading;
+    auto self = static_cast<ResourcePrivate*>(res.p);
+    if (self->state != RS::Unloaded) return;
+    self->state = RS::Loading;
 
-    load_inner(res, FromTreeOptions::DelaySwizzle);
+    load_inner(self, FromTreeOptions::DelaySwizzle);
 
     if (ResourceTransaction::depth) {
         struct LoadCommitter : Committer {
@@ -289,24 +301,24 @@ void load (ResourceRef res) try {
             new LoadCommitter(res)
         );
     }
-    data->state = RS::Loaded;
+    self->state = RS::Loaded;
 } catch (...) {
     load_cancel(res);
     tag_error_with_resource(res, "load");
 }
 
 void save (ResourceRef res, PrintOptions opts) try {
-    auto data = static_cast<ResourceData*>(res.data);
-    if (data->state != RS::Loaded) raise_ResourceStateInvalid();
-    if (!data->value) raise_ResourceValueEmpty();
-    auto scheme = require_scheme(data->name);
-    scheme->validate_type(data->value.type);
-    auto path = scheme->require_filepath(data->name);
+    auto self = static_cast<ResourcePrivate*>(res.p);
+    if (self->state != RS::Loaded) raise_ResourceStateInvalid();
+    if (!self->value) raise_ResourceValueEmpty();
+    auto scheme = require_scheme(self->name);
+    scheme->validate_type(self->value.type);
+    auto path = scheme->require_filepath(self->name);
      // Do type and value separately, because the Route refers to the value,
      // not the whole AnyVal.
     KeepRouteCache klc;
-    auto type = data->value.type.name();
-    auto value_tree = item_to_tree(data->value.ptr(), SharedRoute(res));
+    auto type = self->value.type.name();
+    auto value_tree = item_to_tree(self->value.ptr(), SharedRoute(res));
     auto contents = tree_to_string_for_file(
         Tree::array(Tree(type), move(value_tree)), opts
     );
@@ -335,7 +347,7 @@ void save (ResourceRef res, PrintOptions opts) try {
     tag_error_with_resource(res, "save");
 }
 
-static void really_unload (ResourceData* data) {
+static void really_unload (ResourcePrivate* self) {
     if (ResourceTransaction::depth) {
         struct ForceUnloadCommitter : Committer {
             ROV rov;
@@ -345,25 +357,25 @@ static void really_unload (ResourceData* data) {
             }
         };
         ResourceTransaction::add_committer(
-            new ForceUnloadCommitter({data, move(data->value)})
+            new ForceUnloadCommitter({self, move(self->value)})
         );
-        data->state = RS::Unloaded;
+        self->state = RS::Unloaded;
     }
     else {
-        data->value = {};
-        data->state = RS::Unloaded;
-        if (!data->ref_count) {
-            delete_Resource_if_unloaded(data);
+        self->value = {};
+        self->state = RS::Unloaded;
+        if (!self->ref_count) {
+            delete_Resource_if_unloaded(self);
         }
     }
 }
 
 struct ResourceScanInfo {
-    ResourceData* data;
+    ResourcePrivate* res;
     UniqueArray<Link> outgoing_links;
 };
  // TODO: replace with binary search
-using LinksToReses = std::unordered_map<Link, ResourceData*>;
+using LinksToReses = std::unordered_map<Link, ResourcePrivate*>;
 
 static void reach_link (
     const UniqueArray<ResourceScanInfo>& scan_info,
@@ -377,10 +389,10 @@ static void reach_link (
          // reachable.
         return;
     }
-    auto to_data = it->second;
-    if (to_data->reachable) return;
-    to_data->reachable = true;
-    for (auto& link : scan_info[to_data->node_id].outgoing_links) {
+    auto to = it->second;
+    if (to->reachable) return;
+    to->reachable = true;
+    for (auto& link : scan_info[to->node_id].outgoing_links) {
         reach_link(scan_info, links_to_reses, link);
     }
 }
@@ -392,29 +404,29 @@ void unload (Slice<ResourceRef> to_unload) try {
      // Start out by getting a bit of info about all loaded resources.
     bool none_root = true;
     bool all_root = true;
-    for (auto& [name, res] : resources) {
-        auto data = static_cast<ResourceData*>(res.data);
+    for (auto& [hash, res] : resources) {
+        auto self = static_cast<ResourcePrivate*>(res.p);
          // Only scan loaded resources
-        if (data->state != RS::Loaded) continue;
+        if (self->state != RS::Loaded) continue;
          // Assign integer ID for indexing
-        data->node_id = scan_info.size();
-        scan_info.emplace_back_expect_capacity(data, UniqueArray<Link>());
+        self->node_id = scan_info.size();
+        scan_info.emplace_back_expect_capacity(self, UniqueArray<Link>());
          // Our root set for the reachability traversal is all resources that
          // have a reference count but were not explicitly requested to be
          // unloaded.
-        if (data->ref_count) {
-            data->root = true;
+        if (self->ref_count) {
+            self->root = true;
             for (auto& tu : to_unload) {
-                if (tu == res) {
-                    data->root = false;
+                if (tu == self) {
+                    self->root = false;
                     break;
                 }
             }
         }
-        else data->root = false;
-        if (data->root) none_root = false;
+        else self->root = false;
+        if (self->root) none_root = false;
         else all_root = false;
-        data->reachable = false;
+        self->reachable = false;
     }
     if (all_root) {
          // All resources are still in use and no resources were requested to be
@@ -424,24 +436,24 @@ void unload (Slice<ResourceRef> to_unload) try {
     if (none_root && !g_universe->tracked) {
          // Root set is empty!  We get to skip reachability scanning and just
          // unload everything.
-        scan_info.consume([](auto&& info){ really_unload(info.data); });
+        scan_info.consume([](auto&& info){ really_unload(info.res); });
         return;
     }
      // Collect as much info as we can from one scan.  Unfortunately we can't
-     // traverse the data graph directly, because finding out what Resource a
-     // link points to requires a full scan itself.  We don't have to cache as
-     // much data as link_to_route though; we only need to keep track of the
+     // traverse the program data graph directly, because finding out what
+     // Resource a link points to requires a full scan itself.  We don't have to
+     // cache as much as link_to_route though; we only need to keep track of the
      // Route's root, not the whole Route itself.
-    auto links_to_reses = std::unordered_map<Link, ResourceData*>();
+    auto links_to_reses = std::unordered_map<Link, ResourcePrivate*>();
     for (auto& info : scan_info) {
-         // TODO: Don't generate routes if we're throwing them away
-        scan_resource_links(info.data,
+         // TODO: Don't generate routes if we're throwing them away?
+        scan_resource_links(info.res,
             [&links_to_reses, &info](const Link& item, RouteRef)
         {
              // Don't need to enumerate links for resources in the root set,
              // because they start out reachable.
-            if (!info.data->root) {
-                links_to_reses.emplace(item, info.data);
+            if (!info.res->root) {
+                links_to_reses.emplace(item, info.res);
             }
             item.read([&info](Type t, Mu* v){
                 if (t == Type::For<Link>()) {
@@ -466,9 +478,9 @@ void unload (Slice<ResourceRef> to_unload) try {
         });
     }
     for (auto& info : scan_info) {
-        if (info.data->root) {
-            info.data->reachable = true;
-            for (auto& link : scan_info[info.data->node_id].outgoing_links) {
+        if (info.res->root) {
+            info.res->reachable = true;
+            for (auto& link : scan_info[info.res->node_id].outgoing_links) {
                 reach_link(scan_info, links_to_reses, link);
             }
         }
@@ -477,27 +489,27 @@ void unload (Slice<ResourceRef> to_unload) try {
      // First throw an error if any resources we were explicitly told to unload
      // are still reachable.
     for (auto res : to_unload) {
-        auto data = static_cast<ResourceData*>(res.data);
-        if (data->reachable) {
+        auto self = static_cast<ResourcePrivate*>(res.p);
+        if (self->reachable) {
             raise(e_ResourceUnloadWouldBreak, cat(
-                "Can't unload ", data->name.spec(),
+                "Can't unload ", self->name.spec(),
                 " because it is still reachable.  Further info NYI."
             ));
         }
     }
      // Now finally unload all unreachable resources.
     for (auto& info : scan_info) {
-        if (!info.data->reachable) really_unload(info.data);
+        if (!info.res->reachable) really_unload(info.res);
     }
 } catch (...) {
     tag_error_with_resources(to_unload, "unload");
 }
 
 void force_unload (ResourceRef res) noexcept {
-    auto data = static_cast<ResourceData*>(res.data);
-    if (data->state == RS::Unloaded) return;
-    require(data->state != RS::Loading);
-    really_unload(data);
+    auto self = static_cast<ResourcePrivate*>(res.p);
+    if (self->state == RS::Unloaded) return;
+    require(self->state != RS::Loading);
+    really_unload(self);
 }
 
 struct Update {
@@ -518,14 +530,14 @@ NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
 
 NOINLINE static void reload_rollback (UniqueArray<ROV>&& rovs) {
     rovs.consume([](auto&& rov){
-        auto data = static_cast<ResourceData*>(rov.res.data.p);
-        data->value = move(rov.old_value);
+        auto self = static_cast<ResourcePrivate*>(rov.res.p.p);
+        self->value = move(rov.old_value);
     });
 }
 
-void reload (Slice<ResourceRef> reses) try {
+void reload (Slice<ResourceRef> to_reload) try {
     UniqueArray<ROV> rovs;
-    for (auto res : reses) {
+    for (auto res : to_reload) {
         if (res->state() == RS::Loaded) {
             rovs.push_back({res, {}});
         }
@@ -533,21 +545,21 @@ void reload (Slice<ResourceRef> reses) try {
     }
      // Preserve step
     for (auto& rov : rovs) {
-        auto data = static_cast<ResourceData*>(rov.res.data.p);
-        rov.old_value = move(data->value);
+        auto self = static_cast<ResourcePrivate*>(rov.res.p.p);
+        rov.old_value = move(self->value);
     }
 
     UniqueArray<Update> updates;
     try {
          // Construct step
          // TODO: Start ResourceTransaction for dependently-loaded resources.
-        for (auto res : reses) {
-            auto data = static_cast<ResourceData*>(res.data);
-            data->state = RS::Loading;
+        for (auto res : to_reload) {
+            auto self = static_cast<ResourcePrivate*>(res.p);
+            self->state = RS::Loading;
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
              // serialization operation is ongoing.
-            load_inner(res, {});
-            data->state = RS::Loaded;
+            load_inner(self, {});
+            self->state = RS::Loaded;
         }
          // Verify step
         UniqueArray<ResourceRef> others;
@@ -557,7 +569,7 @@ void reload (Slice<ResourceRef> reses) try {
                 case RS::Loaded: others.emplace_back(&*other); break;
                 default: raise(e_General, "Another resource is currently loading");
             }
-            for (auto res : reses) {
+            for (auto res : to_reload) {
                 if (res == other) goto next_other;
             }
             next_other:;
@@ -636,22 +648,22 @@ void reload (Slice<ResourceRef> reses) try {
     }
 }
 catch (...) {
-    tag_error_with_resources(reses, "reload");
+    tag_error_with_resources(to_reload, "reload");
 }
 
 void rename (ResourceRef old_res, ResourceRef new_res) try {
-    auto old_data = static_cast<ResourceData*>(old_res.data);
-    auto new_data = static_cast<ResourceData*>(new_res.data);
-    if (old_data->state != RS::Loaded) {
+    auto old_self = static_cast<ResourcePrivate*>(old_res.p);
+    auto new_self = static_cast<ResourcePrivate*>(new_res.p);
+    if (old_self->state != RS::Loaded) {
         raise_ResourceStateInvalid();
     }
-    if (new_data->state != RS::Unloaded) {
+    if (new_self->state != RS::Unloaded) {
         raise_ResourceStateInvalid();
     }
-    expect(!new_data->value);
-    new_data->value = move(old_data->value);
-    new_data->state = RS::Loaded;
-    old_data->state = RS::Unloaded;
+    expect(!new_self->value);
+    new_self->value = move(old_self->value);
+    new_self->state = RS::Loaded;
+    old_self->state = RS::Unloaded;
 } catch (...) {
     tag_error_with_resources({old_res, new_res}, "rename");
 }
