@@ -55,6 +55,9 @@ struct Error : std::exception {
      //     }
 };
 
+[[gnu::cold]]
+Error& current_error ();
+
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
 void raise_inner (StaticString code, AnyString::Impl details);

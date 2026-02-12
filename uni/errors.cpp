@@ -38,6 +38,25 @@ void Error::add_tag (AnyString name, AnyString value) {
     tags.emplace_back(move(name), move(value));
 }
 
+Error& current_error () {
+    try { throw; }
+    catch (Error& e) { return e; }
+    catch (std::exception& ex) {
+        Error e;
+        e.code = e_External;
+        e.details = ex.what();
+        e.external = std::current_exception();
+        throw e;
+    }
+    catch (...) {
+        Error e;
+        e.code = e_External;
+        e.details = "(nonstandard exception)";
+        e.external = std::current_exception();
+        throw e;
+    }
+}
+
 void raise_inner (StaticString code, AnyString::Impl details) {
     Error e;
     e.code = code;
