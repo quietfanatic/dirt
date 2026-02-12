@@ -1,4 +1,4 @@
-#include "resource.h"
+#include "resource.private.h"
 #include "../../iri/iri.h"
 #include "../../uni/io.h"
 #include "../data/parse.h"
@@ -12,7 +12,6 @@
 #include "../traversal/scan.h"
 #include "../traversal/to-tree.h"
 #include "resource-scheme.h"
-#include "universe.private.h"
 
 ///// INTERNALS
 

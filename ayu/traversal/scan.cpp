@@ -3,7 +3,7 @@
 #include "../reflection/anyptr.h"
 #include "../reflection/link.h"
 #include "../reflection/description.private.h"
-#include "../resources/universe.private.h"
+#include "../resources/resource.private.h"
 #include "compound.private.h"
 #include "route.h"
 #include "traversal.private.h"

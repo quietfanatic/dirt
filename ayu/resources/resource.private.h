@@ -1,13 +1,13 @@
- // The "Universe" manages the set of loaded resources and related global data.
-
 #pragma once
-#include <memory>
+#include "resource.h"
+
 #include "../../uni/indestructible.h"
 #include "../common.h"
 #include "resource-scheme.h"
-#include "resource.h"
 
 namespace ayu::in {
+
+ // The "Universe" manages the set of loaded resources and related global data.
 
 struct Universe {
     UniqueArray<Hashed<ResourceRef>> resources;

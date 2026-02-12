@@ -93,13 +93,18 @@ struct ResourceScheme {
      // These are called in the constructor (by default) and destructor, so you
      // don't have to call them yourself.
     void activate ();
+     // If you deactivate a ResourceScheme while a Resource that uses it is
+     // loaded, you will not be able to save or reload the Resource, but you
+     // will be able to unload it.  Reactivating the ResourceScheme will fix
+     // this.  You could also activate a different ResourceScheme with the same
+     // name, but why would you do that.
     void deactivate () noexcept;
 };
 
  // May throw ResourceSchemeNotFound
 ResourceScheme* require_scheme (const IRI& name);
 
- // Tried to find a resoursce scheme that didn't exist.
+ // Tried to find a resource scheme that didn't exist.
 constexpr ErrorCode e_ResourceSchemeNotFound = "ayu::e_ResourceSchemeNotFound";
  // The ResourceScheme associated with the resource name rejected the name.
 constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";

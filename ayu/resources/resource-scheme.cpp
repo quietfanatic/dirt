@@ -1,6 +1,6 @@
 #include "resource-scheme.h"
 
-#include "universe.private.h"
+#include "resource.private.h"
 
 namespace ayu {
 using namespace in;
