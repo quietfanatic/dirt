@@ -96,6 +96,9 @@ struct ResourceScheme {
     void deactivate () noexcept;
 };
 
+ // May throw ResourceSchemeNotFound
+ResourceScheme* require_scheme (const IRI& name);
+
  // Tried to find a resoursce scheme that didn't exist.
 constexpr ErrorCode e_ResourceSchemeNotFound = "ayu::e_ResourceSchemeNotFound";
  // The ResourceScheme associated with the resource name rejected the name.

@@ -28,12 +28,6 @@ struct Universe {
     UniqueArray<Hashed<ResourceRef>> resources;
     UniqueArray<Hashed<ResourceScheme*>> schemes;
     UniqueArray<AnyPtr> tracked;
-
-    ResourceRef get_resource (const IRI&);
-    void delete_resource (ResourceRef);
-    void register_scheme (ResourceScheme*);
-    void unregister_scheme (ResourceScheme*);
-    ResourceScheme* require_scheme (const IRI&);
 };
 
  // The memory leak detector flags the universe's resources as leaked,

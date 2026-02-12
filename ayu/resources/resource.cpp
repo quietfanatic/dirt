@@ -36,7 +36,7 @@ static void tag_error_with_resource_data (
     const AnyString& name, ResourceState state, StaticString operation
 ) {
     Error& e = current_error();
-    e.add_tag("ayu::ResourceName", move(name));
+    e.add_tag("ayu::ResourceName", name);
     e.add_tag("ayu::ResourceOperation", operation);
     e.add_tag("ayu::ResourceState", show(&state));
     throw e;
@@ -115,6 +115,20 @@ struct ROV {
     }
 };
 
+void delete_Resource_if_unloaded (Resource* res) noexcept {
+    auto data = static_cast<ResourceData*>(res);
+    if (data->state != RS::Unloaded) return;
+    auto& g_resources = g_universe->resources;
+    for (auto& r : g_resources) {
+        if (r.value == res) {
+            g_resources.erase(&r);
+            delete data;
+            return;
+        }
+    }
+    require(false);
+}
+
 } using namespace in;
 
 ///// ACCESSORS
@@ -148,7 +162,7 @@ void Resource::set_value (AnyVal&& value) try {
         raise_ResourceValueEmpty();
     }
     if (data->name) {
-        auto scheme = g_universe->require_scheme(data->name);
+        auto scheme = require_scheme(data->name);
         scheme->validate_type(v.type);
     }
     if (ResourceTransaction::depth) {
@@ -188,7 +202,7 @@ SharedResource::SharedResource (const IRI& name) {
         else if (name.has_fragment()) {
             raise(e_ResourceNameInvalid, "Resource name cannot have a #fragment");
         }
-        auto scheme = g_universe->require_scheme(name);
+        auto scheme = require_scheme(name);
         scheme->validate_name(name);
     }
     catch (...) {
@@ -196,7 +210,20 @@ SharedResource::SharedResource (const IRI& name) {
             name.possibly_invalid_spec(), RS::Unloaded, "construct"
         );
     }
-    new (this) SharedResource(g_universe->get_resource(name));
+    Str spec = expect(name.spec());
+    expect(spec.begin() < spec.end());
+    usize h = uni::hash(spec);
+
+     // See if this resource already exists
+    for (auto& r : g_universe->resources) {
+        if (r.hash == h && r.value->name().spec_ == spec) {
+            new (this) SharedResource(r.value);
+            return;
+        }
+    }
+     // Create new resource data
+    new (this) SharedResource(new ResourceData(name));
+    g_universe->resources.emplace_back(h, *this);
 }
 
 SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
@@ -212,19 +239,12 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
     data->set_value(move(v));
 }
 
-void in::delete_Resource_if_unloaded (Resource* res) noexcept {
-    auto data = static_cast<ResourceData*>(res);
-    if (data->state == RS::Unloaded) {
-        g_universe->delete_resource(res);
-    }
-}
-
 ///// RESOURCE OPERATIONS
 
 static void load_inner (ResourceRef res, FromTreeOptions opts) {
     auto data = static_cast<ResourceData*>(res.data);
 
-    auto scheme = g_universe->require_scheme(data->name);
+    auto scheme = require_scheme(data->name);
     auto path = scheme->require_filepath(data->name);
     Tree tree = tree_from_file(move(path));
     auto a = Slice<Tree>(tree);
@@ -279,7 +299,7 @@ void save (ResourceRef res, PrintOptions opts) try {
     auto data = static_cast<ResourceData*>(res.data);
     if (data->state != RS::Loaded) raise_ResourceStateInvalid();
     if (!data->value) raise_ResourceValueEmpty();
-    auto scheme = g_universe->require_scheme(data->name);
+    auto scheme = require_scheme(data->name);
     scheme->validate_type(data->value.type);
     auto path = scheme->require_filepath(data->name);
      // Do type and value separately, because the Route refers to the value,
@@ -331,10 +351,10 @@ static void really_unload (ResourceData* data) {
     }
     else {
         data->value = {};
+        data->state = RS::Unloaded;
         if (!data->ref_count) {
-            g_universe->delete_resource(data);
+            delete_Resource_if_unloaded(data);
         }
-        else data->state = RS::Unloaded;
     }
 }
 
@@ -637,7 +657,7 @@ void rename (ResourceRef old_res, ResourceRef new_res) try {
 }
 
 AnyString resource_filepath (const IRI& name) try {
-    auto scheme = g_universe->require_scheme(name);
+    auto scheme = require_scheme(name);
     return scheme->get_filepath(name);
 } catch (Error& e) {
     e.add_tag("ayu::ResourceName", name.possibly_invalid_spec());
@@ -645,7 +665,7 @@ AnyString resource_filepath (const IRI& name) try {
 }
 
 void delete_source (const IRI& name) try {
-    auto scheme = g_universe->require_scheme(name);
+    auto scheme = require_scheme(name);
     auto path = scheme->require_filepath(name);
     remove_utf8(path.c_str());
 } catch (Error& e) {
@@ -654,7 +674,7 @@ void delete_source (const IRI& name) try {
 }
 
 bool source_exists (const IRI& name) try {
-    auto scheme = g_universe->require_scheme(name);
+    auto scheme = require_scheme(name);
     auto path = scheme->require_filepath(name);
     if (std::FILE* f = fopen_utf8(path.c_str())) {
         fclose(f);
