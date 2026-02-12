@@ -274,15 +274,6 @@ Link track (T& v, const IRI& loc);
 
  // Tried to use an invalid IRI as a resource name
 constexpr ErrorCode e_ResourceNameInvalid = "ayu::e_ResourceNameInvalid";
- // The ResourceScheme associated with the resource name rejected the name.
-constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";
- // The ResourceScheme associated with the resource name did not provide a
- // filepath associated with the name.
-constexpr ErrorCode e_ResourceNameNoFilepath = "ayu::e_ResourceNoFilepath";
- // The ResourceScheme associated with the resource did not accept the type
- // provided for the resource.  This can happen either while loading from a
- // file, or when setting a resource's value programmatically.
-constexpr ErrorCode e_ResourceTypeRejected = "ayu::e_ResourceTypeRejected";
  // Tried to create a resource with an empty AnyVal, or load from a tree that
  // didn't correspond to a valid AnyVal.
 constexpr ErrorCode e_ResourceValueInvalid = "ayu::e_ResourceValueInvalid";

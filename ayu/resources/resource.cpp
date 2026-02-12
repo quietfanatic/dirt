@@ -22,39 +22,76 @@ namespace in {
  // ResourceData is in universe.private.h for reasons
 
 [[noreturn, gnu::cold]]
-static void raise_ResourceNameNoFilepath (
-    StaticString tried, const IRI& name
+static void raise_ResourceStateInvalid () {
+    raise(e_ResourceStateInvalid, "Resource state is not valid for this operation");
+}
+
+[[noreturn, gnu::cold]]
+static void raise_ResourceValueEmpty () {
+    raise(e_ResourceValueInvalid, "Resource value is empty");
+}
+
+[[noreturn, gnu::cold]]
+static void wrap_error_for_resource_unconstructed (
+    AnyString name, ResourceState state, StaticString operation
 ) {
-    raise(e_ResourceNameNoFilepath, cat(
-        "Can't ", tried, ' ', name.spec(), " because it has no associated filepath."
-    ));
+    try { throw; }
+    catch (Error& e) {
+        e.add_tag("ayu::ResourceName", name);
+        e.add_tag("ayu::ResourceOperation", operation);
+        e.add_tag("ayu::ResourceState", show(&state));
+        throw e;
+    }
+    catch (std::exception& ex) {
+        Error e;
+        e.code = e_External;
+        e.details = ex.what();
+        e.external = std::current_exception();
+        try { throw e; }
+        catch (Error& e) {
+            wrap_error_for_resource_unconstructed(name, state, operation);
+        }
+        catch (...) { never(); }
+    }
 }
 
 [[noreturn, gnu::cold]]
-static void raise_ResourceTypeRejected (
-    StaticString tried, ResourceRef res, Type type
+static void wrap_error_for_resource (ResourceRef res, StaticString operation) {
+    wrap_error_for_resource_unconstructed(res->name().spec(), res->state(), operation);
+}
+
+[[noreturn, gnu::cold]]
+static void wrap_error_for_resources (
+    Slice<ResourceRef> reses, StaticString operation
 ) {
-    auto data = static_cast<ResourceData*>(res.data);
-    raise(e_ResourceTypeRejected, cat(
-        "Can't ", tried, ' ', data->name.spec(), " with type ", type.name()
-    ));
-}
-
-[[noreturn, gnu::cold]]
-static void raise_ResourceStateInvalid (StaticString tried, ResourceRef res) {
-    auto data = static_cast<ResourceData*>(res.data);
-    raise(e_ResourceStateInvalid, cat(
-        "Can't ", tried, ' ', data->name.spec(),
-        " when its state is ", show(&data->state)
-    ));
-}
-
-[[noreturn, gnu::cold]]
-static void raise_ResourceValueEmpty (StaticString tried, ResourceRef res) {
-    auto data = static_cast<ResourceData*>(res.data);
-    raise(e_ResourceValueInvalid, cat(
-        "Can't ", tried, ' ', data->name.spec(), " with empty value"
-    ));
+    try { throw; }
+    catch (Error& e) {
+         // Hopefully this isn't too long of an error message.
+        e.add_tag("ayu::ResourceOperation", operation);
+        for (u32 i = 0; i < reses.size(); i++) {
+            e.add_tag(
+                cat("ayu::ResourceName[", i, ']'),
+                reses[i]->name().possibly_invalid_spec()
+            );
+            auto state = reses[i]->state();
+            e.add_tag(
+                cat("ayu::ResourceState[", i, ']'),
+                show(&state)
+            );
+        }
+        throw;
+    }
+    catch (std::exception& ex) {
+        Error e;
+        e.code = e_External;
+        e.details = ex.what();
+        e.external = std::current_exception();
+        try { throw e; }
+        catch (Error& e) {
+            wrap_error_for_resources(reses, operation);
+        }
+        catch (...) { never(); }
+    }
 }
 
 struct Break {
@@ -90,19 +127,16 @@ struct TypeAndTree {
 };
 
 static TypeAndTree verify_tree_for_scheme (
-    ResourceRef res,
-    const ResourceScheme* scheme,
+    ResourceScheme* scheme,
     const Tree& tree
 ) {
     if (tree.form == Form::Null) {
-        raise_ResourceValueEmpty("load", res);
+        raise_ResourceValueEmpty();
     }
     auto a = Slice<Tree>(tree);
     if (a.size() == 2) {
         Type type = Type(Str(a[0]));
-        if (!scheme->accepts_type(type)) {
-            raise_ResourceTypeRejected("load", res, type);
-        }
+        scheme->validate_type(type);
         return {type, a[1]};
     }
     else raise_LengthRejected(Type::For<AnyVal>(), 2, 2, a.size());
@@ -148,17 +182,20 @@ AnyVal& Resource::get_value () noexcept {
 void Resource::set_value (AnyVal&& value) {
     auto data = static_cast<ResourceData*>(this);
     AnyVal v = move(value);
-    if (data->state == RS::Loading) {
-        raise_ResourceStateInvalid("set_value", this);
-    }
-    if (!v) {
-        raise_ResourceValueEmpty("set_value", this);
-    }
-    if (data->name) {
-        auto scheme = g_universe->require_scheme(data->name);
-        if (!scheme->accepts_type(v.type)) {
-            raise_ResourceTypeRejected("set_value", this, v.type);
+    try {
+        if (data->state == RS::Loading) {
+            raise_ResourceStateInvalid();
         }
+        if (!v) {
+            raise_ResourceValueEmpty();
+        }
+        if (data->name) {
+            auto scheme = g_universe->require_scheme(data->name);
+            scheme->validate_type(v.type);
+        }
+    }
+    catch (...) {
+        wrap_error_for_resource(this, "load");
     }
     if (ResourceTransaction::depth) {
          // Don't use ROV here so we don't force a vtable onto ROV
@@ -188,12 +225,20 @@ Link Resource::operator[] (u32 index) { return link()[index]; }
 ///// CONSTRUCTION, DESTRUCTION
 
 SharedResource::SharedResource (const IRI& name) {
-    if (!name || name.has_fragment()) {
-        raise(e_ResourceNameInvalid, name.possibly_invalid_spec());
+    try {
+        if (!name) {
+            raise(e_ResourceNameInvalid, "Invalid IRI provided as resource name");
+        }
+        else if (name.has_fragment()) {
+            raise(e_ResourceNameInvalid, "Resource name cannot have a #fragment");
+        }
+        auto scheme = g_universe->require_scheme(name);
+        scheme->validate_name(name);
     }
-    auto scheme = g_universe->require_scheme(name);
-    if (!scheme->accepts_name(name)) {
-        raise(e_ResourceNameRejected, name.spec());
+    catch (...) {
+        wrap_error_for_resource_unconstructed(
+            name.possibly_invalid_spec(), RS::Unloaded, "construct"
+        );
     }
     new (this) SharedResource(g_universe->get_resource(name));
 }
@@ -202,11 +247,13 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
     SharedResource(name)
 {
     AnyVal v = move(value);
-    if (!v) {
-        raise_ResourceValueEmpty("construct", *this);
+    try {
+        if (data->state() != RS::Unloaded) raise_ResourceStateInvalid();
     }
-    else if (data->state() == RS::Unloaded) data->set_value(move(v));
-    else raise_ResourceStateInvalid("construct", *this);
+    catch (...) {
+        wrap_error_for_resource(*this, "construct with value");
+    }
+    data->set_value(move(v));
 }
 
 void in::delete_Resource_if_unloaded (Resource* res) noexcept {
@@ -224,28 +271,24 @@ static void load_cancel (ResourceRef res) {
     data->state = RS::Unloaded;
 }
 
-void load (ResourceRef res) {
+void load (ResourceRef res) try {
     auto data = static_cast<ResourceData*>(res.data);
     if (data->state != RS::Unloaded) return;
-
     data->state = RS::Loading;
-    try {
-        auto scheme = g_universe->require_scheme(data->name);
-        auto path = scheme->get_filepath(data->name);
-        if (!path) raise_ResourceNameNoFilepath("load", data->name);
-        Tree tree = tree_from_file(move(path));
-        auto tnt = verify_tree_for_scheme(res, scheme, tree);
-         // Run item_from_tree on the AnyVal's value, not on the AnyVal
-         // itself.  Otherwise, the associated locations will have an extra +1
-         // in the fragment.
-        expect(!data->value);
-        data->value = AnyVal(tnt.type);
-        item_from_tree(
-            data->value.ptr(), tnt.tree, SharedRoute(res),
-            FromTreeOptions::DelaySwizzle
-        );
-    }
-    catch (...) { load_cancel(res); throw; }
+
+    auto scheme = g_universe->require_scheme(data->name);
+    auto path = scheme->require_filepath(data->name);
+    Tree tree = tree_from_file(move(path));
+    auto tnt = verify_tree_for_scheme(scheme, tree);
+     // Run item_from_tree on the AnyVal's value, not on the AnyVal
+     // itself.  Otherwise, the associated locations will have an extra +1
+     // in the fragment.
+    expect(!data->value);
+    data->value = AnyVal(tnt.type);
+    item_from_tree(
+        data->value.ptr(), tnt.tree, SharedRoute(res),
+        FromTreeOptions::DelaySwizzle
+    );
 
     if (ResourceTransaction::depth) {
         struct LoadCommitter : Committer {
@@ -260,22 +303,19 @@ void load (ResourceRef res) {
         );
     }
     data->state = RS::Loaded;
+
+} catch (...) {
+    load_cancel(res);
+    wrap_error_for_resource(res, "load");
 }
 
-void save (ResourceRef res, PrintOptions opts) {
+void save (ResourceRef res, PrintOptions opts) try {
     auto data = static_cast<ResourceData*>(res.data);
-    if (data->state != RS::Loaded) {
-        raise_ResourceStateInvalid("save", res);
-    }
-    if (!data->value) {
-        raise_ResourceValueEmpty("save", res);
-    }
+    if (data->state != RS::Loaded) raise_ResourceStateInvalid();
+    if (!data->value) raise_ResourceValueEmpty();
     auto scheme = g_universe->require_scheme(data->name);
-    if (!scheme->accepts_type(data->value.type)) {
-        raise_ResourceTypeRejected("save", res, data->value.type);
-    }
-    auto path = scheme->get_filepath(data->name);
-    if (!path) raise_ResourceNameNoFilepath("save", data->name);
+    scheme->validate_type(data->value.type);
+    auto path = scheme->require_filepath(data->name);
      // Do type and value separately, because the Route refers to the value,
      // not the whole AnyVal.
     KeepRouteCache klc;
@@ -305,6 +345,8 @@ void save (ResourceRef res, PrintOptions opts) {
     else {
         outfile.write(contents, path);
     }
+} catch (...) {
+    wrap_error_for_resource(res, "save");
 }
 
 static void really_unload (ResourceData* data) {
@@ -357,7 +399,7 @@ static void reach_link (
     }
 }
 
-void unload (Slice<ResourceRef> to_unload) {
+void unload (Slice<ResourceRef> to_unload) try {
     auto& resources = g_universe->resources;
      // TODO: Track how many loaded resources there are to preallocate this.
     auto scan_info = UniqueArray<ResourceScanInfo>(Capacity(resources.size()));
@@ -461,15 +503,14 @@ void unload (Slice<ResourceRef> to_unload) {
     for (auto& info : scan_info) {
         if (!info.data->reachable) really_unload(info.data);
     }
+} catch (...) {
+    wrap_error_for_resources(to_unload, "unload");
 }
 
 void force_unload (ResourceRef res) noexcept {
     auto data = static_cast<ResourceData*>(res.data);
-    switch (data->state) {
-        case RS::Unloaded: return;
-        case RS::Loaded: break;
-        default: raise_ResourceStateInvalid("force_unload", res);
-    }
+    if (data->state == RS::Unloaded) return;
+    require(data->state != RS::Loading);
     really_unload(data);
 }
 
@@ -496,13 +537,13 @@ NOINLINE static void reload_rollback (UniqueArray<ROV>&& rovs) {
     });
 }
 
-void reload (Slice<ResourceRef> reses) {
+void reload (Slice<ResourceRef> reses) try {
     UniqueArray<ROV> rovs;
     for (auto res : reses) {
         if (res->state() == RS::Loaded) {
             rovs.push_back({res, {}});
         }
-        else raise_ResourceStateInvalid("reload", res);
+        else raise_ResourceStateInvalid();
     }
      // Preserve step
     for (auto& rov : rovs) {
@@ -518,10 +559,9 @@ void reload (Slice<ResourceRef> reses) {
             auto data = static_cast<ResourceData*>(res.data);
             data->state = RS::Loading;
             auto scheme = g_universe->require_scheme(data->name);
-            auto path = scheme->get_filepath(data->name);
-            if (!path) raise_ResourceNameNoFilepath("reload", data->name);
+            auto path = scheme->require_filepath(data->name);
             Tree tree = tree_from_file(move(path));
-            auto tnt = verify_tree_for_scheme(res, scheme, tree);
+            auto tnt = verify_tree_for_scheme(scheme, tree);
             expect(!data->value);
             data->value = AnyVal(tnt.type);
              // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
@@ -535,7 +575,7 @@ void reload (Slice<ResourceRef> reses) {
             switch (other->state()) {
                 case RS::Unloaded: continue;
                 case RS::Loaded: others.emplace_back(&*other); break;
-                default: raise_ResourceStateInvalid("scan for reload", &*other);
+                default: raise(e_General, "Another resource is currently loading");
             }
             for (auto res : reses) {
                 if (res == other) goto next_other;
@@ -615,43 +655,55 @@ void reload (Slice<ResourceRef> reses) {
         expect(!updates);
     }
 }
+catch (...) {
+    wrap_error_for_resources(reses, "reload");
+}
 
-void rename (ResourceRef old_res, ResourceRef new_res) {
+void rename (ResourceRef old_res, ResourceRef new_res) try {
     auto old_data = static_cast<ResourceData*>(old_res.data);
     auto new_data = static_cast<ResourceData*>(new_res.data);
     if (old_data->state != RS::Loaded) {
-        raise_ResourceStateInvalid("rename from", old_res);
+        raise_ResourceStateInvalid();
     }
     if (new_data->state != RS::Unloaded) {
-        raise_ResourceStateInvalid("rename to", new_res);
+        raise_ResourceStateInvalid();
     }
     expect(!new_data->value);
     new_data->value = move(old_data->value);
     new_data->state = RS::Loaded;
     old_data->state = RS::Unloaded;
+} catch (...) {
+    wrap_error_for_resources({old_res, new_res}, "rename");
 }
 
-AnyString resource_filepath (const IRI& name) {
+AnyString resource_filepath (const IRI& name) try {
     auto scheme = g_universe->require_scheme(name);
     return scheme->get_filepath(name);
+} catch (Error& e) {
+    e.add_tag("ayu::ResourceName", name.possibly_invalid_spec());
+    throw e;
 }
 
-void delete_source (const IRI& name) {
+void delete_source (const IRI& name) try {
     auto scheme = g_universe->require_scheme(name);
-    auto path = scheme->get_filepath(name);
-    if (!path) raise_ResourceNameNoFilepath("delete_source of", name);
+    auto path = scheme->require_filepath(name);
     remove_utf8(path.c_str());
+} catch (Error& e) {
+    e.add_tag("ayu::ResourceName", name.possibly_invalid_spec());
+    throw e;
 }
 
-bool source_exists (const IRI& name) {
+bool source_exists (const IRI& name) try {
     auto scheme = g_universe->require_scheme(name);
-    auto path = scheme->get_filepath(name);
-    if (!path) raise_ResourceNameNoFilepath("check if source_exists for", name);
+    auto path = scheme->require_filepath(name);
     if (std::FILE* f = fopen_utf8(path.c_str())) {
         fclose(f);
         return true;
     }
     else return false;
+} catch (Error& e) {
+    e.add_tag("ayu::ResourceName", name.possibly_invalid_spec());
+    throw e;
 }
 
 UniqueArray<SharedResource> loaded_resources () noexcept {
