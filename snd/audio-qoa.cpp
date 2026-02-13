@@ -537,7 +537,7 @@ struct QOAEncoder {
 
 } // in
 
-UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio& au) {
+UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio& au, Str) {
     usize file_size = qoa_filesize(au.n_channels, au.n_samples);
     auto r = UniqueArray<u8>(Uninitialized(file_size));
     QOAEncoder encoder;

@@ -1,5 +1,7 @@
 #include "audio.h"
 
+#include "../ayu/reflection/describe-standard.h"
+#include "../ayu/resources/resource.h"
 #include "../uni/common.h"
 #include "../uni/endian.h"
 #include "../uni/io.h"
@@ -32,11 +34,53 @@ UniqueAudio audio_from_file (AnyString filename) {
 }
 
 void audio_to_file_qoa (const UniqueAudio& au, AnyString filename) {
-    auto blob = audio_to_blob_qoa(au);
+    auto blob = audio_to_blob_qoa(au, filename);
     blob_to_file(blob, move(filename));
 }
 
+bool AudioExtensionQOA::accepts_type (ayu::Type type) {
+    return type == ayu::Type::For<UniqueAudio>();
+}
+void AudioExtensionQOA::from_blob (
+    ayu::AnyVal& value, Slice<u8> blob,
+    ayu::ResourceRef, ayu::ResourceScheme* scheme
+) {
+    scheme->validate_type(ayu::Type::For<UniqueAudio>());
+    UniqueAudio au = audio_from_blob_qoa(blob);
+    expect(!value);
+    value = ayu::AnyVal::make<UniqueAudio>(move(au));
+}
+
+UniqueArray<u8> AudioExtensionQOA::to_blob (
+    const ayu::AnyVal& value, ayu::ResourceRef, ayu::PrintOptions
+) {
+    expect(value.type == ayu::Type::For<UniqueAudio>());
+    return audio_to_blob_qoa(value.as<UniqueAudio>());
+}
+
+bool AudioExtensionWAV::accepts_type (ayu::Type type) {
+    return type == ayu::Type::For<UniqueAudio>();
+}
+void AudioExtensionWAV::from_blob (
+    ayu::AnyVal& value, Slice<u8> blob,
+    ayu::ResourceRef, ayu::ResourceScheme* scheme
+) {
+    scheme->validate_type(ayu::Type::For<UniqueAudio>());
+    UniqueAudio au = audio_from_blob_wav(blob);
+    expect(!value);
+    value = ayu::AnyVal::make<UniqueAudio>(move(au));
+}
+
+UniqueArray<u8> AudioExtensionWAV::to_blob (
+    const ayu::AnyVal&, ayu::ResourceRef, ayu::PrintOptions
+) {
+    raise(e_General, "Writing WAV files is NYI");
+}
+
 } using namespace snd;
+
+ // TODO
+AYU_DESCRIBE(snd::UniqueAudio)
 
 #ifndef TAP_DISABLE_TESTS
 #include "../tap/tap.h"

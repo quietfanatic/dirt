@@ -1,6 +1,7 @@
 #include "mixer.h"
 
 #include <cmath>
+#include "../ayu/reflection/describe-standard.h"
 #include "../geo/scalar.h"
 #include "../uni/indestructible.h"
 
@@ -53,10 +54,10 @@ void VoiceSpec::validate () const {
 VoiceSpec::operator VoiceImp () const {
     if (!audio) return VoiceImp();
     validate();
-    return assume_valid();
+    return expect_valid();
 }
 
-VoiceImp VoiceSpec::assume_valid () const {
+VoiceImp VoiceSpec::expect_valid () const {
     return VoiceImp{
         .audio = audio,
         .position = geo::round(start_position * chronons_per_second(audio)),
@@ -346,6 +347,34 @@ void Mixer::mix (
 }
 
 } using namespace snd;
+
+AYU_DESCRIBE(snd::VoiceSpec,
+    attrs(
+        attr("audio", &VoiceSpec::audio),
+        attr_default("volume", &VoiceSpec::volume, 1.f, optional),
+        attr_default("speed", &VoiceSpec::speed, 1.f, optional),
+        attr_default("loop_start", &VoiceSpec::loop_start, 1.0, optional),
+        attr_default("loop_end", &VoiceSpec::loop_end, double(geo::GNAN), optional),
+        attr_default("start_position", &VoiceSpec::start_position, 0.0, optional)
+    ),
+    init<&VoiceSpec::validate>()
+)
+
+ // No validation for this one!  There probably isn't much reason to ever
+ // serialize this though, except maybe for debugging?
+AYU_DESCRIBE(snd::VoiceImp,
+    attrs(
+        attr("audio", &VoiceImp::audio),
+        attr_default("position", member(&VoiceImp::position, prefer_hex), 0, optional),
+        attr_default("speed", member(&VoiceImp::speed, prefer_hex), 0x100'0000, optional),
+        attr_default("loop_start", member(&VoiceImp::loop_start, prefer_hex), 0, optional),
+        attr_default("loop_end", member(&VoiceImp::loop_end, prefer_hex), -1, optional),
+        attr_default("volume", &VoiceImp::volume, 1.f, optional),
+        attr_default("fade_volume", &VoiceImp::fade_volume, 1.f, optional),
+        attr_default("fade_velocity", &VoiceImp::fade_velocity, double(geo::GNAN), optional),
+        attr_default("fade_out", &VoiceImp::fade_out, false, optional)
+    )
+)
 
 #ifndef TAP_DISABLE_TESTS
 #include "../ayu/reflection/describe-standard.h"

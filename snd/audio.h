@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ayu/resources/extension.h"
 #include "../uni/common.h"
 #include "../uni/strings.h"
 #include "../uni/errors.h"
@@ -62,12 +63,29 @@ struct UniqueAudio {
 
 UniqueAudio audio_from_blob (Slice<u8> content, Str filename = "");
 UniqueAudio audio_from_file (AnyString filename);
-UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename);
-UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename);
-UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&);
+UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename = "");
+UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename = "");
+UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&, Str filename = "");
 void audio_to_file_qoa (const UniqueAudio&, AnyString filename);
 
 constexpr ErrorCode e_LoadAudioFailed = "snd::e_LoadAudioFailed";
+
+ // An extension to use audio files as AYU resources.  Unlike images, audio
+ // needs to remain in CPU memory, so there's little reason to have a lazy
+ // loading system.
+struct AudioExtensionQOA : ayu::ResourceExtension {
+    bool accepts_type (ayu::Type) override; // Only accepts UniqueAudio
+    void from_blob (ayu::AnyVal&, Slice<u8>, ayu::ResourceRef, ayu::ResourceScheme*);
+    UniqueArray<u8> to_blob (const ayu::AnyVal&, ayu::ResourceRef, ayu::PrintOptions);
+    using ayu::ResourceExtension::ResourceExtension;
+};
+
+struct AudioExtensionWAV : ayu::ResourceExtension {
+    bool accepts_type (ayu::Type) override; // Only accepts UniqueAudio
+    void from_blob (ayu::AnyVal&, Slice<u8>, ayu::ResourceRef, ayu::ResourceScheme*);
+    UniqueArray<u8> to_blob (const ayu::AnyVal&, ayu::ResourceRef, ayu::PrintOptions);
+    using ayu::ResourceExtension::ResourceExtension;
+};
 
 } // snd
 
