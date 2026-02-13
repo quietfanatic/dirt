@@ -33,7 +33,6 @@ void raise_ResourceNoFilepath ();
  // ResourceSchemes are allowed to be constructed and activated at init time,
  // but you can't use them until main starts.
 struct ResourceScheme {
-
      // If you want to do some of your own validation besides the standard IRI
      // validation.  If this returns false, ResourceNameRejected will be thrown.
      // The provided IRI will always be valid and will not have a #fragment.
@@ -79,6 +78,8 @@ struct ResourceScheme {
     explicit
     ResourceScheme (const AnyString& name) { activate(name); }
 
+     // Cannot copy or move ResourceScheme because its address must remain
+     // fixed.
     ResourceScheme (const ResourceScheme&) = delete;
     ResourceScheme (ResourceScheme&& o) = delete;
     ResourceScheme& operator = (const ResourceScheme&) = delete;

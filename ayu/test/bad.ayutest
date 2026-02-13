@@ -1,0 +1,1 @@
+[i32 0] -- This should be acceptable to the scheme, but not the extension.

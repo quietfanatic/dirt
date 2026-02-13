@@ -272,25 +272,17 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
 
 ///// RESOURCE OPERATIONS
 
-static void load_inner (ResourcePrivate* self, FromTreeOptions opts) {
+static void load_inner (ResourcePrivate* self) {
     auto scheme = require_scheme(self->name);
+    auto ext = require_extension(self->name);
     auto path = scheme->require_filepath(self->name);
-    Tree tree = tree_from_file(move(path));
-    auto a = Slice<Tree>(tree);
-    if (a.size() != 2) {
-        raise_LengthRejected(Type::For<AnyVal>(), 2, 2, a.size());
-    }
-    Type type = Type(Str(a[0]));
-    scheme->validate_type(type);
+    UniqueArray<u8> blob = blob_from_file(path);
     expect(!self->value);
-    self->value = AnyVal(type);
-
-     // Run item_from_tree on the AnyVal's value, not on the AnyVal
-     // itself.  Otherwise, the associated locations will have an extra +1
-     // in the fragment.
-    item_from_tree(
-        self->value.ptr(), a[1], SharedRoute(ResourceRef(self)), opts
-    );
+    ext->from_blob(self->value, blob, self, scheme);
+#ifndef NDEBUG
+    expect(scheme->accepts_type(self->value.type));
+    expect(ext->accepts_type(self->value.type));
+#endif
 }
 
 static void load_cancel (ResourceRef res) {
@@ -306,7 +298,7 @@ void load (ResourceRef res) try {
     if (self->state != RS::Unloaded) return;
     self->state = RS::Loading;
 
-    load_inner(self, FromTreeOptions::DelaySwizzle);
+    load_inner(self);
 
     if (ResourceTransaction::depth) {
         struct LoadCommitter : Committer {
@@ -332,37 +324,35 @@ void save (ResourceRef res, PrintOptions opts) try {
     auto self = static_cast<ResourcePrivate*>(res.p);
     if (self->state != RS::Loaded) raise_ResourceStateInvalid();
     if (!self->value) raise_ResourceValueEmpty();
-    auto scheme = require_scheme(self->name);
-    scheme->validate_type(self->value.type);
-    auto path = scheme->require_filepath(self->name);
-     // Do type and value separately, because the Route refers to the value,
-     // not the whole AnyVal.
+
     KeepRouteCache klc;
-    auto type = self->value.type.name();
-    auto value_tree = item_to_tree(self->value.ptr(), SharedRoute(res));
-    auto contents = tree_to_string_for_file(
-        Tree::array(Tree(type), move(value_tree)), opts
-    );
+
+    auto scheme = require_scheme(self->name);
+    auto ext = require_extension(self->name);
+    scheme->validate_type(self->value.type);
+    ext->validate_type(self->value.type);
+    auto path = scheme->require_filepath(self->name);
+    auto blob = ext->to_blob(self->value, res, opts);
 
     auto outfile = File(path, "wb");
     if (ResourceTransaction::depth) {
         struct SaveCommitter : Committer {
-            AnyString contents;
+            UniqueArray<u8> blob;
             AnyString path;
             File outfile;
-            SaveCommitter (AnyString&& c, AnyString&& p, File&& f) :
-                contents(move(c)), path(move(p)), outfile(move(f))
+            SaveCommitter (UniqueArray<u8>&& b, AnyString&& p, File&& f) :
+                blob(move(b)), path(move(p)), outfile(move(f))
             { }
             void commit () noexcept override {
-                outfile.write(contents, path);
+                outfile.write(Str(blob), path);
             }
         };
         ResourceTransaction::add_committer(
-            new SaveCommitter(move(contents), move(path), move(outfile))
+            new SaveCommitter(move(blob), move(path), move(outfile))
         );
     }
     else {
-        outfile.write(contents, path);
+        outfile.write(Str(blob), path);
     }
 } catch (...) {
     tag_error_with_resource(res, "save");
@@ -561,6 +551,8 @@ NOINLINE static void reload_rollback (UniqueArray<ROV>&& rovs) {
 
 void reload (Slice<ResourceRef> to_reload) try {
     if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot reload Resource while a scan is ongoing");
+     // Some obscure bugs can occur if you do this.  Don't do it.
+    if (currently_running_from_tree()) raise(e_General, "Cannot reload during a from_tree operation");
 
     UniqueArray<ROV> rovs;
     for (auto res : to_reload) {
@@ -582,9 +574,7 @@ void reload (Slice<ResourceRef> to_reload) try {
         for (auto res : to_reload) {
             auto self = static_cast<ResourcePrivate*>(res.p);
             self->state = RS::Loading;
-             // Do not DelaySwizzle for reload.  TODO: Forbid reload while a
-             // serialization operation is ongoing.
-            load_inner(self, {});
+            load_inner(self);
             self->state = RS::Loaded;
         }
          // Verify step
@@ -805,11 +795,30 @@ AYU_DESCRIBE(ayu::ResourceRef,
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)
 
+namespace ayu::in {
+struct TestResourceExtension : ResourceExtension {
+    bool accepts_type (Type type) override {
+        return type == Type::For<Document>();
+    }
+    using ResourceExtension::ResourceExtension;
+};
+} // ayu::in
+
 static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     using namespace tap;
     using namespace iri::literals;
 
     test::TestEnvironment env;
+
+     // Someone else may have registered an extension
+    if (auto ext = get_extension("ayu-test:/foo.ayu"_iri)) {
+        ext->deactivate();
+    }
+    if (auto ext = get_extension("ayu-test:/foo.ayutest"_iri)) {
+        ext->deactivate();
+    }
+    auto ayu_ext = ResourceExtension("ayu");
+    auto ayutest_ext = TestResourceExtension("ayutest");
 
     SharedResource input ("ayu-test:/testfile.ayu"_iri);
     SharedResource input2 ("ayu-test:/othertest.ayu"_iri);
@@ -950,6 +959,31 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     isnt(new_p, old_p, "Link to reloaded file was updated");
     is(global_p, new_p, "Global was updated.");
 
+     ///// EXTENSIONS (TODO: more testing)
+
+    SharedResource good_ayutest ("ayu-test:/good.ayutest"_iri);
+    SharedResource bad_ayutest ("ayu-test:/bad.ayutest"_iri);
+
+    doesnt_throw([&]{
+        load(good_ayutest);
+    }, "ayutest extension works");
+
+    throws_code<e_ResourceTypeRejected>([&]{
+        load(bad_ayutest);
+    }, "ResourceExtension can reject type");
+
+    ayutest_ext.deactivate();
+
+    doesnt_throw([&]{
+        unload(good_ayutest);
+    }, "Can unload resource without registered extension");
+
+    throws_code<e_ResourceExtensionNotFound>([&]{
+        load(good_ayutest);
+    }, "Cannot load resource without registered extension");
+
+     ///// SCHEMES (TODO: more testing)
+
     throws_code<e_ResourceTypeRejected>([&]{
         load(SharedResource("ayu-test:/wrongtype.ayu"_iri));
     }, "ResourceScheme::accepts_type rejects wrong type");
@@ -958,10 +992,10 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     throws_code<e_ResourceSchemeNotFound>([&]{
         ordinary_path = resource_filepath("file:/foo/bar"_iri);
     }, "Can't use file:/ resource when there's a scheme registered.");
-     // Copy because deactivating modifies this array.
-    auto schemes = g_universe->schemes;
-    for (auto& entry : schemes) {
-        entry.scheme->deactivate();
+     // Test the default scheme behavior.  Someone else may have registered
+     // schemes, so deregister them all.
+    while (g_universe->schemes) {
+        g_universe->schemes[0].scheme->deactivate();
     }
     doesnt_throw([&]{
         ordinary_path = resource_filepath("file:/foo/bar"_iri);

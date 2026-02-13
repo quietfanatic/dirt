@@ -85,6 +85,10 @@ void item_from_list_string (
     return item_from_tree(std::forward<T>(item), tree, rt);
 }
 
+ // Certain operations (specifically, reloading resources) are not allowed while
+ // a from_tree operation is running.
+bool currently_running_from_tree () noexcept;
+
  // Called item_from_tree on an item that doesn't have any way of doing the
  // from_tree operation.  item_from_tree can also throw errors with the codes in
  // serialize-compound.h.

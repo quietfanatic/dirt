@@ -73,6 +73,7 @@ struct AnyVal {
     bool empty () const { return !*this; }
      // Get AnyPtr to the value
     AnyPtr ptr () { return AnyPtr(type, data); }
+    AnyPtr ptr () const { return AnyPtr(type, data, true); }
     AnyPtr readonly_ptr () const { return AnyPtr(type, data, true); }
      // Runtime casting
     Mu& as (Type t) {

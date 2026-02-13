@@ -22,10 +22,10 @@ struct AnyPtr {
     };
 
     constexpr AnyPtr (Null n = null) : address(n), type_p(null) { }
-    AnyPtr (Type t, Mu* a) : address(a), type_p(t.data) { expect(t); }
+    AnyPtr (Type t, Mu* a) : address(a), type_p(t.data) { }
     AnyPtr (Type t, Mu* a, bool readonly) :
         address(a), type_i(reinterpret_cast<usize>(t.data) | readonly)
-    { expect(t); }
+    { }
     AnyPtr (Type t, Mu* a, AccessCaps caps) :
         AnyPtr(t, a, !(caps % AC::Write))
     { require(caps & AC::Address); } // TODO: raise exception instead

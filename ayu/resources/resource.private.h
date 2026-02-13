@@ -3,6 +3,7 @@
 
 #include "../../uni/indestructible.h"
 #include "../common.h"
+#include "extension.h"
 #include "scheme.h"
 
 namespace ayu::in {
@@ -16,13 +17,21 @@ struct ResourceSchemeEntry {
     ResourceScheme* scheme;
 };
 
+struct ResourceExtensionEntry {
+    usize hash;
+    AnyString name;
+    ResourceExtension* extension;
+};
+
 struct Universe {
      // Embed hash in the array so we don't have to dereference each pointer
      // when we search for a Resource.
     UniqueArray<Hashed<ResourceRef>> resources;
-     // Embed name too in schemes, so we can register the same scheme under
-     // multiple names.
+     // Embed name too in schemes and extensions, so we can register the same
+     // one with multiple names.
     UniqueArray<ResourceSchemeEntry> schemes;
+    UniqueArray<ResourceExtensionEntry> extensions;
+    ResourceExtension* default_extension = null;
     UniqueArray<AnyPtr> tracked;
 };
 

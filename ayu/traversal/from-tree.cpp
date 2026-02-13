@@ -781,6 +781,10 @@ void item_from_tree (
     TraverseFromTree::start(item, tree, rt, opts);
 }
 
+bool currently_running_from_tree () noexcept {
+    return IFTContext::current;
+}
+
 void raise_FromTreeFormRejected (Type t, Form f) {
     raise(e_FromTreeFormRejected, cat(
         "Item of type ", t.name(),

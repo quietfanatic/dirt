@@ -69,7 +69,7 @@ ResourceScheme* get_scheme (const IRI& name) {
 
 ResourceScheme* require_scheme (const IRI& name) {
     auto r = get_scheme(name);
-    if (!r) raise(e_ResourceSchemeNotFound, name.spec());
+    if (!r) raise(e_ResourceSchemeNotFound, "This resource's scheme has no handler");
     return r;
 }
 

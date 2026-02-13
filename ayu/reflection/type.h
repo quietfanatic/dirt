@@ -38,6 +38,7 @@ struct Type {
     explicit Type (Str name) : data(in::require_type_with_name(name)) { }
 
      // Construct from C++ type.  Never throws.
+     // TODO: lowercase this
     template <Describable T> static
     Type For () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
