@@ -108,7 +108,7 @@ IRI route_to_iri (RouteRef);
  // Parses an IRI into a Route.  All of the IRI up to the fragment will
  // be used as the resource name for the root, and the fragment will be
  // processed as follows:
- //   - The empty fragment corresponds to the root
+ //   - The empty fragment (or no fragment) corresponds to the root
  //   - Appending /<string> will create a Route with an attr key
  //   - Appending +<number> will create a Route with an elem index
  //   - Literal / and + must be percent-encoded

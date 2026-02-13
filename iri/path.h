@@ -43,7 +43,8 @@ Str path_chop_last_slash (Str) noexcept;
 
  // Get the filename extension, if any; that is, everything after the last dot
  // in the last segment of the path, or empty if there is no dot.  Does not
- // include the dot.  If a filename starts with a dot, that dot doesn't count.
+ // include the dot.  If a filename starts with a dot, that dot doesn't count
+ // (it's a UNIX hidden file).
 Str path_extension (Str) noexcept;
 
 ///// FILE SCHEME IRIS

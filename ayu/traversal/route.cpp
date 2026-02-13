@@ -140,9 +140,7 @@ SharedRoute route_from_iri (const IRI& iri) {
     if (!iri) raise(e_RouteIRIInvalid, cat(
         "Invalid IRI: ", iri.possibly_invalid_spec()
     ));
-    if (!iri.has_fragment()) raise(e_RouteIRIInvalid, cat(
-        "Route IRI does not have a #fragment: ", iri.spec()
-    ));
+     // Allow no fragment to mean empty fragment
     auto root_iri = iri.chop_fragment();
     Str spec = iri.spec();
     Str fragment = iri.fragment();

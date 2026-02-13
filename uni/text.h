@@ -42,6 +42,11 @@ constexpr char to_hex_digit (u8 digit) {
     return digit + (digit < 10 ? '0' : 'A' - 10);
 }
 
+inline bool ascii_is_lower (Str s) {
+    for (auto c : s) if (c >= 'A' && c <= 'Z') return false;
+    return true;
+}
+
 inline UniqueString ascii_to_upper (Str s) {
     return UniqueString(s.size(), [s](usize i){
         char c = s[i];
