@@ -28,7 +28,7 @@
 #define ANY_WORD_SYMBOL \
          '!': case '$': case '%': case '+': case '-': case '.': \
     case '/': case '<': case '>': case '?': case '@': case '^': \
-    case '_': case '~': case '#': case '&': case '*': case '='
+    case '_': case '~': case '#': case '&': case '*'
 
 #define ANY_WORD_STARTER \
          ANY_LETTER: \

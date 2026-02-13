@@ -28,8 +28,7 @@ enum CharProps : u8 {
     CHAR_TERM_STRING = 6,
     CHAR_TERM_ARRAY = 7,
     CHAR_TERM_OBJECT = 8,
-    CHAR_TERM_DECL = 9,
-    CHAR_TERM_SHORTCUT = 10,
+    CHAR_TERM_SHORTCUT = 9,
 };
 constexpr std::array<u8, 256> char_props = []{
     std::array<u8, 256> r = {};
@@ -41,7 +40,7 @@ constexpr std::array<u8, 256> char_props = []{
     for (char c = 'A'; c <= 'Z'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_WORD;
     for (char c : {
         '!', '$', '%', '+', '-', '.', '/', '<', '>',
-        '?', '@', '^', '_', '~', '#', '&', '*', '='
+        '?', '@', '^', '_', '~', '#', '&', '*'
     }) r[c] = CHAR_CONTINUES_WORD;
     for (char c : {'_', '/', '?', '#'}) r[c] |= CHAR_TERM_WORD;
     r['.'] |= CHAR_TERM_DOT;
@@ -50,8 +49,7 @@ constexpr std::array<u8, 256> char_props = []{
     r['"'] |= CHAR_TERM_STRING;
     r['['] |= CHAR_TERM_ARRAY;
     r['{'] |= CHAR_TERM_OBJECT;
-    r['&'] |= CHAR_TERM_DECL;
-    r['*'] |= CHAR_TERM_SHORTCUT;
+    r['$'] |= CHAR_TERM_SHORTCUT;
     return r;
 }();
 
@@ -131,7 +129,6 @@ struct Parser {
             &got_string,
             &got_array,
             &got_object,
-            &got_decl,
             &got_shortcut
         };
         if (in >= end) error(in, "Expected term but ran into end of input");
@@ -459,58 +456,44 @@ struct Parser {
      // or so).
     UniqueArray<TreePair> shortcuts;
 
-    const char* parse_shortcut_name (const char* in, AnyString& r) {
-        Tree name;
-        auto end = parse_term(in, name);
-        if (name.form != Form::String) [[unlikely]] {
-            error(in, "Can't use non-string as shortcut name");
-        }
-        new (&r) AnyString(move(name));
-        return end;
-    }
-
     NOINLINE static
-    const char* got_decl (Parser& self, const char* in, Tree& r) {
-        in++;  // for the &
+    const char* got_shortcut (Parser& self, const char* in, Tree& r) {
+        in++;  // for the $
         {
-            AnyString name;
-            in = self.parse_shortcut_name(in, name);
-            for (auto& sc : self.shortcuts) {
-                if (sc.first == name) {
-                    self.error(in, cat("Multiple declarations of shortcut &", name));
-                }
+            Tree name_t;
+            in = self.parse_term(in, name_t);
+            if (name_t.form != Form::String) [[unlikely]] {
+                self.error(in, "Can't use non-string as shortcut name");
             }
+            AnyString name = AnyString(move(name_t));
             in = self.skip_ws(in);
-            if (in < self.end && *in == ':') {
+            if (in < self.end && *in == '=') {
+                 // Declaration
+                for (auto& sc : self.shortcuts) {
+                    if (sc.first == name) {
+                        self.error(in, cat("Multiple declarations of shortcut $", name));
+                    }
+                }
                 in++;
                 in = self.skip_ws(in);
                 Tree value;
                 in = self.parse_term(in, value);
                 self.shortcuts.emplace_back(move(name), move(value));
                 in = self.skip_comma(in);
-                 // Fall through
+                 // fall through
             }
             else {
-                in = self.parse_term(in, r);
-                self.shortcuts.emplace_back(move(name), r);
-                return in;
+                 // Reference
+                for (auto& sc : self.shortcuts) {
+                    if (sc.first == name) {
+                        new (&r) Tree(sc.second);
+                        return in;
+                    }
+                }
+                self.error(in, cat("Unknown shortcut $", name));
             }
         } // Destroy name and value so we can tail call parse_term.
         return self.parse_term(in, r);
-    }
-
-    NOINLINE static
-    const char* got_shortcut (Parser& self, const char* in, Tree& r) {
-        in++;  // for the *
-        AnyString name;
-        in = self.parse_shortcut_name(in, name);
-        for (auto& sc : self.shortcuts) {
-            if (sc.first == name) {
-                new (&r) Tree(sc.second);
-                return in;
-            }
-        }
-        self.error(in, cat("Unknown shortcut *", name));
     }
 
 ///// NON-SEMANTIC CONTENT
@@ -722,27 +705,30 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     y("[0,1,]", Tree::array(Tree(0), Tree(1)));
     n("[0,,1,]");
     n("[0,1,,]");
-    y("&foo 1", Tree(1));
-    y("&foo:1 *foo", Tree(1));
-    y("&\"null\":4 *\"null\"", Tree(4));
-    y("[&foo 1 *foo]", Tree::array(Tree(1), Tree(1)));
-    y("[&foo:1 *foo]", Tree::array(Tree(1)));
-    y("{&key asdf:*key}", Tree::object(TreePair{"asdf", Tree("asdf")}));
-    y("{&borp:\"bump\" *borp:*borp}", Tree::object(TreePair{"bump", Tree("bump")}));
+    todo(1, "in-place assignment NYI");
+    y("($foo=1)", Tree(1));
+    y("$foo=1 $foo", Tree(1));
+    y("$\"null\"=4 $\"null\"", Tree(4));
+    todo(1, "in-place assignment NYI");
+    y("[($foo=1) $foo]", Tree::array(Tree(1), Tree(1)));
+    y("[$foo=1 $foo]", Tree::array(Tree(1)));
+    todo(1, "in-place assignment NYI");
+    y("{($key=asdf):$key}", Tree::object(TreePair{"asdf", Tree("asdf")}));
+    y("{$borp=\"bump\" $borp:$borp}", Tree::object(TreePair{"bump", Tree("bump")}));
     y("3 --4", Tree(3));
     y("#", Tree("#"));
     y("#foo", Tree("#foo"));
-    n("{&borp:44 *borp:*borp}");
-    n("&foo");
-    n("&foo:1");
-    n("&1 1");
-    n("&null 1");
-    n("*foo");
-    n("4 &foo:4");
-    n("&foo *foo");
-    n("&foo:*foo 1");
-    n("&&a 1");
-    n("& a 1");
+    n("{$borp:44 $borp:$borp}");
+    n("$foo=");
+    n("$foo=1");
+    n("$1=1 $1");
+    n("$null=1 $null");
+    n("$foo");
+    n("4 $foo=4");
+    n("$foo=$foo");
+    n("$foo=$foo 1");
+    n("$$a=1 $a");
+    n("$ a=1 $a");
     n("[+nana]");
      // Test depth limit
     auto big = UniqueString(Capacity(402));
