@@ -22,9 +22,14 @@ void ImageTexture::init () {
             || target == GL_TEXTURE_1D_ARRAY
             || target == GL_TEXTURE_RECTANGLE
         );
-        ImageRef data = source;
-        UniqueImage processed = replace_color.apply(data, flip);
         glBindTexture(target, id);
+        ImageRef data = source;
+        UniqueImage processed (data.size);
+        for (i32 y = 0; y < data.size.y; y++)
+        for (i32 x = 0; x < data.size.x; x++) {
+            processed.pixels[y * processed.size.x + x] =
+                data.pixels[(data.size.y - y - 1) * data.stride + x];
+        }
         glTexImage2D(
             target,
             0, // level
@@ -46,7 +51,6 @@ AYU_DESCRIBE(glow::ImageTexture,
          // TODO: figure out how to make this optional without regenning texture
         attr("Texture", base<Texture>(), include),
         attr("SubImage", &ImageTexture::source, include),
-        attr("replace_color", &ImageTexture::replace_color, optional),
         attr("flip", &ImageTexture::flip, optional)
     ),
     init([](ImageTexture& v){ v.init(); })

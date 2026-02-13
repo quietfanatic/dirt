@@ -1,7 +1,6 @@
 #pragma once
 #include "image.h"
 #include "texture.h"
-#include "image-transform.h"
 
 namespace glow {
 
@@ -11,7 +10,6 @@ namespace glow {
  // deserialization.
 struct ImageTexture : Texture {
     SubImage source;
-    ReplaceColor replace_color;
     BVec flip = {false, true}; // Flip vertically by default
     ImageTexture ();
     void init ();

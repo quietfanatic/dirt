@@ -9,6 +9,9 @@ void load_texture_from_file (u32 target, uni::AnyString filename);
  // Load image into CPU memory.  Only outputs RGBA8.
 UniqueImage load_image_from_file (uni::AnyString filename);
 
+ // Decode image from memory.  NYI for load-image-sail.cpp
+UniqueImage load_image_from_blob (Slice<u8>, Str filename);
+
 constexpr uni::ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 
 } // glow

@@ -14,13 +14,13 @@ struct ImageRef {
     IVec size;
      // Distance between rows in pixels.  If all the pixels are stored
      // contiguously, this should be equal to size.x
-    usize stride = 0;
+    i32 stride = 0;
      // Pointer to pixel data, arranged top-down left-to-right.
      //   {0, 0}, {1, 0}, {0, 1}, {1, 1}
     RGBA8* pixels = null;
     constexpr ImageRef () { }
     constexpr ImageRef (IVec s, RGBA8* p) : size(s), stride(s.x), pixels(p) { }
-    constexpr ImageRef (IVec s, usize t, RGBA8* p) : size(s), stride(t), pixels(p) { }
+    constexpr ImageRef (IVec s, i32 t, RGBA8* p) : size(s), stride(t), pixels(p) { }
 
      // The bounds of the image as a rectangle.  Note that this will be
      // upside-down; bounds().b refers to the top of the image.

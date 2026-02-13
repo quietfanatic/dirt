@@ -47,8 +47,8 @@ AYU_DESCRIBE(glow::TextureProgram,
 #include "../ayu/traversal/to-tree.h"
 #include "../tap/tap.h"
 #include "../wind/window.h"
+#include "file-image.h"
 #include "image-texture.h"
-#include "resource-image.h"
 #include "test-environment.h"
 
 static tap::TestSet tests ("dirt/glow/texture-program", []{
@@ -66,7 +66,10 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
         tex2 = ayu::link_from_iri("test:/texture-test.ayu#texture2");
     }, "Can load texture from file image");
 
-    ok(!dynamic_cast<ResourceImage*>(tex2->source.image)->storage, "File texture was trimmed");
+    auto fi = dynamic_cast<FileImage*>(tex2->source.image);
+    ok(!!fi->storage, "FileImage was not automatically trimmed");
+    fi->trim();
+    ok(!fi->storage, "Can trim FileImage");
 
     RGBA8 bg = u32(0x331100ee);
     RGBA8 fg = u32(0x2674dbf0);

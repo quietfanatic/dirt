@@ -144,15 +144,14 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
     return in_end - in;
 }
 
-UniqueImage load_image_from_file (AnyString filename) {
-    UniqueString file = string_from_file(filename);
-    if (file.size() < 14 + 8) raise_LoadImageFailed(filename, "File is too short");
-    if (file.slice(0, 4) != "qoif") raise_LoadImageFailed(filename, "File is not QOI format");
-    if (file.slice(file.size()-8) != "\x00\x00\x00\x00\x00\x00\x00\x01") {
+UniqueImage load_image_from_blob (Slice<u8> blob, Str filename) {
+    if (blob.size() < 14 + 8) raise_LoadImageFailed(filename, "File is too short");
+    if (Str(blob.slice(0, 4)) != "qoif") raise_LoadImageFailed(filename, "File is not QOI format");
+    if (Str(blob.slice(blob.size()-8)) != "\x00\x00\x00\x00\x00\x00\x00\x01") {
         raise_LoadImageFailed(filename, "QOI file doesn't end properly");
     }
-    const u8* in = file.reinterpret<u8>().begin();
-    const u8* in_end = file.reinterpret<u8>().end();
+    const u8* in = blob.begin();
+    const u8* in_end = blob.end();
     u32 width = read_u32be(in + 4);
     u32 height = read_u32be(in + 8);
     u64 len = width * height;
@@ -173,6 +172,11 @@ UniqueImage load_image_from_file (AnyString filename) {
     }
 
     return r;
+}
+
+UniqueImage load_image_from_file (AnyString filename) {
+    auto blob = blob_from_file(filename);
+    return load_image_from_blob(blob, filename);
 }
 
 } using namespace glow;
