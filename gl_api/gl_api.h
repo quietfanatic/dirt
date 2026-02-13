@@ -1,12 +1,12 @@
 #pragma once
 
 // This file provides a configurable OpenGL API.  You can make it mean whatever
-//  you want by defining DECLARE_GL_FUNCTION(name, ret, params) and
-//  USE_GL_FUNCTION(name).
+// you want by defining DECLARE_GL_FUNCTION(name, ret, params) and
+// USE_GL_FUNCTION(name).
 //
 // As an example, the following defines make pointers to functions that use
-//  C++ trickery to only manifest functions that are required by the program,
-//  thus minimizing overhead.
+// C++ trickery to only manifest functions that are required by the program,
+// thus minimizing overhead.
 //
 //     #define DECLARE_GL_FUNCTION(name, Ret, params) \     // (stopping multi-
 //     template <int = 0> \                                 // line comment
@@ -15,8 +15,8 @@
 //     #define USE_GL_FUNCTION(name) p_##name<>
 //
 // Only the core profile is included, with no extensions and no deprecated
-//  functions.  See https://www.khronos.org/registry/OpenGL-Refpages/gl4/
-//  for reference.
+// functions.  See https://www.khronos.org/registry/OpenGL-Refpages/gl4/
+// for reference.
 
 #ifndef DECLARE_GL_FUNCTION
 #error gl_api.h was included without defining DECLARE_GL_FUNCTION first
