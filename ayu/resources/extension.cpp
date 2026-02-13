@@ -84,6 +84,7 @@ void ResourceExtension::deactivate () noexcept {
 static constinit ResourceExtension default_default_extension;
 
 ResourceExtension* get_extension (const IRI& name) {
+     // TODO: lowercase!
     Str ext = iri::path_extension(name.path());
     if (g_universe->extensions) {
         auto hash = uni::hash(ext);

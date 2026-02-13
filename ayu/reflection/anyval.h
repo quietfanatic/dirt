@@ -88,7 +88,9 @@ struct AnyVal {
     template <class T>
     const std::remove_cvref_t<T>& as () const {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
-            as(Type::For<std::remove_cvref_t<T>>())
+            const_cast<AnyVal*>(this)->as(
+                Type::For<std::remove_cvref_t<T>>()
+            )
         );
     }
 

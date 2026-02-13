@@ -964,9 +964,7 @@ struct AYU_DescribeBase {
      // And here's an overload for init(), which is a descriptor, not an
      // accessor, but a lot of class-like types have a method for finishing
      // intialization, so this is useful.
-    template <
-        void(T3::* m )()
-    > static constexpr
+    template <auto m> static constexpr
     DescriptorFor<T> auto init (double order = 0) {
         return init([](T& v){ (v.*m)(); }, order);
     }
