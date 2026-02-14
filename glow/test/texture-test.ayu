@@ -2,12 +2,12 @@
     image: [glow::UniqueImage {
         size: [7 5]
         pixels: [
-            $p = 0x2674dbf0
-            $p $p $p $p $p $p $p
-            $p $p $p $p $p $p $p
-            $p $p $p $p $p $p $p
-            $p $p $p $p $p $p $p
-            $p $p $p $p $p $p $p
+            $=0x2674dbf0
+            $ $ $ $ $ $ $
+            $ $ $ $ $ $ $
+            $ $ $ $ $ $ $
+            $ $ $ $ $ $ $
+            $ $ $ $ $ $ $
         ]
     }]
     texture: [glow::ImageTexture {

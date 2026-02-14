@@ -154,7 +154,7 @@ struct Parser {
                 else return Str(start, in);
             }
             else if (*in == '"') {
-                error(in, "\" cannot occur inside a word (are you missing the first \"?)");
+                error(in, "\" cannot occur inside a word (is the first \" missing?)");
             }
             else [[likely]] return Str(start, in);
         }
@@ -458,42 +458,38 @@ struct Parser {
 
     NOINLINE static
     const char* got_shortcut (Parser& self, const char* in, Tree& r) {
-        in++;  // for the $
-        {
-            Tree name_t;
-            in = self.parse_term(in, name_t);
-            if (name_t.form != Form::String) [[unlikely]] {
-                self.error(in, "Can't use non-string as shortcut name");
-            }
-            AnyString name = AnyString(move(name_t));
+        Str name = self.parse_word(in);
+        in += name.size();
+        in = self.skip_ws(in);
+        if (in < self.end && *in == '=') {
+             // Declaration
+            in++;
             in = self.skip_ws(in);
-            if (in < self.end && *in == '=') {
-                 // Declaration
-                for (auto& sc : self.shortcuts) {
-                    if (sc.first == name) {
-                        self.error(in, cat("Multiple declarations of shortcut $", name));
-                    }
-                }
-                in++;
-                in = self.skip_ws(in);
+            {
                 Tree value;
                 in = self.parse_term(in, value);
-                self.shortcuts.emplace_back(move(name), move(value));
-                in = self.skip_comma(in);
-                 // fall through
-            }
-            else {
-                 // Reference
                 for (auto& sc : self.shortcuts) {
                     if (sc.first == name) {
-                        new (&r) Tree(sc.second);
-                        return in;
+                        sc.second = move(value);
+                        goto found;
                     }
                 }
-                self.error(in, cat("Unknown shortcut $", name));
+                self.shortcuts.emplace_back(name, move(value));
+            } // Destroy value so we can tail call
+            found:
+            in = self.skip_comma(in);
+            return self.parse_term(in, r);
+        }
+        else {
+             // Reference
+            for (auto& sc : self.shortcuts) {
+                if (sc.first == name) {
+                    new (&r) Tree(sc.second);
+                    return in;
+                }
             }
-        } // Destroy name and value so we can tail call parse_term.
-        return self.parse_term(in, r);
+            self.error(in, cat("Unknown shortcut ", name));
+        }
     }
 
 ///// NON-SEMANTIC CONTENT
@@ -708,7 +704,9 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     todo(1, "in-place assignment NYI");
     y("($foo=1)", Tree(1));
     y("$foo=1 $foo", Tree(1));
-    y("$\"null\"=4 $\"null\"", Tree(4));
+    n("$\"null\"=4 $\"null\"");
+    y("$null=4 $null", Tree(4));
+    y("$5=40 $5", Tree(40));
     todo(1, "in-place assignment NYI");
     y("[($foo=1) $foo]", Tree::array(Tree(1), Tree(1)));
     y("[$foo=1 $foo]", Tree::array(Tree(1)));
@@ -721,13 +719,12 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("{$borp:44 $borp:$borp}");
     n("$foo=");
     n("$foo=1");
-    n("$1=1 $1");
-    n("$null=1 $null");
     n("$foo");
     n("4 $foo=4");
     n("$foo=$foo");
     n("$foo=$foo 1");
     n("$$a=1 $a");
+    y("$$a=1 $$a", Tree(1));
     n("$ a=1 $a");
     n("[+nana]");
      // Test depth limit

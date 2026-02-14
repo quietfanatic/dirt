@@ -74,7 +74,7 @@ A string does not have to be quoted if all of the below are true:
 - It is not `null`, `true`, or `false`.
 - It starts with a letter or one of `_`, `/`, `?`, or `#`, or a `.` not followed by
   a digit or `+` or `-`.
-- It only contains the following:
+- It only contains the following word-continuation characters:
     - ASCII letters, numbers, or underscores
     - any of these symbols: `!`, `$`, `%`, `+`, `-`, `.`, `/`, `<`, `>`, `?`, `@`,
       `^`, `_`, `~`, `#`, `&`, `*`,
@@ -113,21 +113,26 @@ valid character for unquoted strings.
 
 ##### Shortcuts
 
-Shortcuts (known as backreferences in some other DLs) start with a dollar sign
-(`$`).  They are assigned with `=` and can be referenced later.  Assigning a
-shortcut does not emit any items.  Referencing a shortcut emits a copy of the
-item that was assigned to the shortcut.  Shortcuts can be used as the keys in
-objects if they refer to strings.
+AYU supports shortcuts, similar to backreferences in some other DLs.  Shortcuts
+start with a dollar sign (`$`) followed immediately (no whitespace) by zero or
+more word-continuation characters.  If the shortcut is followed by an equal sign
+(`=`), it's a shortcut assignment.  The following item will be assigned to the
+shortcut, and both it and the shortcut name are discarded from the stream of
+items.  If it is not followed by `=`, it's a shortcut reference, and the value
+of the shortcut is inserted into the stream of items.
 
 ```
 [1 $a=2 3 $a] -- Equivalent to [1 3 2]
 ```
 
+Shortcuts names can look like numbers, including floating point numbers, but
+their names are compared as strings.  `$0.1` is not the same shortcut as
+`$1e-1`.  A sole `$` by itself is also a valid shortcut name.
+
 Shortcuts are syntactic only: they are semantically invisible and cannot be
 recursive.  Shortcut names are global to the file or string being parsed, and
-can only be used after they are declared.
-
-Whitespace is not allowed after the `$`.
+can only be used after they are assigned.  They can be assigned multiple times,
+and each assignment overrides the previous one.
 
 ### Notes
 
