@@ -19,8 +19,8 @@ using iri::IRI;
 
 ///// BASIC TYPES AND STUFF
 
- // resources/document.h
-struct Document;
+ // resources/collection.h
+struct Collection;
 
  // resources/resource.h
 struct Resource;

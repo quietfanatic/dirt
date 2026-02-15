@@ -2,14 +2,13 @@
 #include <memory>
 #include "../../iri/path.h"
 #include "../../tap/tap.h"
-#include "../resources/document.h"
 #include "../resources/scheme.h"
 
 namespace ayu::test {
     struct TestResourceScheme : FolderResourceScheme {
         using FolderResourceScheme::FolderResourceScheme;
         bool accepts_type (Type type) override {
-            return type == Type::For<Document>()
+            return type == Type::For<Collection>()
                 || type == Type::For<i32>();
         }
     };

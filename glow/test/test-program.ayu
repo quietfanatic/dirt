@@ -1,4 +1,4 @@
-[ayu::Document {
+[ayu::Collection {
     program: [glow::Program {
         shaders: [#vertex #fragment]
     }]

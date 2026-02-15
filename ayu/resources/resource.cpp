@@ -792,13 +792,14 @@ AYU_DESCRIBE(ayu::ResourceRef,
 
 #ifndef TAP_DISABLE_TESTS
 #include "../test/test-environment.private.h"
+#include "collection.h"
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)
 
 namespace ayu::in {
 struct TestResourceExtension : ResourceExtension {
     bool accepts_type (Type type) override {
-        return type == Type::For<Document>();
+        return type == Type::For<Collection>();
     }
     using ResourceExtension::ResourceExtension;
 };
@@ -842,9 +843,9 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     is(input->state(), RS::Unloaded, "Resource state is RS::Unloaded after unloading");
     ok(!input->get_value(), "Resource has no value after unloading");
 
-    ayu::Document* doc = null;
+    ayu::Collection* coll = null;
     doesnt_throw([&]{
-        doc = &input->value().as<ayu::Document>();
+        coll = &input->value().as<ayu::Collection>();
     }, "Getting typed value from a resource");
     is(input->state(), RS::Loaded, "Resource::value() automatically loads resource");
     is(input["foo"][1].get_as<i32>(), 4, "Value was generated properly (0)");
@@ -852,17 +853,17 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
 
     throws_code<e_ResourceStateInvalid>([&]{ save(output); }, "save throws on unloaded resource");
 
-    doc->delete_with_name("foo");
-    doc->new_with_name<i32>("asdf", 51);
+    coll->delete_(coll->find_with_name("foo")->ptr());
+    coll->new_with_name<i32>("asdf", 51);
 
     doesnt_throw([&]{ rename(input, output); }, "rename");
     is(input->state(), RS::Unloaded, "Old resource is RS::Unloaded after renaming");
     is(output->state(), RS::Loaded, "New resource is RS::Loaded after renaming");
-    is(&output->value().as<ayu::Document>(), doc, "Rename moves value without reconstructing it");
+    is(&output->value().as<ayu::Collection>(), coll, "Rename moves value without reconstructing it");
 
     doesnt_throw([&]{ save(output); }, "save");
     is(tree_from_file(resource_filepath(output->name())), tree_from_string(
-        "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _next_id:0}]"
+        "[ayu::Collection {bar:[std::string qux] asdf:[i32 51]}]"
     ), "Resource was saved with correct contents");
     ok(source_exists(output->name()), "source_exists returns true before deletion");
     doesnt_throw([&]{ delete_source(output->name()); }, "delete_source");
@@ -882,18 +883,18 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     doesnt_throw([&]{
         is(link.get_as<std::string>(), "qux", "link_from_route got correct item");
     });
-    doc = &output->value().as<ayu::Document>();
+    coll = &output->value().as<ayu::Collection>();
     link = output["asdf"][1].address_as<i32>();
     doesnt_throw([&]{
         rt = link_to_route(link);
     });
     is(item_to_tree(&rt), tree_from_string("\"ayu-test:/test-output.ayu#/asdf+1\""), "link_to_route works");
-    doc->new_<Link>(output["bar"][1]);
+    coll->new_<Link>(output["bar"][1]);
     doesnt_throw([&]{ save(output); }, "save with link");
-    doc->new_<i32*>(output["asdf"][1]);
+    coll->new_<i32*>(output["asdf"][1]);
     doesnt_throw([&]{ save(output); }, "save with pointer");
     is(tree_from_file(resource_filepath(output->name())), tree_from_string(
-        "[ayu::Document {bar:[std::string qux] asdf:[i32 51] _0:[ayu::Link #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
+        "[ayu::Collection {bar:[std::string qux] asdf:[i32 51] _0:[ayu::Link #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct link as route");
     throws_code<e_OpenFailed>([&]{
         load(badinput);
