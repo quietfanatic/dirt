@@ -4,18 +4,6 @@
 
 namespace ayu {
 
-void Collection::validate_name (Str name) {
-    if (!name) raise(e_CollectionItemNameInvalid, "Collection item name is empty");
-    if (name[0] == '_') {
-        raise(e_CollectionItemNameInvalid, "Cannot insert item name starting with _");
-    }
-    for (auto& item : items) {
-        if (item.name_sx2wo >> 1 == name.size() &&
-            memeq(item.name_data, name.data(), name.size())
-        ) raise(e_CollectionItemNameDuplicate, cat("Duplicate item name: ", name));
-    }
-}
-
 AnyVal* Collection::find_with_name (Str name) noexcept {
     if (!name || !items) [[unlikely]] return null;
     if (name[0] == '_') {
@@ -55,7 +43,19 @@ AnyVal* Collection::find_with_name (Str name) noexcept {
     }
 }
 
-void Collection::erase_deleted (Type t, void* p) noexcept {
+void Collection::validate_name (Str name) {
+    if (!name) raise(e_CollectionItemNameInvalid, "Collection item name is empty");
+    if (name[0] == '_') {
+        raise(e_CollectionItemNameInvalid, "Cannot insert item name starting with _");
+    }
+    for (auto& item : items) {
+        if (item.name_sx2wo >> 1 == name.size() &&
+            memeq(item.name_data, name.data(), name.size())
+        ) raise(e_CollectionItemNameDuplicate, cat("Duplicate item name: ", name));
+    }
+}
+
+Mu* Collection::extract (Mu* p) noexcept {
     last_lookup = 0;
     CollectionItem* entry = &items.back(); // debug-asserts nonempty
     items.impl.size -= 1;
@@ -85,25 +85,13 @@ void Collection::erase_deleted (Type t, void* p) noexcept {
         tmp_value_type = tmp2_value_type;
         tmp_value_data = tmp2_value_data;
     }
-    expect(tmp_value_type == t);
      // Value has already been deleted, but name needs deleting.
      // Named items are unlikely to ever be deleted.
     if (tmp_name_sx2wo & 1) [[unlikely]] {
         AnyString s;
         s.impl = {tmp_name_sx2wo, tmp_name_data};
     }
-}
-
-AnyString CollectionItem::name () const noexcept {
-    if (name_sx2wo) {
-        if (name_sx2wo & 1) {
-            SharableBuffer<char>::header(name_data)->ref_count++;
-        }
-        AnyString r;
-        r.impl = {name_sx2wo, name_data};
-        return r;
-    }
-    else return cat('_', id);
+    return tmp_value_data;
 }
 
 } using namespace ayu;

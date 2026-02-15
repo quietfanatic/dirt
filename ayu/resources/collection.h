@@ -22,6 +22,14 @@ namespace ayu {
 struct CollectionItem;
 
 struct Collection {
+
+    Collection () { }
+    Collection (Collection&& o) = default;
+    Collection (const Collection&) = delete;
+    Collection& operator= (Collection&& o) = default;
+    Collection& operator= (const Collection& o) = delete;
+    ~Collection () { }
+
      // Emplace a new anonymous item into this collection.  O(1)
     template <Describable T, class... Args>
     T* new_ (Args&&... args);
@@ -55,10 +63,9 @@ struct Collection {
     u64 next_id = 0;
     u32 last_lookup = 0;
 
-     // Internal stuff
-
+private:
     void validate_name (Str);
-    void erase_deleted (Type, void*) noexcept;
+    Mu* extract (Mu*) noexcept;
 };
 
  // Tried to create a Collection item with an invalid name (starting with a _).
@@ -77,12 +84,22 @@ struct CollectionItem {
     };
     AnyVal value;
 
-    AnyString name () const noexcept;
+    AnyString name () const noexcept {
+        if (name_sx2wo) {
+            AnyString tmp;
+            tmp.impl = {name_sx2wo, name_data};
+            AnyString r = tmp; // Trigger refcount
+            tmp.impl = {};
+            return r;
+        }
+        else return cat('_', id);
+    }
 
     CollectionItem (u64 id, AnyVal&& v = {}) :
         name_sx2wo(0), id(id),
         value(move(v))
     { }
+
     CollectionItem (AnyString n, AnyVal&& v = {}) :
         name_sx2wo(n.impl.sizex2_with_owned),
         name_data(n.impl.data),
@@ -93,9 +110,7 @@ struct CollectionItem {
         name_sx2wo(o.name_sx2wo),
         name_data(o.name_data),
         value(move(o.value))
-    {
-        o.name_sx2wo = 0;
-    }
+    { o.name_sx2wo = 0; }
 
     CollectionItem& operator= (CollectionItem&& o) {
         this->~CollectionItem();
@@ -113,30 +128,32 @@ struct CollectionItem {
 
 template <Describable T, class... Args>
 T* Collection::new_ (Args&&... args) {
-    AnyVal v = AnyVal::make<T>(std::forward<Args>(args)...);
-    u64 id = next_id++;
-    items.emplace_back(id, move(v));
-    return (T*)v.data;
+    auto p = new T (std::forward<Args>(args)...);
+    auto& item = items.emplace_back(
+        next_id++, AnyVal(Type::For<T>(), (Mu*)p)
+    );
+    return (T*)item.value.data;
 }
 
 template <Describable T>
 void Collection::delete_ (T* p) {
-    p->~T();
-    erase_deleted(Type::For<T>(), p);
+    auto p2 = extract((Mu*)p);
+    delete (T*)p2;
 }
 
 inline void Collection::delete_ (AnyPtr p) {
-    Type t = p.type();
-    dynamic_delete(t, p.address);
-    erase_deleted(t, p.address);
+    auto p2 = extract(p.address);
+    dynamic_delete(p.type(), p2);
 }
 
 template <Describable T, class... Args>
 T* Collection::new_with_name (AnyString name, Args&&... args) {
     validate_name(name);
-    AnyVal v = AnyVal::make<T>(std::forward<Args>(args)...);
-    items.emplace_back(move(name), move(v));
-    return (T*)v.data;
+    auto p = new T (std::forward<Args>(args)...);
+    auto& item = items.emplace_back(
+        move(name), AnyVal(Type::For<T>(), (Mu*)p)
+    );
+    return (T*)item.value.data;
 }
 
 template <Describable T, class... Args>
@@ -144,9 +161,11 @@ T* Collection::new_with_name_expect_valid (AnyString name, Args&&... args) {
 #ifndef NDEBUG
     validate_name(name);
 #endif
-    AnyVal v = AnyVal::make<T>(std::forward<Args>(args)...);
-    items.emplace_back(move(name), move(v));
-    return (T*)v.data;
+    auto p = new T (std::forward<Args>(args)...);
+    auto& item = items.emplace_back(
+        move(name), AnyVal(Type::For<T>(), (Mu*)p)
+    );
+    return (T*)item.value.data;
 }
 
 } // namespace ayu

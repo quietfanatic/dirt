@@ -37,15 +37,8 @@ struct AnyVal {
     template <Describable T, class... Args>
     static AnyVal make (Args&&... args) {
         auto type = Type::For<T>();
-        void* data = dynamic_allocate(type);
-        try {
-            new (data) T (std::forward<Args>(args)...);
-            return AnyVal(type, reinterpret_cast<Mu*>(data));
-        }
-        catch (...) {
-            dynamic_deallocate(type, data);
-            throw;
-        }
+        void* data = new T (std::forward<Args>(args)...);
+        return AnyVal(type, reinterpret_cast<Mu*>(data));
     }
      // Move construct from std::unique_ptr
     template <Describable T>
