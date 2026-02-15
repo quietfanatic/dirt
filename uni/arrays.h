@@ -291,6 +291,8 @@ struct ArrayInterface {
     using Self = ArrayInterface<ac, T>;
     using Impl = ArrayImpl<ac, T>;
 
+    static_assert(!std::is_reference_v<T>, "Cannot have an array of references.");
+
      // You can manipulate the impl directly to skip reference counting if you
      // know what you're doing.  You are allowed to do it, as long as you are
      // willing to accept the responsibility.

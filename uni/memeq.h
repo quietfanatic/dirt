@@ -55,6 +55,8 @@ bool memeq (const void* a, const void* b, std::size_t s) {
         auto ae = ap + s - 8;
         u64 av;
         u64 bv;
+        #pragma GCC unroll 0
+        #pragma GCC novector
         do {
             std::memcpy(&av, ap, 8);
             std::memcpy(&bv, bp, 8);

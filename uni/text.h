@@ -109,7 +109,7 @@ ReadResult<T> read_decimal_digits (
         if (digit > 9) return r;
         auto old = r.value;
         r.value = r.value * 10 + digit;
-        if (r.value < old) return {start, 0};
+        if (r.value < old) [[unlikely]] return {start, 0};
         r.p++;
     }
     return r;
