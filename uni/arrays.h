@@ -334,8 +334,7 @@ struct ArrayInterface {
     ///// CONSTRUCTION
      // Default construct, makes an empty array.
     ALWAYS_INLINE constexpr
-    ArrayInterface () : impl{} {
-    }
+    ArrayInterface () : impl{} { }
 
      // Move construct.
     ALWAYS_INLINE constexpr
@@ -357,7 +356,11 @@ struct ArrayInterface {
     ArrayInterface (ArrayInterface<ac2, T>&& o) requires (
         !ac::trivially_copyable && !ac2::trivially_copyable
     ) {
-        if (ac::supports_share || o.unique()) {
+        if constexpr (ac::is_Unique) {
+            set_owned(o.impl.data, o.size());
+            o.impl = {};
+        }
+        else if (ac::supports_share || o.unique()) {
             set_owned(o.impl.data, o.size());
             o.impl = {};
         }
@@ -873,7 +876,7 @@ struct ArrayInterface {
         static_assert(requires (T v) { !v; v = T(); });
         if constexpr (ac::supports_owned) {
             if (!size() || !!impl.data[size()-1]) {
-                set_owned_unique(do_c_str(impl), size());
+                set_data_unique(do_c_str(impl));
             }
         }
         else {
@@ -1218,7 +1221,7 @@ struct ArrayInterface {
     void reserve (usize cap) requires (ac::supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) {
-            set_owned_unique(reallocate(impl, cap), size());
+            set_data_unique(reallocate(impl, cap));
         }
     }
 
@@ -1228,7 +1231,7 @@ struct ArrayInterface {
     void reserve_plenty (usize cap) requires (ac::supports_owned) {
         expect(cap <= max_size_);
         if (!unique() || cap > capacity()) [[unlikely]] {
-            set_owned_unique(reallocate_plenty(impl, cap), size());
+            set_data_unique(reallocate_plenty(impl, cap));
         }
     }
 
@@ -1243,7 +1246,7 @@ struct ArrayInterface {
         if (!unique() ||
             size() * 3 / 2 < capacity()
         ) {
-            set_owned_unique(reallocate(impl, size()), size());
+            set_data_unique(reallocate(impl, size()));
         }
     }
 
@@ -1253,7 +1256,7 @@ struct ArrayInterface {
     ALWAYS_INLINE
     void make_unique () requires (ac::supports_owned) {
         if (!unique()) {
-            set_owned_unique(reallocate(impl, size()), size());
+            set_data_unique(reallocate(impl, size()));
         }
     }
 
@@ -1837,6 +1840,14 @@ struct ArrayInterface {
             impl.sizex2_with_owned += change << 1;
         }
         else impl.size += change;
+    }
+
+    ALWAYS_INLINE
+    void set_data_unique (T* d) {
+        if constexpr (ac::is_Any) {
+            impl.sizex2_with_owned |= 1;
+        }
+        impl.data = d;
     }
 
     ALWAYS_INLINE constexpr
