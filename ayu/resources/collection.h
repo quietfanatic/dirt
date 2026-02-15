@@ -130,7 +130,7 @@ template <Describable T, class... Args>
 T* Collection::new_ (Args&&... args) {
     auto p = new T (std::forward<Args>(args)...);
     auto& item = items.emplace_back(
-        next_id++, AnyVal(Type::For<T>(), (Mu*)p)
+        next_id++, AnyVal(Type::of<T>(), (Mu*)p)
     );
     return (T*)item.value.data;
 }
@@ -151,7 +151,7 @@ T* Collection::new_with_name (AnyString name, Args&&... args) {
     validate_name(name);
     auto p = new T (std::forward<Args>(args)...);
     auto& item = items.emplace_back(
-        move(name), AnyVal(Type::For<T>(), (Mu*)p)
+        move(name), AnyVal(Type::of<T>(), (Mu*)p)
     );
     return (T*)item.value.data;
 }
@@ -163,7 +163,7 @@ T* Collection::new_with_name_expect_valid (AnyString name, Args&&... args) {
 #endif
     auto p = new T (std::forward<Args>(args)...);
     auto& item = items.emplace_back(
-        move(name), AnyVal(Type::For<T>(), (Mu*)p)
+        move(name), AnyVal(Type::of<T>(), (Mu*)p)
     );
     return (T*)item.value.data;
 }

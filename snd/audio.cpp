@@ -39,13 +39,13 @@ void audio_to_file_qoa (const UniqueAudio& au, AnyString filename) {
 }
 
 bool AudioExtensionQOA::accepts_type (ayu::Type type) {
-    return type == ayu::Type::For<UniqueAudio>();
+    return type == ayu::Type::of<UniqueAudio>();
 }
 void AudioExtensionQOA::from_blob (
     ayu::AnyVal& value, Slice<u8> blob,
     ayu::ResourceRef, ayu::ResourceScheme* scheme
 ) {
-    scheme->validate_type(ayu::Type::For<UniqueAudio>());
+    scheme->validate_type(ayu::Type::of<UniqueAudio>());
     UniqueAudio au = audio_from_blob_qoa(blob);
     expect(!value);
     value = ayu::AnyVal::make<UniqueAudio>(move(au));
@@ -54,18 +54,18 @@ void AudioExtensionQOA::from_blob (
 UniqueArray<u8> AudioExtensionQOA::to_blob (
     const ayu::AnyVal& value, ayu::ResourceRef, ayu::PrintOptions
 ) {
-    expect(value.type == ayu::Type::For<UniqueAudio>());
+    expect(value.type == ayu::Type::of<UniqueAudio>());
     return audio_to_blob_qoa(value.as<UniqueAudio>());
 }
 
 bool AudioExtensionWAV::accepts_type (ayu::Type type) {
-    return type == ayu::Type::For<UniqueAudio>();
+    return type == ayu::Type::of<UniqueAudio>();
 }
 void AudioExtensionWAV::from_blob (
     ayu::AnyVal& value, Slice<u8> blob,
     ayu::ResourceRef, ayu::ResourceScheme* scheme
 ) {
-    scheme->validate_type(ayu::Type::For<UniqueAudio>());
+    scheme->validate_type(ayu::Type::of<UniqueAudio>());
     UniqueAudio au = audio_from_blob_wav(blob);
     expect(!value);
     value = ayu::AnyVal::make<UniqueAudio>(move(au));

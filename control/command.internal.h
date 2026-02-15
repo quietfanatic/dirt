@@ -134,7 +134,7 @@ AYU_DESCRIBE_TEMPLATE(
         else {
              // TODO: read elems for desc names?
             static constexpr const ayu::Type descs [] = {
-                ayu::Type::For_constexpr<Pars>()...
+                ayu::Type::constexpr_of<Pars>()...
             };
             return control::make_StatementStorage_name(uni::StaticArray<ayu::Type>(descs));
         }

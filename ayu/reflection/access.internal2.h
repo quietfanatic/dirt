@@ -27,7 +27,7 @@ struct MemberAcr : TypedAcr {
     using AcrToType = To;
     To From::* mp;
     explicit constexpr MemberAcr (To From::* mp, AcrFlags flags) :
-        TypedAcr(AF::Member, Type::For_constexpr<To>(), flags), mp(mp)
+        TypedAcr(AF::Member, Type::constexpr_of<To>(), flags), mp(mp)
     { }
 };
 
@@ -39,7 +39,7 @@ struct ReinterpretAcr : TypedAcr {
     using AcrFromType = From;
     using AcrToType = To;
     explicit constexpr ReinterpretAcr (AcrFlags flags) :
-        TypedAcr(AF::Reinterpret, Type::For_constexpr<To>(), flags)
+        TypedAcr(AF::Reinterpret, Type::constexpr_of<To>(), flags)
     { }
 };
 
@@ -52,7 +52,7 @@ struct BaseAcr : FunctiveAcr {
     ) {
          // reinterpret then implicit upcast
         To& to = reinterpret_cast<From&>(from);
-        cb(Type::For<To>(), (Mu*)&to);
+        cb(Type::of<To>(), (Mu*)&to);
     }
     explicit constexpr BaseAcr (AcrFlags flags) :
         FunctiveAcr(AF::Functive, &_access, flags)
@@ -69,7 +69,7 @@ struct RefFuncAcr : TypedAcr {
     using AcrToType = To;
     To&(* f )(From&);
     explicit constexpr RefFuncAcr (To&(* f )(From&), AcrFlags flags) :
-        TypedAcr(AF::RefFunc, Type::For_constexpr<To>(), flags),
+        TypedAcr(AF::RefFunc, Type::constexpr_of<To>(), flags),
         f(f)
     { }
 };
@@ -84,7 +84,7 @@ struct ConstRefFuncAcr : TypedAcr {
         const To&(* f )(const From&), AcrFlags flags
     ) :
         TypedAcr(
-            AF::RefFunc, Type::For_constexpr<To>(),
+            AF::RefFunc, Type::constexpr_of<To>(),
             flags | AcrFlags::Readonly
         ),
         f(f)
@@ -122,11 +122,11 @@ void RefFuncsAcr1<To>::_access (
 ) {
     auto self = static_cast<const RefFuncsAcr<Mu, To>*>(acr);
     if (!(mode % AC::Write)) {
-        cb(Type::For<To>(), (Mu*)&self->getter(from));
+        cb(Type::of<To>(), (Mu*)&self->getter(from));
     }
     else {
         To tmp = mode % AC::Read ? self->getter(from) : To();
-        cb(Type::For<To>(), (Mu*)&tmp);
+        cb(Type::of<To>(), (Mu*)&tmp);
         self->setter(from, move(tmp));
     }
 }
@@ -158,7 +158,7 @@ void ValueFuncAcr1<To>::_access (
     expect(mode == AC::Read);
     auto self = static_cast<const ValueFuncAcr<Mu, To>*>(acr);
     const To tmp = self->f(from);
-    cb(Type::For<To>(), (Mu*)&tmp);
+    cb(Type::of<To>(), (Mu*)&tmp);
 }
 
 /// value_funcs
@@ -192,7 +192,7 @@ void ValueFuncsAcr1<To>::_access (
 ) {
     auto self = static_cast<const ValueFuncsAcr<Mu, To>*>(acr);
     To tmp = mode % AC::Read ? self->getter(from) : To();
-    cb(Type::For<To>(), (Mu*)&tmp);
+    cb(Type::of<To>(), (Mu*)&tmp);
     if (mode % AC::Write) self->setter(from, move(tmp));
 }
 
@@ -227,7 +227,7 @@ void MixedFuncsAcr1<To>::_access (
 ) {
     auto self = static_cast<const MixedFuncsAcr<Mu, To>*>(acr);
     To tmp = mode % AC::Read ? self->getter(from) : To();
-    cb(Type::For<To>(), (Mu*)&tmp);
+    cb(Type::of<To>(), (Mu*)&tmp);
     if (mode % AC::Write) self->setter(from, move(tmp));
 }
 
@@ -261,13 +261,13 @@ struct FuncsAcr : FunctiveAcr {
         ) {
             To tmp;
             if (mode % AC::Read) [[likely]] new (&tmp) To(self->getter(from));
-            cb(Type::For<To>(), (Mu*)&tmp);
+            cb(Type::of<To>(), (Mu*)&tmp);
             if (mode % AC::Write) [[likely]] self->setter(from, move(tmp));
         }
         else {
             if (mode % AC::Read) [[likely]];
             To tmp = mode % AC::Read ? self->getter(from) : To();
-            cb(Type::For<To>(), (Mu*)&tmp);
+            cb(Type::of<To>(), (Mu*)&tmp);
             if (mode % AC::Write) [[likely]] self->setter(from, move(tmp));
         }
     }
@@ -285,7 +285,7 @@ struct AssignableAcr : FunctiveAcr {
         From& from = reinterpret_cast<From&>(from_mu);
         To tmp;
         if (mode % AC::Read) tmp = from;
-        cb(Type::For<To>(), (Mu*)&tmp);
+        cb(Type::of<To>(), (Mu*)&tmp);
         if (mode % AC::Write) from = tmp;
         return;
     }
@@ -298,7 +298,7 @@ template <class From>
 struct PtrToLinkAcr : Accessor {
     using AcrFromType = From;
     using AcrToType = Link;
-     // Sadly we can't embed the type directly here, since Type::For_constexpr
+     // Sadly we can't embed the type directly here, since Type::constexpr_of
      // can't reference incomplete types.  However, this thunk is way smaller
      // than what Assignable<From*, Link> would generate.
     Type (* type )();
@@ -308,7 +308,7 @@ struct PtrToLinkAcr : Accessor {
             static_assert(!std::is_const_v<std::remove_pointer_t<From>>,
                 "Accessors to const pointers are NYI"
             );
-            return Type::For<std::remove_pointer_t<From>>();
+            return Type::of<std::remove_pointer_t<From>>();
         })
     { }
 };
@@ -326,7 +326,7 @@ struct VariableAcr : TypedAcr {
      // address but then release this ACR object, invalidating the reference.
     explicit VariableAcr (To&& v, AcrFlags flags) :
         TypedAcr(
-            AF::Variable, Type::For_constexpr<To>(),
+            AF::Variable, Type::constexpr_of<To>(),
             flags | AcrFlags::Unaddressable
         ),
         value(move(v))
@@ -343,7 +343,7 @@ struct ConstantAcr : TypedAcr {
     alignas(usize) const To value;  // The offset of this MUST match VariableAcr::value
     explicit constexpr ConstantAcr (const To& v, AcrFlags flags) :
         TypedAcr(
-            AF::Variable, Type::For_constexpr<To>(),
+            AF::Variable, Type::constexpr_of<To>(),
             flags | AcrFlags::Readonly | AcrFlags::Unaddressable
         ),
         value(v)
@@ -359,7 +359,7 @@ struct ConstantPtrAcr : TypedAcr {
     const To* pointer;
     explicit constexpr ConstantPtrAcr (const To* p, AcrFlags flags) :
         TypedAcr(
-            AF::ConstantPtr, Type::For_constexpr<To>(),
+            AF::ConstantPtr, Type::constexpr_of<To>(),
             flags | AcrFlags::Readonly
         ),
         pointer(p)

@@ -36,14 +36,14 @@ struct AnyVal {
      // Construct with arguments.
     template <Describable T, class... Args>
     static AnyVal make (Args&&... args) {
-        auto type = Type::For<T>();
+        auto type = Type::of<T>();
         void* data = new T (std::forward<Args>(args)...);
         return AnyVal(type, reinterpret_cast<Mu*>(data));
     }
      // Move construct from std::unique_ptr
     template <Describable T>
     AnyVal (std::unique_ptr<T> p) :
-        type(Type::For<T>()), data((Mu*)p.release())
+        type(Type::of<T>()), data((Mu*)p.release())
     { }
      // Move assignment
     AnyVal& operator = (AnyVal&& o) {
@@ -75,14 +75,14 @@ struct AnyVal {
     template <class T>
     std::remove_cvref_t<T>& as () {
         return reinterpret_cast<std::remove_cvref_t<T>&>(
-            as(Type::For<std::remove_cvref_t<T>>())
+            as(Type::of<std::remove_cvref_t<T>>())
         );
     }
     template <class T>
     const std::remove_cvref_t<T>& as () const {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
             const_cast<AnyVal*>(this)->as(
-                Type::For<std::remove_cvref_t<T>>()
+                Type::of<std::remove_cvref_t<T>>()
             )
         );
     }
@@ -94,13 +94,13 @@ struct AnyVal {
     template <class T>
     std::remove_cvref_t<T>& as_known () {
         return reinterpret_cast<std::remove_cvref_t<T>&>(
-            as_known(Type::For<std::remove_cvref_t<T>>())
+            as_known(Type::of<std::remove_cvref_t<T>>())
         );
     }
     template <class T>
     const std::remove_cvref_t<T>& as_known () const {
         return reinterpret_cast<const std::remove_cvref_t<T>&>(
-            as_known(Type::For<std::remove_cvref_t<T>>())
+            as_known(Type::of<std::remove_cvref_t<T>>())
         );
     }
 
@@ -108,7 +108,7 @@ struct AnyVal {
     std::unique_ptr<T> to_unique_ptr () && {
         if (empty()) return null;
         auto r = std::unique_ptr<T>(
-            (T*)dynamic_upcast(type, Type::For<T>(), data)
+            (T*)dynamic_upcast(type, Type::of<T>(), data)
         );
         type = Type();
         data = null;

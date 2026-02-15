@@ -35,14 +35,14 @@ struct AnyPtr {
     template <Describable T> explicit(IsAnyPtrOrLink<T>)
     AnyPtr (T* a) :
         address((Mu*)a),
-        type_p(Type::For<T>().data)
+        type_p(Type::of<T>().data)
     { }
 
      // Coercion from const pointer.
     template <Describable T> explicit(IsAnyPtrOrLink<T>)
     AnyPtr (const T* a) :
         address((Mu*)a),
-        type_i(reinterpret_cast<usize>(Type::For<T>().data) | 1)
+        type_i(reinterpret_cast<usize>(Type::of<T>().data) | 1)
     { }
 
      // Returns false if this AnyPtr is either (typed) null or (typeless)
@@ -74,7 +74,7 @@ struct AnyPtr {
     template <ConstableDescribable T>
     T* try_upcast_to () const {
         if (!std::is_const_v<T> && readonly()) return null;
-        auto to = Type::For<std::remove_const_t<T>>();
+        auto to = Type::of<std::remove_const_t<T>>();
         return (T*)dynamic_try_upcast(type(), to, address);
     }
 
@@ -87,13 +87,13 @@ struct AnyPtr {
         if (!std::is_const_v<T> && readonly()) {
             raise(e_General, "Tried to cast readonly AnyPtr to non-const pointer (details NYI)");
         }
-        auto to = Type::For<std::remove_const_t<T>>();
+        auto to = Type::of<std::remove_const_t<T>>();
         return (T*)dynamic_upcast(type(), to, address);
     }
 
     template <ConstableDescribable T>
     T* expect_exact () const {
-        expect(type() == Type::For<std::remove_const_t<T>>());
+        expect(type() == Type::of<std::remove_const_t<T>>());
         expect(readonly() == std::is_const_v<T>);
         return reinterpret_cast<T*>(address);
     }

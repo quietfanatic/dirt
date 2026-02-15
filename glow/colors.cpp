@@ -111,13 +111,13 @@ AYU_DESCRIBE(glow::RGBA8,
                 }
                 else {
                     ayu::raise_LengthRejected(
-                        ayu::Type::For<RGBA8>(), 3, 4, a.size()
+                        ayu::Type::of<RGBA8>(), 3, 4, a.size()
                     );
                 }
                 break;
             }
             default: ayu::raise_FromTreeFormRejected(
-                ayu::Type::For<RGBA8>(), t.form
+                ayu::Type::of<RGBA8>(), t.form
             );
         }
         return true;

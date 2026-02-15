@@ -23,7 +23,7 @@ void ResourceExtension::from_blob (
     Tree tree = tree_from_string(Str(blob));
     auto a = Slice<Tree>(tree);
     if (a.size() != 2) {
-        raise_LengthRejected(Type::For<AnyVal>(), 2, 2, a.size());
+        raise_LengthRejected(Type::of<AnyVal>(), 2, 2, a.size());
     }
     Type type = Type(Str(a[0]));
     scheme->validate_type(type);

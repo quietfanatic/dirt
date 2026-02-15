@@ -8,8 +8,8 @@ namespace ayu::test {
     struct TestResourceScheme : FolderResourceScheme {
         using FolderResourceScheme::FolderResourceScheme;
         bool accepts_type (Type type) override {
-            return type == Type::For<Collection>()
-                || type == Type::For<i32>();
+            return type == Type::of<Collection>()
+                || type == Type::of<i32>();
         }
     };
     struct TestEnvironment {

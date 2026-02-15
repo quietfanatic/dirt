@@ -621,10 +621,10 @@ Link item_elem (const Link& item, u32 index, RouteRef rt) {
 
 void in::read_length_acr_cb (u32& len, Type t, Mu* v) {
     u64 l;
-    if (t == Type::For<u32>()) {
+    if (t == Type::of<u32>()) {
         l = reinterpret_cast<const u32&>(*v);
     }
-    else if (t == Type::For<u64>()) {
+    else if (t == Type::of<u64>()) {
         l = reinterpret_cast<const u64&>(*v);
     }
     else raise_LengthTypeInvalid(Type(), t);
@@ -636,10 +636,10 @@ void in::read_length_acr_cb (u32& len, Type t, Mu* v) {
 
 void in::write_length_acr_cb (u32& len, Type t, Mu* v) {
     expect(len <= AnyArray<Tree>::max_size_);
-    if (t == Type::For<u32>()) {
+    if (t == Type::of<u32>()) {
         reinterpret_cast<u32&>(*v) = len;
     }
-    else if (t == Type::For<u64>()) {
+    else if (t == Type::of<u64>()) {
         reinterpret_cast<u64&>(*v) = len;
     }
     else {

@@ -469,7 +469,7 @@ void unload (Slice<ResourceRef> to_unload) try {
                 links_to_reses.emplace(item, info.res);
             }
             item.read([&info](Type t, Mu* v){
-                if (t == Type::For<Link>()) {
+                if (t == Type::of<Link>()) {
                     info.outgoing_links.emplace_back(
                         *reinterpret_cast<Link*>(v)
                     );
@@ -484,7 +484,7 @@ void unload (Slice<ResourceRef> to_unload) try {
             g, {},
             [&scan_info, links_to_reses](const Link& item, RouteRef)
         {
-            if (item.type() == Type::For<Link>()) {
+            if (item.type() == Type::of<Link>()) {
                 reach_link(scan_info, links_to_reses, item);
             }
             return false;
@@ -535,7 +535,7 @@ NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
         update.link2link.write(
             AccessCB(move(update), [](Update&& update, Type t, Mu* v){
-                expect(t == Type::For<Link>());
+                expect(t == Type::of<Link>());
                 reinterpret_cast<Link&>(*v) = move(update.new_link);
             })
         );
@@ -608,7 +608,7 @@ void reload (Slice<ResourceRef> to_reload) try {
                 [&updates, &old_links, &breaks](Link link2link, RouteRef rt)
             {
                  // TODO: check for AnyPtr as well for a shortcut?
-                if (link2link.type() != Type::For<Link>()) return false;
+                if (link2link.type() != Type::of<Link>()) return false;
                 Link link = link2link.get_as<Link>();
                 auto iter = old_links.find(link);
                 if (iter == old_links.end()) return false;
@@ -799,7 +799,7 @@ AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)
 namespace ayu::in {
 struct TestResourceExtension : ResourceExtension {
     bool accepts_type (Type type) override {
-        return type == Type::For<Collection>();
+        return type == Type::of<Collection>();
     }
     using ResourceExtension::ResourceExtension;
 };

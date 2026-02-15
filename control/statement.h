@@ -51,7 +51,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(control::Statement<Cmd>),
     desc::computed_name([]()->uni::AnyString{
         return ayu::in::make_template_name_1(
-            "control::Statement<", ayu::Type::For<Cmd>()
+            "control::Statement<", ayu::Type::of<Cmd>()
         );
     }),
     desc::to_tree([](const control::Statement<Cmd>& v){

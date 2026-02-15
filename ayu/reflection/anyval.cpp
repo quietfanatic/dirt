@@ -97,14 +97,14 @@ static tap::TestSet tests ("dirt/ayu/reflection/anyval", []{
     is(d.as<AnyValTest>().b, 5, "Can make AnyVal with struct type");
     throws_code<e_TypeCantCast>([&]{ d.as<bool>(); }, "TypeCantCast");
     throws_code<e_TypeCantDefaultConstruct>([&]{
-        AnyVal(Type::For<NoConstructor>());
+        AnyVal(Type::of<NoConstructor>());
     }, "TypeCantDefaultConstruct");
     throws_code<e_TypeCantDestroy>([&]{
-        d = AnyVal(Type::For<NoDestructor>());
+        d = AnyVal(Type::of<NoDestructor>());
     }, "Cannot construct type without destructor");
 
     doesnt_throw([&]{
-        d = AnyVal(Type::For<CustomConstructor>());
+        d = AnyVal(Type::of<CustomConstructor>());
     }, "Can construct type with externally-supplied constructor/destructor");
 
     d = AnyVal::make<i32>(4);
@@ -112,7 +112,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/anyval", []{
     doesnt_throw([&]{
         item_from_string(&d, "[double 55]");
     });
-    is(d.type, Type::For<double>(), "AnyVal from_tree gives correct type");
+    is(d.type, Type::of<double>(), "AnyVal from_tree gives correct type");
     is(d.as<double>(), double(55), "AnyVal from_tree gives correct value");
     doesnt_throw([&]{
         item_from_string(&d, "[]");

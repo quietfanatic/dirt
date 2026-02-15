@@ -58,7 +58,7 @@ static bool Link_from_tree (Link& v, const Tree& tree) {
         case Form::String: if (!Str(tree)) raise(e_General,
             "Cannot deserialize Link from empty IRI.  To make the empty Link, use null."
         ); break;
-        default: raise_FromTreeFormRejected(Type::For<Link>(), tree.form);
+        default: raise_FromTreeFormRejected(Type::of<Link>(), tree.form);
     }
     v = Link();
     return true;

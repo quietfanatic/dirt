@@ -48,7 +48,7 @@ struct CommandBase {
         using Convert = ConvertToArgsTupleHandler<Cmd, f, min>;
         return Cmd(
             Convert::get_handler(),
-            ayu::Type::For_constexpr<typename Convert::type>(),
+            ayu::Type::constexpr_of<typename Convert::type>(),
             n, std::forward<Extra>(extra)...
         );
     }
@@ -60,7 +60,7 @@ struct CommandBase {
         using Convert = ConvertToCollapseHandler<Cmd, f>;
         return Cmd(
             Convert::get_handler(),
-            ayu::Type::For_constexpr<typename Convert::type>(),
+            ayu::Type::constexpr_of<typename Convert::type>(),
             n, std::forward<Extra>(extra)...
         );
     }

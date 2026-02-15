@@ -186,7 +186,7 @@ AYU_DESCRIBE_TEMPLATE(
             return desc::computed_name([]()->uni::AnyString{
                  // TODO: read elems for desc names?
                 static constexpr const ayu::Type types [] = {
-                    ayu::Type::For_constexpr<Pars>()...
+                    ayu::Type::constexpr_of<Pars>()...
                 };
                 return control::make_ArgsTuple_name(
                     min, uni::StaticArray<ayu::Type>(types)

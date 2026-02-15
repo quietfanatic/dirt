@@ -29,14 +29,14 @@ FileImage::operator ImageRef () {
 }
 
 bool FileImageExtension::accepts_type (ayu::Type type) {
-    return type == ayu::Type::For<FileImage>();
+    return type == ayu::Type::of<FileImage>();
 }
 
 void FileImageExtension::from_blob (
     ayu::AnyVal& value, Slice<u8> blob,
     ayu::ResourceRef res, ayu::ResourceScheme* scheme
 ) {
-    scheme->validate_type(ayu::Type::For<FileImage>());
+    scheme->validate_type(ayu::Type::of<FileImage>());
     auto path = ayu::resource_filepath(res->name());
     expect(!value);
     value = ayu::AnyVal::make<FileImage>(path, blob);

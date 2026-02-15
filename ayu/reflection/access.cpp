@@ -69,7 +69,7 @@ void access_PtrToLink (
     AnyPtr ptr = AnyPtr(type, *(Mu**)&from);
      // AnyPtr can be type-punned to Link
     Link& ref = ptr;
-    cb(ayu::Type::For<Link>(), (Mu*)&ref);
+    cb(ayu::Type::of<Link>(), (Mu*)&ref);
     if (ref.acr() && ref.acr()->form != AcrForm::Identity) {
         raise(e_General, "Native pointer-derived Link was written with non-identity accessor.  Writing native pointers with complicated Links is NYI.");
     }
@@ -343,13 +343,13 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
 
     BaseAcr<SubThing, Thing>{{}}.read(reinterpret_cast<Mu&>(thing2),
         [&](Type t, Mu* v){
-            is(t, Type::For<Thing>());
+            is(t, Type::of<Thing>());
             is(reinterpret_cast<Thing&>(*v).b, 8, "BaseAcr::read");
         }
     );
     BaseAcr<SubThing, Thing>{{}}.write(reinterpret_cast<Mu&>(thing2),
         [&](Type t, Mu* v){
-            is(t, Type::For<Thing>());
+            is(t, Type::of<Thing>());
             auto& thing = reinterpret_cast<Thing&>(*v);
             thing.a = 77;
             thing.b = 88;
@@ -358,7 +358,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/accessors", []{
     is(thing2.b, 88, "BaseAcr::write");
     BaseAcr<SubThing, Thinger>{{}}.write(reinterpret_cast<Mu&>(thing2),
         [&](Type t, Mu* v){
-            is(t, Type::For<Thinger>());
+            is(t, Type::of<Thinger>());
             auto& thinger = reinterpret_cast<Thinger&>(*v);
             thinger.d = 101;
         }

@@ -351,7 +351,7 @@ AYU_DESCRIBE_TEMPLATE(
         auto computed = []{
             return desc::computed_name([]()->AnyString{
                 return cat(
-                    "geo::GMat<", ayu::Type::For<T>().name(),
+                    "geo::GMat<", ayu::Type::of<T>().name(),
                     ", ", cols, ", ", rows, '>'
                 );
             });

@@ -70,10 +70,10 @@ struct Link {
      // Construct from native pointer.  Explicit for AnyPtr* and Link*,
      // because that's likely to be a mistake.
     template <Describable T> explicit(IsAnyPtrOrLink<T>)
-    Link (T* p) : host((Mu*)p), acr_p(Type::For<T>().data) { }
+    Link (T* p) : host((Mu*)p), acr_p(Type::of<T>().data) { }
     template <Describable T> explicit(IsAnyPtrOrLink<T>)
     Link (const T* p) : host((Mu*)p), acr_i(
-        reinterpret_cast<usize>(Type::For<T>().data) | 1
+        reinterpret_cast<usize>(Type::of<T>().data) | 1
     ) { }
 
      // Construct from unknown pointer and type
@@ -173,7 +173,7 @@ struct Link {
         if constexpr (!std::is_const_v<T>) {
             if (!writeable()) raise_access_denied(AC::Write);
         }
-        return (T*)address_as(Type::For<std::remove_const_t<T>>());
+        return (T*)address_as(Type::of<std::remove_const_t<T>>());
     }
 
      // Copying getter.

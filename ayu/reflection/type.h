@@ -38,9 +38,8 @@ struct Type {
     explicit Type (Str name) : data(in::require_type_with_name(name)) { }
 
      // Construct from C++ type.  Never throws.
-     // TODO: lowercase this
     template <Describable T> static
-    Type For () noexcept {
+    Type of () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
     }
 
@@ -66,7 +65,7 @@ struct Type {
 
     ///// MISC
 
-     // Same as Type::For, but constexpr.  Some uses of this will cause weird
+     // Same as Type::of, but constexpr.  Some uses of this will cause weird
      // errors like "specialization of ...  after instantiation" or "incomplete
      // type ... used in nested name specifier".  And what's worse, these errors
      // may only pop up during optimized builds.
@@ -81,7 +80,7 @@ struct Type {
      // to be constexpr, and if you do use this, test with optimizations enabled
      // (-O1 is enough).
     template <Describable T> static constexpr
-    Type For_constexpr () noexcept {
+    Type constexpr_of () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
     }
 };

@@ -3,14 +3,14 @@
 namespace ayu::in {
 
 inline const AnyArray<AnyString>& require_readable_keys (Type t, Mu* v) {
-    if (t != Type::For<AnyArray<AnyString>>()) {
+    if (t != Type::of<AnyArray<AnyString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
     return reinterpret_cast<const AnyArray<AnyString>&>(*v);
 }
 
 inline AnyArray<AnyString>& require_writeable_keys (Type t, Mu* v) {
-    if (t != Type::For<AnyArray<AnyString>>()) {
+    if (t != Type::of<AnyArray<AnyString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
     return reinterpret_cast<AnyArray<AnyString>&>(*v);
