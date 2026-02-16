@@ -13,10 +13,11 @@ using namespace uni;
 
 ///// COMMAND
 
-template <class F> using Function = F;
+template <class Cmd, class Sig = void(Nothing)>
+struct CommandBase;
 
-template <class Cmd, class Ret = void, class Ctx = Nothing>
-struct CommandBase {
+template <class Cmd, class Ret, class Ctx>
+struct CommandBase<Cmd, Ret(Ctx)> {
 
     using Return = Ret;
     using Context = Ctx;
@@ -81,8 +82,8 @@ struct CommandBase {
     }
 };
 
-template <class Cmd, class Ret, class Nothing>
-constinit UniqueArray<const Cmd*> CommandBase<Cmd, Ret, Nothing>::registry;
+template <class Cmd, class Ret, class Ctx>
+constinit UniqueArray<const Cmd*> CommandBase<Cmd, Ret(Ctx)>::registry;
 
  // Tried to register multiple commands with the same name in the same domain
 constexpr uni::ErrorCode e_CommandNameDuplicate = "control::e_CommandNameDuplicate";

@@ -58,8 +58,8 @@ const void* get_command (Str name, const void* registry) {
 
 namespace control::test {
 
-struct TestCommand : CommandBase<TestCommand, void, int&> {
-    using CommandBase<TestCommand, void, int&>::CommandBase;
+struct TestCommand : CommandBase<TestCommand, void(int&)> {
+    using CommandBase<TestCommand, void(int&)>::CommandBase;
 };
 using TestStatement = Statement<TestCommand>;
 
