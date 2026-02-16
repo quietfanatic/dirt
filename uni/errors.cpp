@@ -9,19 +9,22 @@
 namespace uni {
 
 const char* Error::what () const noexcept {
-    usize len = code.size() + 2 + details.size();
-    for (usize i = 0; i < tags.size(); i++) {
-        len += 5 + tags[i].first.size() + 2 + tags[i].second.size();
-    }
-    what_cache = UniqueString(Capacity(len));
-    what_cache.append_expect_capacity(code);
-    what_cache.append_expect_capacity("; ");
-    what_cache.append_expect_capacity(details);
-    for (usize i = 0; i < tags.size(); i++) {
-        what_cache.append_expect_capacity("\n    ");
-        what_cache.append_expect_capacity(tags[i].first);
-        what_cache.append_expect_capacity(": ");
-        what_cache.append_expect_capacity(tags[i].second);
+    if (!what_cache) {
+        StaticString code_s = code;
+        usize len = code_s.size() + 2 + details.size();
+        for (usize i = 0; i < tags.size(); i++) {
+            len += 5 + tags[i].first.size() + 2 + tags[i].second.size();
+        }
+        what_cache = UniqueString(Capacity(len));
+        what_cache.append_expect_capacity(code_s);
+        what_cache.append_expect_capacity("; ");
+        what_cache.append_expect_capacity(details);
+        for (usize i = 0; i < tags.size(); i++) {
+            what_cache.append_expect_capacity("\n    ");
+            what_cache.append_expect_capacity(tags[i].first);
+            what_cache.append_expect_capacity(": ");
+            what_cache.append_expect_capacity(tags[i].second);
+        }
     }
     return what_cache.c_str();
 }
@@ -36,6 +39,7 @@ Str Error::get_tag (Str name) {
 void add_tag_impl (Error& e, AnyString::Impl name, AnyString::Impl value) {
     AnyString n; n.impl = name;
     AnyString v; v.impl = value;
+    e.what_cache = "";
     e.tags.emplace_back(move(n), move(v));
 }
 
@@ -58,7 +62,7 @@ Error& current_error () {
     }
 }
 
-void raise_impl (StaticString code, AnyString::Impl details) {
+void raise_impl (ErrorCode code, AnyString::Impl details) {
     Error e;
     e.code = code;
     e.details.impl = details;

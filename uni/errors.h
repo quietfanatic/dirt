@@ -22,15 +22,14 @@
 
 namespace uni {
 
- // The compiler will magically add length info to the constant's type.
-using ErrorCode = const char[];
+ // Make this small so error throwing code is as small as possible.
+using ErrorCode = const char*;
 
  // Class for ayu-related errors.
 struct Error : std::exception {
      // An API-stable constant string.  Assigned values will be in the
-     // associated header files.  TODO: add subcode, for errno and other error
-     // codes.
-    StaticString code;
+     // associated header files.
+    ErrorCode code;
      // More information about the error, subject to change.
     AnyString details;
      // Extra information in name: value format
@@ -60,10 +59,10 @@ Error& current_error ();
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
-void raise_impl (StaticString code, AnyString::Impl details);
+void raise_impl (ErrorCode code, AnyString::Impl details);
 
 [[noreturn]] ALWAYS_INLINE
-void raise (StaticString code, AnyString details) {
+void raise (ErrorCode code, AnyString details) {
     auto impl = details.impl;
     details.impl = {};
     raise_impl(code, impl);
@@ -71,7 +70,9 @@ void raise (StaticString code, AnyString details) {
 
  // Unspecified error
 constexpr ErrorCode e_General = "uni::e_General";
- // Someone else's error type, std::rethrow(e.external) to unwrap
+ // Error that is only thrown on debug builds
+constexpr ErrorCode e_Debug = "uni::e_Debug";
+ // Someone else's error type, std::rethrow_exception(e.external) to unwrap
 constexpr ErrorCode e_External = "uni::e_External";
 
  // Call this when an exception is thrown in a place where cleaning up is
