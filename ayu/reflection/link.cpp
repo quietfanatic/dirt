@@ -11,7 +11,7 @@ using namespace in;
 
 [[gnu::cold]]
 void Link::raise_access_denied (AccessCaps mode) const {
-    const char* code;
+    ErrorCode code;
     StaticString mess;
     if ((mode & ~caps()) % AC::Write) {
         code = e_WriteReadonly;

@@ -202,11 +202,11 @@ struct Parser {
     const char* parse_number (Str word, Tree& r, bool minus) {
          // Using an unsigned integer parser will reject words that start with a
          // + or -.
-        u64 integer;
-        auto [num_end, ec] = std::from_chars(
-            word.begin(), word.end(), integer, hex ? 16 : 10
-        );
-        if (ec != std::errc()) error_invalid_number(word);
+        auto read = hex ? read_hex_digits<u64> : read_decimal_digits<u64>;
+        auto [num_end, integer] = read(word.begin(), word.end());
+        if (num_end == word.begin()) {
+            error_invalid_number(word);
+        }
         if (num_end == word.end()) {
             TreeFlags f = hex ? TreeFlags::PreferHex : TreeFlags();
             if (minus) {

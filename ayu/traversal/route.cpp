@@ -178,12 +178,9 @@ SharedRoute route_from_iri (const IRI& iri) {
         }
         else if (*p == '+') {
             auto start = ++p;
-            usize index;
-            auto [ptr, ec] = std::from_chars(
-                start, fragment.end(), index
-            );
-            if (ptr == start) goto invalid_index;
-            p = ptr;
+            auto [end, index] = read_decimal_digits<u32>(start, fragment.end());
+            if (end == start) goto invalid_index;
+            p = end;
             new (&r) SharedRoute(move(r), index);
         }
         else goto invalid_index; // There's junk after a number.
