@@ -114,5 +114,20 @@ ReadResult<T> read_decimal_digits (
     }
     return r;
 }
+template <class T>
+ReadResult<T> read_hex_digits (
+    const char* start, const char* end
+) noexcept {
+    ReadResult<T> r {start, 0};
+    while (r.p != end) {
+        int digit = from_hex_digit(*r.p);
+        if (digit < 0) return r;
+        auto old = r.value;
+        r.value = (r.value << 4) + digit;
+        if (r.value < old) [[unlikely]] return {start, 0};
+        r.p++;
+    }
+    return r;
+}
 
 } // namespace uni
