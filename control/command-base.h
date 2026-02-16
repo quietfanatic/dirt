@@ -96,10 +96,10 @@ constexpr uni::ErrorCode e_CommandNotFound = "control::e_CommandNotFound";
 
 #ifdef __GNUC__
 #define CONTROL_REGISTER_COMMAND(cmd) \
-[[gnu::constructor]] inline void _control_init_##cmd () { cmd.init(); }
+[[gnu::constructor]] static inline void _control_init_##cmd () { cmd.init(); }
 #else
 #define CONTROL_REGISTER_COMMAND(cmd) \
-[[maybe_unused]] inline const bool _control_init_##cmd = (cmd.init(), false);
+[[maybe_unused]] static inline const bool _control_init_##cmd = (cmd.init(), false);
 #endif
 
 #define CONTROL_COMMAND_FUNCTION(Cmd, f, min, ...) \
