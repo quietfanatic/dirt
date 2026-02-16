@@ -124,6 +124,8 @@ AYU_DESCRIBE(ayu::Collection,
                 }
             }
             v.items = move(items);
+            v.next_id = 0;
+            v.last_lookup = 0;
         }
     )),
     computed_attrs([](Collection& v, const AnyString& key)->Link{
