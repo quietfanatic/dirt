@@ -102,23 +102,35 @@ constexpr uni::ErrorCode e_CommandNotFound = "control::e_CommandNotFound";
 [[maybe_unused]] static inline const bool _control_init_##cmd = (cmd.init(), false);
 #endif
 
-#define CONTROL_COMMAND_FUNCTION(Cmd, f, min, ...) \
+#define CONTROL_COMMAND_FUNCTION_NAME(Cmd, name, f, min, ...) \
 constexpr Cmd _control_command_##f = \
-    Cmd::function<&f, min>(#f __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::function<&f, min>(name __VA_OPT__(,) __VA_ARGS__); \
+CONTROL_REGISTER_COMMAND(_control_command_##f)
+
+#define CONTROL_COMMAND_FUNCTION(Cmd, f, min, ...) \
+    CONTROL_COMMAND_FUNCTION_NAME(Cmd, #f, f, min, __VA_ARGS__)
+
+#define CONTROL_COMMAND_COLLAPSE_NAME(Cmd, name, f, ...) \
+constexpr Cmd _control_command_##f = \
+    Cmd::collapse<&f>(name __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##f)
 
 #define CONTROL_COMMAND_COLLAPSE(Cmd, f, ...) \
-constexpr Cmd _control_command_##f = \
-    Cmd::collapse<&f>(#f __VA_OPT__(,) __VA_ARGS__); \
-CONTROL_REGISTER_COMMAND(_control_command_##f)
+    CONTROL_COMMAND_COLLAPSE_NAME(Cmd, #f, f, __VA_ARGS__)
+
+#define CONTROL_COMMAND_METHOD_NAME(Cmd, name, Ctx, m, min, ...) \
+constexpr Cmd _control_command_##m = \
+    Cmd::function<&Ctx::m, min>(name __VA_OPT__(,) __VA_ARGS__); \
+CONTROL_REGISTER_COMMAND(_control_command_##m)
 
 #define CONTROL_COMMAND_METHOD(Cmd, Ctx, m, min, ...) \
+    CONTROL_COMMAND_METHOD_NAME(Cmd, #m, Ctx, m, min, ...)
+
+#define CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, name, Ctx, m, ...) \
 constexpr Cmd _control_command_##m = \
-    Cmd::function<&Ctx::m, min>(#m __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::collapse<&Ctx::m>(name __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##m)
 
 #define CONTROL_COMMAND_METHOD_COLLAPSE(Cmd, Ctx, m, ...) \
-constexpr Cmd _control_command_##m = \
-    Cmd::collapse<&Ctx::m>(#m __VA_OPT__(,) __VA_ARGS__); \
-CONTROL_REGISTER_COMMAND(_control_command_##m)
+    CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, #m, Ctx, m, __VA_ARGS__)
 
