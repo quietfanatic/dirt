@@ -50,12 +50,13 @@ struct ArgsTupleTail<i, Par, Pars...> :
     { }
 };
 
-template <u32 min, class... Pars>
+ // 
+template <i32 min, class... Pars>
 struct ArgsTuple :
     ArgsTupleTail<0, Pars...>
 {
-    static constexpr u32 minimum_parameters = min;
     static constexpr u32 maximum_parameters = sizeof...(Pars);
+    static constexpr u32 minimum_parameters = min < 0 ? maximum_parameters : min;
     static_assert(minimum_parameters <= maximum_parameters);
 
     ArgsTuple () = default;
@@ -81,9 +82,9 @@ struct ArgsTuple :
     };
 };
 
-template <class Cmd, auto f, u32 min, class F = decltype(f)>
+template <class Cmd, auto f, i32 min, class F = decltype(f)>
 struct ConvertToArgsTupleHandler;
-template <class Cmd, u32 min, auto f, class Ret, class Ctx, class... Pars>
+template <class Cmd, auto f, i32 min, class Ret, class Ctx, class... Pars>
 struct ConvertToArgsTupleHandler<
     Cmd, f, min, Ret(*)(Ctx, Pars...)
 > {
@@ -97,7 +98,7 @@ struct ConvertToArgsTupleHandler<
         return get_handler_mid(std::index_sequence_for<Pars...>{});
     }
 };
-template <class Cmd, u32 min, auto f, class Ret, class Ctx, class... Pars>
+template <class Cmd, auto f, i32 min, class Ret, class Ctx, class... Pars>
 struct ConvertToArgsTupleHandler<
     Cmd, f, min, Ret(Ctx::*)(Pars...)
 > {
@@ -143,10 +144,19 @@ struct ConvertToCollapseHandler<
         return &collapse_handle_method<Cmd, f, type>;
     }
 };
+ // For more than one parameter we still need to use ArgsTuple
+template <class Cmd, auto f, class Ret, class Ctx, class Arg, class... Args>
+struct ConvertToCollapseHandler<
+    Cmd, f, Ret(*)(Ctx, Arg, Args...)
+> : ConvertToArgsTupleHandler<Cmd, f, -1, Ret(*)(Ctx, Arg, Args...)> { };
+template <class Cmd, auto f, class Ret, class Ctx, class Arg, class... Args>
+struct ConvertToCollapseHandler<
+    Cmd, f, Ret(Ctx::*)(Arg, Args...)
+> : ConvertToArgsTupleHandler<Cmd, f, -1, Ret(Ctx::*)(Arg, Args...)> { };
 
  // Based on the std::tuple description, but more efficient because
  // ArgsTuple supports member pointers.
-template <u32 min, class... Pars>
+template <i32 min, class... Pars>
 struct ArgsTupleElems {
     using Args = ArgsTuple<min, Pars...>;
     using desc = ayu::AYU_DescribeBase<Args>;
@@ -156,14 +166,20 @@ struct ArgsTupleElems {
         return desc::elems(
             desc::elem(
                 Args::template member_pointer<is>(),
-                is >= min ? desc::optional : decltype(desc::optional){}
+                min < 0
+                    ? is == sizeof...(is) - 1
+                        ? desc::collapse
+                        : decltype(desc::collapse){}
+                    : i32(is) >= min
+                        ? desc::optional
+                        : decltype(desc::optional){}
             )...
         );
     }
 };
 
 [[gnu::noclone]] NOINLINE inline
-AnyString make_ArgsTuple_name (u32 min, StaticArray<ayu::Type> types) {
+AnyString make_ArgsTuple_name (i32 min, StaticArray<ayu::Type> types) {
     expect(types);
     return cat(
         "control::ArgsTuple<", min, ", ",
@@ -176,7 +192,7 @@ AnyString make_ArgsTuple_name (u32 min, StaticArray<ayu::Type> types) {
 } // namespace control
 
 AYU_DESCRIBE_TEMPLATE(
-    AYU_DESCRIBE_TEMPLATE_PARAMS(uni::u32 min, class... Pars),
+    AYU_DESCRIBE_TEMPLATE_PARAMS(uni::i32 min, class... Pars),
     AYU_DESCRIBE_TEMPLATE_TYPE(control::ArgsTuple<min, Pars...>),
     []{
         if constexpr (sizeof...(Pars) == 0) {
