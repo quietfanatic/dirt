@@ -42,11 +42,18 @@ constexpr T prev_quantum (T v) { return v-1; }
 
 ///// COMBINERS
 
- // mod is like rem, but always has the sign of the right side, making a more
- // even graph.  This might be more intuitive in many cases.
+ // mod is like rem, but always has the type and sign of the right side, making
+ // a more regular graph.  This might be more intuitive in many cases, and also
+ // guarantees that the result is a valid index for an array of size b.  This
+ // might not behave properly for extremely large numbers.
 template <Integral A, Integral B>
-constexpr auto mod (A a, B b) {
-    if (a >= 0) return a % b;
+constexpr B mod (A a, B b) {
+    if constexpr (UnsignedIntegral<B>) {
+         // Can't do -a % -b because unary - on u32 returns u32 lolll
+        A r = a % b;
+        return r < 0 ? B(r) + b : B(r);
+    }
+    else if (a >= 0) return a % b;
     else return -a % -b;
 }
  // The % operator returns a result with the sign of the left side, resulting
@@ -56,7 +63,7 @@ constexpr auto mod (A a, B b) {
  //    /| /| /
  //   / |/ |/
 template <Integral A, Integral B>
-constexpr auto rem (A a, B b) { return a % b; }
+constexpr A rem (A a, B b) { return a % b; }
 
  // AKA copysign
 template <SignedIntegral A, SignedIntegral B>

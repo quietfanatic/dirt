@@ -44,12 +44,12 @@ constexpr T length (T v) {
     //return v < 0 ? -v : v;
      // This is a little better but it still loads static data on x64 (also it's
      // not constexpr).
-    //return fabs(v);
+    return fabs(v);
      // This is still a bit unoptimal due to moving the data between float
      // (vector) and integer registers, but it beats branching and/or reading
      // memory.
-    auto rep = std::bit_cast<SameSizeInt<T>>(v);
-    return std::bit_cast<T>(rep & ~TypeTraits<T>::SIGN_BIT);
+    //auto rep = std::bit_cast<SameSizeInt<T>>(v);
+    //return std::bit_cast<T>(rep & ~TypeTraits<T>::SIGN_BIT);
 }
 
 ///// CONSTEXPR SQUARE ROOT
