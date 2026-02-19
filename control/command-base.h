@@ -46,7 +46,7 @@ struct CommandBase<Cmd, Ret(Ctx)> {
     static consteval Cmd function (
         StaticString n, Extra&&... extra
     ) {
-        using Convert = ConvertToArgsTupleHandler<Cmd, f, min>;
+        using Convert = ConvertToArgsTupleHandler<f, min>;
         return Cmd(
             Convert::get_handler(),
             ayu::Type::constexpr_of<typename Convert::type>(),
@@ -58,13 +58,38 @@ struct CommandBase<Cmd, Ret(Ctx)> {
     static consteval Cmd collapse (
         StaticString n, Extra&&... extra
     ) {
-        using Convert = ConvertToCollapseHandler<Cmd, f>;
+        using Convert = ConvertToCollapseHandler<f>;
         return Cmd(
             Convert::get_handler(),
             ayu::Type::constexpr_of<typename Convert::type>(),
             n, std::forward<Extra>(extra)...
         );
     }
+
+    template <auto f, u32 min, auto g>
+    static consteval auto parallel_function () {
+        using ConvertF = ConvertToArgsTupleHandler<f, min>;
+        using ConvertG = ConvertToArgsTupleHandler<g, min>;
+        static_assert(
+            std::is_same_v<typename ConvertF::type, typename ConvertG::type>,
+            "Parallel function is not similar enough."
+        );
+        return ConvertG::get_handler();
+    }
+
+    template <auto f, auto g>
+    static consteval auto parallel_collapse () {
+        using ConvertF = ConvertToCollapseHandler<f>;
+        using ConvertG = ConvertToCollapseHandler<g>;
+        static_assert(
+            std::is_same_v<typename ConvertF::type, typename ConvertG::type>,
+            "Parallel function is not similar enough."
+        );
+        return ConvertG::get_handler();
+    }
+
+    template <auto f>
+    using parallel_collapse_type = ConvertToCollapseHandler<f>::type;
 
      // TODO: put hashes in the registry for better cache locality?
     static UniqueArray<const Cmd*> registry;

@@ -65,16 +65,16 @@ struct ArgsTuple :
         ArgsTupleTail<0, Pars...>(std::forward<Args>(args)...)
     { }
 
-    template <class Cmd, auto f, usize... is>
-    static Cmd::Return handle (Cmd::Context ctx, void* s) {
+    template <class Ret, class Ctx, auto f, usize... is>
+    static Ret handle (Ctx ctx, void* s) {
          // This ends up unused if Pars... is empty
         [[maybe_unused]] auto self = (ArgsTuple*)s;
          // f can return anything convertible to Cmd::Return
         return f(ctx, self->*(ArgsTuple::template member_pointer<is>())...);
     };
 
-    template <class Cmd, auto f, usize... is>
-    static Cmd::Return handle_method (Cmd::Context ctx, void* s) {
+    template <class Ret, class Ctx, auto f, usize... is>
+    static Ret handle_method (Ctx ctx, void* s) {
          // This ends up unused if Pars... is empty
         [[maybe_unused]] auto self = (ArgsTuple*)s;
          // f can return anything convertible to Cmd::Return
@@ -82,77 +82,77 @@ struct ArgsTuple :
     };
 };
 
-template <class Cmd, auto f, i32 min, class F = decltype(f)>
+template <auto f, i32 min, class F = decltype(f)>
 struct ConvertToArgsTupleHandler;
-template <class Cmd, auto f, i32 min, class Ret, class Ctx, class... Pars>
+template <auto f, i32 min, class Ret, class Ctx, class... Pars>
 struct ConvertToArgsTupleHandler<
-    Cmd, f, min, Ret(*)(Ctx, Pars...)
+    f, min, Ret(*)(Ctx, Pars...)
 > {
     using type = ArgsTuple<min, std::remove_cvref_t<Pars>...>;
 
     template <usize... is>
     static constexpr auto get_handler_mid (std::index_sequence<is...>) {
-        return &type::template handle<Cmd, f, is...>;
+        return &type::template handle<Ret, Ctx, f, is...>;
     }
     static consteval auto get_handler () {
         return get_handler_mid(std::index_sequence_for<Pars...>{});
     }
 };
-template <class Cmd, auto f, i32 min, class Ret, class Ctx, class... Pars>
+template <auto f, i32 min, class Ret, class Ctx, class... Pars>
 struct ConvertToArgsTupleHandler<
-    Cmd, f, min, Ret(Ctx::*)(Pars...)
+    f, min, Ret(Ctx::*)(Pars...)
 > {
     using type = ArgsTuple<min, std::remove_cvref_t<Pars>...>;
 
     template <usize... is>
     static constexpr auto get_handler_mid (std::index_sequence<is...>) {
-        return &type::template handle_method<Cmd, f, is...>;
+        return &type::template handle_method<Ret, Ctx, f, is...>;
     }
     static consteval auto get_handler () {
         return get_handler_mid(std::index_sequence_for<Pars...>{});
     }
 };
 
-template <class Cmd, auto f, class Args>
-typename Cmd::Return collapse_handle (typename Cmd::Context ctx, void* args) {
+template <class Ret, class Ctx, auto f, class Args>
+Ret collapse_handle (Ctx ctx, void* args) {
     return f(ctx, *(Args*)args);
 }
 
-template <class Cmd, auto f, class Args>
-typename Cmd::Return collapse_handle_method (typename Cmd::Context ctx, void* args) {
+template <class Ret, class Ctx, auto f, class Args>
+Ret collapse_handle_method (Ctx ctx, void* args) {
     return (ctx.*f)(*(Args*)args);
 }
 
  // This technically doesn't belong here
-template <class Cmd, auto f, class F = decltype(f)>
+template <auto f, class F = decltype(f)>
 struct ConvertToCollapseHandler;
-template <class Cmd, auto f, class Ret, class Ctx, class Args>
+template <auto f, class Ret, class Ctx, class Args>
 struct ConvertToCollapseHandler<
-    Cmd, f, Ret(*)(Ctx, Args)
+    f, Ret(*)(Ctx, Args)
 > {
     using type = std::remove_cvref_t<Args>;
     static constexpr auto get_handler () {
-        return &collapse_handle<Cmd, f, type>;
+        return &collapse_handle<Ret, Ctx, f, type>;
     }
 };
-template <class Cmd, auto f, class Ret, class Ctx, class Args>
+template <auto f, class Ret, class Ctx, class Args>
 struct ConvertToCollapseHandler<
-    Cmd, f, Ret(Ctx::*)(Args)
+    f, Ret(Ctx::*)(Args)
 > {
     using type = std::remove_cvref_t<Args>;
     static constexpr auto get_handler () {
-        return &collapse_handle_method<Cmd, f, type>;
+        return &collapse_handle_method<Ret, Ctx, f, type>;
     }
 };
  // For more than one parameter we still need to use ArgsTuple
-template <class Cmd, auto f, class Ret, class Ctx, class Arg, class... Args>
+template <auto f, class Ret, class Ctx, class Arg, class... Args>
 struct ConvertToCollapseHandler<
-    Cmd, f, Ret(*)(Ctx, Arg, Args...)
-> : ConvertToArgsTupleHandler<Cmd, f, -1, Ret(*)(Ctx, Arg, Args...)> { };
-template <class Cmd, auto f, class Ret, class Ctx, class Arg, class... Args>
+    f, Ret(*)(Ctx, Arg, Args...)
+> : ConvertToArgsTupleHandler<f, -1, Ret(*)(Ctx, Arg, Args...)> { };
+template <auto f, class Ret, class Ctx, class Arg, class... Args>
 struct ConvertToCollapseHandler<
-    Cmd, f, Ret(Ctx::*)(Arg, Args...)
-> : ConvertToArgsTupleHandler<Cmd, f, -1, Ret(Ctx::*)(Arg, Args...)> { };
+    f, Ret(Ctx::*)(Arg, Args...)
+> : ConvertToArgsTupleHandler<f, -1, Ret(Ctx::*)(Arg, Args...)> { };
 
  // Based on the std::tuple description, but more efficient because
  // ArgsTuple supports member pointers.
