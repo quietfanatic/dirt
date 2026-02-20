@@ -361,7 +361,9 @@ struct AYU_DescribeBase {
      //     set).  When deserializing, the Tree may either ignore collapsing and
      //     provide this attribute with `key`, or it may provide all of this
      //     attribute's attributes directly without `key`.  Cannot be combined
-     //     with optional.
+     //     with optional.  If an item has the collapse flag without the
+     //     castable (or include) flag, getting a route to it might not work
+     //     properly.
      //   - castable: Consider this attr a candidate for upcasting (typically
      //     used with the base<>() accessor).
      //   - include: Short for both collapse and castable.
@@ -573,6 +575,8 @@ struct AYU_DescribeBase {
      //     element (each non-collapsed sibling element subtracts 1 from the
      //     index).  Unlike with the collapse flag on object-like types, you
      //     cannot provide a non-collapsed Tree representation of the array.
+     //     Like on object types, taking a route to this item might not work
+     //     properly if the castable (or include) flag is not also set.
      //   - castable: Consider this elem a candidate for upcasting.
      //   - include: Shortcut for collapse | castable.
      //   - invisible: This elem will not be serialized during the to_tree

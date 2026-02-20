@@ -79,7 +79,7 @@ AYU_DESCRIBE_TEMPLATE(
                 if (!v) return ayu::AnyPtr();
                 return ayu::AnyPtr(v.command->args_type, (ayu::Mu*)v.args);
             }
-        ), desc::collapse)
+        ), desc::include)
     )
 )
 

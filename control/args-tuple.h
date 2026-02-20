@@ -168,8 +168,10 @@ struct ArgsTupleElems {
                 Args::template member_pointer<is>(),
                 min < 0
                     ? is == sizeof...(is) - 1
-                        ? desc::collapse
-                        : decltype(desc::collapse){}
+                         // Have to use include instead of collapse, otherwise
+                         // the child element can't be properly linked to.
+                        ? desc::include
+                        : decltype(desc::include){}
                     : i32(is) >= min
                         ? desc::optional
                         : decltype(desc::optional){}

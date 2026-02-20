@@ -383,7 +383,6 @@ struct ArrayInterface {
         !ac::trivially_copyable
     ) {
         if constexpr (ac::is_Unique) {
-            static_assert(std::is_copy_constructible_v<T>);
             set_copy(o.impl.data, o.size());
         }
         else if constexpr (ac::supports_share) {
