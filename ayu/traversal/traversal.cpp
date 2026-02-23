@@ -117,6 +117,12 @@ void tag_error_with_item_really (Error& e, const Link& item) {
         );
     }
     catch (...) { }
+    Str type = "!(Could not get type of item)";
+    try {
+        type = item.type().name();
+    }
+    catch (...) { }
+    e.add_tag("ayu::Type", type);
     tag_error_with_route_really(e, found_rt);
 }
 
