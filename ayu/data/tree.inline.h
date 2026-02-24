@@ -65,11 +65,20 @@ constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
     data{.as_object_ptr = v.impl.data}
 {
     if (size > 1) {
-         // Check for duplicate keys.  Exceptions in constructors do not trigger
-         // destructors, so we don't need to clean up our data members.  NOTE:
-         // If we move the data members to a subclass then we WILL need to clean
-         // them up!
-        in::check_uniqueness(size, data.as_object_ptr);
+         // Check for duplicate keys.
+        try {
+            in::check_uniqueness(size, data.as_object_ptr);
+        }
+        catch (...) {
+             // Throwing an exception in a constructor does not trigger
+             // a destructor.  HOWEVER, if we're using placement new on top of a
+             // Tree that's already within its official lifetime, that tree will
+             // eventually be destroyed by someone else, and they won't know
+             // that the tree was incompletely destructed.  Therefore we have to
+             // make sure it doesn't get double-destructed.
+            owned = false;
+            throw;
+        }
     }
     v.impl = {};
 }
