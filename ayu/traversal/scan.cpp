@@ -219,7 +219,8 @@ struct TraverseScan {
             SharedRoute child_rt;
             ScanTraversal<ElemTraversal> child;
             child.context = trav.context;
-            child.collapsed_elem_shift = trav.collapsed_elem_shift;
+            child.collapse_optional = false;
+            child.collapsed_elem_shift = 0;
             if (acr->attr_flags % AttrFlags::Collapse) {
                 if (trav.collapse_optional) [[unlikely]] {
                      // Not sure how this interacts with collapse_optional on
@@ -229,7 +230,7 @@ struct TraverseScan {
                     }
                 }
                 child.rt = trav.rt;
-                child.collapsed_elem_shift += i;
+                child.collapsed_elem_shift = i + trav.collapsed_elem_shift;
             }
             else if (trav.collapse_optional) [[unlikely]] {
                  // It'd be weird to specify collapse_optional when the child
@@ -243,7 +244,6 @@ struct TraverseScan {
                 child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
                 child.rt = child_rt;
             }
-            child.collapse_optional = false;
             trav_elem<visit>(child, trav, acr, i, AC::Read);
             if (child.context->done) [[unlikely]] return;
         }
@@ -262,6 +262,8 @@ struct TraverseScan {
             SharedRoute child_rt;
             ScanTraversal<ComputedElemTraversal> child;
             child.context = trav.context;
+            child.collapse_optional = false;
+            child.collapsed_elem_shift = 0;
             if (trav.collapse_optional) {
                 if (i >= 1) {
                     raise(e_General, "collapse_optional on array bigger than 1");
@@ -272,8 +274,6 @@ struct TraverseScan {
                 child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
                 child.rt = child_rt;
             }
-            child.collapse_optional = false;
-            child.collapsed_elem_shift = 0;
             trav_computed_elem<visit>(
                 child, trav, link, f, i, AC::Read
             );
