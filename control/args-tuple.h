@@ -98,15 +98,29 @@ struct ConvertToArgsTupleHandler<
         return get_handler_mid(std::index_sequence_for<Pars...>{});
     }
 };
-template <auto f, i32 min, class Ret, class Ctx, class... Pars>
+template <auto f, i32 min, class Ret, class Inv, class... Pars>
 struct ConvertToArgsTupleHandler<
-    f, min, Ret(Ctx::*)(Pars...)
+    f, min, Ret(Inv::*)(Pars...)
 > {
     using type = ArgsTuple<min, std::remove_cvref_t<Pars>...>;
 
     template <usize... is>
     static constexpr auto get_handler_mid (std::index_sequence<is...>) {
-        return &type::template handle_method<Ret, Ctx, f, is...>;
+        return &type::template handle_method<Ret, Inv&, f, is...>;
+    }
+    static consteval auto get_handler () {
+        return get_handler_mid(std::index_sequence_for<Pars...>{});
+    }
+};
+template <auto f, i32 min, class Ret, class Inv, class... Pars>
+struct ConvertToArgsTupleHandler<
+    f, min, Ret(Inv::*)(Pars...)const
+> {
+    using type = ArgsTuple<min, std::remove_cvref_t<Pars>...>;
+
+    template <usize... is>
+    static constexpr auto get_handler_mid (std::index_sequence<is...>) {
+        return &type::template handle_method<Ret, const Inv&, f, is...>;
     }
     static consteval auto get_handler () {
         return get_handler_mid(std::index_sequence_for<Pars...>{});

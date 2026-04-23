@@ -178,7 +178,6 @@ AYU_DESCRIBE_TEMPLATE(
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::map<std::string, T>),
-    desc::flags(desc::no_refs_to_children | desc::no_refs_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::map<std::string, ", ayu::Type::of<T>()
@@ -209,14 +208,14 @@ AYU_DESCRIBE_TEMPLATE(
     })
 )
 
- // std::unordered_set.  This container does not support references either to or
- // from any of its children, because of the way that its structure is
- // determines by its content.  In addition, it requires that elements are
- // move-constructible, since there is no way to construct them in-place.
+ // std::unordered_set.  This container does not support links either to or from
+ // any of its children, because of the way that its structure is determined by
+ // its content.  In addition, it requires that elements are move-constructible,
+ // since there is no way to construct them in-place.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::unordered_set<T>),
-    desc::flags(desc::no_refs_to_children | desc::no_refs_from_children),
+    desc::flags(desc::no_links_to_children | desc::no_links_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::unordered_set<", ayu::Type::of<T>()
@@ -243,14 +242,14 @@ AYU_DESCRIBE_TEMPLATE(
     })
 )
 
- // std::set.  This container does not support references either to or from any
- // of its children, because of the way that its structure is determines by its
+ // std::set.  This container does not support links either to or from any of
+ // its children, because of the way that its structure is determined by its
  // content.  In addition, it requires that elements are move-constructible,
  // since there is no way to construct them in-place.
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::set<T>),
-    desc::flags(desc::no_refs_to_children),
+    desc::flags(desc::no_links_to_children | desc::no_links_from_children),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
             "std::set<", ayu::Type::of<T>()

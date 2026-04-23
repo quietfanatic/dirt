@@ -148,7 +148,7 @@ Mu* dynamic_upcast (Type from, Type to, Mu*);
  // tries upcast then downcast) but it was dragging down refactoring and I
  // didn't end up actually using it.
 
- // Tried to look up a type be name but there is no registered type with that
+ // Tried to look up a type by name but there is no registered type with that
  // name.
 constexpr ErrorCode e_TypeNameNotFound = "ayu::e_TypeNameNotFound";
  // Tried to default construct a type that has no default constructor.

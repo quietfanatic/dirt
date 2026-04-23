@@ -22,8 +22,12 @@
 
 namespace uni {
 
- // Make this small so error throwing code is as small as possible.
-using ErrorCode = const char*;
+ // ErrorCodes are always compared stringwise, not by address.  It's tempting to
+ // use const char* for this to faintly reduce compiled code size, but string
+ // literals can't be compared by address (the compiler doesn't always
+ // deduplicate them, even when assigned to constexpr variables), and I can't
+ // reliably remember to use strcmp everywhere.
+using ErrorCode = StaticString;
 
  // Class for ayu-related errors.
 struct Error : std::exception {

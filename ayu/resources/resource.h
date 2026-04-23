@@ -40,13 +40,14 @@ struct Resource : in::RefCounted {
 
      // If the resource is RS::Unloaded, automatically loads the resource from
      // disk.  Will throw if the load fails.  If a ResourceTransaction is
-     // currently active, the value will be cleared if the ResourceTransaction
-     // is rolled back.
+     // currently active, and the transaction later rolls back, then the value
+     // will be cleared out from under you, and if you have pointers or Links to
+     // it they will be left dangling.
     AnyVal& value ();
      // Gets the value without autoloading.  If the state is RS::Unloaded,
      // returns an empty AnyVal and writing to it is Undefined Behavior.  If
      // the state is RS::Loading, returns a value that may not be completely
-     // initialized.
+     // initialized, and will disappear if the load fails or is rolled back.
     AnyVal& get_value () noexcept;
      // If the resource is RS::Unloaded, sets is state to RS::Loaded without
      // loading from the source, and sets its value.  Throw ResourceStateInvalid
@@ -55,13 +56,14 @@ struct Resource : in::RefCounted {
      // accepts_type.
     void set_value (AnyVal&&);
 
-     // Automatically loads and returns a link to the value, which can be
-     // coerced to a pointer.  If a ResourceTransaction is currently active, the
-     // value will be cleared if the transaction is rolled back, leaving the
-     // reference dangling.
+     // Like value() and get_value() but returns an AnyPtr.  Use caution if the
+     // resource is currently being loaded or a transaction is active.
+    AnyPtr ptr () { return value().ptr(); }
+    AnyPtr get_ptr () { return get_value().ptr(); }
+
+     // Like value() and get_value() but returns a Link.  Use caution if the
+     // resource is currently being loaded or a transaction is active.
     Link link () { return value().ptr(); }
-     // Gets a link to the value without automatically loading.  If the resource
-     // is RS::Unloaded, returns an empty Link.
     Link get_link () noexcept { return get_value().ptr(); }
 
      // Syntax sugar.  Extern to avoid depending on traversal/compound.h which

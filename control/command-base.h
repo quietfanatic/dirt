@@ -143,19 +143,19 @@ CONTROL_REGISTER_COMMAND(_control_command_##f)
 #define CONTROL_COMMAND_COLLAPSE(Cmd, f, ...) \
     CONTROL_COMMAND_COLLAPSE_NAME(Cmd, #f, f, __VA_ARGS__)
 
-#define CONTROL_COMMAND_METHOD_NAME(Cmd, name, Ctx, m, min, ...) \
+#define CONTROL_COMMAND_METHOD_NAME(Cmd, name, Inv, m, min, ...) \
 constexpr Cmd _control_command_##m = \
-    Cmd::function<&Ctx::m, min>(name __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::function<&Inv::m, min>(name __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##m)
 
-#define CONTROL_COMMAND_METHOD(Cmd, Ctx, m, min, ...) \
-    CONTROL_COMMAND_METHOD_NAME(Cmd, #m, Ctx, m, min, ...)
+#define CONTROL_COMMAND_METHOD(Cmd, Inv, m, min, ...) \
+    CONTROL_COMMAND_METHOD_NAME(Cmd, #m, Inv, m, min, __VA_ARGS__)
 
-#define CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, name, Ctx, m, ...) \
+#define CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, name, Inv, m, ...) \
 constexpr Cmd _control_command_##m = \
-    Cmd::collapse<&Ctx::m>(name __VA_OPT__(,) __VA_ARGS__); \
+    Cmd::collapse<&Inv::m>(name __VA_OPT__(,) __VA_ARGS__); \
 CONTROL_REGISTER_COMMAND(_control_command_##m)
 
-#define CONTROL_COMMAND_METHOD_COLLAPSE(Cmd, Ctx, m, ...) \
-    CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, #m, Ctx, m, __VA_ARGS__)
+#define CONTROL_COMMAND_METHOD_COLLAPSE(Cmd, Inv, m, ...) \
+    CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, #m, Inv, m, __VA_ARGS__)
 
