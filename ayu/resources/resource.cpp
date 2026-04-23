@@ -868,7 +868,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     ok(source_exists(output->name()), "source_exists returns true before deletion");
     doesnt_throw([&]{ delete_source(output->name()); }, "delete_source");
     ok(!source_exists(output->name()), "source_exists returns false after deletion");
-    throws_code<e_OpenFailed>([&]{
+    throws_code<e_IOError>([&]{
         tree_from_file(resource_filepath(output->name()));
     }, "Can't open file after calling delete_source");
     doesnt_throw([&]{ delete_source(output->name()); }, "Can call delete_source twice");
@@ -896,7 +896,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     is(tree_from_file(resource_filepath(output->name())), tree_from_string(
         "[ayu::Collection {bar:[std::string qux] asdf:[i32 51] _0:[ayu::Link #/bar+1] _1:[i32* #/asdf+1] _next_id:2}]"
     ), "File was saved with correct link as route");
-    throws_code<e_OpenFailed>([&]{
+    throws_code<e_IOError>([&]{
         load(badinput);
     }, "Can't load file with incorrect link in it");
 

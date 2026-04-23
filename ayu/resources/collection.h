@@ -16,8 +16,6 @@ namespace ayu {
 // number, like "_36".  These pseudonyms are stored as integers, not strings, so
 // anonymous items are cheaper than named items.  Other names starting with _
 // are forbidden.
-//
-// Item types cannot have an alignment larger than 8.
 
 struct CollectionItem;
 
@@ -34,10 +32,10 @@ struct Collection {
     template <Describable T, class... Args>
     T* new_ (Args&&... args);
 
-     // Delete an item in this collection.  O(n) in the general case but starts
-     // from the back, so deleting recently newed items is O(1) for a fixed
-     // definition of "recently".  UB with debug-assert if the item is not in
-     // this collection or p is null.
+     // Delete an item in this collection.  O(n) where n is the number of
+     // objects that are newer than the deleted item, (so deleting recently
+     // newed items is O(1) for any fixed definition of "recently").  UB with
+     // debug-assert if the item is not in this collection or p is null.
     template <Describable T>
     void delete_ (T*);
 
@@ -55,8 +53,7 @@ struct Collection {
      // Returns the item with the given name.  Can find anonymous items if you
      // pass a decimal integer prefixed with _.  Returns null if not found or if
      // the name is invalid (starts with _ but is not an anonymous ID).  This is
-     // typically O(n), but may be O(1) if you find the same item twice in a
-     // row or iterate over items sequentially.
+     // O(n) for random access and O(1) for repeated or sequential access.
     AnyVal* find_with_name (Str) noexcept;
 
     UniqueArray<CollectionItem> items;
@@ -68,7 +65,8 @@ private:
     Mu* extract (Mu*) noexcept;
 };
 
- // Tried to create a Collection item with an invalid name (starting with a _).
+ // Tried to create a Collection item with an invalid name (empty or starting
+ // with a _).
 constexpr ErrorCode e_CollectionItemNameInvalid = "ayu::e_CollectionItemNameInvalid";
  // Tried to create a Collection item with a name that's already in use in
  // this document.

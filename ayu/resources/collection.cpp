@@ -56,12 +56,12 @@ void Collection::validate_name (Str name) {
 }
 
 Mu* Collection::extract (Mu* p) noexcept {
-    last_lookup = 0;
+    last_lookup = 0; // Don't bother trying to preserve this
     CollectionItem* entry = &items.back(); // debug-asserts nonempty
     items.impl.size -= 1;
      // Explicitly disassemble the objects to dodge destructors and convince the
      // compiler to store everything in registers.  This compiles much smaller
-     // than it looks like.
+     // than it looks.
     usize tmp_name_sx2wo = entry->name_sx2wo;
     char* tmp_name_data = entry->name_data;
     Type tmp_value_type = entry->value.type;
