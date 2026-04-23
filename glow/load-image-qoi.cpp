@@ -73,9 +73,9 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
                 u32 len = u32(*in) - 0b11000000 + 1;
                 RGBA8* real_end = out + len;
                  // If we have extra room, we can round up the run length to a
-                 // multiple of 8 so the compiler can vectorize it without a
+                 // multiple of 4 so the compiler can vectorize it without a
                  // bunch of tail-cleanup branches.  It'd be simpler to
-                 // explicitly do 8 at a time, which would skip the rounding up
+                 // explicitly do 4 at a time, which would skip the rounding up
                  // calculation, but then the compiler always makes a worse loop
                  // (it seems to invent an integer loop count variable instead
                  // of comparing pointers like we asked it to).
@@ -83,7 +83,7 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
                  // Note that this two-loop setup is still more compact what the
                  // compiler would generate if left to its own devices.  I wish
                  // I had RISC-V vectors.
-                RGBA8* optimistic_end = out + ((len + 7) & ~7);
+                RGBA8* optimistic_end = out + ((len + 3) & ~3);
                 if (optimistic_end <= out_end) {
                     expect(out < optimistic_end);
                     while (out < optimistic_end) {
