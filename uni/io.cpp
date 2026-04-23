@@ -13,7 +13,7 @@ namespace uni {
 namespace in {
 
 [[gnu::cold]] NOINLINE
-void warn_close_failed (StaticString message, Str path) {
+void warn_close_failed (const char* message, Str path) {
     if (!path) path = "a file";
     warn_utf8(cat(
         message, path, ": ", strerror(errno), '\n'
@@ -21,19 +21,24 @@ void warn_close_failed (StaticString message, Str path) {
 }
 
 [[noreturn, gnu::cold]] NOINLINE
-void raise_io_error (ErrorCode code, StaticString details, Str path) {
-    if (!path) path = "a file";
-    raise(code, cat(
-        details, path, ": ", strerror(errno)
-    ));
+void raise_io_error (const char* op, Str path_err) {
+    Error e;
+    e.code = e_IOError;
+    e.details = "IO operation failed";
+    e.add_tag("errno", strerror(errno));
+    e.add_tag("uni::IOOperation", op);
+    if (path_err) {
+        e.add_tag("uni::IOPath", path_err);
+    }
+    throw e;
 }
 
 } using namespace in;
 
 [[noreturn, gnu::cold]] NOINLINE
-void File::raise_open_failed (Str path, int errnum) const {
+void File::raise_open_failed (Str path_err, int errnum) const {
     if (errnum) errno = errnum;
-    raise_io_error(e_OpenFailed, "Failed to open ", path);
+    raise_io_error("open", path_err);
 }
 
 UniqueString File::read (Str path_err) {
@@ -42,11 +47,11 @@ UniqueString File::read (Str path_err) {
     if (res < 0) {
          // Reading from unseekable files is NYI
         seek_failed:
-        raise_io_error(e_ReadFailed, "Failed to fseek ", path_err);
+        raise_io_error("fseek", path_err);
     }
     long size = ftell(handle);
     if (size < 0) {
-        raise_io_error(e_ReadFailed, "Failed to ftell ", path_err);
+        raise_io_error("ftell", path_err);
     }
     require(usize(size) < AnyString::max_size_);
     auto r = UniqueString(Uninitialized(size));
@@ -56,14 +61,14 @@ UniqueString File::read (Str path_err) {
      // Read
     usize did_read = fread(r.data(), 1, r.size(), handle);
     if (did_read != r.size()) {
-        raise_io_error(e_ReadFailed, "Failed to read from ", path_err);
+        raise_io_error("read", path_err);
     }
     return r;
 }
 
 void Dir::raise_open_failed (Str path_err, int errnum) const {
     if (errnum) errno = errnum;
-    raise_io_error(e_ListDirFailed, "Failed to open directory ", path_err);
+    raise_io_error("open dir", path_err);
 }
 
 UniqueArray<UniqueString> Dir::list (Str path_err) {

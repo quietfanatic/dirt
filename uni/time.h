@@ -1,5 +1,8 @@
 #pragma once
 
+ // Modern C++'s chrono system is...complicated.  Let's just work with
+ // double-precision times in seconds.
+
 #include <chrono>
 
 namespace uni {

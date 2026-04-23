@@ -57,10 +57,7 @@ UniqueString string_from_file (AnyString path);
 
 void string_to_file (Str, AnyString path);
 
-constexpr ErrorCode e_OpenFailed = "uni::e_OpenFailed";
-constexpr ErrorCode e_ReadFailed = "uni::e_ReadFailed";
-constexpr ErrorCode e_WriteFailed = "uni::e_WriteFailed";
-constexpr ErrorCode e_CloseFailed = "uni::e_CloseFailed";
+constexpr ErrorCode e_IOError = "uni::e_IOError";
 
 ///// DIRECTORY IO
 
@@ -124,8 +121,6 @@ struct Dir {
     void close (Str path_err = "") noexcept;
 };
 
-constexpr ErrorCode e_ListDirFailed = "uni::e_ListDirFailed";
-
 ///// CONSOLE IO
 
  // Print UTF-8 formatted text to stdout and flushes
@@ -145,9 +140,9 @@ int remove_utf8 (const char* filename) noexcept;
 
 namespace in {
     [[noreturn, gnu::cold]]
-    void raise_io_error (ErrorCode code, StaticString details, Str path);
+    void raise_io_error (const char* operation, Str path);
     [[gnu::cold]]
-    void warn_close_failed (StaticString message, Str path);
+    void warn_close_failed (const char* message, Str path);
 }
 
 inline File::File (AnyString path, const char* mode) :
@@ -165,7 +160,7 @@ inline File File::try_open (AnyString path, const char* mode) noexcept {
 inline void File::write (Str content, Str path_err) {
     usize did_write = fwrite(content.data(), 1, content.size(), handle);
     if (did_write != content.size()) {
-        in::raise_io_error(e_WriteFailed, "Failed to write to ", path_err);
+        in::raise_io_error("write", path_err);
     }
 }
 
@@ -173,7 +168,7 @@ inline void File::close (Str path_err) noexcept {
     int res = fclose(handle);
     handle = null;
     if (res != 0) [[unlikely]] {
-        in::warn_close_failed("Warning: Failed to close ", path_err);
+        in::warn_close_failed("Warning: Failed to close file ", path_err);
     }
 }
 
@@ -218,7 +213,7 @@ inline dirent* Dir::list_one (Str path_err) {
     errno = 0;
     dirent* r = readdir(handle);
     if (errno) {
-        in::raise_io_error(e_ListDirFailed, "Failed to list directory ", path_err);
+        in::raise_io_error("list dir", path_err);
     }
     return r;
 }
