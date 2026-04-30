@@ -9,21 +9,23 @@ namespace uni {
 
  // Does a comparison for a "natural sort", where numbers within the string are
  // sorted by their numeric value regardless of how many digits they are.  The
- // behavior of corner cases may change in future updates.
+ // behavior of this is not strictly specified and may change in future updates,
+ // but this is the current behavior:
+ //
+ // - Characters are ordered as follows: NUL, /, \, ., then everything else
+ //   according to byte order (which, for UTF-8 strings, is unicode order).
+ //   This is so that filepaths sort in an intutitive manner, without filename
+ //   extensions and directory contents interfering.
+ // - Runs of ascii digits are sorted numerically.  If they evaluate to the same
+ //   number, then the longer run (the one with more leading 0s) is sorted
+ //   after).
+ // - Other types of unicode digits are not treated specially.
+ // - When comparing ascii digits to non-digits, the digits are just treated as
+ //   normal ascii characters.
+ //
 int natural_compare (Str a, Str b) noexcept;
 inline bool natural_lessthan (Str a, Str b) {
     return natural_compare(a, b) < 0;
-}
-
- // Like natural_compare, but for file paths.  The technical difference is that
- // '/' and '\' sort before all other characters.  In practice this means that
- // means that directories are sorted naturally before their contents.
- //
- // natural_compare("a/0", "a-b/0") == 1
- // natural_compare_path("a/0", "a-b/0") == -1
-int natural_compare_path (Str a, Str b) noexcept;
-inline bool natural_lessthan_path (Str a, Str b) {
-    return natural_compare_path(a, b) < 0;
 }
 
  // Returns -1 if the given char is not [0-9a-fA-F]

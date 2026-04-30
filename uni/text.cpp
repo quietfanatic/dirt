@@ -1,158 +1,153 @@
 #include "text.h"
 
+#include <bit>
+
 namespace uni {
 
- // From what I see, different implementations of natural sort vary on their
- // behavior in corner cases.  For example:
- //     ls -v      |   nemo
- //   "001" < "01" | "01" < "001"
- //   "ab" < "a "  | "a " < "ab"
- // I'm going to side with nemo's behavior because it looks easier. : )
+static
+usize find_first_difference (Str a, Str b) {
+    const char* ap = a.begin();
+    const char* bp = b.begin();
+    const char* ae = ap + (a.size() <= b.size() ? a.size() : b.size());
+    auto aem8 = ae - 8;
+    if (ap <= aem8) {
+        u64 av;
+        u64 bv;
+        while (ap < aem8) {
+            std::memcpy(&av, ap, 8);
+            std::memcpy(&bv, bp, 8);
+            if (av != bv) {
+                different_u64s:
+                int same_bits;
+                if constexpr (std::endian::native == std::endian::little) {
+                    same_bits = std::countr_zero(av ^ bv);
+                }
+                else {
+                    same_bits = std::countl_zero(av ^ bv);
+                }
+                expect(same_bits < 64);
+                auto same_bytes = same_bits >> 3;
+                return ap - a.begin() + same_bytes;
+            }
+            ap += 8;
+            bp += 8;
+        }
+        bp += aem8 - ap;
+        ap = aem8;
+        std::memcpy(&av, ap, 8);
+        std::memcpy(&bv, bp, 8);
+        if (av != bv) goto different_u64s;
+        return ae - a.begin();
+    }
+    #pragma GCC unroll 0
+    while (ap <= ae) {
+        if (*ap != *bp) break;
+        ap += 1;
+        bp += 1;
+    }
+    return ap - a.begin();
+}
+
+ALWAYS_INLINE static
+bool digit (char a) { return a >= '0' && a <= '9'; }
+
+ // 0 -> 0
+ // / -> 1
+ // \ -> 2
+ // . -> 3
+ // anything else -> 4+ (preserve order)
+u32 adjust (char c) {
+     // . and / are one apart so they can be checked in one comparison.
+    if (c == '.' || c == '/') {
+        return c == '/' ? 1 : 3;
+    }
+    else if (c == '\\') return 2;
+    else [[likely]] return u8(c) << 2; // leave 0 as 0
+}
+
 int natural_compare (Str a, Str b) noexcept {
-    auto ap = a.begin();
-    auto ae = a.end();
-    auto bp = b.begin();
-    auto be = b.end();
-    while (ap != ae && bp != be) {
-         // If one has a number but not the other, the number comes afterwards.
-         // e.g. image.png before image2.png
-        if (*ap >= '0' && *ap <= '9') {
-            if (!(*bp >= '0' && *bp <= '9')) {
-                 // Unless the number is at the beginning.  It seems to be
-                 // expected that filenames starting with numbers come first.
-                return ap == a.begin() ? -1 : 1;
-            }
-             // Skip zeroes
-            auto az = ap;
-            auto bz = bp;
-            while (ap != ae && *ap == '0') ap++;
-            while (bp != be && *bp == '0') bp++;
-             // Capture run of digits
-            auto an = ap;
-            auto bn = bp;
-            while (ap != ae && *ap >= '0' && *ap <= '9') ap++;
-            while (bp != be && *bp >= '0' && *bp <= '9') bp++;
-             // If there are more digits (after zeros), it comes after
-            if (ap - an != bp - bn) {
-                return ap - an < bp - bn ? -1 : 1;
-            }
-             // Otherwise, compare digits in the number
-            while (an != ap) {
-                if (u8(*an) != u8(*bn)) {
-                    return u8(*an) < u8(*bn) ? -1 : 1;
-                }
-                an++; bn++;
-            }
-             // Digits are the same, so if there are more zeros put it after
-            if (ap - az != bp - bz) {
-                return ap - az < bp - bz ? -1 : 1;
-            }
-            if (ap == ae) {
-                return bp == be ? 0 : -1;
-            }
-            else if (bp == be) return 1;
-             // Zeros and digits are the same so continue with nondigits
-            goto nondigit;
-        }
-        else if (*bp >= '0' && *bp <= '9') {
-            return ap == a.begin() ? 1 : -1;
-        }
-
-        nondigit:
-        if (u8(*ap) != u8(*bp)) {
-            return u8(*ap) < u8(*bp) ? -1 : 1;
-        }
-        ap++; bp++;
+     // Use a more efficient algorithm to find the first difference, then work
+     // from there.
+    usize diff_i = find_first_difference(a, b);
+     // If one side is a prefix of the other, the longer side must be after.
+    if (diff_i >= a.size()) {
+         // Or they're identical.  We should never return 0 after this.
+        if (diff_i >= b.size()) return 0;
+        else return -1;
     }
-     // Ran out of one side, so whichever has more left comes after
-    return (bp == be) - (ap == ae);
+    else if (diff_i >= b.size()) return 1;
+     // If one or both sides is not in a number, we can stop early, but we still
+     // have to figure out what to return.
+    auto ap = a.data() + diff_i;
+    auto bp = b.data() + diff_i;
+    if (!digit(*ap)) {
+         // Neither side is a number.
+        if (!digit(*bp)) return expect(adjust(*ap) - adjust(*bp));
+         // a ended the number but b is continuing it, so b has to be after.
+        if (ap > a.begin() && digit(ap[-1])) return -1;
+         // b is starting a number but a isn't.
+        return expect(adjust(*ap) - adjust(*bp));
+    }
+    else if (!digit(*bp)) {
+         // a is continuing a number but b ended it, so a is larger.
+        if (ap > a.begin() && digit(ap[-1])) return 1;
+         // a is starting a number but b isn't.
+        return expect(adjust(*ap) - adjust(*bp));
+    }
+     // Now we have to find the ends of both numbers.  We already know *ap and
+     // *bp are digits.
+    auto ae = ap + 1;
+    while (ae < a.end() && digit(*ae)) {
+        ae += 1;
+    }
+    auto be = bp + 1;
+    while (be < b.end() && digit(*be)) {
+        be += 1;
+    }
+    isize lendiff = (ae - ap) - (be - bp);
+     // If the numbers are the same length then we can just pretend we're doing
+     // normal string comparison.
+    if (lendiff == 0) return expect(u8(*ap) - u8(*bp));
+     // Otherwise we have to find the beginning of the numbers too (we only need
+     // to search one of them because we know they're identical up to here).
+    auto ab = ap;
+    auto bb = bp;
+    while (ab > a.begin() && ab[-1] >= '0' && ab[-1] <= '9') {
+        ab -= 1;
+        bb -= 1;
+    }
+     // Chop zeroes off the front of the longer number until they're the same
+     // length.  If we hit a nonzero, it means the longer number is larger.
+     // Only one of these loops will actually run.
+    for (ap = ab; ap < ab + lendiff; ap++) {
+        if (*ap != '0') return 1;
+    }
+    for (bp = bb; bp < bb - lendiff; bp++) {
+        if (*bp != '0') return -1;
+    }
+     // Now both numbers are the same length, so compare each digit.
+    for (; ap < ae; ap++, bp++) {
+        if (*ap != *bp) return expect(u8(*ap) - u8(*bp));
+    }
+     // Numbers are equal!  So put the one with more leading zeroes (the longer
+     // one) after.  Theoretically lendiff could exceed the range of int, which
+     // would be pretty silly, because it means one of our numbers starts with
+     // literal billions of zeroes, but oh well.  It's just two extra
+     // instructions to deal with that (shift, or).
+    return lendiff < 0 ? -1 : 1;
 }
 
-int natural_compare_path (Str a, Str b) noexcept {
-    auto ap = a.begin();
-    auto ae = a.end();
-    auto bp = b.begin();
-    auto be = b.end();
-    while (ap != ae && bp != be) {
-         // If one has a number but not the other, the number comes afterwards.
-         // e.g. image.png before image2.png
-        if (*ap >= '0' && *ap <= '9') {
-            if (!(*bp >= '0' && *bp <= '9')) {
-                 // Unless the number is at the beginning.  It seems to be
-                 // expected that filenames starting with numbers come first.
-                if (ap == a.begin() || ap[-1] == '/' || ap[-1] == '\\') {
-                    return -1;
-                }
-                return 1;
-            }
-             // Skip zeroes
-            auto az = ap;
-            auto bz = bp;
-            while (ap != ae && *ap == '0') ap++;
-            while (bp != be && *bp == '0') bp++;
-             // Capture run of digits
-            auto an = ap;
-            auto bn = bp;
-            while (ap != ae && *ap >= '0' && *ap <= '9') ap++;
-            while (bp != be && *bp >= '0' && *bp <= '9') bp++;
-             // If there are more digits (after zeros), it comes after
-            if (ap - an != bp - bn) {
-                return ap - an < bp - bn ? -1 : 1;
-            }
-             // Otherwise, compare digits in the number
-            while (an != ap) {
-                if (u8(*an) != u8(*bn)) {
-                    return u8(*an) < u8(*bn) ? -1 : 1;
-                }
-                an++; bn++;
-            }
-             // Digits are the same, so if there are more zeros put it after
-            if (ap - az != bp - bz) {
-                return ap - az < bp - bz ? -1 : 1;
-            }
-            if (ap == ae) {
-                return bp == be ? 0 : -1;
-            }
-            else if (bp == be) return 1;
-             // Zeros and digits are the same so continue with nondigits
-            goto nondigit;
-        }
-        else if (*bp >= '0' && *bp <= '9') {
-            if (ap == a.begin() || ap[-1] == '/' || ap[-1] == '\\') {
-                return 1;
-            }
-            else return -1;
-        }
-
-        nondigit:
-         // Sort / and \ before everything else so that directory names are
-         // sorted properly before their containing filenames.
-        if (*ap == '/') {
-            if (*bp != '/') return -1;
-        }
-        else if (*ap == '\\') {
-            if (*bp != '\\') {
-                return *bp == '/' ? 1 : -1;
-            }
-        }
-        else if (*bp == '/' || *bp == '\\') return 1;
-
-        if (u8(*ap) != u8(*bp)) {
-            return u8(*ap) < u8(*bp) ? -1 : 1;
-        }
-        ap++; bp++;
-    }
-     // Ran out of one side, so whichever has more left comes after
-    return (bp == be) - (ap == ae);
-}
-
+ // There isn't a better way to do this.  I considered a fully-branchless
+ // algorithm that uses bitcounting to estimate the digits, then a lookup table
+ // to refine the count, but it'd require either a 512-byte table or two tables
+ // totalling 200ish bytes, and it ended up more complicated for all but the
+ // longest numbers (which aren't as common as the shorter numbers).  So we're
+ // just using a biased comparison tree instead.  At least we can convert many
+ // of the comparisons to branchless form.  I don't really know what the ideal
+ // proportion of branches to nonbranches is, but this seems pretty reasonable.
+ // If compiled well, the first block fits in 16 bytes of x64 and the first and
+ // second together in 64.
 u32 count_decimal_digits (u64 v) noexcept {
-     // There isn't a better way to do this.  You can estimate the digits with
-     // some branchless logarithmic math, but you can't really get a precise
-     // count that way.  At least we can convert many of the comparisons to
-     // branchless form.  I don't really know what the ideal proportion of
-     // branches to nonbranches is, but this seems pretty reasonable.  The first
-     // block fits in 16 bytes of x64 and the first and second together in 64.
     if (v <= 9) [[likely]] return 1;
     else if (v <= 99'999) [[likely]] {
         u32 r = 2;
@@ -221,23 +216,28 @@ char* write_decimal_digits (char* p, u32 count, u64 v) noexcept {
 
 static tap::TestSet tests ("dirt/uni/text", []{
     using namespace tap;
-    is(natural_compare("a", "b"), -1);
-    is(natural_compare("3", "2"), 1);
-    is(natural_compare("a1b", "a10b"), -1);
-    is(natural_compare("a9b", "a10b"), -1);
-    is(natural_compare("a9b", "ab"), 1, "Numbers come after no numbers");
-    is(natural_compare("9a", "a"), -1, "...unless the number is at the beginning");
-    is(natural_compare_path("a/0a", "a/a"), -1, "...or after a / (_path only)");
-    is(natural_compare("a1b", "a01b"), -1, "More zeroes come after less zeroes");
-    is(natural_compare("a", "a "), -1, "Longer comes after");
-    is(natural_compare("a b", "ab"), -1);
-    is(natural_compare("01", "001"), -1);
-    is(natural_compare("a", "あ"), -1, "Put unicode after ascii");
-    is(natural_compare("a/b", "a-b/c"), 1, "natural_compare isn't directory-aware");
-    is(natural_compare_path("a/b", "a-b/c"), -1, "natural_compare_path is");
-    is(natural_compare_path("a\\b", "a-b\\c"), -1, "natural_compare_path accepts \\ as separator");
-    is(natural_compare_path("a/b", "a\\b"), -1, "\\ is after /");
-    is(natural_compare_path("v01/a", "v01-v02/a"), -1);
+    ok(natural_compare("a", "b") < 0);
+    ok(natural_compare("3", "2") > 0);
+    ok(natural_compare("a1b", "a10b") < 0);
+    ok(natural_compare("a9b", "a10b") < 0);
+    ok(natural_compare("a9b", "ab") < 0, "Numbers come before letters");
+    ok(natural_compare("9a", "a") < 0, "...including at the beginning");
+    ok(natural_compare("a/0a", "a/a") < 0, "...or after a /");
+    ok(natural_compare("a0.b", "a.b") > 0, "Numbers are after .");
+    ok(natural_compare("a!.b", "a.b") > 0, "! after .");
+    ok(natural_compare("a./b", "a.b") < 0, ". after /");
+    ok(natural_compare("a\0b", "a/b") < 0, "NUL before /");
+    ok(natural_compare("a1b", "a01b") < 0, "More zeroes come after less zeroes");
+    ok(natural_compare("a0b", "a00b") < 0, "Including when only zeroes");
+    ok(natural_compare("a", "a ") < 0, "Longer comes after");
+    ok(natural_compare("a b", "ab") < 0);
+    ok(natural_compare("01", "001") < 0);
+    ok(natural_compare("a", "あ") < 0, "Put unicode after ascii");
+    ok(natural_compare("a/b", "a-b/c") < 0, "natural_compare is directory-aware");
+    ok(natural_compare("a\\b", "a-b\\c") < 0, "natural_compare_path accepts \\ as separator");
+    ok(natural_compare("a/b", "a\\b") < 0, "\\ is after /");
+    ok(natural_compare("v01/a", "v01-v02/a") < 0);
+    ok(natural_compare("asdf", "asdf") == 0, "Works on identical strings");
     UniqueString s (5, 0);
     is(count_decimal_digits(52607), 5u, "count_decimal_digits");
     char* p = write_decimal_digits(s.begin(), 5, 52607);

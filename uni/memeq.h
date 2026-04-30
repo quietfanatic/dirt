@@ -1,5 +1,7 @@
 #pragma once
+#include <type_traits> // is_constant_evaluated
 #include <cstring> // memcpy
+#include "common.h"
 
 namespace uni {
 
@@ -26,7 +28,7 @@ namespace uni {
  // the opposite of memcmp.
 
 NOINLINE constexpr
-bool memeq (const void* a, const void* b, std::size_t s) {
+bool memeq (const void* a, const void* b, usize s) {
      // Only run this on architectures that we know have reasonably fast
      // misaligned access.
 #if defined(__amd64__) || defined(__aarch64__) || defined(_M_X64) || defined(_M_ARM64)
