@@ -5,17 +5,14 @@
 namespace uni {
 
 static
-usize find_first_difference (Str a, Str b) {
-    const char* ap = a.begin();
-    const char* bp = b.begin();
-    const char* ae = ap + (a.size() <= b.size() ? a.size() : b.size());
+const char* find_first_difference (const char* a, const char* b, const char* ae) {
     auto aem8 = ae - 8;
-    if (ap <= aem8) {
+    if (a <= aem8) {
         u64 av;
         u64 bv;
-        while (ap < aem8) {
-            std::memcpy(&av, ap, 8);
-            std::memcpy(&bv, bp, 8);
+        while (a < aem8) {
+            std::memcpy(&av, a, 8);
+            std::memcpy(&bv, b, 8);
             if (av != bv) {
                 different_u64s:
                 int same_bits;
@@ -27,25 +24,26 @@ usize find_first_difference (Str a, Str b) {
                 }
                 expect(same_bits < 64);
                 auto same_bytes = same_bits >> 3;
-                return ap - a.begin() + same_bytes;
+                expect(a + same_bytes < ae);
+                return a + same_bytes;
             }
-            ap += 8;
-            bp += 8;
+            a += 8;
+            b += 8;
         }
-        bp += aem8 - ap;
-        ap = aem8;
-        std::memcpy(&av, ap, 8);
-        std::memcpy(&bv, bp, 8);
+        b += aem8 - a;
+        a = aem8;
+        std::memcpy(&av, a, 8);
+        std::memcpy(&bv, b, 8);
         if (av != bv) goto different_u64s;
-        return ae - a.begin();
+        return ae;
     }
     #pragma GCC unroll 0
-    while (ap <= ae) {
-        if (*ap != *bp) break;
-        ap += 1;
-        bp += 1;
+    while (a < ae) {
+        if (*a != *b) return a;
+        a += 1;
+        b += 1;
     }
-    return ap - a.begin();
+    return ae;
 }
 
 ALWAYS_INLINE static
@@ -56,7 +54,8 @@ bool digit (char a) { return a >= '0' && a <= '9'; }
  // \ -> 2
  // . -> 3
  // anything else -> 4+ (preserve order)
-u32 adjust (char c) {
+ALWAYS_INLINE static
+i32 adjust (char c) {
      // . and / are one apart so they can be checked in one comparison.
     if (c == '.' || c == '/') {
         return c == '/' ? 1 : 3;
@@ -65,38 +64,38 @@ u32 adjust (char c) {
     else [[likely]] return u8(c) << 2; // leave 0 as 0
 }
 
+ALWAYS_INLINE static
+int normalize (isize v) { return expect(v) < 0 ? -1 : 1; }
+
 int natural_compare (Str a, Str b) noexcept {
-     // Use a more efficient algorithm to find the first difference, then work
-     // from there.
-    usize diff_i = find_first_difference(a, b);
-     // If one side is a prefix of the other, the longer side must be after.
-    if (diff_i >= a.size()) {
-         // Or they're identical.  We should never return 0 after this.
-        if (diff_i >= b.size()) return 0;
-        else return -1;
+     // Use a faster algorithm to find the first difference, then work from
+     // there.
+    auto ae = a.begin() + (a.size() <= b.size() ? a.size() : b.size());
+    auto ap = find_first_difference(a.begin(), b.begin(), ae);
+    if (ap == ae) {
+         // Didn't find a difference, so the longer side is after.
+        return (a.size() > b.size()) - (a.size() < b.size());
     }
-    else if (diff_i >= b.size()) return 1;
      // If one or both sides is not in a number, we can stop early, but we still
      // have to figure out what to return.
-    auto ap = a.data() + diff_i;
-    auto bp = b.data() + diff_i;
+    auto bp = b.begin() + (ap - a.begin());
     if (!digit(*ap)) {
          // Neither side is a number.
-        if (!digit(*bp)) return expect(adjust(*ap) - adjust(*bp));
+        if (!digit(*bp)) return normalize(adjust(*ap) - adjust(*bp));
          // a ended the number but b is continuing it, so b has to be after.
         if (ap > a.begin() && digit(ap[-1])) return -1;
          // b is starting a number but a isn't.
-        return expect(adjust(*ap) - adjust(*bp));
+        return normalize(adjust(*ap) - adjust(*bp));
     }
     else if (!digit(*bp)) {
          // a is continuing a number but b ended it, so a is larger.
         if (ap > a.begin() && digit(ap[-1])) return 1;
          // a is starting a number but b isn't.
-        return expect(adjust(*ap) - adjust(*bp));
+        return normalize(adjust(*ap) - adjust(*bp));
     }
      // Now we have to find the ends of both numbers.  We already know *ap and
      // *bp are digits.
-    auto ae = ap + 1;
+    ae = ap + 1;
     while (ae < a.end() && digit(*ae)) {
         ae += 1;
     }
@@ -107,7 +106,7 @@ int natural_compare (Str a, Str b) noexcept {
     isize lendiff = (ae - ap) - (be - bp);
      // If the numbers are the same length then we can just pretend we're doing
      // normal string comparison.
-    if (lendiff == 0) return expect(u8(*ap) - u8(*bp));
+    if (lendiff == 0) return normalize(u8(*ap) - u8(*bp));
      // Otherwise we have to find the beginning of the numbers too (we only need
      // to search one of them because we know they're identical up to here).
     auto ab = ap;
@@ -127,18 +126,18 @@ int natural_compare (Str a, Str b) noexcept {
     }
      // Now both numbers are the same length, so compare each digit.
     for (; ap < ae; ap++, bp++) {
-        if (*ap != *bp) return expect(u8(*ap) - u8(*bp));
+        if (*ap != *bp) return normalize(u8(*ap) - u8(*bp));
     }
      // Numbers are equal!  So put the one with more leading zeroes (the longer
      // one) after.  Theoretically lendiff could exceed the range of int, which
      // would be pretty silly, because it means one of our numbers starts with
      // literal billions of zeroes, but oh well.  It's just two extra
      // instructions to deal with that (shift, or).
-    return lendiff < 0 ? -1 : 1;
+    return normalize(lendiff);
 }
 
  // There isn't a better way to do this.  I considered a fully-branchless
- // algorithm that uses bitcounting to estimate the digits, then a lookup table
+ // algorithm that uses bitcounting to estimate the digits then a lookup table
  // to refine the count, but it'd require either a 512-byte table or two tables
  // totalling 200ish bytes, and it ended up more complicated for all but the
  // longest numbers (which aren't as common as the shorter numbers).  So we're
@@ -192,7 +191,9 @@ u32 count_decimal_digits (u64 v) noexcept {
 char* write_decimal_digits (char* p, u32 count, u64 v) noexcept {
      // The STL std::to_chars is kinda messy.  It does two digits at a time,
      // which is theoretically faster, but it reads a lookup table and has more
-     // instructions and branches, so it's harder on caches.
+     // instructions and branches, so it's harder on caches and branch tables.
+     // Division by a constant is not all that slow.
+    expect(count == count_decimal_digits(v));
     expect(count >= 1 && count <= 20);
     if (count == 1) [[likely]] {
         end:

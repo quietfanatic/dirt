@@ -14,7 +14,7 @@ namespace uni {
  //
  // - Characters are ordered as follows: NUL, /, \, ., then everything else
  //   according to byte order (which, for UTF-8 strings, is unicode order).
- //   This is so that filepaths sort in an intutitive manner, without filename
+ //   This is to order filepaths in an intuitive manner, without filename
  //   extensions and directory contents interfering.
  // - Runs of ascii digits are sorted numerically.  If they evaluate to the same
  //   number, then the longer run (the one with more leading 0s) is sorted
@@ -24,6 +24,8 @@ namespace uni {
  //   normal ascii characters.
  //
 int natural_compare (Str a, Str b) noexcept;
+ // For use with STL std::sort.  You can also use it with std::stable_sort but
+ // that will call the function twice as often as necessary.
 inline bool natural_lessthan (Str a, Str b) {
     return natural_compare(a, b) < 0;
 }
@@ -38,7 +40,7 @@ constexpr int from_hex_digit (char c) {
     }
 }
 
- // Returns 0 if the given int is not 0..15
+ // Returns NUL if the given int is not 0..15
 constexpr char to_hex_digit (u8 digit) {
     if (digit >= 16) [[unlikely]] return 0;
     return digit + (digit < 10 ? '0' : 'A' - 10);
@@ -94,8 +96,9 @@ u32 count_decimal_digits (u64 v) noexcept;
  // count_decimal_digits(v).  Returns p + count (the end of the written number).
 char* write_decimal_digits (char* p, u32 count, u64 v) noexcept;
 
- // Like std::from_chars but smaller.  Does not distinguish between error
- // conditions.  Returns {start, 0} if end == start or if the number overflows.
+ // Like std::from_chars but smaller.  Returns {start, 0} if the number
+ // overflows or has no digits.  There are no other error conditions.  Does not
+ // accept an initial + or -.
 template <class T>
 struct ReadResult {
     const char* p;
@@ -116,6 +119,9 @@ ReadResult<T> read_decimal_digits (
     }
     return r;
 }
+
+// Like read_decimal_digits but hexadecimal.  Case insensitive.  Does not accept
+// an initial 0x or 0X.
 template <class T>
 ReadResult<T> read_hex_digits (
     const char* start, const char* end
