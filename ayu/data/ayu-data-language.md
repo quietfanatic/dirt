@@ -31,7 +31,7 @@ supported.  Numbers may start with leading 0s, and are interpreted as decimal
 numbers, NOT as octal numbers.
 
 Numbers may be followed by a decimal point (`.`) and then more digits of their
-base.  They may then be followed by an `e` or `E` for decimal numbers and a `p`
+base.  They may then be followed by an `e` or `E` for decimal numbers or a `p`
 or `P` for hexadecimal numbers, followed by an optional sign and then decimal
 digits.  The exponent is always in decimal, even if the rest of the number is in
 hexadecimal.
@@ -41,7 +41,8 @@ Numbers cannot start or end with a `.`.  `.5` and `5.` are not valid numbers.
 Three special numeric values are supported: `+inf`, `-inf`, and `+nan`.  The
 sign is required on all of these.  Without the sign, they would be considered
 strings.  There is only one +nan, which is the canonical NaN for the platform.
--0.0 is preserved but considered equal to +0.0.
+-0.0 is preserved but considered equal to +0.0.  +nan is considered equal to
++nan.  TODO: reconsider -0.0 equality.
 
 The reference implementation supports floating-point numbers of double precision
 and all integers between -2^63 and 2^63-1.
@@ -59,7 +60,7 @@ are supported in quoted strings.
 - `\\t` = Tab
 - `\\"` = literal quote character
 - `\\\\` = literal backslash
-- `\\/` = literal slash
+- `\\/` = literal slash (don't know why this is in the JSON spec)
 - `\\xXX` = UTF-8 byte with a two-digit hexadecimal value, which may be part of
   a multibyte UTF-8 sequence, but must not be an unmatched leading or
   continuation byte.
@@ -67,13 +68,10 @@ are supported in quoted strings.
   must not be a lone surrogate.  A sequence of multiple adjacent `\\uXXXX`s will
   be converted together from UTF-16 to UTF-8.
 
-Some of these escape sequences may be obscure or useless, but they're included
-for compatibility with JSON.
-
 A string does not have to be quoted if all of the below are true:
 - It is not `null`, `true`, or `false`.
-- It starts with a letter or one of `_`, `/`, `?`, or `#`, or a `.` not followed by
-  a digit or `+` or `-`.
+- It starts with a letter or one of `_`, `/`, `?`, or `#`; or a `.` that isn't
+  followed by a digit or `+` or `-`.
 - It only contains the following word-continuation characters:
     - ASCII letters, numbers, or underscores
     - any of these symbols: `!`, `$`, `%`, `+`, `-`, `.`, `/`, `<`, `>`, `?`, `@`,
@@ -163,7 +161,7 @@ The AYU data language does not natively support references, but the AYU
 serialization library supports references in the form of IRI strings.  As an
 example,
 ```
-[ayu::Document {
+[ayu::Collection {
     some_object: [MyObject {
         foo: 50
         bar: [60 70 80 90]
@@ -190,9 +188,3 @@ a colon.
 
 I chose `--` for comments because `//` and `#` can start URLs and `;` looks too
 similar to `:`.  `--` also stands out more than the other alternatives.
-
-Above it was stated that shortcuts are semantically invisible, but technically
-it is possible to detect the usage of shortcuts, because tree nodes are
-reference counted and nodes that were specified with the same shortcut will
-share the same storage.  Trees are immutable, however, so the only way to detect
-this is if you're comparing pointer addresses, which there's no reason to do.

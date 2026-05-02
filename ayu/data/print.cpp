@@ -5,7 +5,7 @@
 
 #include "../../uni/buffers.h"
 #include "../../uni/io.h"
-#include "char-cases.private.h"
+#include "char-props.private.h"
 
 namespace ayu {
 namespace in {
@@ -265,30 +265,24 @@ struct Printer {
         if (s == "true") return pstr(p, "\"true\"");
         if (s == "false") return pstr(p, "\"false\"");
 
-        switch (s[0]) {
-            case ANY_WORD_STARTER: break;
-            case '.': {
-                if (s.size() > 1) switch (s[1]) {
-                    case ANY_DECIMAL_DIGIT: case '-': case '+': goto quoted;
-                    default: break;
-                }
-                break;
+        if (s[0] == '.') {
+            if (s.size() > 1 && char_illegal_after_dot(s[1])) {
+                goto quoted;
             }
-            default: goto quoted;
+        }
+        else if (char_term(s[0]) != CHAR_TERM_WORD) {
+            goto quoted;
         }
 
-        for (auto sp = s.begin() + 1; sp != s.end(); sp++)
-        switch (sp[0]) {
-            case ':': {
+        for (auto sp = s.begin() + 1; sp != s.end(); sp++) {
+            if (sp[0] == ':') {
                 if (sp + 1 != s.end() && sp[1] == ':') {
                     sp++;
                     continue;
                 }
                 else goto quoted;
             }
-            case ANY_LETTER: case ANY_DECIMAL_DIGIT:
-            case ANY_WORD_SYMBOL: continue;
-            default: goto quoted;
+            else if (!char_continues_word(sp[0])) goto quoted;
         }
          // No need to quote
         return pstr(p, s);

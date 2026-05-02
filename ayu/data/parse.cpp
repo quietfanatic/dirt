@@ -1,6 +1,5 @@
 #include "parse.h"
 
-#include <array>
 #include <cstring>
 #include <charconv>
 #include <limits>
@@ -9,49 +8,11 @@
 #include "../../uni/text.h"
 #include "../../uni/utf.h"
 #include "../data/tree.h"
-#include "char-cases.private.h"
+#include "char-props.private.h"
 
 namespace ayu {
 
 namespace in {
-
-enum CharProps : u8 {
-    CHAR_IS_WS = 0x80,
-    CHAR_CONTINUES_WORD = 0x40,
-    CHAR_TERM_MASK = 0x0f,
-    CHAR_TERM_ERROR = 0,
-    CHAR_TERM_WORD = 1,
-    CHAR_TERM_DIGIT = 2,
-    CHAR_TERM_DOT = 3,
-    CHAR_TERM_PLUS = 4,
-    CHAR_TERM_MINUS = 5,
-    CHAR_TERM_STRING = 6,
-    CHAR_TERM_ARRAY = 7,
-    CHAR_TERM_OBJECT = 8,
-    CHAR_TERM_SHORTCUT = 9,
-};
-constexpr std::array<u8, 256> char_props = []{
-    std::array<u8, 256> r = {};
-    for (char c : {' ', '\f', '\n', '\r', '\t', '\v'}) {
-        r[c] = CHAR_IS_WS;
-    }
-    for (char c = '0'; c <= '9'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_DIGIT;
-    for (char c = 'a'; c <= 'z'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_WORD;
-    for (char c = 'A'; c <= 'Z'; c++) r[c] = CHAR_CONTINUES_WORD | CHAR_TERM_WORD;
-    for (char c : {
-        '!', '$', '%', '+', '-', '.', '/', '<', '>',
-        '?', '@', '^', '_', '~', '#', '&', '*'
-    }) r[c] = CHAR_CONTINUES_WORD;
-    for (char c : {'_', '/', '?', '#'}) r[c] |= CHAR_TERM_WORD;
-    r['.'] |= CHAR_TERM_DOT;
-    r['+'] |= CHAR_TERM_PLUS;
-    r['-'] |= CHAR_TERM_MINUS;
-    r['"'] |= CHAR_TERM_STRING;
-    r['['] |= CHAR_TERM_ARRAY;
-    r['{'] |= CHAR_TERM_OBJECT;
-    r['$'] |= CHAR_TERM_SHORTCUT;
-    return r;
-}();
 
 struct SourcePos {
     u32 line;
@@ -132,8 +93,8 @@ struct Parser {
             &got_shortcut
         };
         if (in >= end) error(in, "Expected term but ran into end of input");
-        auto index = char_props[*in] & CHAR_TERM_MASK;
-        expect(u32(index) <= sizeof(table) / sizeof(table[0]));
+        auto index = char_term(*in);
+        expect(u32(index) < sizeof(table) / sizeof(table[0]));
         return table[u32(index)](*this, in, r);
     }
 
@@ -143,7 +104,7 @@ struct Parser {
         const char* start = in;
         in++; // First character already known to be part of word
         while (in < end) {
-            if (char_props[*in] & CHAR_CONTINUES_WORD) [[likely]] {
+            if (char_continues_word(*in)) [[likely]] {
                 in++;
             }
             else if (*in == ':') {
@@ -241,10 +202,8 @@ struct Parser {
     NOINLINE static
     const char* got_dot (Parser& self, const char* in, Tree& r) {
         auto word = self.parse_word(in);
-        if (word.size() > 1) switch (word[1]) {
-            case ANY_DECIMAL_DIGIT: case '+': case '-': {
-                self.error(in, "Number cannot start with a dot.");
-            }
+        if (word.size() > 1 && char_illegal_after_dot(word[1])) {
+            self.error(in, "Number cannot start with a dot.");
         }
         new (&r) Tree(word);
         return word.end();
@@ -504,7 +463,7 @@ struct Parser {
 
     NOINLINE const char* skip_ws (const char* in) {
         while (in < end) {
-            if (char_props[*in] & CHAR_IS_WS) {
+            if (char_is_ws(*in)) {
                 in++;
             }
             else if (*in == '-') [[unlikely]] {
@@ -520,7 +479,7 @@ struct Parser {
 
     NOINLINE const char* skip_comma (const char* in) {
         while (in < end) {
-            if (char_props[*in] & CHAR_IS_WS) {
+            if (char_is_ws(*in)) {
                 in++;
             }
             else if (*in == '-') [[unlikely]] {
@@ -535,7 +494,7 @@ struct Parser {
         return in;
         next:
         while (in < end) {
-            if (char_props[*in] & CHAR_IS_WS) {
+            if (char_is_ws(*in)) {
                 in++;
             }
             else if (*in == '-') [[unlikely]] {
@@ -575,16 +534,14 @@ struct Parser {
 
     [[gnu::cold]] NOINLINE
     void check_error_chars (const char* in) {
-        if (*in <= ' ' || *in >= 127) {
+        if (*in < ' ' || *in >= 127) {
             error(in, cat(
                 "Unrecognized byte <", to_hex_digit(u8(*in) >> 4),
                 to_hex_digit(*in & 0xf), '>'
             ));
         }
-        switch (*in) {
-            case ANY_RESERVED_SYMBOL:
-                error(in, cat("Reserved symbol ", *in));
-            default: return;
+        if (char_reserved(*in)) {
+            error(in, cat("Reserved symbol ", *in));
         }
     }
 
