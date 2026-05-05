@@ -86,16 +86,6 @@ inline bool ascii_eqi (Str a, Str b) {
     return true;
 }
 
- // Returns the number of decimal digits in the unsigned number.  Can return 1
- // through 20.  You can also think of this as 1+floor(log10(v)) except it
- // returns 1 for 0 instead of -inf.
-[[gnu::const]]
-u32 count_decimal_digits (u64 v) noexcept;
-
- // Writes out the decimal form of v.  Count must be the number returned by
- // count_decimal_digits(v).  Returns p + count (the end of the written number).
-char* write_decimal_digits (char* p, u32 count, u64 v) noexcept;
-
  // Like std::from_chars but smaller.  Returns {start, 0} if the number
  // overflows or has no digits.  There are no other error conditions.  Does not
  // accept an initial + or -.
@@ -136,6 +126,39 @@ ReadResult<T> read_hex_digits (
         r.p++;
     }
     return r;
+}
+
+ // Returns the number of decimal digits in the unsigned number.  Can return 1
+ // through 20.  You can also think of this as 1+floor(log10(v)) except it
+ // returns 1 for 0 instead of -inf.
+[[gnu::const]]
+u32 count_decimal_digits (u64 v) noexcept;
+
+ // Writes out the decimal form of v.  Count must be the number returned by
+ // count_decimal_digits(v).  Returns p + count (the end of the written number).
+char* write_decimal_digits (char* p, u32 count, u64 v) noexcept;
+
+constexpr
+u32 count_hex_digits (u64 v) {
+    if (v <= 0xf) return 1;
+    return 16 - (std::countl_zero(v) >> 2);
+}
+
+constexpr
+char* write_hex_digits (char* p, u32 count, u64 v) {
+    expect(count >= 1);
+    if (count == 1) {
+        *p++ = (v < 10 ? '0' : 'a' - 10) + v;
+        return p;
+    }
+    char* b = p;
+    char* e = p + count;
+    for (p = e; p > b; p--) {
+        char nyb = v & 0xf;
+        p[-1] = (nyb < 10 ? '0' : 'a' - 10) + nyb;
+        v >>= 4;
+    }
+    return e;
 }
 
 } // namespace uni
