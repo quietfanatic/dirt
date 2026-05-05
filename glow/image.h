@@ -9,11 +9,12 @@ namespace glow {
 using namespace geo;
 
 struct ImageRef {
-     // The width and height in pixels.  Images can't be more than 2 billion x 2
-     // billion pixels.  Sorry about that.
+     // The width and height in pixels.  This is a signed IVec but neither
+     // component can be negative.  Because of this, images cannot be more than
+     // 2 billion x 2 billion pixels.  I hope you'll forgive me.
     IVec size;
-     // Distance between rows in pixels.  If all the pixels are stored
-     // contiguously, this should be equal to size.x
+     // Distance between rows in pixels.  If the row are stored contiguously,
+     // this is equal to size.x.
     i32 stride = 0;
      // Pointer to pixel data, arranged top-down left-to-right.
      //   {0, 0}, {1, 0}, {0, 1}, {1, 1}

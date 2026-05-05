@@ -38,7 +38,10 @@ u8 hash_pixel (u8 r, u8 g, u8 b, u8 a) {
 
  // Returns 0 if successful, + if too much input, - if too little input.
 NOINLINE static
-int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
+int decode_qoi (
+    RGBA8*__restrict out, RGBA8* out_end,
+    const u8*__restrict in, const u8* in_end
+) {
     RGBA8 history [64] = {};
      // We're primarily keeping the pixel coalesced in one register, because the
      // two most common ops (index and run) only care about the coalesced form.
@@ -75,7 +78,7 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
                  // If we have extra room, we can round up the run length to a
                  // multiple of 4 so the compiler can vectorize it without a
                  // bunch of tail-cleanup branches.  It'd be simpler to
-                 // explicitly do 4 at a time, which would skip the rounding up
+                 // explicitly do 4 at a time, which could skip the rounding up
                  // calculation, but then the compiler always makes a worse loop
                  // (it seems to invent an integer loop count variable instead
                  // of comparing pointers like we asked it to).
@@ -111,9 +114,9 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
                 r = in[1];
                 g = in[2];
                 b = in[3];
-                a = ((volatile u8*)in)[4];
+                a = ((volatile u8*)in)[4]; // Don't discard this load
                 if (*in == 0b11111110) a = px.a;
-                in += *in - 0b11111110 + 4;
+                in += *in - 0b11111110 + 4; // Add 4 or 5
                 goto new_pixel;
             }
         }
@@ -141,7 +144,8 @@ int decode_qoi (RGBA8* out, RGBA8* out_end, const u8* in, const u8* in_end) {
         (out++)->repr = px.repr;
         history[hash_pixel(r, g, b, a)].repr = px.repr;
     }
-    return in_end - in;
+     // out and in should be exhausted at the same time.
+    return out < out_end ? 1 : in_end - in;
 }
 
 UniqueImage load_image_from_blob (Slice<u8> blob, Str filename) {
