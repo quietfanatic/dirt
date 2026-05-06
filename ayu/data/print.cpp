@@ -13,19 +13,21 @@ namespace in {
 using O = PrintOptions;
 
 struct Printer {
+     // Put less-frequently-accessed data here.
     char* end;
     PrintOptions opts;
+    u32 indent;
     char* begin;
 
-    Printer (PrintOptions f) : end(null), opts(f), begin(null) { }
+    Printer (PrintOptions f) : end(null), opts(f), indent(0), begin(null) { }
 
     ~Printer () {
         if (begin) SharableBuffer<char>::deallocate(begin);
     }
 
      // We are going with a continual-reallocation strategy.  I tried doing an
-     // estimate-first-and-allocate-once strategy, but once the length
-     // estimation gets complicated enough, it ends up slower than reallocating.
+     // estimate-first-and-allocate-once strategy, but when the length
+     // estimation gets complicated enough, it gets slower than reallocating.
     NOINLINE
     char* extend (char* p, u32 more) {
         char* old_begin = begin;
@@ -53,18 +55,30 @@ struct Printer {
 
     char* pstr (char* p, Str s) {
         p = reserve(p, s.size());
-        std::memcpy(p, s.data(), s.size());
-        return p + s.size();
+        return pstr_reserved(p, s);
+    }
+    static
+    char* pstr_reserved (char* p, Str s) {
+        return s.size() + (char*)std::memcpy(p, s.data(), s.size());
     }
 
-    NOINLINE
-    char* print_null (char* p) {
-        return pstr(p, "null");
+    NOINLINE static
+    char* print_undefined (Printer&, char* p, const Tree&) {
+        return pstr_reserved(p, "!(undefined)");
     }
 
-    NOINLINE
-    char* print_bool (char* p, const Tree& t) {
-        return t.data.as_bool ? pstr(p, "true") : pstr(p, "false");
+    NOINLINE static
+    char* print_null (Printer&, char* p, const Tree&) {
+        return pstr_reserved(p, "null");
+    }
+
+    NOINLINE static
+    char* print_bool (Printer&, char* p, const Tree& t) {
+        bool b = t.data.as_bool;
+        u32 v = *(u32*)(b ? "true" : "fals");
+        std::memcpy(p, &v, 4);
+        p[4] = 'e';
+        return p + 5 - b;
     }
 
     char* print_index (char* p, u32 v) {
@@ -73,9 +87,7 @@ struct Printer {
         return write_decimal_digits(p, count_decimal_digits(v), v);
     }
 
-    NOINLINE
     char* print_small_int (char* p, const Tree& t) {
-        p = reserve(p, 3);
         i64 v = t.data.as_i64;
         expect(v >= 0 && v < 10);
         bool hex = !(opts % O::Json) && t.flags % TreeFlags::PreferHex;
@@ -88,7 +100,6 @@ struct Printer {
 
     NOINLINE
     char* print_i64 (char* p, const Tree& t) {
-        p = reserve(p, 20);
         i64 v = t.data.as_i64;
         expect(v < 0 || v >= 10);
         if (v < 0) {
@@ -100,11 +111,10 @@ struct Printer {
              // std::to_chars is bulky for decimal, but it's better than I can
              // program for hexadecimal.
             *p++ = '0'; *p++ = 'x';
-            auto [ptr, ec] = std::to_chars(
-                p, p+16, u64(v), 16
+            p = write_hex_digits(
+                p, count_hex_digits(v), v
             );
-            expect(ec == std::errc());
-            return ptr;
+            return p;
         }
         else {
             p = write_decimal_digits(
@@ -116,33 +126,21 @@ struct Printer {
 
     NOINLINE
     char* print_double (char* p, const Tree& t) {
-        p = reserve(p, 24);
         double v = t.data.as_double;
-        if (v != v) {
+        if (!std::isfinite(v)) {
             if (opts % O::Json) {
-                return 4+(char*)std::memcpy(p, "null", 4);
+                if (v > 0) return pstr_reserved(p, "1e999");
+                else if (v < 0) return pstr_reserved(p, "-1e999");
+                else return pstr_reserved(p, "null");
             }
             else {
-                return 4+(char*)std::memcpy(p, "+nan", 4);
+                u32 repr = *(u32*)(
+                    v > 0 ? "+inf" : v < 0 ? "-inf" : "+nan"
+                );
+                return 4+(char*)std::memcpy(p, &repr, 4);
             }
         }
-        else if (v == +inf) {
-            if (opts % O::Json) {
-                return 5+(char*)std::memcpy(p, "1e999", 5);
-            }
-            else {
-                return 4+(char*)std::memcpy(p, "+inf", 4);
-            }
-        }
-        else if (v == -inf) {
-            if (opts % O::Json) {
-                return 6+(char*)std::memcpy(p, "-1e999", 6);
-            }
-            else {
-                return 4+(char*)std::memcpy(p, "-inf", 4);
-            }
-        }
-        else if (v == 0) {
+        if (v == 0) {
             if (1.0/v == -inf) {
                 *p++ = '-';
             }
@@ -167,6 +165,15 @@ struct Printer {
         );
         expect(ec == std::errc());
         return ptr;
+    }
+
+    NOINLINE static
+    char* print_number (Printer& self, char* p, const Tree& t) {
+        if (t.floaty) return self.print_double(p, t);
+        else if (t.data.as_i64 >= 0 && t.data.as_i64 < 10) {
+            return self.print_small_int(p, t);
+        }
+        else return self.print_i64(p, t);
     }
 
     NOINLINE
@@ -251,7 +258,14 @@ struct Printer {
         return p;
     }
 
-    char* print_string (char* p, Str s, const Tree* t) {
+    NOINLINE static
+    char* print_string (Printer& self, char* p, const Tree& t) {
+        expect(t.form == Form::String);
+        auto s = Str(t);
+        return self.print_string_s(p, s, &t);
+    }
+
+    char* print_string_s (char* p, Str s, const Tree* t) {
         if (opts % O::Json) {
             return print_quoted_contracted(p, s);
         }
@@ -303,105 +317,114 @@ struct Printer {
         }
     }
 
-    char* print_newline (char* p, u32 ind) {
-        p = reserve(p, 1 + ind * 4);
+    char* print_newline (char* p) {
+        p = reserve(p, 1 + indent * 4);
         *p++ = '\n';
-        for (; ind; ind--) p = 4+(char*)std::memcpy(p, "    ", 4);
+        for (u32 ind = indent; ind; ind--) {
+            p = pstr_reserved(p, "    ");
+        }
         return p;
     }
 
-    NOINLINE
-    char* print_array (char* p, const Tree& t, u32 ind) {
+    NOINLINE static
+    char* print_array (Printer& self, char* p, const Tree& t) {
         expect(t.form == Form::Array);
         auto a = Slice<Tree>(t);
         if (a.empty()) {
-            return pstr(p, "[]");
+            return pstr_reserved(p, "[]");
         }
 
          // Print "small" arrays compactly.
-        bool expand = !(opts % O::Pretty) ? false
+        bool expand = !(self.opts % O::Pretty) ? false
                     : t.flags % TreeFlags::PreferExpanded ? true
                     : t.flags % TreeFlags::PreferCompact ? false
                     : a.size() > 8;
 
         bool show_indices = expand
                          && a.size() > 2
-                         && !(opts % O::Json);
-        p = pchar(p, '[');
+                         && !(self.opts % O::Json);
+        *p++ = '[';
         if (expand) {
+            self.indent += 1;
             for (auto& elem : a) {
-                if (opts % O::Json && &elem != &a.front()) {
-                    p = pchar(p, ',');
+                if (self.opts % O::Json && &elem != &a.front()) {
+                    p = self.pchar(p, ',');
                 }
-                p = print_newline(p, ind + 1);
-                p = print_tree(p, elem, ind + 1);
+                p = self.print_newline(p);
+                p = self.print_tree(p, elem);
                 if (show_indices) {
-                    p = print_index(p, &elem - &a.front());
+                    p = self.print_index(p, &elem - &a.front());
                 }
             }
-            p = print_newline(p, ind);
+            self.indent -= 1;
+            p = self.print_newline(p);
         }
         else {
             for (auto& elem : a) {
+                p = self.reserve(p, 25);
                 if (&elem != &a.front()) {
-                    p = pchar(p, opts % O::Json ? ',' : ' ');
+                    *p++ = self.opts % O::Json ? ',' : ' ';
                 }
-                p = print_tree(p, elem, ind);
+                p = self.print_tree_reserved(p, elem);
             }
         }
-        return pchar(p, ']');
+        return self.pchar(p, ']');
     }
 
-    NOINLINE
-    char* print_object (char* p, const Tree& t, u32 ind) {
+    NOINLINE static
+    char* print_object (Printer& self, char* p, const Tree& t) {
         expect(t.form == Form::Object);
         auto o = Slice<TreePair>(t);
         if (o.empty()) {
-            return pstr(p, "{}");
+            return pstr_reserved(p, "{}");
         }
 
          // If both prefer_expanded and prefer_compact are set, I think the one
          // who set prefer_expanded is more likely to have a good reason.
-        bool expand = !(opts % O::Pretty) ? false
+        bool expand = !(self.opts % O::Pretty) ? false
                     : t.flags % TreeFlags::PreferExpanded ? true
                     : t.flags % TreeFlags::PreferCompact ? false
                     : o.size() > 1;
 
-        p = pchar(p, '{');
+        *p++ = '{';
         if (expand) {
+            self.indent += 1;
             for (auto& attr : o) {
-                if (opts % O::Json && &attr != &o.front()) {
-                    p = pchar(p, ',');
+                if (self.opts % O::Json && &attr != &o.front()) {
+                    p = self.pchar(p, ',');
                 }
-                p = print_newline(p, ind + 1);
-                p = print_string(p, attr.first, null);
-                p = pstr(p, ": ");
-                p = print_tree(p, attr.second, ind + 1);
+                p = self.print_newline(p);
+                p = self.print_string_s(p, attr.first, null);
+                p = self.reserve(p, 26);
+                *p++ = ':'; *p++ = ' ';
+                p = self.print_tree_reserved(p, attr.second);
             }
-            p = print_newline(p, ind);
+            self.indent -= 1;
+            p = self.print_newline(p);
         }
         else {
             for (auto& attr : o) {
                 if (&attr != &o.front()) {
-                    p = pchar(p, opts % O::Json ? ',' : ' ');
+                    p = self.pchar(p, self.opts % O::Json ? ',' : ' ');
                 }
-                p = print_string(p, attr.first, null);
-                p = pchar(p, ':');
-                p = print_tree(p, attr.second, ind);
+                p = self.print_string_s(p, attr.first, null);
+                p = self.reserve(p, 25);
+                *p++ = ':';
+                p = self.print_tree_reserved(p, attr.second);
             }
         }
-        return pchar(p, '}');
+        return self.pchar(p, '}');
     }
 
-    NOINLINE
-    char* print_error (char* p, const Tree& t) {
+    NOINLINE static
+    char* print_error (Printer& self, char* p, const Tree& t) {
         try {
             std::rethrow_exception(std::exception_ptr(t));
         }
         catch (const std::exception& e) {
             const char* what = e.what();
             usize len = std::strlen(what);
-            p = reserve(p, 3 + len);
+            p = self.reserve(p, 3 + len);
             *p++ = '!'; *p++ = '(';
             p = len+(char*)std::memcpy(p, what, len);
             *p++ = ')';
@@ -413,31 +436,33 @@ struct Printer {
      // a string requires a possible non-tail-call to extend(), which requires
      // saving things on the stack.  If everything is NOINLINE, this function
      // will require no prologue or epilogue.
-    NOINLINE
-    char* print_tree (char* p, const Tree& t, u32 ind) {
-        switch (t.form) {
-            case Form::Null: return print_null(p);
-            case Form::Bool: return print_bool(p, t);
-            case Form::Number: {
-                if (t.floaty) return print_double(p, t);
-                else if (t.data.as_i64 >= 0 && t.data.as_i64 < 10) {
-                    return print_small_int(p, t);
-                }
-                else return print_i64(p, t);
-            }
-            case Form::String: return print_string(p, Str(t), &t);
-            case Form::Array: return print_array(p, t, ind);
-            case Form::Object: return print_object(p, t, ind);
-            case Form::Error: return print_error(p, t);
-            default: never();
-        }
+    char* print_tree (char* p, const Tree& t) {
+         // The caller is guaranteed to have a stack frame, but some of the
+         // functions we could call wouldn't need one if they didn't have to
+         // call reserve, so reserve the maximum needed for an atomic item.
+        p = reserve(p, 24);
+        return print_tree_reserved(p, t);
+    }
+    char* print_tree_reserved (char* p, const Tree& t) {
+        static constexpr decltype(&print_null) printers [8] = {
+            &print_undefined,
+            &print_null,
+            &print_bool,
+            &print_number,
+            &print_string,
+            &print_array,
+            &print_object,
+            &print_error
+        };
+        expect(u8(t.form) < 8);
+        return printers[u8(t.form)](*this, p, t);
     }
 
     UniqueString print (const Tree& t, u32 cap) {
         begin = SharableBuffer<char>::allocate_plenty(cap);
         end = begin + SharableBuffer<char>::header(begin)->capacity;
          // Do it
-        char* p = print_tree(begin, t, 0);
+        char* p = print_tree_reserved(begin, t);
         if (opts % O::Pretty) p = pchar(p, '\n');
          // Make return
         UniqueString r;
@@ -471,7 +496,6 @@ UniqueString tree_to_string_for_file (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts % O::Compact)) opts |= O::Pretty;
     Printer printer (opts);
-     // Lilac can't quite fast-allocate a whole 4k page
     return printer.print(t, 4064);
 }
 
