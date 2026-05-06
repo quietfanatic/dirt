@@ -241,72 +241,69 @@ struct Parser {
         in++;  // for the "
          // Find the end of the string and determine upper bound of required
          // capacity.
-        u32 n_escapes = 0;
-        const char* p = in;
-        while (p < self.end) {
-            switch (*p) {
-                case '"': goto start;
-                case '\\':
-                    n_escapes++;
-                     // No buffer overrun, goes directly to p < end check.
-                    p += 2;
-                    break;
-                default: p++; break;
+        u32 extra_input = 0;
+        const char* p;
+        for (p = in; p < self.end; p++) {
+            if (*p == '"') goto start;
+            else if (*p == '\\') {
+                if (p >= self.end) goto unterminated;
+                 // We could get away with always adding 1, but then a
+                 // string composed entirely of \x would be overallocated by
+                 // a factor of 3.  A UTF-16 \u can emit at most 3 UTF-8
+                 // bytes, so this is the right amount for it as well.
+                extra_input += (*p >= 'u' && *p <= 'x') ? 3 : 1;
+                p++;
             }
         }
+        unterminated:
         self.error(in, "Missing \" before end of input");
         start:
          // If there aren't any escapes we can just memcpy the whole string
-        if (!n_escapes) {
+        if (!extra_input) {
             new (&r) Tree(UniqueString(in, p));
             return p+1; // For the "
         }
          // Otherwise preallocate
-        auto out = UniqueString(Capacity(p - in - n_escapes));
+        auto out = UniqueString(Capacity(p - in - extra_input));
          // Now read the string
-        while (in < self.end) {
+        while (in < p) {
             char c = *in++;
-            switch (c) {
-                case '"':
-                    new (&r) Tree(move(out));
-                    return in;
-                case '\\': {
-                    expect(in < self.end);
-                    switch (*in++) {
-                        case '"': c = '"'; break;
-                        case '\\': c = '\\'; break;
-                         // Dunno why this is in json
-                        case '/': c = '/'; break;
-                        case 'b': c = '\b'; break;
-                        case 'f': c = '\f'; break;
-                        case 'n': c = '\n'; break;
-                        case 'r': c = '\r'; break;
-                        case 't': c = '\t'; break;
-                        case 'x': in = self.got_x_escape(in, c); break;
-                        case 'u':
-                            in = self.got_u_escape(in, out);
-                            continue; // Skip the push_back
-                        default: in--; self.error(in, "Unknown escape sequence");
-                    }
-                    break;
+            if (c == '\\') [[unlikely]] {
+                expect(in < p);
+                c = *in++;
+                if (u8(c) <= ' ' || u8(c) >= char_escape_table.size()) {
+                    goto invalid_escape;
                 }
-                default: [[likely]] break;
+                else if (char repl = char_escape_table[u8(c)]) {
+                    c = repl;
+                    goto push;
+                }
+                else if (c == 'x') {
+                    c = self.got_x_escape(in);
+                    in += 2;
+                    goto push;
+                }
+                else if (c == 'u') {
+                    in = self.got_u_escape(in, out);
+                    continue;
+                }
+                invalid_escape: self.error(in-1, "Unknown escape sequence");
             }
-            out.push_back_expect_capacity(c);
+            push: out.push_back_expect_capacity(c);
         }
-        never();
+        expect(*in++ == '"');
+        new (&r) Tree(move(out));
+        return in;
     }
 
-    const char* got_x_escape (const char* in, char& r) {
+    char got_x_escape (const char* in) {
         {
-            if (in + 2 >= end) goto invalid_x;
+            if (in + 2 > end) goto invalid_x;
             int n0 = from_hex_digit(in[0]);
             if (n0 < 0) goto invalid_x;
             int n1 = from_hex_digit(in[1]);
             if (n1 < 0) goto invalid_x;
-            in += 2;
-            r = n0 << 4 | n1;
-            return in;
+            return n0 << 4 | n1;
         }
         invalid_x: error(in, "Invalid \\x escape sequence");
     }
@@ -318,8 +315,8 @@ struct Parser {
         UniqueString16 units (Capacity(1));
          // Process multiple \uXXXX sequences at once so
          // that we can fuse UTF-16 surrogates.
-        for (;;) {
-            if (in + 4 >= end) goto invalid_u;
+        loop: {
+            if (in + 4 > end) goto invalid_u;
             int n0 = from_hex_digit(in[0]);
             if (n0 < 0) goto invalid_u;
             int n1 = from_hex_digit(in[1]);
@@ -330,10 +327,10 @@ struct Parser {
             if (n1 < 0) goto invalid_u;
             units.push_back(n0 << 12 | n1 << 8 | n2 << 4 | n3);
             in += 4;
-            if (in + 2 < end && in[0] == '\\' && in[1] == 'u') {
+            if (in + 2 <= end && in[0] == '\\' && in[1] == 'u') {
                 in += 2;
+                goto loop;
             }
-            else break;
         }
         out.append_expect_capacity(from_utf16(units));
         return in;

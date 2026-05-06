@@ -176,88 +176,6 @@ struct Printer {
         else return self.print_i64(p, t);
     }
 
-    NOINLINE
-    char* print_quoted_expanded (char* p, Str s) {
-        p = reserve(p, 2 + s.size());
-        *p++ = '"';
-        for (u32 i = 0; i < s.size(); i++) {
-            char esc;
-            switch (s[i]) {
-                case '"': esc = '"'; goto escape;
-                case '\\': esc = '\\'; goto escape;
-                case '\b': esc = 'b'; goto escape;
-                case '\f': esc = 'f'; goto escape;
-                case '\r': esc = 'r'; goto escape;
-                default: {
-                    if (u8(s[i]) < u8(' ')) [[unlikely]] {
-                        if (opts % O::Json) {
-                            p = reserve(p, 6 + s.size() - i);
-                            *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
-                            *p++ = to_hex_digit(s[i] >> 4);
-                            *p++ = to_hex_digit(s[i] & 0xf);
-                        }
-                        else {
-                            p = reserve(p, 4 + s.size() - i);
-                            *p++ = '\\'; *p++ = 'x';
-                            *p++ = to_hex_digit(s[i] >> 4);
-                            *p++ = to_hex_digit(s[i] & 0xf);
-                        }
-                    }
-                    else *p++ = s[i];
-                    continue;
-                }
-            }
-            escape:
-             // +1 for \, +1 for final "
-            p = reserve(p, 2 + s.size() - i);
-            *p++ = '\\'; *p++ = esc;
-        }
-        *p++ = '"';
-        return p;
-    }
-
-    NOINLINE
-    char* print_quoted_contracted (char* p, Str s) {
-        p = reserve(p, 2 + s.size());
-        *p++ = '"';
-        for (u32 i = 0; i < s.size(); i++) {
-            char esc;
-            switch (s[i]) {
-                case '"': esc = '"'; goto escape;
-                case '\\': esc = '\\'; goto escape;
-                case '\b': esc = 'b'; goto escape;
-                case '\f': esc = 'f'; goto escape;
-                case '\n': esc = 'n'; goto escape;
-                case '\r': esc = 'r'; goto escape;
-                case '\t': esc = 't'; goto escape;
-                default: {
-                    if (u8(s[i]) < u8(' ')) [[unlikely]] {
-                        if (opts % O::Json) {
-                            p = reserve(p, 6 + s.size() - i);
-                            *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
-                            *p++ = to_hex_digit(s[i] >> 4);
-                            *p++ = to_hex_digit(s[i] & 0xf);
-                        }
-                        else {
-                            p = reserve(p, 4 + s.size() - i);
-                            *p++ = '\\'; *p++ = 'x';
-                            *p++ = to_hex_digit(s[i] >> 4);
-                            *p++ = to_hex_digit(s[i] & 0xf);
-                        }
-                    }
-                    else *p++ = s[i];
-                    continue;
-                }
-            }
-            escape:
-             // +1 for \, +1 for final "
-            p = reserve(p, 2 + s.size() - i);
-            *p++ = '\\'; *p++ = esc;
-        }
-        *p++ = '"';
-        return p;
-    }
-
     NOINLINE static
     char* print_string (Printer& self, char* p, const Tree& t) {
         expect(t.form == Form::String);
@@ -266,19 +184,9 @@ struct Printer {
     }
 
     char* print_string_s (char* p, Str s, const Tree* t) {
-        if (opts % O::Json) {
-            return print_quoted_contracted(p, s);
-        }
-        else return print_string_nojson(p, s, t);
-    }
-
-    NOINLINE
-    char* print_string_nojson (char* p, Str s, const Tree* t) {
-        if (s == "") return pstr(p, "\"\"");
-        if (s == "null") return pstr(p, "\"null\"");
-        if (s == "true") return pstr(p, "\"true\"");
-        if (s == "false") return pstr(p, "\"false\"");
-
+        p = reserve(p, 2 + s.size());
+        if (opts % O::Json) goto quoted;
+        if (s == "" || s == "null" || s == "true" || s == "false") goto quoted;
         if (s[0] == '.') {
             if (s.size() > 1 && char_illegal_after_dot(s[1])) {
                 goto quoted;
@@ -299,22 +207,50 @@ struct Printer {
             else if (!char_continues_word(sp[0])) goto quoted;
         }
          // No need to quote
-        return pstr(p, s);
+        return pstr_reserved(p, s);
          // Yes need to quote
         quoted:
          // The expanded form of a string uses raw newlines and tabs instead of
          // escaping them.  Ironically, this takes fewer characters than the
          // compact form, so expand it when not pretty-printing.
-        bool expand = !(opts % O::Pretty) ? true
+        bool expand = opts % O::Json ? false
+                    : !(opts % O::Pretty) ? true
                     : !t ? false
                     : t->flags % TreeFlags::PreferExpanded ? true
                     : t->flags % TreeFlags::PreferCompact ? false
                     : t->size > 50;
-        if (expand) {
-            return print_quoted_expanded(p, s);
-        } else {
-            return print_quoted_contracted(p, s);
+        *p++ = '"';
+        for (u32 i = 0; i < s.size(); i++) {
+            if (!char_needs_escape(s[i])) [[likely]] {
+                *p++ = s[i];
+            }
+             // Don't quite have enough bits in the char prop table to
+             // differentiate these.  Fortunately \n and \t are one apart so
+             // they can be checked with one comparison.
+            else if ((s[i] == '\n' || s[i] == '\t') && expand) {
+                *p++ = s[i];
+            }
+            else {
+                 // +6 for \u00xx, +1 for ", -1 for original char
+                p = reserve(p, 6 + s.size() - i);
+                char repl = char_escape_table[u8(s[i])];
+                if (repl) {
+                    *p++ = '\\'; *p++ = repl;
+                }
+                else {
+                    if (opts % O::Json) {
+                        *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
+                    }
+                    else {
+                        *p++ = '\\'; *p++ = 'x';
+                    }
+                    *p++ = to_hex_digit(s[i] >> 4);
+                    *p++ = to_hex_digit(s[i] & 0xf);
+                }
+            }
         }
+        *p++ = '"';
+        return p;
     }
 
     char* print_newline (char* p) {
