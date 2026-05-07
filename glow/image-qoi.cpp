@@ -1,34 +1,21 @@
-#include "load-image.h"
+#include "image.h"
 
 #include "../uni/endian.h"
 #include "../uni/io.h"
-#include "gl.h"
 
 namespace glow {
 
 namespace in {
 
 [[noreturn, gnu::cold]] static
-void raise_LoadImageFailed (Str filename, Str mess) {
+void raise_LoadImageFailed (Str filepath, Str mess) {
      // TODO: tag
     raise(e_LoadImageFailed, cat(
-        "Failed to load image from ", filename, ": ", mess
+        "Failed to load image from ", filepath, ": ", mess
     ));
 }
 
 } using namespace in;
-
-void load_texture_from_file (u32 target, SharedString filename) {
-     // TODO: detect 3-channel file and use GL_RGB8
-    UniqueImage image = load_image_from_file(move(filename));
-     // Now upload texture
-    require(image.size.x * image.size.y > 0);
-    glTexImage2D(
-        target, 0, GL_RGBA8,
-        image.size.x, image.size.y, 0,
-        GL_RGBA, GL_UNSIGNED_BYTE, image.pixels
-    );
-}
 
 static constexpr
 u8 hash_pixel (u8 r, u8 g, u8 b, u8 a) {
@@ -148,18 +135,18 @@ int decode_qoi (
     return out < out_end ? 1 : in_end - in;
 }
 
-UniqueImage load_image_from_blob (Slice<u8> blob, Str filename) {
-    if (blob.size() < 14 + 8) raise_LoadImageFailed(filename, "File is too short");
-    if (Str(blob.slice(0, 4)) != "qoif") raise_LoadImageFailed(filename, "File is not QOI format");
+UniqueImage image_from_blob_qoi (Slice<u8> blob, Str filepath) {
+    if (blob.size() < 14 + 8) raise_LoadImageFailed(filepath, "File is too short");
+    if (Str(blob.slice(0, 4)) != "qoif") raise_LoadImageFailed(filepath, "File is not QOI format");
     if (Str(blob.slice(blob.size()-8)) != "\x00\x00\x00\x00\x00\x00\x00\x01") {
-        raise_LoadImageFailed(filename, "QOI file doesn't end properly");
+        raise_LoadImageFailed(filepath, "QOI file doesn't end properly");
     }
     const u8* in = blob.begin();
     const u8* in_end = blob.end();
     u32 width = read_u32be(in + 4);
     u32 height = read_u32be(in + 8);
     u64 len = width * height;
-    if (len > 400000000) raise_LoadImageFailed(filename, "Image is too large");
+    if (len > 400000000) raise_LoadImageFailed(filepath, "Image is too large");
      // Ignore channels and colorspace for now.
 
     UniqueImage r (IVec(width, height));
@@ -170,7 +157,7 @@ UniqueImage load_image_from_blob (Slice<u8> blob, Str filename) {
 
     int res = decode_qoi(out, out_end, in, in_end);
     if (res) {
-        raise_LoadImageFailed(filename,
+        raise_LoadImageFailed(filepath,
             res > 0 ? Str("Too much data") : Str("Not enough data")
         );
     }
@@ -178,9 +165,9 @@ UniqueImage load_image_from_blob (Slice<u8> blob, Str filename) {
     return r;
 }
 
-UniqueImage load_image_from_file (SharedString filename) {
-    auto blob = blob_from_file(filename);
-    return load_image_from_blob(blob, filename);
+UniqueImage image_from_file_qoi (SharedString filepath) {
+    auto blob = blob_from_file(filepath);
+    return image_from_blob_qoi(blob, filepath);
 }
 
 } using namespace glow;
@@ -220,24 +207,25 @@ UniqueImage load_image_from_file (SharedString filename) {
 
 ///// TESTS
 
+ // TODO: move this test somewhere else
 #ifndef TAP_DISABLE_TESTS
 #include "../ayu/resources/resource.h"
+#include "../glow/gl.h"
 #include "../tap/tap.h"
 #include "colors.h"
 #include "test-environment.h"
+#include "texture.h"
 
-static tap::TestSet tests ("dirt/glow/load-image", []{
+static tap::TestSet tests ("dirt/glow/image-qoi", []{
     using namespace tap;
     using namespace geo;
 
     TestEnvironment env;
 
-    u32 tex;
-    glGenTextures(1, &tex);
-    glBindTexture(GL_TEXTURE_2D, tex);
+    Texture tex (GL_TEXTURE_2D);
 
     auto path = ayu::resource_filepath(iri::IRI("test:/image.qoi"));
-    load_texture_from_file(GL_TEXTURE_2D, path);
+    texture_from_file_qoi(GL_TEXTURE_2D, path);
 
     auto size = tex.size();
     is(size, IVec{7, 5}, "Created texture has correct size");

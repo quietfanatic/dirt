@@ -12,6 +12,10 @@ namespace glow {
 using namespace uni;
 using iri::IRI;
 
+struct Image;
+struct ImageRef;
+struct UniqueImage;
+
 void init () noexcept;
 
 [[noreturn]]

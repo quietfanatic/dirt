@@ -39,4 +39,15 @@ struct Texture {
     i32 bpp (i32 level = 0);
 };
 
+void texture_from_image (u32 target, const ImageRef& img) noexcept;
+
+ // Load straight from a file to an OpenGL texture.  Supports a few more
+ // efficient internal formats, but only up to 8bit color.  Call glBindTexture
+ // first.
+void texture_from_file (u32 target, SharedString filepath);
+void texture_from_file_qoi (u32 target, SharedString filepath);
+#ifdef GLOW_USE_SAIL
+void texture_from_file_sail (u32 target, SharedString filepath);
+#endif
+
 } // namespace glow

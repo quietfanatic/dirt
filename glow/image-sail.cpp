@@ -1,4 +1,4 @@
-#include "load-image.h"
+#include "image.h"
 
 #include <sail/sail_junior.h>
 #include <sail-common/common.h>
@@ -24,16 +24,16 @@ constexpr u16 CONVERT_RGBA = 2;
 constexpr u16 CONVERT_INDEXED = 3;
 constexpr u16 NEED_CONVERT_BOUNARY = 3;
 
-enum class FormatType : u16 {
+enum class FormatTreatment : u16 {
     Unsupported,
-    Normal,
+    Usable,
     Convert,
     Indexed
 };
-using FT = FormatType;
+using FT = FormatTreatment;
 
 struct FormatInfo {
-    FormatType type;
+    FormatTreatment treatment;
     u16 gl_internal_format;
     u16 gl_format;
     u16 gl_type;
@@ -61,42 +61,42 @@ constexpr FormatInfo formats [n_formats] = {
     {FT::Convert,GL_R8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP1_GRAYSCALE
     {FT::Convert,GL_R8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP2_GRAYSCALE
     {FT::Convert,GL_R8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP4_GRAYSCALE
-    {FT::Normal,GL_R8,GL_RED,GL_UNSIGNED_BYTE}, // SPF_BPP8_GRAYSCALE
-    {FT::Normal,GL_R8,GL_RED,GL_UNSIGNED_SHORT}, // SPF_BPP16_GRAYSCALE
+    {FT::Usable,GL_R8,GL_RED,GL_UNSIGNED_BYTE}, // SPF_BPP8_GRAYSCALE
+    {FT::Usable,GL_R8,GL_RED,GL_UNSIGNED_SHORT}, // SPF_BPP16_GRAYSCALE
     {FT::Convert,GL_RG8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP4_GRAYSCALE_ALPHA
     {FT::Convert,GL_RG8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP8_GRAYSCALE_ALPHA
-    {FT::Normal,GL_RG8,GL_RG,GL_UNSIGNED_BYTE}, // SPF_BPP16_GRAYSCALE_ALPHA
-    {FT::Normal,GL_RG8,GL_RG,GL_UNSIGNED_INT}, // SPF_BPP32_GRAYSCALE_ALPHA
-    {FT::Normal,GL_RGB5,GL_RGB,GL_UNSIGNED_SHORT_5_5_5_1}, // SPF_BPP16_RGB555
-    {FT::Normal,GL_RGB5,GL_BGR,GL_UNSIGNED_SHORT_5_5_5_1}, // SPF_BPP16_BGR555
-    {FT::Normal,GL_RGB8,GL_RGB,GL_UNSIGNED_SHORT_5_6_5}, // SPF_BPP16_RGB565
-    {FT::Normal,GL_RGB8,GL_BGR,GL_UNSIGNED_SHORT_5_6_5}, // SPF_BPP16_BGR565
-    {FT::Normal,GL_RGB8,GL_RGB,GL_UNSIGNED_BYTE}, // SPF_BPP24_RGB
-    {FT::Normal,GL_RGB8,GL_BGR,GL_UNSIGNED_BYTE}, // SPF_BPP24_BGR
-    {FT::Normal,GL_RGB8,GL_RGB,GL_UNSIGNED_SHORT}, // SPF_BPP48_RGB
-    {FT::Normal,GL_RGB8,GL_BGR,GL_UNSIGNED_SHORT}, // SPF_BPP48_BGR
-    {FT::Normal,GL_RGB4,GL_RGBA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_RGBX
-    {FT::Normal,GL_RGB4,GL_BGRA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_BGRX
+    {FT::Usable,GL_RG8,GL_RG,GL_UNSIGNED_BYTE}, // SPF_BPP16_GRAYSCALE_ALPHA
+    {FT::Usable,GL_RG8,GL_RG,GL_UNSIGNED_INT}, // SPF_BPP32_GRAYSCALE_ALPHA
+    {FT::Usable,GL_RGB5,GL_RGB,GL_UNSIGNED_SHORT_5_5_5_1}, // SPF_BPP16_RGB555
+    {FT::Usable,GL_RGB5,GL_BGR,GL_UNSIGNED_SHORT_5_5_5_1}, // SPF_BPP16_BGR555
+    {FT::Usable,GL_RGB8,GL_RGB,GL_UNSIGNED_SHORT_5_6_5}, // SPF_BPP16_RGB565
+    {FT::Usable,GL_RGB8,GL_BGR,GL_UNSIGNED_SHORT_5_6_5}, // SPF_BPP16_BGR565
+    {FT::Usable,GL_RGB8,GL_RGB,GL_UNSIGNED_BYTE}, // SPF_BPP24_RGB
+    {FT::Usable,GL_RGB8,GL_BGR,GL_UNSIGNED_BYTE}, // SPF_BPP24_BGR
+    {FT::Usable,GL_RGB8,GL_RGB,GL_UNSIGNED_SHORT}, // SPF_BPP48_RGB
+    {FT::Usable,GL_RGB8,GL_BGR,GL_UNSIGNED_SHORT}, // SPF_BPP48_BGR
+    {FT::Usable,GL_RGB4,GL_RGBA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_RGBX
+    {FT::Usable,GL_RGB4,GL_BGRA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_BGRX
     {FT::Convert,GL_RGB4,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP16_XRGB
     {FT::Convert,GL_RGB4,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP16_XBGR
-    {FT::Normal,GL_RGBA4,GL_RGBA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_RGBA
-    {FT::Normal,GL_RGBA4,GL_BGRA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_BGRA
+    {FT::Usable,GL_RGBA4,GL_RGBA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_RGBA
+    {FT::Usable,GL_RGBA4,GL_BGRA,GL_UNSIGNED_SHORT_4_4_4_4}, // SPF_BPP16_BGRA
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP16_ARGB
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP16_ABGR
-    {FT::Normal,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_RGBX
-    {FT::Normal,GL_RGB8,GL_BGRA,GL_UNSIGNED_BYTE}, // SPF_BPP32_BGRX
+    {FT::Usable,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_RGBX
+    {FT::Usable,GL_RGB8,GL_BGRA,GL_UNSIGNED_BYTE}, // SPF_BPP32_BGRX
     {FT::Convert,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_XRGB
     {FT::Convert,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_XBGR
-    {FT::Normal,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_RGBA
-    {FT::Normal,GL_RGBA8,GL_BGRA,GL_UNSIGNED_BYTE}, // SPF_BPP32_BGRA
+    {FT::Usable,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_RGBA
+    {FT::Usable,GL_RGBA8,GL_BGRA,GL_UNSIGNED_BYTE}, // SPF_BPP32_BGRA
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_ARGB
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_ABGR
-    {FT::Normal,GL_RGB8,GL_RGBA,GL_UNSIGNED_SHORT}, // SPF_BPP64_RGBX
-    {FT::Normal,GL_RGB8,GL_BGRA,GL_UNSIGNED_SHORT}, // SPF_BPP64_BGRX
+    {FT::Usable,GL_RGB8,GL_RGBA,GL_UNSIGNED_SHORT}, // SPF_BPP64_RGBX
+    {FT::Usable,GL_RGB8,GL_BGRA,GL_UNSIGNED_SHORT}, // SPF_BPP64_BGRX
     {FT::Convert,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_XRGB
     {FT::Convert,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_XBGR
-    {FT::Normal,GL_RGBA8,GL_RGBA,GL_UNSIGNED_SHORT}, // SPF_BPP64_RGBA
-    {FT::Normal,GL_RGBA8,GL_BGRA,GL_UNSIGNED_SHORT}, // SPF_BPP64_BGRA
+    {FT::Usable,GL_RGBA8,GL_RGBA,GL_UNSIGNED_SHORT}, // SPF_BPP64_RGBA
+    {FT::Usable,GL_RGBA8,GL_BGRA,GL_UNSIGNED_SHORT}, // SPF_BPP64_BGRA
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_ARGB
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_ABGR
     {FT::Convert,GL_RGB8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP32_CMYK
@@ -119,20 +119,20 @@ constexpr FormatInfo formats [n_formats] = {
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_YUVA
 };
 
-void load_texture_from_file (u32 target, SharedString filename) {
+void texture_from_file_sail (u32 target, SharedString filepath) {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
-    auto res = sail_load_from_file(filename.c_str(), &image);
-    if (res != SAIL_OK) raise_LoadImageFailed(filename, res);
+    auto res = sail_load_from_file(filepath.c_str(), &image);
+    if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
      // Translate SAIL formats into OpenGL formats
     require(u32(image->pixel_format) <= n_formats);
     auto format = formats[u32(image->pixel_format)];
-    if (format.type != FT::Normal) {
+    if (format.treatment != FT::Usable) {
          // Nontrivial format, so ask SAIL to convert
         warn_utf8(cat(
-            "Converting ", filename, " from SAIL_PIXEL_FORMAT_", ayu::show(&image->pixel_format), '\n'
+            "Converting ", filepath, " from SAIL_PIXEL_FORMAT_", ayu::show(&image->pixel_format), '\n'
         ));
-        if (format.type == FT::Indexed) {
+        if (format.treatment == FT::Indexed) {
             format.gl_internal_format =
                 formats[u32(image->palette->pixel_format)].gl_internal_format;
         }
@@ -141,7 +141,7 @@ void load_texture_from_file (u32 target, SharedString filename) {
             old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image
         );
         sail_destroy_image(old_image);
-        if (res != SAIL_OK) raise_LoadImageFailed(filename, res);
+        if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
     }
      // Detect greyscale images and unused alpha channels.  Only bothering to do
      // it for the most common formats.
@@ -163,7 +163,7 @@ void load_texture_from_file (u32 target, SharedString filename) {
         done_24:;
         if (greyscale) {
             warn_utf8(cat(
-                "Reducing ", filename, " from 3 channels to 1", '\n'
+                "Reducing ", filepath, " from 3 channels to 1", '\n'
             ));
             format.gl_internal_format = GL_R8;
         }
@@ -191,19 +191,19 @@ void load_texture_from_file (u32 target, SharedString filename) {
         done_32:;
         if (greyscale && unused_alpha) {
             warn_utf8(cat(
-                "Reducing ", filename, " from 4 channels to 1\n"
+                "Reducing ", filepath, " from 4 channels to 1\n"
             ));
             format.gl_internal_format = GL_R8;
         }
         else if (greyscale) {
             warn_utf8(cat(
-                "Reducing ", filename, " from 4 channels to 2\n"
+                "Reducing ", filepath, " from 4 channels to 2\n"
             ));
             format.gl_internal_format = GL_RG8; // G -> A
         }
         else if (unused_alpha) {
             warn_utf8(cat(
-                "Reducing ", filename, " from 4 channels to 3\n"
+                "Reducing ", filepath, " from 4 channels to 3\n"
             ));
             format.gl_internal_format = GL_RGB8;
         }
@@ -235,16 +235,16 @@ void load_texture_from_file (u32 target, SharedString filename) {
     }
 }
 
-UniqueImage load_image_from_file (SharedString filename) {
+UniqueImage image_from_file_sail (SharedString filepath) {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
-    auto res = sail_load_from_file(filename.c_str(), &image);
-    if (res != SAIL_OK) raise_LoadImageFailed(filename, res);
+    auto res = sail_load_from_file(filepath.c_str(), &image);
+    if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
     if (image->pixel_format != SAIL_PIXEL_FORMAT_BPP32_RGBA) {
         sail_image* old_image = image;
         res = sail_convert_image(old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image);
         sail_destroy_image(old_image);
-        if (res != SAIL_OK) raise_LoadImageFailed(filename, res);
+        if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
     }
     UniqueImage r (IVec(image->width, image->height), (RGBA8*)image->pixels);
     image->pixels = null;
@@ -252,11 +252,11 @@ UniqueImage load_image_from_file (SharedString filename) {
     return r;
 }
 
-void in::raise_LoadImageFailed (Str filename, sail_status_t res) {
+void in::raise_LoadImageFailed (Str filepath, sail_status_t res) {
      // TODO: tag
     expect(res != SAIL_OK);
     raise(e_LoadImageFailed, cat(
-        "Failed to load image from file (SAIL_ERROR_", ayu::show(&res), "): ", filename
+        "Failed to load image from file (SAIL_ERROR_", ayu::show(&res), "): ", filepath
     ));
 }
 
@@ -422,7 +422,7 @@ AYU_DESCRIBE(SailPixelFormat,
 #include "test-environment.h"
 #include "texture.h"
 
-static tap::TestSet tests ("dirt/glow/load-image", []{
+static tap::TestSet tests ("dirt/glow/image-sail", []{
     using namespace tap;
     using namespace geo;
 
@@ -431,7 +431,7 @@ static tap::TestSet tests ("dirt/glow/load-image", []{
     Texture tex (GL_TEXTURE_2D);
 
     auto path = ayu::resource_filepath(iri::IRI("test:/image.qoi"));
-    load_texture_from_file(GL_TEXTURE_2D, path);
+    texture_from_file_sail(GL_TEXTURE_2D, path);
 
     auto size = tex.size();
     is(size, IVec{7, 5}, "Created texture has correct size");

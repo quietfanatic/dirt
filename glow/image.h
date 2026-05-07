@@ -119,8 +119,20 @@ struct SubImage {
     }
 };
 
+ // Load from memory.  NYI for non-QOI formats.
+UniqueImage image_from_blob (Slice<u8> content, Str filepath = "");
+UniqueImage image_from_blob_qoi (Slice<u8> blob, Str filepath = "");
+ // Load from a file.  Will use SAIL if GLOW_USE_SAIL is defined, otherwise can
+ // only load QOI files.
+UniqueImage image_from_file (SharedString filepath);
+UniqueImage image_from_file_qoi (SharedString filepath);
+#ifdef GLOW_USE_SAIL
+UniqueImage image_from_file_sail (SharedString filepath);
+#endif
+
 constexpr ayu::ErrorCode e_SubImageBoundsNotProper = "glow::SubImageBoundsNotProper";
 constexpr ayu::ErrorCode e_SubImageOutOfBounds = "glow::SubImageOutOfBounds";
+constexpr uni::ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 
  // Don't use lilac for these allocations, because they're almost guaranteed to
  // be so large they get passed on to malloc anyway (they'd have to be smaller

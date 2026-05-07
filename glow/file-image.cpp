@@ -2,18 +2,17 @@
 
 #include "../geo/values.h"
 #include "../ayu/resources/resource.h"
-#include "load-image.h"
 
 namespace glow {
 
 FileImage::FileImage (const SharedString& s, Slice<u8> b) :
     source(s),
-    storage(load_image_from_blob(b, s))
+    storage(image_from_blob(b, s))
 { }
 
 void FileImage::load () {
     if (storage) return;
-    storage = load_image_from_file(source);
+    storage = image_from_file(source);
 }
 
 void FileImage::trim () {

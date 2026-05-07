@@ -33,6 +33,18 @@ void SubImage::validate () {
     }
 }
 
+UniqueImage image_from_blob (Slice<u8> blob, Str filepath) {
+    return image_from_blob_qoi(blob, filepath);
+}
+
+UniqueImage image_from_file (SharedString filepath) {
+#ifdef GLOW_USE_SAIL
+    return image_from_file_sail(filepath);
+#else
+    return image_from_file_qoi(filepath);
+#endif
+}
+
 struct UniqueImagePixelsProxy : UniqueImage { };
 
 } using namespace glow;

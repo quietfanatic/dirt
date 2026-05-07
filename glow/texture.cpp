@@ -2,6 +2,7 @@
 
 #include "../ayu/reflection/describe.h"
 #include "gl.h"
+#include "image.h"
 
 namespace glow {
 
@@ -34,6 +35,37 @@ i32 Texture::bpp (i32 level) {
     glGetTexLevelParameteriv(target, level, GL_TEXTURE_BLUE_SIZE, &bsize);
     glGetTexLevelParameteriv(target, level, GL_TEXTURE_ALPHA_SIZE, &asize);
     return rsize + gsize + bsize + asize;
+}
+
+void texture_from_file (u32 target, SharedString filepath) {
+#ifdef GLOW_USE_SAIL
+    texture_from_file_sail(target, move(filepath));
+#else
+    texture_from_file_qoi(target, move(filepath));
+#endif
+}
+
+void texture_from_image (u32 target, const ImageRef& img) noexcept {
+    require(img.size.x * img.size.y > 0);
+    glTexImage2D(
+        target, 0, GL_RGBA8,
+        img.size.x, img.size.y, 0,
+        GL_RGBA, GL_UNSIGNED_BYTE, img.pixels
+    );
+}
+
+ // texture_from_file_sail is in image-sail.cpp
+void texture_from_file_qoi (u32 target, SharedString filepath) {
+     // TODO: detect 3-channel file and use GL_RGB8
+    UniqueImage image = image_from_file_qoi(move(filepath));
+    texture_from_image(target, image.Image_data());
+     // Now upload texture
+    require(image.size.x * image.size.y > 0);
+    glTexImage2D(
+        target, 0, GL_RGBA8,
+        image.size.x, image.size.y, 0,
+        GL_RGBA, GL_UNSIGNED_BYTE, image.pixels
+    );
 }
 
 enum TextureTarget { };
