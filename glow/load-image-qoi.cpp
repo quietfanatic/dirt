@@ -217,3 +217,36 @@ UniqueImage load_image_from_file (SharedString filename) {
  //
  // Alternatively, you can #define GLOW_DECODE_QOI_PARANOID to make sure all
  // possible scenarios are covered, at a slight performance loss.
+
+///// TESTS
+
+#ifndef TAP_DISABLE_TESTS
+#include "../ayu/resources/resource.h"
+#include "../tap/tap.h"
+#include "colors.h"
+#include "test-environment.h"
+
+static tap::TestSet tests ("dirt/glow/load-image", []{
+    using namespace tap;
+    using namespace geo;
+
+    TestEnvironment env;
+
+    u32 tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+
+    auto path = ayu::resource_filepath(iri::IRI("test:/image.qoi"));
+    load_texture_from_file(GL_TEXTURE_2D, path);
+
+    auto size = tex.size();
+    is(size, IVec{7, 5}, "Created texture has correct size");
+    UniqueArray<RGBA8> got_pixels (area(size));
+    glGetTexImage(tex.target, 0, GL_RGBA, GL_UNSIGNED_BYTE, got_pixels.data());
+    is(got_pixels[10], RGBA8(0x2674dbff), "Created texture has correct content");
+    is(got_pixels[34], RGBA8(0x2674dbff), "Created texture has correct content");
+
+    done_testing();
+});
+
+#endif

@@ -27,7 +27,11 @@ struct Texture {
     const u32 id = 0;
     operator u32 () const { return id; }
 
-     // Uses glGetTexLevelParameter
+    ///// ACCESSORS
+    // Most properties should be accessed via gl_GetTexParameter and
+    // gl_GetTexLevelParameter.  These are some slightly nontrivial properties
+    // for your convenience.
+
      // Returns {0, 0} if this texture (level) has not been initialized
     geo::IVec size (i32 level = 0);
      // Returns 0 if this texture (level) has not been initialized
