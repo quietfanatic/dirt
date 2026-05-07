@@ -368,10 +368,6 @@ struct Printer {
         }
     }
 
-     // Anything that prints a string should be NOINLINEd here, because printing
-     // a string requires a possible non-tail-call to extend(), which requires
-     // saving things on the stack.  If everything is NOINLINE, this function
-     // will require no prologue or epilogue.
     char* print_tree (char* p, const Tree& t) {
          // The caller is guaranteed to have a stack frame, but some of the
          // functions we could call wouldn't need one if they didn't have to
@@ -395,6 +391,7 @@ struct Printer {
     }
 
     UniqueString print (const Tree& t, u32 cap) {
+        expect(cap >= 24);
         begin = SharableBuffer<char>::allocate_plenty(cap);
         end = begin + SharableBuffer<char>::header(begin)->capacity;
          // Do it
@@ -423,8 +420,7 @@ UniqueString tree_to_string (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts % O::Pretty)) opts |= O::Compact;
     Printer printer (opts);
-    u32 cap = t.form == Form::Array || t.form == Form::Object
-        ? 32 * t.size : 32;
+    u32 cap = t.form == Form::String ? 32 + t.size : 32 + 32 * t.size;
     return printer.print(t, cap);
 }
 
@@ -432,7 +428,7 @@ UniqueString tree_to_string_for_file (const Tree& t, PrintOptions opts) {
     validate_print_options(opts);
     if (!(opts % O::Compact)) opts |= O::Pretty;
     Printer printer (opts);
-    return printer.print(t, 4064);
+    return printer.print(t, 4080 - 16);
 }
 
 void tree_to_file (const Tree& t, AnyString filename, PrintOptions opts) {

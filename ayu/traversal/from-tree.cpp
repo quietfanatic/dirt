@@ -233,71 +233,9 @@ struct TraverseFromTree {
 
 ///// OBJECT STRATEGIES
 
-     // TODO: simplify this, is isn't worth all the branches now that we have a
-     // fast allocator.
-    static
+    NOINLINE static
     void use_attrs (
         const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
-    ) {
-         // We need to allocate an array of integers to keep track of claimed
-         // keys on objects.  For small (that is, not enormous) objects, we want
-         // to allocate on the stack.  Normally you'd use a variable-length
-         // array for this, but it seems that at least on my compiler, VLAs are
-         // not very well optimized, so we're just going to pick a few fixed
-         // values for our array size.  The function stub for allocating stack
-         // is very small, so having multiple of these is cheap.
-         //
-         // There isn't a lot of meaning to these numbers, but they should at
-         // least be multiples of 16 (the granularity for stack allocations).
-        constexpr usize stack_capacity_0 = 64; // 15 keys
-        constexpr usize stack_capacity_1 = 256; // 63 keys
-        constexpr usize stack_capacity_2 = 1024; // 255 keys
-         // Linux has a larger default stack limit than other OSes so it's safe
-         // to use more stack space.  Linux: 8M, Windows: 1M, MacOS: 512K
-#ifdef __linux__
-         // 4096 triggers some extra code on GCC
-        constexpr usize stack_capacity_3 = 4080; // 1019 keys
-#endif
-        auto len = trav.tree->size;
-        if (len <= stack_capacity_0 / 4 - 1) [[likely]] {
-            use_attrs_stack<stack_capacity_0>(trav, attrs, len);
-        }
-        else if (len <= stack_capacity_1 / 4 - 1) {
-            use_attrs_stack<stack_capacity_1>(trav, attrs, len);
-        }
-        else if (len <= stack_capacity_2 / 4 - 1) {
-            use_attrs_stack<stack_capacity_2>(trav, attrs, len);
-        }
-#ifdef __linux__
-        else if (len <= stack_capacity_3 / 4 - 1) {
-            use_attrs_stack<stack_capacity_3>(trav, attrs, len);
-        }
-#endif
-        else {
-            use_attrs_heap(trav, attrs, len);
-        }
-    }
-
-    template <usize capacity> NOINLINE static
-    void use_attrs_stack (
-        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs, u32 len
-    ) {
-        u32 next_list_buf [capacity / 4];
-        use_attrs_buf(trav, attrs, len, next_list_buf);
-    }
-
-    NOINLINE static
-    void use_attrs_heap (
-        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs, u32 len
-    ) {
-        auto next_list_buf = std::unique_ptr<u32[]>(new u32[len+1]);
-        use_attrs_buf(trav, attrs, len, &next_list_buf[0]);
-    }
-
-    NOINLINE static
-    void use_attrs_buf (
-        const FromTreeTraversal<>& trav, const AttrsDcrPrivate* attrs,
-        u32 len, u32* next_list_buf
     ) {
          // Build a linked list of indexes so that we can claim attrs in
          // constant time.  next_list = next_list_buffer + 1, so that:
@@ -323,6 +261,8 @@ struct TraverseFromTree {
          // (Note that using -1 as a sentinel does not reduce the usable array
          // size by 1.  The maximum array tree size is u32(-1), for which
          // u32(-1) is not a valid index.)
+        auto len = trav.tree->size;
+        auto next_list_buf = std::unique_ptr<u32[]>(new u32[len+1]);
         for (u32 i = 0; i < len; i++) next_list_buf[i] = i;
         next_list_buf[len] = u32(-1);
 
@@ -388,10 +328,13 @@ struct TraverseFromTree {
                 auto& [key, value] = trav.tree->data.as_object_ptr[j];
                 if (key == attr->key) {
                     if (!(flags % AttrFlags::Ignored)) {
-                        Tree singleton;
+                        Indestructible<Tree> singleton;
                         FromTreeTraversal<AttrTraversal> child;
                         if (flags % AttrFlags::CollapseOptional) {
-                            child.tree = &(singleton = Tree::array(value));
+                            new (&*singleton) Tree(
+                                StaticArray<Tree>(&value, 1)
+                            );
+                            child.tree = &*singleton;
                         }
                         else child.tree = &value;
                         trav_attr<visit>(
@@ -417,13 +360,14 @@ struct TraverseFromTree {
                  // Leave the attribute in its default-constructed state.
             }
             else {
+                Indestructible<Tree> empty;
                 FromTreeTraversal<AttrTraversal> child;
                 if (flags % AttrFlags::CollapseOptional) {
                      // If the attribute was not provided and has
                      // collapse_optional set, deserialize the item with an
                      // empty array.
-                    static constexpr auto empty = Tree::array();
-                    child.tree = &empty;
+                    new (&*empty) Tree(AnyArray<Tree>());
+                    child.tree = &*empty;
                 }
                 else if (const Tree* def = attr->default_value()) {
                     child.tree = def;

@@ -44,10 +44,7 @@ struct Parser {
     Tree parse () {
         shallowth = max_depth + 1;
         const char* in = begin;
-         // Skip BOM
-        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
-            in += 3;
-        }
+        in = skip_bom(in);
         in = skip_ws(in);
         Tree r;
         in = parse_term(in, r);
@@ -58,12 +55,10 @@ struct Parser {
     }
 
     UniqueArray<Tree> parse_list () {
+        UniqueArray<Tree> r;
         shallowth = max_depth;
         const char* in = begin;
-        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
-            in += 3;
-        }
-        UniqueArray<Tree> r;
+        in = skip_bom(in);
         in = skip_ws(in);
         while (in != end) {
             Tree e;
@@ -245,14 +240,14 @@ struct Parser {
         const char* p;
         for (p = in; p < self.end; p++) {
             if (*p == '"') goto start;
-            else if (*p == '\\') {
+            else if (*p == '\\') [[unlikely]] {
                 if (p >= self.end) goto unterminated;
                  // We could get away with always adding 1, but then a
                  // string composed entirely of \x would be overallocated by
                  // a factor of 3.  A UTF-16 \u can emit at most 3 UTF-8
                  // bytes, so this is the right amount for it as well.
-                extra_input += (*p >= 'u' && *p <= 'x') ? 3 : 1;
                 p++;
+                extra_input += (*p >= 'u' && *p <= 'x') ? 3 : 1;
             }
         }
         unterminated:
@@ -264,8 +259,9 @@ struct Parser {
             return p+1; // For the "
         }
          // Otherwise preallocate
-        auto out = UniqueString(Capacity(p - in - extra_input));
+        auto out = UniqueString(Capacity(expect(p - in - extra_input)));
          // Now read the string
+        expect(in < p);
         while (in < p) {
             char c = *in++;
             if (c == '\\') [[unlikely]] {
@@ -458,7 +454,7 @@ struct Parser {
         return in;
     }
 
-    NOINLINE const char* skip_ws (const char* in) {
+    const char* skip_ws_inline (const char* in) {
         while (in < end) {
             if (char_is_ws(*in)) {
                 in++;
@@ -474,33 +470,21 @@ struct Parser {
         return in;
     }
 
+    NOINLINE const char* skip_ws (const char* in) {
+        return skip_ws_inline(in);
+    }
+
     NOINLINE const char* skip_comma (const char* in) {
-        while (in < end) {
-            if (char_is_ws(*in)) {
-                in++;
-            }
-            else if (*in == '-') [[unlikely]] {
-                if (in + 1 < end && in[1] == '-') {
-                    in = skip_comment(in);
-                }
-                else return in;
-            }
-            else if (*in == ',') { in++; goto next; }
-            else return in;
+        in = skip_ws_inline(in);
+        if (in < end && *in == ',') {
+            in = skip_ws_inline(in + 1);
         }
         return in;
-        next:
-        while (in < end) {
-            if (char_is_ws(*in)) {
-                in++;
-            }
-            else if (*in == '-') [[unlikely]] {
-                if (in + 1 < end && in[1] == '-') {
-                    in = skip_comment(in);
-                }
-                else return in;
-            }
-            else return in;
+    }
+
+    const char* skip_bom (const char* in) {
+        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
+            in += 3;
         }
         return in;
     }
