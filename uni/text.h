@@ -30,14 +30,23 @@ inline bool natural_lessthan (Str a, Str b) {
     return natural_compare(a, b) < 0;
 }
 
+ // Just give up and use a table
+constexpr i8 hex_digit_values ['f' - '0' + 1] = {
+     0, 1, 2, 3, 4, 5, 6, 7, 8, 9,-1,-1,-1,-1,-1,-1,
+    -1,10,11,12,13,14,15,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
+    -1,10,11,12,13,14,15
+};
  // Returns -1 if the given char is not [0-9a-fA-F]
 constexpr int from_hex_digit (char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    else {
-        c &= ~('a' & ~'A'); // Clear lowercase bit
-        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-        else return -1;
-    }
+    u32 i = c - '0';
+    if (i >= sizeof(hex_digit_values)) [[unlikely]] return -1;
+    return hex_digit_values[i];
+     // Tableless (non-error-)branchless version
+    //if (c < '0' || c > 'f') [[unlikely]] return -1;
+    //c |= 0x20;
+    //if (c > '9' && c < 'a') [[unlikely]] return -1;
+    //return c - '0' + ('a' - '0' + 10) * (c > '9');
 }
 
  // Returns NUL if the given int is not 0..15
@@ -46,7 +55,7 @@ constexpr char to_hex_digit (u8 digit) {
     return digit + (digit < 10 ? '0' : 'A' - 10);
 }
 
-inline bool ascii_is_lower (Str s) {
+constexpr bool ascii_is_lower (Str s) {
     for (auto c : s) if (c >= 'A' && c <= 'Z') return false;
     return true;
 }
@@ -67,7 +76,7 @@ inline UniqueString ascii_to_lower (Str s) {
     });
 }
 
-inline bool ascii_eqi (Str a, Str b) {
+constexpr bool ascii_eqi (Str a, Str b) {
     if (a.size() != b.size()) return false;
     for (u32 i = 0; i < a.size(); i++) {
         char ac = a[i];
@@ -77,8 +86,7 @@ inline bool ascii_eqi (Str a, Str b) {
                  // If they differ by only the case bit, we only need to check that
                  // one of them is alphabetical.
                 ac |= 0x20;
-                if (ac >= 'a' && ac <= 'z') { }
-                else return false;
+                if (ac < 'a' || ac > 'z') return false;
             }
             else return false;
         }
@@ -119,7 +127,7 @@ ReadResult<T> read_hex_digits (
     ReadResult<T> r {start, 0};
     while (r.p != end) {
         int digit = from_hex_digit(*r.p);
-        if (digit < 0) return r;
+        if (digit < 0) [[unlikely]] return r;
         auto old = r.value;
         r.value = (r.value << 4) + digit;
         if (r.value < old) [[unlikely]] return {start, 0};
@@ -138,12 +146,13 @@ u32 count_decimal_digits (u64 v) noexcept;
  // count_decimal_digits(v).  Returns p + count (the end of the written number).
 char* write_decimal_digits (char* p, u32 count, u64 v) noexcept;
 
+ // Like above but for hex.
 constexpr
 u32 count_hex_digits (u64 v) {
     if (v <= 0xf) return 1;
     return 16 - (std::countl_zero(v) >> 2);
 }
-
+ // Lowercase.
 constexpr
 char* write_hex_digits (char* p, u32 count, u64 v) {
     expect(count >= 1);

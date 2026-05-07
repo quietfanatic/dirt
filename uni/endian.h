@@ -1,5 +1,7 @@
 #include "common.h"
 
+ // THESE ASSUME LITTLE ENDIANNESS!  TODO!
+
 namespace uni {
 
 constexpr
@@ -112,12 +114,12 @@ void write_u16be (void* out, u16 v) {
 
 constexpr i64 read_i64le (const void* in) { return read_u64le(in); }
 constexpr i64 read_i64be (const void* in) { return read_u64be(in); }
-constexpr i64 read_i32le (const void* in) { return read_u32le(in); }
-constexpr i64 read_i32be (const void* in) { return read_u32be(in); }
-constexpr i64 read_i16le (const void* in) { return read_u16le(in); }
-constexpr i64 read_i16be (const void* in) { return read_u16be(in); }
-constexpr void write_i64be (void* out, i16 v) { write_u64be(out, v); }
-constexpr void write_i32be (void* out, i16 v) { write_u32be(out, v); }
+constexpr i32 read_i32le (const void* in) { return read_u32le(in); }
+constexpr i32 read_i32be (const void* in) { return read_u32be(in); }
+constexpr i16 read_i16le (const void* in) { return read_u16le(in); }
+constexpr i16 read_i16be (const void* in) { return read_u16be(in); }
+constexpr void write_i64be (void* out, i64 v) { write_u64be(out, v); }
+constexpr void write_i32be (void* out, i32 v) { write_u32be(out, v); }
 constexpr void write_i16be (void* out, i16 v) { write_u16be(out, v); }
 
 } // uni
