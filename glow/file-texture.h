@@ -12,7 +12,7 @@
 namespace glow {
 
 struct FileTexture : Texture {
-    FileTexture (AnyString filename, u32 target = GL_TEXTURE_2D);
+    FileTexture (SharedString filename, u32 target = GL_TEXTURE_2D);
     ~FileTexture ();
 };
 

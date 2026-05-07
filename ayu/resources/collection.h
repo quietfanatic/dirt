@@ -8,7 +8,7 @@ namespace ayu {
 
 // This is an owning container for dynamic values with optional names, intended
 // to be the top-level item of a resource.  You can think of it like an
-// unordered_map<AnyString, AnyVal>, except that order is preserved, and
+// unordered_map<SharedString, AnyVal>, except that order is preserved, and
 // insertion and deletion are prioritized over lookup.
 //
 // Anonymous items are assigned a sequential integer id.  This can be referred
@@ -44,11 +44,11 @@ struct Collection {
      // Emplace a new named item into this collection.  O(n) to make sure the
      // name is unique.  The name cannot be an anonymous ID.
     template <Describable T, class... Args>
-    T* new_with_name (AnyString name, Args&&... args);
+    T* new_with_name (SharedString name, Args&&... args);
      // Like above, but O(1) and undefined behavior if name isn't unique and a
      // valid item name.
     template <Describable T, class... Args>
-    T* new_with_name_expect_valid (AnyString name, Args&&... args);
+    T* new_with_name_expect_valid (SharedString name, Args&&... args);
 
      // Returns the item with the given name.  Can find anonymous items if you
      // pass a decimal integer prefixed with _.  Returns null if not found or if
@@ -82,11 +82,11 @@ struct CollectionItem {
     };
     AnyVal value;
 
-    AnyString name () const noexcept {
+    SharedString name () const noexcept {
         if (name_sx2wo) {
-            AnyString tmp;
+            SharedString tmp;
             tmp.impl = {name_sx2wo, name_data};
-            AnyString r = tmp; // Trigger refcount
+            SharedString r = tmp; // Trigger refcount
             tmp.impl = {};
             return r;
         }
@@ -98,7 +98,7 @@ struct CollectionItem {
         value(move(v))
     { }
 
-    CollectionItem (AnyString n, AnyVal&& v = {}) :
+    CollectionItem (SharedString n, AnyVal&& v = {}) :
         name_sx2wo(n.impl.sizex2_with_owned),
         name_data(n.impl.data),
         value(move(v))
@@ -118,7 +118,7 @@ struct CollectionItem {
 
     ~CollectionItem () {
         if (name_sx2wo & 1) {
-            AnyString s;
+            SharedString s;
             s.impl = {name_sx2wo, name_data};
         }
     }
@@ -145,7 +145,7 @@ inline void Collection::delete_ (AnyPtr p) {
 }
 
 template <Describable T, class... Args>
-T* Collection::new_with_name (AnyString name, Args&&... args) {
+T* Collection::new_with_name (SharedString name, Args&&... args) {
     validate_name(name);
     auto p = new T (std::forward<Args>(args)...);
     auto& item = items.emplace_back(
@@ -155,7 +155,7 @@ T* Collection::new_with_name (AnyString name, Args&&... args) {
 }
 
 template <Describable T, class... Args>
-T* Collection::new_with_name_expect_valid (AnyString name, Args&&... args) {
+T* Collection::new_with_name_expect_valid (SharedString name, Args&&... args) {
 #ifndef NDEBUG
     validate_name(name);
 #endif

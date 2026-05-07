@@ -186,12 +186,12 @@ struct TraverseScan {
         const ScanTraversal<>& trav, const Accessor* keys_acr
     ) {
          // Get list of keys
-        AnyArray<AnyString> keys;
+        SharedArray<SharedString> keys;
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
-            new (&keys) AnyArray<AnyString>(ks);
+            new (&keys) SharedArray<SharedString>(ks);
         }));
         auto f = expect(trav.desc()->computed_attrs())->f;
          // Now scan for each key

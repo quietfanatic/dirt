@@ -275,7 +275,7 @@ usize hash_acr (const Accessor& a) {
                     hash_acr(*aa.outer),
                     std::hash<AttrFunc<Mu>*>{}(aa.f)
                 ),
-                std::hash<AnyString>{}(aa.key)
+                std::hash<SharedString>{}(aa.key)
             );
         }
         case AF::ChainElemFunc: {

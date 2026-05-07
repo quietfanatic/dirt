@@ -327,17 +327,17 @@ constexpr IRI::IRI (Str ref, const IRI& base) :
     )
 { }
 
-constexpr IRI::IRI (AnyString spec, u16 c, u16 p, u16 q, u16 h) :
+constexpr IRI::IRI (SharedString spec, u16 c, u16 p, u16 q, u16 h) :
     spec_(move(spec)), scheme_end(c), authority_end(p), path_end(q), query_end(h)
 { }
 
-constexpr IRI::IRI (Error code, const AnyString& spec) :
+constexpr IRI::IRI (Error code, const SharedString& spec) :
     spec_(spec), authority_end(u16(code))
 { expect(code != Error::NoError && code != Error::Empty); }
 
 constexpr IRI::IRI (const IRI& o) = default;
 constexpr IRI::IRI (IRI&& o) :
-    spec_(move(const_cast<AnyString&>(o.spec_))),
+    spec_(move(const_cast<SharedString&>(o.spec_))),
     scheme_end(o.scheme_end),
     authority_end(o.authority_end),
     path_end(o.path_end),
@@ -372,24 +372,24 @@ constexpr Error IRI::error () const {
     else return Error(authority_end);
 }
 
-static constexpr const AnyString empty_string = StaticString();
+static constexpr const SharedString empty_string = StaticString();
 
-constexpr const AnyString& IRI::spec () const {
+constexpr const SharedString& IRI::spec () const {
     if (scheme_end) return spec_;
     else return empty_string;
 }
-constexpr const AnyString& IRI::possibly_invalid_spec () const {
+constexpr const SharedString& IRI::possibly_invalid_spec () const {
     return spec_;
 }
 
-constexpr AnyString IRI::move_spec () {
+constexpr SharedString IRI::move_spec () {
     if (!scheme_end) [[unlikely]] return "";
-    AnyString r = move(spec_);
+    SharedString r = move(spec_);
     *this = IRI();
     return r;
 }
-constexpr AnyString IRI::move_possibly_invalid_spec () {
-    AnyString r = move(spec_);
+constexpr SharedString IRI::move_possibly_invalid_spec () {
+    SharedString r = move(spec_);
     *this = IRI();
     return r;
 }

@@ -74,7 +74,7 @@ struct ResourceExtension {
     );
 
     constexpr ResourceExtension () { }
-    explicit ResourceExtension (const AnyString& name) { activate(name); }
+    explicit ResourceExtension (const SharedString& name) { activate(name); }
 
      // No copy or move
     ResourceExtension (const ResourceExtension&) = delete;
@@ -87,7 +87,7 @@ struct ResourceExtension {
      // The name you activate this with must contain no /s or .s and all ascii
      // characters must be lowercase.  The empty string matches files with no
      // extension.  You cannot have two extensions with the same name.
-    void activate (const AnyString&) noexcept;
+    void activate (const SharedString&) noexcept;
      // Register this as the default extension.  It will handle all resources
      // that don't have any other extension registered.
     void activate_default () noexcept;

@@ -50,10 +50,10 @@ struct Tree;
  // Since GCC 12.0, std::pair has extra concept shenanigans that cause weird
  // complicated errors when used with ArrayInterface, so we're throwing it in
  // the trash.
-//using TreePair = std::pair<AnyString, Tree>;
+//using TreePair = std::pair<SharedString, Tree>;
 template <class A, class B>
 struct Pair { A first; B second; };
-using TreePair = Pair<AnyString, Tree>;
+using TreePair = Pair<SharedString, Tree>;
 
  // Unknown type that will never be defined.  This has a similar role to void,
  // except:

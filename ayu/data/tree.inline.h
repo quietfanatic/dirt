@@ -45,21 +45,21 @@ template <class T> requires (std::is_floating_point_v<T>)
 constexpr Tree::Tree (T v, TreeFlags f) :
     form(Form::Number), flags(f), floaty(true), data{.as_double = v}
 { }
-constexpr Tree::Tree (AnyString v, TreeFlags f) :
+constexpr Tree::Tree (SharedString v, TreeFlags f) :
     form(Form::String), flags(f),
     owned(v.owned()), size(v.size()),
     data{.as_char_ptr = v.impl.data}
 {
     v.impl = {};
 }
-constexpr Tree::Tree (AnyArray<Tree> v, TreeFlags f) :
+constexpr Tree::Tree (SharedArray<Tree> v, TreeFlags f) :
     form(Form::Array), flags(f),
     owned(v.owned()), size(v.size()),
     data{.as_array_ptr = v.impl.data}
 {
     v.impl = {};
 }
-constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
+constexpr Tree::Tree (SharedArray<TreePair> v, TreeFlags f) :
     form(Form::Object), flags(f),
     owned(v.owned()), size(v.size()),
     data{.as_object_ptr = v.impl.data}
@@ -85,7 +85,7 @@ constexpr Tree::Tree (AnyArray<TreePair> v, TreeFlags f) :
 inline Tree::Tree (std::exception_ptr v, TreeFlags f) :
     form(Form::Error), flags(f), owned(true), size(1), data{}
 {
-    auto e = AnyArray<std::exception_ptr>(1, move(v));
+    auto e = SharedArray<std::exception_ptr>(1, move(v));
     data.as_error_ptr = e.impl.data;
     e.impl = {};
 }
@@ -198,19 +198,19 @@ constexpr Tree::operator Str () const {
     in::check_form(*this, Form::String);
     return Str(data.as_char_ptr, size);
 }
-constexpr Tree::operator AnyString () const& {
+constexpr Tree::operator SharedString () const& {
     in::check_form(*this, Form::String);
     if (owned) {
         ++SharableBuffer<char>::header(data.as_char_ptr)->ref_count;
     }
-    AnyString r;
+    SharedString r;
     r.impl.sizex2_with_owned = (size << 1) | owned;
     r.impl.data = const_cast<char*>(data.as_char_ptr);
     return r;
 }
-constexpr Tree::operator AnyString () && {
+constexpr Tree::operator SharedString () && {
     in::check_form(*this, Form::String);
-    AnyString r;
+    SharedString r;
     r.impl.sizex2_with_owned = (size << 1) | owned;
     r.impl.data = const_cast<char*>(data.as_char_ptr);
     form = Form::Undefined; flags = {}; floaty = false; owned = false; size = 0; data.as_char_ptr = null;
@@ -220,19 +220,19 @@ constexpr Tree::operator Slice<Tree> () const {
     in::check_form(*this, Form::Array);
     return Slice<Tree>(data.as_array_ptr, size);
 }
-constexpr Tree::operator AnyArray<Tree> () const& {
+constexpr Tree::operator SharedArray<Tree> () const& {
     in::check_form(*this, Form::Array);
     if (owned) {
         ++SharableBuffer<Tree>::header(data.as_array_ptr)->ref_count;
     }
-    AnyArray<Tree> r;
+    SharedArray<Tree> r;
     r.impl.sizex2_with_owned = (size << 1) | owned;
     r.impl.data = const_cast<Tree*>(data.as_array_ptr);
     return r;
 }
-constexpr Tree::operator AnyArray<Tree> () && {
+constexpr Tree::operator SharedArray<Tree> () && {
     in::check_form(*this, Form::Array);
-    AnyArray<Tree> r;
+    SharedArray<Tree> r;
     r.impl.sizex2_with_owned = (size << 1) | owned;
     r.impl.data = const_cast<Tree*>(data.as_array_ptr);
     form = Form::Undefined; flags = {}; floaty = false; owned = false; size = 0; data.as_array_ptr = null;
@@ -242,19 +242,19 @@ constexpr Tree::operator Slice<TreePair> () const {
     in::check_form(*this, Form::Object);
     return Slice<TreePair>(data.as_object_ptr, size);
 }
-constexpr Tree::operator AnyArray<TreePair> () const& {
+constexpr Tree::operator SharedArray<TreePair> () const& {
     in::check_form(*this, Form::Object);
     if (owned) {
         ++SharableBuffer<TreePair>::header(data.as_object_ptr)->ref_count;
     }
-    AnyArray<TreePair> r;
+    SharedArray<TreePair> r;
     r.impl.sizex2_with_owned = (size << 1) | owned;
     r.impl.data = const_cast<TreePair*>(data.as_object_ptr);
     return r;
 }
-constexpr Tree::operator AnyArray<TreePair> () && {
+constexpr Tree::operator SharedArray<TreePair> () && {
     in::check_form(*this, Form::Object);
-    AnyArray<TreePair> r;
+    SharedArray<TreePair> r;
     r.impl.sizex2_with_owned = (size << 1) | owned;
     r.impl.data = const_cast<TreePair*>(data.as_object_ptr);
     form = Form::Undefined; flags = {}; floaty = false; owned = false; size = 0; data.as_object_ptr = null;

@@ -13,7 +13,7 @@ inline unsigned num_failed = 0;
 inline unsigned num_to_todo = 0;
 inline bool block_todo = false;
 union TodoExcuse {
-    uni::AnyString s {};
+    uni::SharedString s {};
     ~TodoExcuse () { }
 };
 inline constinit TodoExcuse todo_excuse;
@@ -246,12 +246,12 @@ bool fail (uni::Str name) {
     return ok(false, name);
 }
 inline
-void todo (unsigned num, uni::AnyString excuse) {
+void todo (unsigned num, uni::SharedString excuse) {
     in::num_to_todo = num;
     in::todo_excuse.s = std::move(excuse);
 }
 template <class F>
-void todo (uni::AnyString excuse, F code) {
+void todo (uni::SharedString excuse, F code) {
     auto old_excuse = std::move(in::todo_excuse.s);
     auto old_block_todo = in::block_todo;
     in::todo_excuse.s = std::move(excuse);

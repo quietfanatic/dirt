@@ -23,8 +23,8 @@ struct ChildRoute : Route {
     { expect(parent); }
 };
 struct KeyRoute : ChildRoute {
-    AnyString key;
-    KeyRoute (SharedRoute p, AnyString k) :
+    SharedString key;
+    KeyRoute (SharedRoute p, SharedString k) :
         ChildRoute(RF::Key, move(p)), key(move(k))
     { }
 };
@@ -43,7 +43,7 @@ inline SharedRoute::SharedRoute (ResourceRef res) noexcept :
 inline SharedRoute::SharedRoute (const Link& l) noexcept :
     data(new in::LinkRoute(l))
 { }
-inline SharedRoute::SharedRoute (SharedRoute p, AnyString k) noexcept :
+inline SharedRoute::SharedRoute (SharedRoute p, SharedString k) noexcept :
     data(new in::KeyRoute(move(p), move(k)))
 { }
 inline SharedRoute::SharedRoute (SharedRoute p, u32 i) noexcept :
@@ -66,7 +66,7 @@ inline RouteRef Route::parent () const noexcept {
     if (u8(form) < u8(RF::Key)) return {};
     else return static_cast<const in::ChildRoute*>(this)->parent;
 }
-inline const AnyString* Route::key () const noexcept {
+inline const SharedString* Route::key () const noexcept {
     if (form != RF::Key) return null;
     else return &static_cast<const in::KeyRoute*>(this)->key;
 }

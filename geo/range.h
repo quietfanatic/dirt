@@ -266,7 +266,7 @@ AYU_DESCRIBE_TEMPLATE(
         else if constexpr (std::is_same_v<T, uni::i32>) return desc::name("geo::IRange");
         else if constexpr (std::is_same_v<T, uni::i64>) return desc::name("geo::LRange");
         else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRange");
-        else return desc::computed_name([]()->uni::AnyString{
+        else return desc::computed_name([]()->uni::SharedString{
             return uni::cat(
                 "geo::GRange<", ayu::Type::of<T>().name(), '>'
             );

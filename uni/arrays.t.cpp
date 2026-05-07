@@ -9,10 +9,10 @@
 
 using namespace uni;
 
-AnyArray<int> t (AnyArray<int>&& a) {
+SharedArray<int> t (SharedArray<int>&& a) {
     return a;
 }
-AnyArray<int> t2 (const AnyArray<int>& a) {
+SharedArray<int> t2 (const SharedArray<int>& a) {
     return a;
 }
 
@@ -32,18 +32,18 @@ UniqueArray<char> t5 (char* a, char* b) {
     return UniqueArray<char>(a, b);
 }
 
-AnyArray<int> t6 (const UniqueArray<int>& a) {
+SharedArray<int> t6 (const UniqueArray<int>& a) {
     return a;
 }
-AnyArray<int> t7 (const UniqueArray<int>& a) {
-    return AnyArray<int>(a);
+SharedArray<int> t7 (const UniqueArray<int>& a) {
+    return SharedArray<int>(a);
 }
 
-AnyArray<int> t8 (const std::vector<int>& v) {
+SharedArray<int> t8 (const std::vector<int>& v) {
     return UniqueArray<int>(v);
 }
 
-void t9 (AnyArray<int>& a, const AnyArray<int>& b) {
+void t9 (SharedArray<int>& a, const SharedArray<int>& b) {
     a = b;
 }
 void c9 (std::vector<int>& a, const std::vector<int>& b) {
@@ -52,32 +52,32 @@ void c9 (std::vector<int>& a, const std::vector<int>& b) {
 
 constexpr int foos [] = {2, 4, 6, 8, 10, 12};
 
-AnyArray<int> t10 () {
-    return AnyArray<int>(Slice<int>(foos));
+SharedArray<int> t10 () {
+    return SharedArray<int>(Slice<int>(foos));
 }
 
-AnyString t11 () {
+SharedString t11 () {
     return "formidable";
 }
 
-AnyArray<std::pair<usize, usize>> t12 (const std::unordered_map<int, int>& m) {
-    auto r = AnyArray<std::pair<usize, usize>>(m.begin(), m.end());
+SharedArray<std::pair<usize, usize>> t12 (const std::unordered_map<int, int>& m) {
+    auto r = SharedArray<std::pair<usize, usize>>(m.begin(), m.end());
     return r;
 }
-AnyArray<std::pair<usize, usize>> t13 (const std::unordered_map<int, int>& m) {
-    auto r = AnyArray<std::pair<usize, usize>>(m.begin(), m.size());
+SharedArray<std::pair<usize, usize>> t13 (const std::unordered_map<int, int>& m) {
+    auto r = SharedArray<std::pair<usize, usize>>(m.begin(), m.size());
     return r;
 }
 
-void t14 (AnyArray<int>& v) {
+void t14 (SharedArray<int>& v) {
     v.reserve(50);
 }
 
-void t15 (AnyArray<int>& v) {
+void t15 (SharedArray<int>& v) {
     v.shrink_to_fit();
 }
 
-void t16 (AnyArray<int>& v) {
+void t16 (SharedArray<int>& v) {
     v.make_unique();
 }
 
@@ -87,11 +87,11 @@ void t17 (UniqueArray<int>& v) {
 void c17 (std::vector<int>& v) {
     v.resize(50);
 }
-void t18 (AnyArray<int>& v) {
+void t18 (SharedArray<int>& v) {
     v.resize(50);
 }
 
-void t19 (AnyArray<int>& v) {
+void t19 (SharedArray<int>& v) {
     v.push_back(99);
 }
 void c19 (std::vector<int>& v) {
@@ -100,12 +100,12 @@ void c19 (std::vector<int>& v) {
 void t20 (UniqueArray<int>& v) {
     v.push_back(99);
 }
-void t21 (AnyArray<int>& v) {
+void t21 (SharedArray<int>& v) {
     v.pop_back();
 }
 
-AnyArray<int> t22 () {
-    AnyArray<int> r;
+SharedArray<int> t22 () {
+    SharedArray<int> r;
     r.reserve(32);
     for (usize i = 0; i < 32; i++) {
         r.emplace_back(i);
@@ -113,8 +113,8 @@ AnyArray<int> t22 () {
     return r;
 }
 
-AnyArray<int> b22 () {
-    AnyArray<int> r;
+SharedArray<int> b22 () {
+    SharedArray<int> r;
     r.reserve(32);
     for (usize i = 0; i < 32; i++) {
         r.emplace_back_expect_capacity(i);
@@ -122,8 +122,8 @@ AnyArray<int> b22 () {
     return r;
 }
 
-AnyArray<int> bb22 () {
-    AnyArray<int> r (Capacity(32));
+SharedArray<int> bb22 () {
+    SharedArray<int> r (Capacity(32));
     for (usize i = 0; i < 32; i++) {
         r.emplace_back_expect_capacity(i);
     }
@@ -180,7 +180,7 @@ void c24 (std::vector<int>& a) {
     a.emplace(a.begin() + 32, 100);
 }
 
-void t25 (AnyArray<int>& a) {
+void t25 (SharedArray<int>& a) {
     a.erase(44, 2);
 }
 
@@ -188,7 +188,7 @@ void b25 (UniqueArray<int>& a) {
     a.erase(44, 2);
 }
 
-const char* t26 (AnyArray<char>& a) {
+const char* t26 (SharedArray<char>& a) {
     return a.c_str();
 }
 
@@ -232,14 +232,14 @@ UniqueString t32 (double d) {
 }
 
 NOINLINE
-void t33a (AnyString&& a) {
+void t33a (SharedString&& a) {
     printf("%s\n", a.c_str());
 }
 NOINLINE
-void t33b (AnyString a) {
+void t33b (SharedString a) {
     t33a(move(a));
 }
-void t33c (AnyString&& a) {
+void t33c (SharedString&& a) {
     t33b(move(a));
 }
 NOINLINE
@@ -254,15 +254,15 @@ void c33c (std::string&& a) {
     c33b(move(a));
 }
 
-//UniqueString t34a (StaticString a, AnyString b, StaticString c) {
+//UniqueString t34a (StaticString a, SharedString b, StaticString c) {
 //    return cat("Couldn't ", a, " ", b, " when its state is ", c);
 //}
 [[gnu::cold]] NOINLINE
-UniqueString t34b (StaticString a, AnyString b, StaticString c) {
+UniqueString t34b (StaticString a, SharedString b, StaticString c) {
     return cat("Couldn't ", a, " ", b, " when its state is ", c);
 }
 [[gnu::cold]]
-UniqueString t34c (StaticString a, AnyString b, StaticString c) {
+UniqueString t34c (StaticString a, SharedString b, StaticString c) {
     auto r = UniqueString(Capacity(a.size() + b.size() + c.size() + 29));
     r.append_expect_capacity("Couldn't ");
     r.append_expect_capacity(a);
@@ -283,28 +283,28 @@ std::string c34 (std::string_view a, std::string b, std::string_view c) {
     return r;
 }
 [[gnu::cold]]
-auto b34 (StaticString a, AnyString b, StaticString c) {
-    return UniqueArray<std::pair<AnyString, AnyString>>{
+auto b34 (StaticString a, SharedString b, StaticString c) {
+    return UniqueArray<std::pair<SharedString, SharedString>>{
         {"tried", a},
         {"name", move(b)},
         {"state", c}
     };
 }
 [[gnu::cold]]
-auto b34b (StaticString a, AnyString b, StaticString c) {
-    auto r = UniqueArray<std::pair<AnyString, AnyString>>(Capacity(3));
+auto b34b (StaticString a, SharedString b, StaticString c) {
+    auto r = UniqueArray<std::pair<SharedString, SharedString>>(Capacity(3));
     r.emplace_back_expect_capacity("tried", a);
     r.emplace_back_expect_capacity("name", move(b));
     r.emplace_back_expect_capacity("state", c);
     return r;
 }
 
-UniqueArray<AnyString> t35 () {
-    return UniqueArray<AnyString>(555);
+UniqueArray<SharedString> t35 () {
+    return UniqueArray<SharedString>(555);
 }
 
-UniqueArray<AnyString> t36 () {
-    return UniqueArray<AnyString>(555, "indestructible");
+UniqueArray<SharedString> t36 () {
+    return UniqueArray<SharedString>(555, "indestructible");
 }
 
 [[gnu::used]]
@@ -314,13 +314,13 @@ bool t37 (Str a, Str b) {
 
 static tap::TestSet tests ("dirt/uni/arrays", []{
     using namespace tap;
-    AnyArray<int> a;
+    SharedArray<int> a;
     is(a.size(), usize(0), "empty array has size 0");
     is(a.data(), null, "empty-constructed array has null data");
-    AnyArray<int> b = move(a);
+    SharedArray<int> b = move(a);
     is(b.size(), usize(0), "move empty array");
     is(b.data(), null);
-    AnyArray<int> c = b;
+    SharedArray<int> c = b;
     is(c.size(), usize(0), "copy empty array");
     is(c.data(), null);
 
@@ -334,9 +334,9 @@ static tap::TestSet tests ("dirt/uni/arrays", []{
     is(c[50], 49);
 
     is(c.unique(), true, "unique");
-    AnyArray<AnyArray<int>> d (5, c);
+    SharedArray<SharedArray<int>> d (5, c);
     is(d.size(), usize(5), "array with non-trivial type");
-    is(c.unique(), false, "AnyArray buffer is not copied when AnyArray is copied");
+    is(c.unique(), false, "SharedArray buffer is not copied when SharedArray is copied");
     c.erase(1, 5);
     is(c.unique(), true, "copy on write");
     is(c.size(), usize(46), "erase");

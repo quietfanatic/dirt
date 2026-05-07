@@ -417,7 +417,7 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
 }
 
 NOINLINE static
-AnyString examine_hierarchical_path (const IRI& self, const IRI& base) {
+SharedString examine_hierarchical_path (const IRI& self, const IRI& base) {
     u32 tail = self.authority_end + 1;
     u32 i;
     for (
@@ -463,7 +463,7 @@ AnyString examine_hierarchical_path (const IRI& self, const IRI& base) {
     return r;
 }
 
-AnyString IRI::relative_to (const IRI& base) const noexcept {
+SharedString IRI::relative_to (const IRI& base) const noexcept {
     if (!*this) [[unlikely]] return "";
     else if (!base) {
         if (base.empty()) {

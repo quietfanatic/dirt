@@ -1,30 +1,60 @@
-// Arrays that can be shared (ref-counted) or static
+ ///// ARRAYS.H
  //
  // This header provides a constellation of array and string classes that share
  // a common interface and differ by ownership model.  They're largely
  // compatible with STL containers, but not quite a drop-in replacement.
  //
- // COPY-ON-WRITE
- // The AnyArray and AnyString classes have copy-on-write behavior when you try
- // to modify them.  By default simple access operations like begin(), end(),
- // operator[], and at() do not trigger a copy-on-write and instead return const
- // references.  To trigger a copy-on-write use mut_begin(), mut_end(),
- // mut_get(), and mut_at().  AnyArray and AnyString can only be used with
- // copyable element types.  To work with move-only element types, use
- // UniqueArray.
+ ///// WHAT'S HERE?
  //
- // STATIC STRING OPTIMIZATION
- // Not to be confused with Small String Optimization.  AnyArray and AnyString
- // can refer to a static string (a string which will stay alive for the
- // duration of the program, or at least the foreseeable future).  This allows
- // them to be created and passed around with no allocation or refcounting cost.
- // For optimization, both StaticString and AnyString expect that fixed-size
- // const char[] (but not non-const char[]) is a string literal.  If you use
- // dynamically-allocated fixed-size raw char arrays, you might run into some
- // use-after-free surprises.  I think this should be rare to nonexistent in
- // practice.
+ // UniqueArray<T>, UniqueString - uniquely owning containers
+ // SharedArray<T>, SharedString - sharable owning or static-lifetime containers
+ // StaticArray<T>, StaticString - static-lifetime containers
+ // Slice<T>, Str                - readonly borrowed containers
+ // MutSlice<T>, MutStr          - read-write borrowed containers
  //
- // EXCEPTION-SAFETY
+ // As much as is possible and safe, these types can be implicitly converted
+ // between one another.  Buffer copies will only happen when necessary.
+ //
+ // These types have most of the same methods, with the following main
+ // exceptions:
+ //
+ // - Mutating methods are only available on Unique* and Shared*.
+ // - Some accessors return mutable references for Unique* and const references
+ //   for other classes.
+ //
+ ///// ARRAYS VS STRINGS
+ //
+ // The array and string types are almost exactly the same.  The array types
+ // even have a c_str() method. The only differences are:
+ //
+ // - Strings can be constructed from const T*, which is taken to be a C-like
+ //   NUL-terminated string.
+ // - When constructed from a const T[n], strings will assume it's a string
+ //   literal with an implicit terminating NUL.  Arrays will assume it's an
+ //   ordinary array with the expected length.
+ // - Strings can be compared with operator== to const T[n], but arrays can't.
+ // - Strings can be converted to std::string and std::filesystem::path.
+ //
+ ///// COPY-ON-WRITE
+ //
+ // The SharedArray and SharedString classes have copy-on-write behavior when
+ // you try to modify them.  By default simple access operations like begin(),
+ // end(), operator[], and at() do not trigger a copy-on-write and instead
+ // return const references.  To trigger a copy-on-write use mut_begin(),
+ // mut_end(), mut_get(), and mut_at().  SharedArray and SharedString can only
+ // be used with copyable element types.  To work with move-only element types,
+ // use UniqueArray.
+ //
+ ///// STATIC STRING OPTIMIZATION
+ //
+ // Not to be confused with Small String Optimization.  SharedArray and
+ // SharedString can refer to a static array or string (one which will stay
+ // alive for the duration of the program, or at least the foreseeable future).
+ // This allows them to be created and passed around with no allocation or
+ // refcounting cost.
+ //
+ ///// EXCEPTION-SAFETY
+ //
  // None of these classes generate their own exceptions.  If an out-of-bounds
  // index or a max-capacity-exceeded problem occurs, the program will be
  // terminated.
@@ -49,16 +79,18 @@
  // noexcept.  If one of those throws, undefined behavior occurs (hopefully with
  // a debug-mode assert).
  //
- // THREAD-SAFETY
- // This library is not threadsafe, mainly because it uses a non-threadsafe
- // allocator (lilac).  If modified to use a threadsafe allocator, then AnyArray
- // and AnyString will still use non-threadsafe reference counting, so they will
- // need to be martialled to UniqueArray and UniqueString before being passed
- // between threads, or have make_not_shared() called on them.  Or modified to
- // use threadsafe reference counting but that has a significant performance
- // cost.
+ ///// THREAD-SAFETY
  //
- // LIMITATIONS
+ // This library is not threadsafe, mainly because it uses a non-threadsafe
+ // allocator (lilac).  If modified to use a threadsafe allocator, then
+ // SharedArray and SharedString will still use non-threadsafe reference
+ // counting, so they will need to be martialled to UniqueArray and UniqueString
+ // before being passed between threads, or have unshare() called on them.  Or
+ // modified to use threadsafe reference counting but that has a significant
+ // performance cost.
+ //
+ ///// LIMITATIONS
+ //
  // Owned arrays are limited to a size and capacity of 2^31-1 elements even on
  // 64-bit systems.  Trying to allocate larger than that will panic.  If you
  // need arrays larger than that you probably should be manually allocating them
@@ -68,10 +100,11 @@
  // billion array objects would take 64 GB of RAM anyway so if you get to that
  // point you already have other problems.
  //
- // COMPARISON WITH STL TYPES
+ ///// COMPARISON WITH STL TYPES
+ //
  // These types are intended to be equivalent and mostly compatible.
- //   std::vector -> UniqueArray, AnyArray
- //   std::string -> UniqueString, AnyString
+ //   std::vector -> UniqueArray, SharedArray
+ //   std::string -> UniqueString, SharedString
  //   std::string_view -> Str, StaticString
  //   std::span (no fixed-size extents) -> Slice, MutSlice, MutStr
  //
@@ -83,9 +116,9 @@
  //   - Custom allocators are not supported.  They are rarely used in STL
  //     containers and mainly serve to clutter up error messages.
  //   - Some of the more obscure methods may be missing or named differently.
- //   - AnyArray and AnyString return const references from operator[] instead
- //     of mutable references, to avoid accidentally triggering copy-on-write.
- //     To trigger COW, Use mut_get() or cast them to Unique* instead.
+ //   - SharedArray and SharedString return const references from operator[]
+ //     instead of mutable references, to avoid accidentally triggering
+ //     copy-on-write.  To trigger COW, Use mut_get() or cast them to Unique*.
  //   - .substr() returns a slice, not a copy.  In many cases a copy will happen
  //     implicitly anyway, but if you assign it to auto, you may get a dangling
  //     reference.
@@ -118,7 +151,7 @@ struct ArrayInterface;
  // (refcounted) data or reference static data.  Has semi-implicit
  // copy-on-write behavior (at no cost if you don't use it).
 template <class T>
-using AnyArray = ArrayInterface<AnyArrayClass, T>;
+using SharedArray = ArrayInterface<SharedArrayClass, T>;
 
  // An array that guarantees unique ownership, allowing mutation without
  // copy-on-write.  This has the same role as std::vector.
@@ -127,8 +160,8 @@ using UniqueArray = ArrayInterface<UniqueArrayClass, T>;
 
  // An array that can only reference static data (or at least data that outlives
  // it).  The data cannot be modified.  The difference between this and Slice is
- // that an AnyArray can be constructed from a StaticArray without allocating a new
- // buffer.
+ // that an SharedArray can be constructed from a StaticArray without allocating
+ // a new buffer.
 template <class T>
 using StaticArray = ArrayInterface<StaticArrayClass, T>;
 
@@ -154,7 +187,7 @@ using MutSlice = ArrayInterface<MutSliceClass, T>;
  // the variadic cat(...) from strings.h, which only does a single allocation
  // per invocation.
 template <class T>
-using GenericAnyString = ArrayInterface<AnyStringClass, T>;
+using GenericSharedString = ArrayInterface<SharedStringClass, T>;
 template <class T>
 using GenericUniqueString = ArrayInterface<UniqueStringClass, T>;
 template <class T>
@@ -164,19 +197,19 @@ using GenericStr = ArrayInterface<StrClass, T>;
 template <class T>
 using GenericMutStr = ArrayInterface<MutStrClass, T>;
 
-using AnyString = GenericAnyString<char>;
+using SharedString = GenericSharedString<char>;
 using UniqueString = GenericUniqueString<char>;
 using StaticString = GenericStaticString<char>;
 using Str = GenericStr<char>;
 using MutStr = GenericMutStr<char>;
 
-using AnyString16 = GenericAnyString<char16>;
+using SharedString16 = GenericSharedString<char16>;
 using UniqueString16 = GenericUniqueString<char16>;
 using StaticString16 = GenericStaticString<char16>;
 using Str16 = GenericStr<char16>;
 using MutStr16 = GenericMutStr<char16>;
 
-using AnyString32 = GenericAnyString<char32>;
+using SharedString32 = GenericSharedString<char32>;
 using UniqueString32 = GenericUniqueString<char32>;
 using StaticString32 = GenericStaticString<char32>;
 using Str32 = GenericStr<char32>;
@@ -347,11 +380,11 @@ struct ArrayInterface {
      // ownership mode as the moved-from array, and if that isn't supported,
      // copies the buffer.  Although move conversion will never fail for
      // copyable element types, it's disabled for StaticArray and Slice, and the
-     // copy constructor from AnyArray to StaticArray is explicit.
+     // copy constructor from SharedArray to StaticArray is explicit.
      //
      // Note: Unlike the non-converting move-constructor, this can propogate an
-     // exception when converting from an AnyArray<T> to a UniqueArray<T> if T's
-     // copy constructor throws.
+     // exception when converting from an SharedArray<T> to a UniqueArray<T> if
+     // T's copy constructor throws.
     template <class ac2> ALWAYS_INLINE constexpr
     ArrayInterface (ArrayInterface<ac2, T>&& o) requires (
         !ac::trivially_copyable && !ac2::trivially_copyable
@@ -838,7 +871,7 @@ struct ArrayInterface {
      // Get the size of the array in elements
     ALWAYS_INLINE constexpr
     usize size () const {
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
             return impl.sizex2_with_owned >> 1;
         }
         else return impl.size;
@@ -1104,7 +1137,7 @@ struct ArrayInterface {
      // This is equvalent to (capacity() > 0) but is faster.
     ALWAYS_INLINE constexpr
     bool owned () const {
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
              // Erase these expects in release build because they can make the
              // compiler turn non-branching code into branching code.
 #ifndef NDEBUG
@@ -1260,10 +1293,11 @@ struct ArrayInterface {
     }
 
      // Like make_unique, but works on slices and static arrays.  If you want to
-     // pass an AnyArray or AnyString between threads, you must call this first.
-     // NOTE: Currently the allocator being used is not threadsafe either.
+     // pass an SharedArray or SharedString between threads, you must call this
+     // first.  NOTE: Currently the allocator being used is not threadsafe
+     // either.
     ALWAYS_INLINE
-    void make_not_shared () {
+    void unshare () {
         if constexpr (ac::supports_share) {
             if (owned()) make_unique();
         }
@@ -1347,10 +1381,9 @@ struct ArrayInterface {
         else require(false);
     }
 
-     // Nonmutating version of shrink.  Semantically equivalent to
-     // slice(0, new_size), but returns the original type.  This may avoid a
-     // copy for AnyArray and AnyString, but may cause an extra copy for
-     // UniqueArray and UniqueString.
+     // Nonmutating version of shrink.  Like slice(0, new_size), but returns the
+     // original type.  This may avoid a copy for SharedArray and SharedString,
+     // but may cause an extra copy for UniqueArray and UniqueString.
     constexpr
     Self chop (usize new_size) const& {
         expect(new_size <= size());
@@ -1418,7 +1451,7 @@ struct ArrayInterface {
     ALWAYS_INLINE
     void pop_back () {
         expect(size() > 0);
-        if constexpr (ac::is_Any && std::is_trivially_destructible_v<T>) {
+        if constexpr (ac::is_Shared && std::is_trivially_destructible_v<T>) {
              // Compiler isn't quite smart enough to do this optimization
             impl.sizex2_with_owned -= 2;
         }
@@ -1757,7 +1790,7 @@ struct ArrayInterface {
     void set_owned (T* d, usize s) {
         static_assert(ac::supports_owned);
         expect(s <= max_size_);
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
              // If data is null, clear the owned bit
             impl.sizex2_with_owned = (s << 1) | !!d;
         }
@@ -1772,7 +1805,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
         static_assert(ac::supports_static || ac::is_Slice || ac::is_MutSlice);
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
             impl.sizex2_with_owned = s << 1;
         }
         else {
@@ -1827,15 +1860,15 @@ struct ArrayInterface {
 
     ALWAYS_INLINE constexpr
     void set_size (usize s) {
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
             impl.sizex2_with_owned = s << 1 | (impl.sizex2_with_owned & 1);
         }
         else impl.size = s;
     }
-     // Just an optimization for AnyArray
+     // Just an optimization for SharedArray
     ALWAYS_INLINE constexpr
     void add_size (usize change) {
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
             impl.sizex2_with_owned += change << 1;
         }
         else impl.size += change;
@@ -1843,7 +1876,7 @@ struct ArrayInterface {
 
     ALWAYS_INLINE
     void set_data_unique (T* d) {
-        if constexpr (ac::is_Any) {
+        if constexpr (ac::is_Shared) {
             impl.sizex2_with_owned |= 1;
         }
         impl.data = d;

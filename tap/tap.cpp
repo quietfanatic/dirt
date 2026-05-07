@@ -85,7 +85,7 @@ bool catch_wrong_exception (const std::type_info& t, uni::Str name) {
 
 #ifndef TAP_DISABLE_TESTS
  // TODO: detect duplicate test names
-TestSet::TestSet (uni::AnyString n, void(* c )()) :
+TestSet::TestSet (uni::SharedString n, void(* c )()) :
     name(n), code(c)
 {
     in::testers().emplace_back(this);

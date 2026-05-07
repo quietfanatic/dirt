@@ -16,8 +16,8 @@ struct ChainAcr : Accessor {
 struct ChainAttrFuncAcr : Accessor {
     const Accessor* outer;
     AttrFunc<Mu>* f;
-    AnyString key;
-    ChainAttrFuncAcr (const Accessor* o, AttrFunc<Mu>* f, AnyString k, AccessCaps c) :
+    SharedString key;
+    ChainAttrFuncAcr (const Accessor* o, AttrFunc<Mu>* f, SharedString k, AccessCaps c) :
         Accessor(AF::ChainAttrFunc, c),
         outer(o), f(f), key(move(k))
     { outer->inc(); }

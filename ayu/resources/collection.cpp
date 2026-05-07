@@ -88,7 +88,7 @@ Mu* Collection::extract (Mu* p) noexcept {
      // Value has already been deleted, but name needs deleting.
      // Named items are unlikely to ever be deleted.
     if (tmp_name_sx2wo & 1) [[unlikely]] {
-        AnyString s;
+        SharedString s;
         s.impl = {tmp_name_sx2wo, tmp_name_data};
     }
     return tmp_value_data;
@@ -97,16 +97,16 @@ Mu* Collection::extract (Mu* p) noexcept {
 } using namespace ayu;
 
 AYU_DESCRIBE(ayu::Collection,
-    keys(mixed_funcs<AnyArray<AnyString>>(
+    keys(mixed_funcs<SharedArray<SharedString>>(
         [](const Collection& v){
-            auto r = UniqueArray<AnyString>(Capacity(v.items.size() + 1));
+            auto r = UniqueArray<SharedString>(Capacity(v.items.size() + 1));
             if (v.next_id) r.emplace_back_expect_capacity("_next_id");
             for (auto& item : v.items) {
                 r.emplace_back_expect_capacity(item.name());
             }
-            return AnyArray<AnyString>(move(r));
+            return SharedArray<SharedString>(move(r));
         },
-        [](Collection& v, const AnyArray<AnyString>& m){
+        [](Collection& v, const SharedArray<SharedString>& m){
             auto items = UniqueArray<CollectionItem>(Capacity(m.size()));
             for (auto& k : m) {
                 if (!k) raise(e_CollectionItemNameInvalid, "Collection item name is empty");
@@ -128,7 +128,7 @@ AYU_DESCRIBE(ayu::Collection,
             v.last_lookup = 0;
         }
     )),
-    computed_attrs([](Collection& v, const AnyString& key)->Link{
+    computed_attrs([](Collection& v, const SharedString& key)->Link{
         if (key == "_next_id") {
             return Link(&v.next_id);
         }

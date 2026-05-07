@@ -7,22 +7,22 @@
 
 namespace ayu::in {
     [[gnu::noclone]] NOINLINE
-    AnyString make_optional_name (Type t) noexcept {
+    SharedString make_optional_name (Type t) noexcept {
         return cat(t.name(), '?');
     }
     [[gnu::noclone]] NOINLINE
-    AnyString make_pointer_name (Type t, int flags) noexcept {
+    SharedString make_pointer_name (Type t, int flags) noexcept {
         UniqueString r = t.name();
         if (flags & 1) encat(r, " const");
         if (flags & 2) encat(r, " volatile");
         return cat(move(r), '*');
     }
     [[gnu::noclone]] NOINLINE
-    AnyString make_template_name_1 (StaticString prefix, Type t) noexcept {
+    SharedString make_template_name_1 (StaticString prefix, Type t) noexcept {
         return cat(prefix, t.name(), '>');
     }
     [[gnu::noclone]] NOINLINE
-    AnyString make_variadic_name (
+    SharedString make_variadic_name (
         StaticString prefix,
         const Type* types,
         u32 len
@@ -38,7 +38,7 @@ namespace ayu::in {
         );
     }
     [[gnu::noclone]] NOINLINE
-    AnyString make_array_name (Type t, u32 len) noexcept {
+    SharedString make_array_name (Type t, u32 len) noexcept {
         return cat(t.name(), '[', len, ']');
     }
 } // ayu::in
@@ -103,7 +103,7 @@ static tap::TestSet tests ("dirt/ayu/reflection/describe-standard", []{
     }, "item_to_string on tuple");
     is(got_s, s, "gives correct result");
      // Test uni arrays
-    uni::AnyArray<uni::AnyString> strings {
+    uni::SharedArray<uni::SharedString> strings {
         "asdf", "fdsa", "foo", "bar"
     };
     StaticString strings_s = "[asdf fdsa foo bar]";

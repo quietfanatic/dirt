@@ -36,9 +36,9 @@ Str Error::get_tag (Str name) {
     }
     return "";
 }
-void add_tag_impl (Error& e, AnyString::Impl name, AnyString::Impl value) {
-    AnyString n; n.impl = name;
-    AnyString v; v.impl = value;
+void add_tag_impl (Error& e, SharedString::Impl name, SharedString::Impl value) {
+    SharedString n; n.impl = name;
+    SharedString v; v.impl = value;
     e.what_cache = "";
     e.tags.emplace_back(move(n), move(v));
 }
@@ -62,7 +62,7 @@ Error& current_error () {
     }
 }
 
-void raise_impl (ErrorCode code, AnyString::Impl details) {
+void raise_impl (ErrorCode code, SharedString::Impl details) {
     Error e;
     e.code = code;
     e.details.impl = details;

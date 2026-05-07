@@ -6,7 +6,7 @@
 
 namespace glow {
 
-FileImage::FileImage (const AnyString& s, Slice<u8> b) :
+FileImage::FileImage (const SharedString& s, Slice<u8> b) :
     source(s),
     storage(load_image_from_blob(b, s))
 { }

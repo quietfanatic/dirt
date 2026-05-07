@@ -148,12 +148,12 @@ AYU_DESCRIBE(glow::Shader,
                 require(v.id);
                 i32 len = 0;
                 glGetShaderiv(v.id, GL_SHADER_SOURCE_LENGTH, &len);
-                if (!len) return AnyString();
-                auto r = AnyString(Uninitialized(len));
+                if (!len) return SharedString();
+                auto r = SharedString(Uninitialized(len));
                 glGetShaderSource(v.id, len, null, r.mut_data());
                 return r;
             },
-            [](Shader& v, const AnyString& s){
+            [](Shader& v, const SharedString& s){
                 const char* src_p = s.data();
                 i32 src_len = s.size();
                 glShaderSource(v.id, 1, &src_p, &src_len);

@@ -9,14 +9,14 @@ namespace glow {
  // An image that can lazily load itself from a file.  Intended to be an AYU
  // resource type.
 struct FileImage : Image {
-    AnyString source;
+    SharedString source;
     UniqueImage storage;
 
     constexpr FileImage () { }
      // Don't load
-    FileImage (const AnyString& s) : source(s) { }
+    FileImage (const SharedString& s) : source(s) { }
      // Do load
-    FileImage (const AnyString& s, Slice<u8> blob);
+    FileImage (const SharedString& s, Slice<u8> blob);
 
     ~FileImage () { }
 

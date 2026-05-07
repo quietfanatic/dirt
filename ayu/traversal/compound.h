@@ -14,7 +14,7 @@ namespace ayu {
 
  // Get a list of the keys in a object-like item.  This isn't used that often,
  // so it may be inefficient.
-AnyArray<AnyString> item_get_keys (
+SharedArray<SharedString> item_get_keys (
     const Link&, RouteRef rt = {}
 );
 
@@ -23,19 +23,19 @@ AnyArray<AnyString> item_get_keys (
  // throw e_AttrMissing or e_AttrRejected.  This isn't used that often, so it
  // may be inefficient.
 void item_set_keys (
-    const Link&, AnyArray<AnyString>,
+    const Link&, SharedArray<SharedString>,
     RouteRef rt = {}
 );
 
  // Get an attribute of an object-like item by its key, or empty Link if
  // the attribute doesn't exist.
 Link item_maybe_attr (
-    const Link&, const AnyString&, RouteRef rt = {}
+    const Link&, const SharedString&, RouteRef rt = {}
 );
 
  // Throws e_ElemNotFound if the attribute doesn't exist.  Guaranteed not to
  // return an empty or null Link.
-Link item_attr (const Link&, const AnyString&, RouteRef rt = {});
+Link item_attr (const Link&, const SharedString&, RouteRef rt = {});
 
 ///// OPERATIONS FOR ARRAY-LIKE TYPES
  // These use either the elems() descriptor or the keys() and elem_func()
@@ -65,7 +65,7 @@ Link item_elem (
 );
 
  // The keys() descriptor of an item produced a type other than
- // AnyArray<AnyString>.
+ // SharedArray<SharedString>.
 constexpr ErrorCode e_KeysTypeInvalid = "ayu::e_KeysTypeInvalid";
  // The set_keys operation (which is also part of the item_from_tree process)
  // failed because a key that the item required was not given.
@@ -102,9 +102,9 @@ constexpr ErrorCode e_LengthOverflow = "ayu::e_LengthOverflow";
 
  // You might want to use these error types in your descriptions.
 [[noreturn, gnu::cold]]
-void raise_AttrMissing (Type item_type, const AnyString& key);
+void raise_AttrMissing (Type item_type, const SharedString& key);
 [[noreturn, gnu::cold]]
-void raise_AttrRejected (Type item_type, const AnyString& key);
+void raise_AttrRejected (Type item_type, const SharedString& key);
 [[noreturn, gnu::cold]]
 void raise_LengthRejected (Type item_type, u32 min, u32 max, u32 got);
 
@@ -112,7 +112,7 @@ void raise_LengthRejected (Type item_type, u32 min, u32 max, u32 got);
 [[noreturn, gnu::cold]]
 void raise_KeysTypeInvalid (Type item_type, Type got_type);
 [[noreturn, gnu::cold]]
-void raise_AttrNotFound (Type, const AnyString&);
+void raise_AttrNotFound (Type, const SharedString&);
 [[noreturn, gnu::cold]]
 void raise_AttrsNotSupported (Type);
 [[noreturn, gnu::cold]]

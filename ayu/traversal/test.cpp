@@ -74,7 +74,7 @@ namespace ayu::test {
     };
 
     struct AttrsTest2 {
-        std::unordered_map<AnyString, int> xs;
+        std::unordered_map<SharedString, int> xs;
     };
 
     struct DelegateTest {
@@ -183,22 +183,22 @@ AYU_DESCRIBE(ayu::test::ElemTestCollapse2,
     )
 )
 AYU_DESCRIBE(ayu::test::AttrsTest2,
-    keys(mixed_funcs<AnyArray<AnyString>>(
+    keys(mixed_funcs<SharedArray<SharedString>>(
         [](const AttrsTest2& v){
-            AnyArray<AnyString> r;
+            SharedArray<SharedString> r;
             for (auto& p : v.xs) {
                 r.emplace_back(p.first);
             }
             return r;
         },
-        [](AttrsTest2& v, const AnyArray<AnyString>& ks){
+        [](AttrsTest2& v, const SharedArray<SharedString>& ks){
             v.xs.clear();
             for (auto& k : ks) {
                 v.xs.emplace(k, 0);
             }
         }
     )),
-    computed_attrs([](AttrsTest2& v, const AnyString& k){
+    computed_attrs([](AttrsTest2& v, const SharedString& k){
         return Link(&v.xs.at(k));
     })
 )
@@ -436,8 +436,8 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     throws_code<e_External>([&]{
         item_attr(&ast2, "c");
     }, "item_attr can throw on missing key (from user-defined function)");
-    auto ks = std::vector<AnyString>{"c", "d"};
-    item_set_keys(&ast2, Slice<AnyString>(ks));
+    auto ks = std::vector<SharedString>{"c", "d"};
+    item_set_keys(&ast2, Slice<SharedString>(ks));
     is(ast2.xs.find("a"), ast2.xs.end(), "item_set_keys removed key");
     is(ast2.xs.at("c"), 0, "item_set_keys added key");
     doesnt_throw([&]{

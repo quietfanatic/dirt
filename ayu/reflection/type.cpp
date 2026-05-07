@@ -115,7 +115,7 @@ StaticString DescriptionHeader::get_name () const noexcept {
     if (flags % DescFlags::NameComputed) {
         auto cache = computed_name.cache;
         if (!*cache) {
-            AnyString s = computed_name.f();
+            SharedString s = computed_name.f();
             *cache = StaticString(s);
             s.impl = {};
         }

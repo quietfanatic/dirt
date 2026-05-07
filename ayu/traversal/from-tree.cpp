@@ -366,7 +366,7 @@ struct TraverseFromTree {
                      // If the attribute was not provided and has
                      // collapse_optional set, deserialize the item with an
                      // empty array.
-                    new (&*empty) Tree(AnyArray<Tree>());
+                    new (&*empty) Tree(SharedArray<Tree>());
                     child.tree = &*empty;
                 }
                 else if (const Tree* def = attr->default_value()) {
@@ -437,7 +437,7 @@ struct TraverseFromTree {
         const Accessor* keys_acr
     ) {
          // Writable keys, so write them.
-        auto keys = UniqueArray<AnyString>(
+        auto keys = UniqueArray<SharedString>(
             object.size(), [&object](u32 i){ return object[i].first; }
         );
         keys_acr->write(*trav.address,
@@ -455,12 +455,12 @@ struct TraverseFromTree {
         const Accessor* keys_acr
     ) {
          // Readonly keys?  Read them and check that they match.
-        AnyArray<AnyString> keys;
+        SharedArray<SharedString> keys;
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
-            new (&keys) AnyArray<AnyString>(ks);
+            new (&keys) SharedArray<SharedString>(ks);
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
@@ -548,7 +548,7 @@ struct TraverseFromTree {
         auto acr = elems->elem(collapsed_i)->acr();
         expect(acr->attr_flags % AttrFlags::Collapse);
         FromTreeTraversal<ElemTraversal> child;
-        Tree collapsed = Tree(AnyArray(array.slice(collapsed_i)));
+        Tree collapsed = Tree(SharedArray(array.slice(collapsed_i)));
         child.tree = &collapsed;
         trav_elem<visit>(child, trav, acr, collapsed_i, AC::Write);
 

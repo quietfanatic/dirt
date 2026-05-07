@@ -13,13 +13,13 @@ namespace ayu::in {
 
 struct ResourceSchemeEntry {
     usize hash;
-    AnyString name;
+    SharedString name;
     ResourceScheme* scheme;
 };
 
 struct ResourceExtensionEntry {
     usize hash;
-    AnyString name;
+    SharedString name;
     ResourceExtension* extension;
 };
 

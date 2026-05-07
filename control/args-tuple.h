@@ -195,7 +195,7 @@ struct ArgsTupleElems {
 };
 
 [[gnu::noclone]] NOINLINE inline
-AnyString make_ArgsTuple_name (i32 min, StaticArray<ayu::Type> types) {
+SharedString make_ArgsTuple_name (i32 min, StaticArray<ayu::Type> types) {
     expect(types);
     return cat(
         "control::ArgsTuple<", min, ", ",
@@ -215,7 +215,7 @@ AYU_DESCRIBE_TEMPLATE(
             return desc::name("control::ArgsTuple<0>");
         }
         else {
-            return desc::computed_name([]()->uni::AnyString{
+            return desc::computed_name([]()->uni::SharedString{
                  // TODO: read elems for desc names?
                 static constexpr const ayu::Type types [] = {
                     ayu::Type::constexpr_of<Pars>()...

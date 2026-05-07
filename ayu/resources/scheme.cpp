@@ -25,7 +25,7 @@ void raise_ResourceNoFilepath () {
     raise(e_ResourceNoFilepath, "Resource has no associated filepath.");
 }
 
-void ResourceScheme::activate (const AnyString& name) noexcept {
+void ResourceScheme::activate (const SharedString& name) noexcept {
     require(iri::scheme_canonical(name));
     auto hash = uni::hash(name);
     auto& schemes = g_universe->schemes;

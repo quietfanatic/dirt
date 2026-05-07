@@ -10,7 +10,7 @@ namespace uni {
 
 struct ArrayClassDefaults {
     static constexpr bool is_String = false;
-    static constexpr bool is_Any = false;
+    static constexpr bool is_Shared = false;
     static constexpr bool is_Unique = false;
     static constexpr bool is_Static = false;
     static constexpr bool is_Slice = false;
@@ -21,13 +21,13 @@ struct ArrayClassDefaults {
     static constexpr bool trivially_copyable = false;
     static constexpr bool mut_default = false;
 };
-struct AnyArrayClass : ArrayClassDefaults {
-    static constexpr bool is_Any = true;
+struct SharedArrayClass : ArrayClassDefaults {
+    static constexpr bool is_Shared = true;
     static constexpr bool supports_share = true;
     static constexpr bool supports_owned = true;
     static constexpr bool supports_static = true;
 };
-struct AnyStringClass : AnyArrayClass {
+struct SharedStringClass : SharedArrayClass {
     static constexpr bool is_String = true;
 };
 struct UniqueArrayClass : ArrayClassDefaults {
@@ -67,7 +67,7 @@ struct MutStrClass : MutSliceClass {
 template <class, class>
 struct ArrayImpl;
 
-template <class ac, class T> requires (ac::is_Any)
+template <class ac, class T> requires (ac::is_Shared)
 struct ArrayImpl<ac, T> {
      // The lowest bit is owned, the rest is size (shifted left by 1).
      // owned = sizex2_with_owned & 1
@@ -83,7 +83,7 @@ struct ArrayImpl<ac, T> {
     T* data;
 };
 
-template <class ac, class T> requires (!ac::is_Any && !ac::mut_default)
+template <class ac, class T> requires (!ac::is_Shared && !ac::mut_default)
 struct ArrayImpl<ac, T> {
     usize size;
     const T* data;

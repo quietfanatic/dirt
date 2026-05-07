@@ -79,7 +79,7 @@ struct PtrTraversal : Traversal { };
 
 struct ComputedAttrTraversal : RefTraversal {
     AttrFunc<Mu>* func;
-    const AnyString* key;
+    const SharedString* key;
 };
 
 struct ComputedElemTraversal : RefTraversal {
@@ -195,7 +195,7 @@ void trav_attr (
 template <VisitFunc& visit> ALWAYS_INLINE
 void trav_computed_attr (
     ComputedAttrTraversal& child, const Traversal& parent,
-    const Link& link, AttrFunc<Mu>* func, const AnyString& key, AccessCaps mode
+    const Link& link, AttrFunc<Mu>* func, const SharedString& key, AccessCaps mode
 ) {
     child.step = TraversalStep::ComputedAttr;
     child.func = func;

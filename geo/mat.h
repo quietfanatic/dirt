@@ -349,7 +349,7 @@ AYU_DESCRIBE_TEMPLATE(
     []{
         using namespace uni;
         auto computed = []{
-            return desc::computed_name([]()->AnyString{
+            return desc::computed_name([]()->SharedString{
                 return cat(
                     "geo::GMat<", ayu::Type::of<T>().name(),
                     ", ", cols, ", ", rows, '>'

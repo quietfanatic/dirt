@@ -444,7 +444,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_TYPE(geo::GVec<T, n>),
     []{
         auto computed = []{
-            return desc::computed_name([]()->uni::AnyString{
+            return desc::computed_name([]()->uni::SharedString{
                 return uni::cat(
                     "geo::GVec<", ayu::Type::of<T>().name(), ", ", n, '>'
                 );

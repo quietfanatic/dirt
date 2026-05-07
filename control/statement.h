@@ -49,7 +49,7 @@ struct Statement {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class Cmd),
     AYU_DESCRIBE_TEMPLATE_TYPE(control::Statement<Cmd>),
-    desc::computed_name([]()->uni::AnyString{
+    desc::computed_name([]()->uni::SharedString{
         return ayu::in::make_template_name_1(
             "control::Statement<", ayu::Type::of<Cmd>()
         );
@@ -64,7 +64,7 @@ AYU_DESCRIBE_TEMPLATE(
     }),
     desc::elems(
         desc::elem(desc::template funcs(
-            [](const control::Statement<Cmd>& v)->uni::AnyString{
+            [](const control::Statement<Cmd>& v)->uni::SharedString{
                 if (!v) return "";
                 return v.command->name;
             },

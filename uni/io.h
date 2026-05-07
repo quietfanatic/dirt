@@ -22,7 +22,7 @@ struct File {
      // Empty object
     constexpr File () : handle(null) { }
      // Open file, throws on failure
-    explicit File (AnyString, const char* mode = "rb");
+    explicit File (SharedString, const char* mode = "rb");
      // Move construct
     constexpr File (File&& o) : handle(o.handle) { o.handle = null; }
      // Move assign
@@ -39,7 +39,7 @@ struct File {
 
      // Doesn't throw on failure, instead returns empty and sets errno.  If you
      // don't like the errno you get, call raise_open_failed.
-    static File try_open (AnyString path, const char* mode = "rb") noexcept;
+    static File try_open (SharedString path, const char* mode = "rb") noexcept;
 
     [[noreturn]] void raise_open_failed (
         Str path_err = "", int errnum = 0
@@ -53,9 +53,9 @@ struct File {
 };
 
  // One-step file IO
-UniqueString string_from_file (AnyString path);
+UniqueString string_from_file (SharedString path);
 
-void string_to_file (Str, AnyString path);
+void string_to_file (Str, SharedString path);
 
 constexpr ErrorCode e_IOError = "uni::e_IOError";
 
@@ -68,7 +68,7 @@ struct Dir {
      // Empty object
     constexpr Dir () : handle(null), fd(0) { }
      // Open from path
-    explicit Dir (AnyString p);
+    explicit Dir (SharedString p);
      // Move construct
     constexpr Dir (Dir&& o) :
         handle(o.handle), fd(o.fd)
@@ -90,7 +90,7 @@ struct Dir {
      // AT_FDCWD from <fcntl.h>.  Doesn't throw, but returns empty and sets
      // errno.  If you don't like the errno you get, call raise_open_failed().
      // TODO: avoid extra string copy when recursing
-    static Dir try_open_at (int parent_fd, AnyString path) noexcept;
+    static Dir try_open_at (int parent_fd, SharedString path) noexcept;
 
     [[noreturn]] void raise_open_failed (
         Str path_err = "", int errnum = 0
@@ -145,13 +145,13 @@ namespace in {
     void warn_close_failed (const char* message, Str path);
 }
 
-inline File::File (AnyString path, const char* mode) :
+inline File::File (SharedString path, const char* mode) :
     File(try_open(path, mode))
 {
     if (!handle) raise_open_failed(path);
 }
 
-inline File File::try_open (AnyString path, const char* mode) noexcept {
+inline File File::try_open (SharedString path, const char* mode) noexcept {
     File r;
     r.handle = fopen_utf8(path.c_str(), mode);
     return r;
@@ -172,15 +172,15 @@ inline void File::close (Str path_err) noexcept {
     }
 }
 
-inline UniqueString string_from_file (AnyString path) {
+inline UniqueString string_from_file (SharedString path) {
     return File(path).read(path);
 }
 
-inline void string_to_file (Str content, AnyString path) {
+inline void string_to_file (Str content, SharedString path) {
     File(path, "wb").write(content, path);
 }
 
-inline UniqueArray<u8> blob_from_file (AnyString path) {
+inline UniqueArray<u8> blob_from_file (SharedString path) {
     auto s = string_from_file(move(path));
     UniqueArray<u8> r;
     r.impl.size = s.impl.size;
@@ -189,17 +189,17 @@ inline UniqueArray<u8> blob_from_file (AnyString path) {
     return r;
 }
 
-inline void blob_to_file (Slice<u8> content, AnyString path) {
+inline void blob_to_file (Slice<u8> content, SharedString path) {
     string_to_file(content.reinterpret<char>(), move(path));
 }
 
-inline Dir::Dir (AnyString path) :
+inline Dir::Dir (SharedString path) :
     Dir(try_open_at(AT_FDCWD, path))
 {
     if (!handle) raise_open_failed(path);
 }
 
-inline Dir Dir::try_open_at (int parent_fd, AnyString path) noexcept {
+inline Dir Dir::try_open_at (int parent_fd, SharedString path) noexcept {
     Dir r;
     r.fd = openat(parent_fd, path.c_str(), O_RDONLY|O_DIRECTORY);
     if (r.fd >= 0) {

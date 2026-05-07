@@ -393,7 +393,7 @@ struct Parser {
             }
             in = self.skip_ws(in);
             if (in >= self.end) goto not_terminated;
-            Tree& value = o.emplace_back(AnyString(move(key)), Tree()).second;
+            Tree& value = o.emplace_back(SharedString(move(key)), Tree()).second;
             in = self.parse_term(in, value);
             in = self.skip_comma(in);
         }
@@ -539,21 +539,21 @@ struct Parser {
 
  // Finally:
 Tree tree_from_string (Str s, Str filename) {
-    require(s.size() <= AnyString::max_size_);
+    require(s.size() <= SharedString::max_size_);
     return Parser(s, filename).parse();
 }
 
 UniqueArray<Tree> tree_list_from_string (Str s, Str filename) {
-    require(s.size() <= AnyString::max_size_);
+    require(s.size() <= SharedString::max_size_);
     return Parser(s, filename).parse_list();
 }
 
-Tree tree_from_file (AnyString filename) {
+Tree tree_from_file (SharedString filename) {
     UniqueString s = string_from_file(filename);
     return tree_from_string(s, filename);
 }
 
-UniqueArray<Tree> tree_list_from_file (AnyString filename) {
+UniqueArray<Tree> tree_list_from_file (SharedString filename) {
     UniqueString s = string_from_file(filename);
     return tree_list_from_string(s, filename);
 }

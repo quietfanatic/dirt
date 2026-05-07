@@ -89,28 +89,28 @@ struct Tree {
      // plain (not signed or unsigned) chars are represented as strings
      // This is not optimal but who serializes individual 8-bit code units
     explicit Tree (char v, TreeFlags f = {}) : Tree(UniqueString(1,v), f) { }
-    explicit constexpr Tree (AnyString, TreeFlags = {});
+    explicit constexpr Tree (SharedString, TreeFlags = {});
      // Optimize raw char literals
     template <usize n>
     explicit constexpr Tree (const char(& v )[n], TreeFlags f = {}) :
         Tree(StaticString(v), f)
     { }
 
-    explicit constexpr Tree (AnyArray<Tree>, TreeFlags = {});
+    explicit constexpr Tree (SharedArray<Tree>, TreeFlags = {});
      // This can throw e_TreeObjectKeyDuplicate.  Only truly constexpr if the
      // passed array is empty.
-    explicit constexpr Tree (AnyArray<TreePair>, TreeFlags = {});
+    explicit constexpr Tree (SharedArray<TreePair>, TreeFlags = {});
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
      // Convenient array/object construction because initializer_list sucks
     template <class... Args> static constexpr
     Tree array (Args&&... args) {
-        return Tree(AnyArray<Tree>::make(std::forward<Args>(args)...));
+        return Tree(SharedArray<Tree>::make(std::forward<Args>(args)...));
     }
 
     template <class... Args> static constexpr
     Tree object (Args&&... args) {
-        return Tree(AnyArray<TreePair>::make(std::forward<Args>(args)...));
+        return Tree(SharedArray<TreePair>::make(std::forward<Args>(args)...));
     }
 
     ///// CONVERSION FROM TREE
@@ -133,16 +133,16 @@ struct Tree {
      // Warning 1: The returned Str is not NUL-terminated.
      // Warning 2: The Str will be invalidated when this Tree is destructed.
     explicit constexpr operator Str () const;
-     // This AnyString will remain valid though.  It shares the same refcounting
+     // This SharedString will remain valid though.  It shares the same refcounting
      // mechanism as Tree.
-    explicit constexpr operator AnyString () const&;
-    explicit constexpr operator AnyString () &&;
+    explicit constexpr operator SharedString () const&;
+    explicit constexpr operator SharedString () &&;
     explicit constexpr operator Slice<Tree> () const;
-    explicit constexpr operator AnyArray<Tree> () const&;
-    explicit constexpr operator AnyArray<Tree> () &&;
+    explicit constexpr operator SharedArray<Tree> () const&;
+    explicit constexpr operator SharedArray<Tree> () &&;
     explicit constexpr operator Slice<TreePair> () const;
-    explicit constexpr operator AnyArray<TreePair> () const&;
-    explicit constexpr operator AnyArray<TreePair> () &&;
+    explicit constexpr operator SharedArray<TreePair> () const&;
+    explicit constexpr operator SharedArray<TreePair> () &&;
     explicit operator std::exception_ptr () const;
 
     ///// CONVENIENCE

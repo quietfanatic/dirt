@@ -431,7 +431,7 @@ UniqueString tree_to_string_for_file (const Tree& t, PrintOptions opts) {
     return printer.print(t, 4080 - 16);
 }
 
-void tree_to_file (const Tree& t, AnyString filename, PrintOptions opts) {
+void tree_to_file (const Tree& t, SharedString filename, PrintOptions opts) {
     return string_to_file(tree_to_string_for_file(t, opts), move(filename));
 }
 

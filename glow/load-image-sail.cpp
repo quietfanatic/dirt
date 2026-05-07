@@ -119,7 +119,7 @@ constexpr FormatInfo formats [n_formats] = {
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_YUVA
 };
 
-void load_texture_from_file (u32 target, AnyString filename) {
+void load_texture_from_file (u32 target, SharedString filename) {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
     auto res = sail_load_from_file(filename.c_str(), &image);
@@ -235,7 +235,7 @@ void load_texture_from_file (u32 target, AnyString filename) {
     }
 }
 
-UniqueImage load_image_from_file (AnyString filename) {
+UniqueImage load_image_from_file (SharedString filename) {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
     auto res = sail_load_from_file(filename.c_str(), &image);

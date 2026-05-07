@@ -2,18 +2,18 @@
 
 namespace ayu::in {
 
-inline const AnyArray<AnyString>& require_readable_keys (Type t, Mu* v) {
-    if (t != Type::of<AnyArray<AnyString>>()) {
+inline const SharedArray<SharedString>& require_readable_keys (Type t, Mu* v) {
+    if (t != Type::of<SharedArray<SharedString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
-    return reinterpret_cast<const AnyArray<AnyString>&>(*v);
+    return reinterpret_cast<const SharedArray<SharedString>&>(*v);
 }
 
-inline AnyArray<AnyString>& require_writeable_keys (Type t, Mu* v) {
-    if (t != Type::of<AnyArray<AnyString>>()) {
+inline SharedArray<SharedString>& require_writeable_keys (Type t, Mu* v) {
+    if (t != Type::of<SharedArray<SharedString>>()) {
         raise_KeysTypeInvalid(Type(), t);
     }
-    return reinterpret_cast<AnyArray<AnyString>&>(*v);
+    return reinterpret_cast<SharedArray<SharedString>&>(*v);
 }
 
 void read_length_acr_cb (u32& len, Type, Mu*);

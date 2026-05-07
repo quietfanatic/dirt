@@ -241,7 +241,7 @@ struct Link {
 
      // These are just wrappers around item_attr and item_elem, but they're
      // extern so that we don't pull too many dependencies into this header.
-    Link operator [] (const AnyString& key) const;
+    Link operator [] (const SharedString& key) const;
     Link operator [] (u32 index) const;
 
 ///// ERRORS

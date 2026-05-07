@@ -27,11 +27,11 @@ AYU_DESCRIBE_SCALAR(i64)
 AYU_DESCRIBE_SCALAR(u64)
 AYU_DESCRIBE_SCALAR(float)
 AYU_DESCRIBE_SCALAR(double)
-AYU_DESCRIBE_SCALAR(uni::AnyString)
+AYU_DESCRIBE_SCALAR(uni::SharedString)
 #undef AYU_DESCRIBE_SCALAR
 AYU_DESCRIBE(uni::UniqueString,
-    to_tree([](const UniqueString& v){ return Tree(AnyString(v)); }),
-    from_tree([](UniqueString& v, const Tree& t){ v = AnyString(t); return true; })
+    to_tree([](const UniqueString& v){ return Tree(SharedString(v)); }),
+    from_tree([](UniqueString& v, const Tree& t){ v = SharedString(t); return true; })
 )
 
  // Str is a reference-like type so it can't be deserialized because the data

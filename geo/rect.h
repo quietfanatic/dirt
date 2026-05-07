@@ -352,7 +352,7 @@ AYU_DESCRIBE_TEMPLATE(
         else if constexpr (std::is_same_v<T, uni::i32>) return desc::name("geo::IRect");
         else if constexpr (std::is_same_v<T, uni::i64>) return desc::name("geo::LRect");
         else if constexpr (std::is_same_v<T, bool>) return desc::name("geo::BRect");
-        else return desc::computed_name([]()->uni::AnyString{
+        else return desc::computed_name([]()->uni::SharedString{
             return uni::cat(
                 "geo::GRect<", ayu::Type::of<T>().name(), '>'
             );

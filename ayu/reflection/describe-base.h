@@ -119,7 +119,7 @@ struct AYU_DescribeBase {
      // for later accesses.  For usage examples, see describe-standard.h.
     static constexpr
     DescriptorFor<T> auto computed_name (
-        Function<AnyString()>*
+        Function<SharedString()>*
     );
 
      // Provides a function to transform an item of this type to an ayu::Tree
@@ -452,7 +452,7 @@ struct AYU_DescribeBase {
 
      // Use this for items that may have a variable number of attributes.
      // `accessor` must be the output of one of the accessor functions (see
-     // ACCESSORS), and its child type must be uni::AnyArray<uni::AnyString>.
+     // ACCESSORS), and its child type must be uni::SharedArray<uni::SharedString>.
      // Writing to this accessor may clear the contents of this item.
      //
      // During serialization, the list of keys will be determined with
@@ -460,18 +460,18 @@ struct AYU_DescribeBase {
      // will be determined using the computed_attrs() descriptor.
      //
      // During deserialization, `accessor`'s write operation will be called with
-     // the list of keys provided in the Tree, and it should throw MissingAttr
-     // if it isn't given an attribute it needs or UnwantedAttr if it's given an
-     // attribute it doesn't accept.  If `accessor` is a readonly accessor, then
-     // instead its `read` operation will be called, and the list of provided
-     // keys must match exactly or an exception will be thrown.  It is
+     // the list of keys provided in the Tree, and it should throw e_AttrMissing
+     // if it isn't given an attribute it needs or e_AttrRejected if it's given
+     // an attribute it doesn't accept.  If `accessor` is a readonly accessor,
+     // then instead its `read` operation will be called, and the list of
+     // provided keys must match exactly or an exception will be thrown.  It is
      // acceptable to ignore the provided list of keys and instead clear the
      // item and later autovivify attributes given to computed_attrs().
      //
      // If keys() is present, computed_attrs() must also be present, and attrs()
      // must not be present.
     template <AccessorFrom<T> Acr> requires (
-        AccessorTo<Acr, uni::AnyArray<uni::AnyString>>
+        AccessorTo<Acr, uni::SharedArray<uni::SharedString>>
     ) static constexpr
     DescriptorFor<T> auto keys (
         const Acr& accessor
@@ -525,7 +525,7 @@ struct AYU_DescribeBase {
      // must not be present.
     static constexpr
     DescriptorFor<T> auto computed_attrs (
-        Function<Link(T&, const AnyString&)>*
+        Function<Link(T&, const SharedString&)>*
     );
 
     ///// DESCRIPTORS FOR ARRAY-LIKE TYPES

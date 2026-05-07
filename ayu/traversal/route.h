@@ -12,7 +12,7 @@
 //
 //     data Route = ResourceRoute Resource
 //                | LinkRoute Link
-//                | KeyRoute Route AnyString
+//                | KeyRoute Route SharedString
 //                | IndexRoute Route u32
 //
 // Normally an object like this would be called a Path, but that risks confusion
@@ -44,7 +44,7 @@ struct Route : in::RefCounted {
      // Returns empty if this is a root.
     RouteRef parent () const noexcept;
      // Returns null if this Route is a root or has an index.
-    const AnyString* key () const noexcept;
+    const SharedString* key () const noexcept;
      // Returns null if this Route is a root or has a key.
     const u32* index () const noexcept;
 
@@ -68,7 +68,7 @@ struct SharedRoute {
      // Constructs a root Route from an anonymous item.
     explicit SharedRoute (const Link&) noexcept;
      // Append an attribute key or an element index to the Route.
-    SharedRoute (SharedRoute parent, AnyString key) noexcept;
+    SharedRoute (SharedRoute parent, SharedString key) noexcept;
     SharedRoute (SharedRoute parent, u32 index) noexcept;
 
      // Check if this Route is empty.

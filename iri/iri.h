@@ -40,8 +40,8 @@
 ///// Interface
 //
 // This uses a collection of string types from ../uni/arrays.h.  They are:
-//   - AnyString: A string type that can be reference-counted or static.  This
-//     is used to store the spec of the IRI.
+//   - SharedString: A string type that can be reference-counted or static.
+//     This is used to store the spec of the IRI.
 //   - Str: A non-owning view of a string, like std::string_view.
 //   - UniqueString: A string type that is uniquely-owned, similarly to
 //     std::string.
@@ -177,7 +177,7 @@ struct IRI {
      // Construct an already-parsed IRI.  This will not do any validation.  If
      // you provide invalid parameters, you will wreak havoc and mayhem.
     constexpr explicit IRI (
-        AnyString spec,
+        SharedString spec,
         u16 scheme_end, u16 authority_end,
         u16 path_end, u16 query_end
     );
@@ -189,7 +189,7 @@ struct IRI {
      // Construct an invalid IRI with the given values for error() and
      // possibly_invalid_spec().  Debug assert or undefined behavior if given
      // Error::NoError or Error::Empty.
-    constexpr explicit IRI (Error code, const AnyString& = "");
+    constexpr explicit IRI (Error code, const SharedString& = "");
 
      // Copy and move construction and assignment
     constexpr IRI (const IRI& o);
@@ -212,16 +212,16 @@ struct IRI {
     constexpr Error error () const;
 
      // Gets the full text of the IRI only if this IRI is valid.
-    constexpr const AnyString& spec () const;
+    constexpr const SharedString& spec () const;
      // Get full text of IRI even if it is not valid.  This is only for
      // diagnosing what is wrong with the IRI.  Don't use it for anything
      // important.
-    constexpr const AnyString& possibly_invalid_spec () const;
+    constexpr const SharedString& possibly_invalid_spec () const;
 
      // Steal the spec string, leaving this IRI empty.
-    constexpr AnyString move_spec ();
+    constexpr SharedString move_spec ();
      // Steal the spec string even if it's invalid.
-    constexpr AnyString move_possibly_invalid_spec ();
+    constexpr SharedString move_possibly_invalid_spec ();
 
      // Check for existence of components.  Every IRI has a scheme, so
      // has_scheme() is equivalent to valid().
@@ -309,7 +309,7 @@ struct IRI {
      // the above equation).  If the base IRI is any other invalid IRI or the
      // input IRI is invalid (including empty), returns the empty string.
      // Otherwise never returns empty.
-    AnyString relative_to (const IRI& base) const noexcept;
+    SharedString relative_to (const IRI& base) const noexcept;
 
      // Destruct this object
     constexpr ~IRI ();
@@ -346,7 +346,7 @@ struct IRI {
 
      // These members are publically accessible but only use them if you know
      // what you're doing.
-    const AnyString spec_;
+    const SharedString spec_;
     const u16 scheme_end = 0; // 0 means invalid IRI
     const u16 authority_end = 0; // reused to store error code (except Empty)
     const u16 path_end = 0;
@@ -374,7 +374,7 @@ bool scheme_canonical (Str scheme);
 template <>
 struct std::hash<iri::IRI> {
     std::size_t operator() (const iri::IRI& x) const {
-        return std::hash<uni::AnyString>{}(x.spec_);
+        return std::hash<uni::SharedString>{}(x.spec_);
     }
 };
 

@@ -37,7 +37,7 @@ void Link::raise_access_denied (AccessCaps mode) const {
     }
 }
 
-Link Link::operator[] (const AnyString& key) const {
+Link Link::operator[] (const SharedString& key) const {
     return item_attr(*this, key);
 }
 Link Link::operator[] (u32 index) const {

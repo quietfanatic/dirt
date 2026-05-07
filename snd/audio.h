@@ -62,11 +62,11 @@ struct UniqueAudio {
 };
 
 UniqueAudio audio_from_blob (Slice<u8> content, Str filename = "");
-UniqueAudio audio_from_file (AnyString filename);
+UniqueAudio audio_from_file (SharedString filename);
 UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename = "");
 UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename = "");
 UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&, Str filename = "");
-void audio_to_file_qoa (const UniqueAudio&, AnyString filename);
+void audio_to_file_qoa (const UniqueAudio&, SharedString filename);
 
 constexpr ErrorCode e_LoadAudioFailed = "snd::e_LoadAudioFailed";
 

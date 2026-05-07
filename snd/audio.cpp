@@ -28,12 +28,12 @@ UniqueAudio audio_from_blob (Slice<u8> blob, Str filename) {
     else in::raise_LoadAudioFailed(filename, "Unknown magic number");
 }
 
-UniqueAudio audio_from_file (AnyString filename) {
+UniqueAudio audio_from_file (SharedString filename) {
     auto blob = blob_from_file(filename);
     return audio_from_blob(blob, filename);
 }
 
-void audio_to_file_qoa (const UniqueAudio& au, AnyString filename) {
+void audio_to_file_qoa (const UniqueAudio& au, SharedString filename) {
     auto blob = audio_to_blob_qoa(au, filename);
     blob_to_file(blob, move(filename));
 }

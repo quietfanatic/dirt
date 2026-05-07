@@ -68,7 +68,7 @@ struct Resource : in::RefCounted {
 
      // Syntax sugar.  Extern to avoid depending on traversal/compound.h which
      // depends on route.h which depends on us.
-    Link operator [] (const AnyString& key); // { return link()[key]; }
+    Link operator [] (const SharedString& key); // { return link()[key]; }
     Link operator [] (u32 index); // { return link()[index]; }
 
     protected:
@@ -93,7 +93,7 @@ struct SharedResource {
     Resource& operator* () const { return *p.p; }
     Resource* operator-> () const { return p.p; }
     constexpr explicit operator bool () const { return !!p.p; }
-    Link operator [] (const AnyString& key) { return (*p.p)[key]; }
+    Link operator [] (const SharedString& key) { return (*p.p)[key]; }
     Link operator [] (u32 index) { return (*p.p)[index]; }
 };
 
@@ -109,7 +109,7 @@ struct ResourceRef {
     Resource* operator-> () const { return p; }
     operator SharedResource () const { return SharedResource(p); }
     constexpr explicit operator bool () const { return !!p; }
-    Link operator [] (const AnyString& key) { return (*p)[key]; }
+    Link operator [] (const SharedString& key) { return (*p)[key]; }
     Link operator [] (u32 index) { return (*p)[index]; }
 };
 
@@ -231,7 +231,7 @@ bool source_exists (const IRI&);
 
  // Get the path of the file backing this resource, if it has one.  Will return
  // empty if there's no associated filepath instead of throwing.
-AnyString resource_filepath (const IRI&);
+SharedString resource_filepath (const IRI&);
 
  // Returns a list of all resources with state != RS::Unloaded.  This includes
  // resources that are in the process of being loaded or reloaded.

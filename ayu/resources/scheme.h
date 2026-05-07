@@ -61,10 +61,10 @@ struct ResourceScheme {
      // created when the resource is saved.
      //
      // TODO: Non-file resource schemes
-    virtual AnyString get_filepath (const IRI&) { return ""; }
+    virtual SharedString get_filepath (const IRI&) { return ""; }
 
-    AnyString require_filepath (const IRI& name) {
-        AnyString r = get_filepath(name);
+    SharedString require_filepath (const IRI& name) {
+        SharedString r = get_filepath(name);
         if (!r) raise_ResourceNoFilepath();
         return r;
     }
@@ -76,7 +76,7 @@ struct ResourceScheme {
      // the same as any other ResourceScheme name, otherwise a runtime assert
      // will be triggered.
     explicit
-    ResourceScheme (const AnyString& name) { activate(name); }
+    ResourceScheme (const SharedString& name) { activate(name); }
 
      // Cannot copy or move ResourceScheme because its address must remain
      // fixed.
@@ -90,7 +90,7 @@ struct ResourceScheme {
 
      // You can activate a ResourceScheme under multiple scheme names if you
      // want.  This is less useful than it is for ResourceExtension.
-    void activate (const AnyString&) noexcept;
+    void activate (const SharedString&) noexcept;
      // Deactivating a ResourceScheme deactivates it for all names it was
      // activated with.  If you deactivate a ResourceScheme while a Resource
      // that uses it is loaded, you will not be able to save or reload the
@@ -131,7 +131,7 @@ struct FolderResourceScheme : ResourceScheme {
             && iri.hierarchical();
     }
 
-    virtual AnyString get_filepath (const IRI& iri) override {
+    virtual SharedString get_filepath (const IRI& iri) override {
         if (!iri.hierarchical()) return "";
         IRI abs = IRI(iri.path().slice(1), folder);
         return iri::to_fs_path(abs);
@@ -148,7 +148,7 @@ struct FolderResourceScheme : ResourceScheme {
         );
     }
      // (but not if you auto-activate it)
-    explicit FolderResourceScheme (const AnyString& n, const IRI& f) :
+    explicit FolderResourceScheme (const SharedString& n, const IRI& f) :
         FolderResourceScheme(f)
     { activate(n); }
 
@@ -157,7 +157,7 @@ struct FolderResourceScheme : ResourceScheme {
         FolderResourceScheme(iri::from_fs_path(cat(f, '/')))
     { }
      // (with auto-activate)
-    explicit FolderResourceScheme (const AnyString& n, Str f) :
+    explicit FolderResourceScheme (const SharedString& n, Str f) :
         FolderResourceScheme(f)
     { activate(n); }
 };

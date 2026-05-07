@@ -18,7 +18,7 @@ void raise_LoadImageFailed (Str filename, Str mess) {
 
 } using namespace in;
 
-void load_texture_from_file (u32 target, AnyString filename) {
+void load_texture_from_file (u32 target, SharedString filename) {
      // TODO: detect 3-channel file and use GL_RGB8
     UniqueImage image = load_image_from_file(move(filename));
      // Now upload texture
@@ -178,7 +178,7 @@ UniqueImage load_image_from_blob (Slice<u8> blob, Str filename) {
     return r;
 }
 
-UniqueImage load_image_from_file (AnyString filename) {
+UniqueImage load_image_from_file (SharedString filename) {
     auto blob = blob_from_file(filename);
     return load_image_from_blob(blob, filename);
 }

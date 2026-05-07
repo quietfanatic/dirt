@@ -9,7 +9,7 @@ namespace in {
 ///// GET KEYS
 
 struct GetKeysTraversalHead {
-    UniqueArray<AnyString>* keys;
+    UniqueArray<SharedString>* keys;
 };
 
 template <class T = Traversal>
@@ -18,9 +18,9 @@ struct GetKeysTraversal : GetKeysTraversalHead, T { };
 struct TraverseGetKeys {
 
     static
-    UniqueArray<AnyString> start (const Link& item, RouteRef rt) {
+    UniqueArray<SharedString> start (const Link& item, RouteRef rt) {
         CurrentBase curb (rt, item);
-        UniqueArray<AnyString> keys;
+        UniqueArray<SharedString> keys;
         GetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
         trav_start<visit>(child, item, AC::Read);
@@ -28,7 +28,7 @@ struct TraverseGetKeys {
     }
 
     static
-    void collect (UniqueArray<AnyString>& keys, AnyString&& key) {
+    void collect (UniqueArray<SharedString>& keys, SharedString&& key) {
         for (auto k : keys) if (k == key) return;
         keys.emplace_back(move(key));
     }
@@ -74,7 +74,7 @@ struct TraverseGetKeys {
             AccessCB(*trav.keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
-            for (auto& key : ks) collect(keys, AnyString(key));
+            for (auto& key : ks) collect(keys, SharedString(key));
         }));
     }
 
@@ -91,7 +91,7 @@ struct TraverseGetKeys {
 } using namespace in;
 
 NOINLINE
-AnyArray<AnyString> item_get_keys (
+SharedArray<SharedString> item_get_keys (
     const Link& item, RouteRef rt
 ) {
     return TraverseGetKeys::start(item, rt);
@@ -103,7 +103,7 @@ namespace in {
 
 struct SetKeysTraversalHead {
      // Not const because this is a consuming algorithm
-    UniqueArray<AnyString>* keys;
+    UniqueArray<SharedString>* keys;
 };
 template <class T = Traversal>
 struct SetKeysTraversal : SetKeysTraversalHead, T { };
@@ -112,17 +112,17 @@ struct TraverseSetKeys {
 
     static
     void start (
-        const Link& item, AnyArray<AnyString> ks, RouteRef rt
+        const Link& item, SharedArray<SharedString> ks, RouteRef rt
     ) {
         CurrentBase curb (rt, item);
-        UniqueArray<AnyString> keys = move(ks);
+        UniqueArray<SharedString> keys = move(ks);
         SetKeysTraversal<StartTraversal> child;
         child.keys = &keys;
         trav_start<visit_and_verify>(child, item, AC::Read);
     }
 
     static
-    bool claim (UniqueArray<AnyString>& keys, Str key) {
+    bool claim (UniqueArray<SharedString>& keys, Str key) {
         for (u32 i = 0; i < keys.size(); ++i) {
             if (keys[i] == key) {
                 keys.erase(i);
@@ -216,12 +216,12 @@ struct TraverseSetKeys {
          // For readonly keys, get the keys and compare them.  This code is
          // copied from set_keys_readonly in from-tree.cpp.  I don't care enough
          // about this codepath to work any harder on it.
-        AnyArray<AnyString> keys;
+        SharedArray<SharedString> keys;
         keys_acr->read(*trav.address,
             AccessCB(keys, [](auto& keys, Type t, Mu* v)
         {
             auto& ks = require_writeable_keys(t, v);
-            new (&keys) AnyArray<AnyString>(ks);
+            new (&keys) SharedArray<SharedString>(ks);
         }));
 #ifndef NDEBUG
          // Check returned keys for duplicates
@@ -266,7 +266,7 @@ struct TraverseSetKeys {
 } using namespace in;
 
 void item_set_keys (
-    const Link& item, AnyArray<AnyString> keys, RouteRef rt
+    const Link& item, SharedArray<SharedString> keys, RouteRef rt
 ) {
     TraverseSetKeys::start(item, move(keys), rt);
 }
@@ -274,7 +274,7 @@ void item_set_keys (
 ///// ATTR
 
 struct GetAttrTraversalHead {
-    const AnyString* get_key;
+    const SharedString* get_key;
 };
 
 template <class T = Traversal>
@@ -283,7 +283,7 @@ struct GetAttrTraversal : GetAttrTraversalHead, ReturnLinkTraversal<T> { };
 struct TraverseAttr {
     NOINLINE static
     Link start (
-        const Link& item, const AnyString& key, RouteRef rt
+        const Link& item, const SharedString& key, RouteRef rt
     ) {
         CurrentBase curb (rt, item);
         Link r;
@@ -365,13 +365,13 @@ struct TraverseAttr {
 
 NOINLINE
 Link item_maybe_attr (
-    const Link& item, const AnyString& key, RouteRef rt
+    const Link& item, const SharedString& key, RouteRef rt
 ) {
     return TraverseAttr::start(item, key, rt);
 }
 
 NOINLINE
-Link item_attr (const Link& item, const AnyString& key, RouteRef rt) {
+Link item_attr (const Link& item, const SharedString& key, RouteRef rt) {
     Link r = TraverseAttr::start(item, key, rt);
     if (!r) {
         try { raise_AttrNotFound(item.type(), key); }
@@ -475,7 +475,7 @@ struct TraverseSetLength {
 } // in
 
 void item_set_length (const Link& item, u32 len, RouteRef rt) {
-    if (len > AnyArray<Tree>::max_size_) {
+    if (len > SharedArray<Tree>::max_size_) {
         raise_LengthOverflow(len);
     }
     TraverseSetLength::start(item, len, rt);
@@ -628,14 +628,14 @@ void in::read_length_acr_cb (u32& len, Type t, Mu* v) {
         l = reinterpret_cast<const u64&>(*v);
     }
     else raise_LengthTypeInvalid(Type(), t);
-    if (l > AnyArray<Tree>::max_size_) {
+    if (l > SharedArray<Tree>::max_size_) {
         raise_LengthOverflow(l);
     }
     len = l;
 }
 
 void in::write_length_acr_cb (u32& len, Type t, Mu* v) {
-    expect(len <= AnyArray<Tree>::max_size_);
+    expect(len <= SharedArray<Tree>::max_size_);
     if (t == Type::of<u32>()) {
         reinterpret_cast<u32&>(*v) = len;
     }
@@ -649,13 +649,13 @@ void in::write_length_acr_cb (u32& len, Type t, Mu* v) {
 
 ///// ERRORS
 
-void raise_AttrMissing (Type item_type, const AnyString& key) {
+void raise_AttrMissing (Type item_type, const SharedString& key) {
     raise(e_AttrMissing, cat(
         "Item of type ", item_type.name(), " missing required key ", key
     ));
 }
 
-void raise_AttrRejected (Type item_type, const AnyString& key) {
+void raise_AttrRejected (Type item_type, const SharedString& key) {
     raise(e_AttrRejected, cat(
         "Item of type ", item_type.name(), " given unwanted key ", key
     ));
@@ -686,12 +686,12 @@ void raise_LengthRejected (Type item_type, u32 min, u32 max, u32 got) {
 
 void raise_KeysTypeInvalid (Type, Type got_type) {
     raise(e_KeysTypeInvalid, cat(
-        "Item has keys accessor of wrong type; expected AnyArray<AnyString> but got ",
+        "Item has keys accessor of wrong type; expected SharedArray<SharedString> but got ",
         got_type.name()
     ));
 }
 
-void raise_AttrNotFound (Type item_type, const AnyString& key) {
+void raise_AttrNotFound (Type item_type, const SharedString& key) {
     raise(e_AttrNotFound, cat(
         "Item of type ", item_type.name(), " has no attribute with key ", key
     ));
@@ -733,5 +733,5 @@ void raise_LengthOverflow (u64 len) {
 } using namespace ayu;
 
  // Force instantiation of the keys type
-AYU_DESCRIBE_INSTANTIATE(AnyArray<AnyString>)
+AYU_DESCRIBE_INSTANTIATE(SharedArray<SharedString>)
 

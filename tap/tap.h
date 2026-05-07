@@ -80,17 +80,17 @@ namespace tap {
 
  // This is the struct you use to declare a set of tests.
 struct TestSet {
-    uni::AnyString name;
+    uni::SharedString name;
     void(* code )();
      // The constructor will register the test at init-time.
-    TestSet (uni::AnyString name, void(* code )());
+    TestSet (uni::SharedString name, void(* code )());
 };
 
 #else
 
  // Stub struct for when TAP_DISABLE_TESTS is defined.
 struct TestSet {
-    TestSet (uni::AnyString, void(*)()) { }
+    TestSet (uni::SharedString, void(*)()) { }
 };
 
 #endif
@@ -186,14 +186,14 @@ bool try_pass (F code, uni::Str name = "") {
 
  // Mark the next num tests as todo.  You must still run the tests.  If only
  // todo tests fail, the test set is still considered successful.
-void todo (unsigned num, uni::AnyString excuse = "");
+void todo (unsigned num, uni::SharedString excuse = "");
  // Just todo one test.
-static inline void todo (uni::AnyString excuse = "") {
+static inline void todo (uni::SharedString excuse = "") {
     todo(1, excuse);
 }
  // The block form marks as todo every test that runs inside it.  It can be safely
 template <class F>
-void todo (uni::AnyString excuse, F code);
+void todo (uni::SharedString excuse, F code);
 
  // Declare that you've skipped num tests.  You must NOT still run the tests.
 void skip (unsigned num, uni::Str excuse = "");

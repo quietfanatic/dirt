@@ -123,7 +123,7 @@ IRI get_program_location () {
     require(wai_getExecutablePath(path, len, nullptr) == len);
     IRI r = from_fs_path(Str(path, len));
     expect(r);
-     // Promote the IRI's AnyString to static, unless someone replaced IRI's
+     // Promote the IRI's SharedString to static, unless someone replaced IRI's
      // string type with something incompatible.
     if (requires { r.spec_.impl.sizex2_with_owned; }) {
         auto& sx2wo = r.spec_.impl.sizex2_with_owned;
@@ -221,7 +221,7 @@ static tap::TestSet tests ("dirt/iri/path", []{
     is(path_extension("foo.bar/baz"), "", "path_extension none");
     is(path_extension("foo.bar/baz."), "", "path_extension trailing dot ignored");
      // TODO: test relative paths somehow
-    AnyString exp;
+    SharedString exp;
     if constexpr (backwards_slashes) {
         Str wd = working_directory().path();
         ok(wd.size() > 2);
@@ -233,7 +233,7 @@ static tap::TestSet tests ("dirt/iri/path", []{
         exp = "file:/foo/bar%3Fbaz";
     }
     is(from_fs_path("/foo/bar?baz").spec(), exp, "from_fs_path");
-    AnyString exp2;
+    SharedString exp2;
     if constexpr (backwards_slashes) {
         Str wd = working_directory().path();
         exp2 = cat(wd[1], ":/foo/bar?baz");

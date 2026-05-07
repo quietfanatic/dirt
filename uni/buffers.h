@@ -1,5 +1,5 @@
 // This provides the barebones ref-counted buffer class that powers
-// AnyArray and AnyString.
+// SharedArray and SharedString.
 
 #pragma once
 #include "common.h"

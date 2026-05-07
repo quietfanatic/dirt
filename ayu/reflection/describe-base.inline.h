@@ -117,7 +117,7 @@ ElemDcrFor<T> auto AYU_DescribeBase<T>::elem (
 }
 template <Describable T>
 template <AccessorFrom<T> Acr> requires (
-    AccessorTo<Acr, AnyArray<AnyString>>
+    AccessorTo<Acr, SharedArray<SharedString>>
 ) constexpr
 DescriptorFor<T> auto AYU_DescribeBase<T>::keys (const Acr& acr) {
     return in::KeysDcrWith<T, Acr>(acr);

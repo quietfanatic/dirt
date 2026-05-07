@@ -35,9 +35,9 @@ struct Error : std::exception {
      // associated header files.
     ErrorCode code;
      // More information about the error, subject to change.
-    AnyString details;
+    SharedString details;
      // Extra information in name: value format
-    UniqueArray<std::pair<AnyString, AnyString>> tags;
+    UniqueArray<std::pair<SharedString, SharedString>> tags;
      // If this wrapped a different error, this stores it.  code will be
      // e_External and details will have the CPP type (hopefully demangled) and
      // the what() of the error.
@@ -51,7 +51,7 @@ struct Error : std::exception {
      // Returns the value of the tag, or "" if it doesn't exist.
     Str get_tag (Str name);
      // Adds the tag (doesn't check if it's already been added)
-    void add_tag (AnyString name, AnyString value);
+    void add_tag (SharedString name, SharedString value);
      // If you want to prevent duplicate tags, do
      //     if (!e.get_tag("foo")) {
      //         e.add_tag("foo", cat("glarch ", barch, " parch"));
@@ -63,10 +63,10 @@ Error& current_error ();
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]] NOINLINE
-void raise_impl (ErrorCode code, AnyString::Impl details);
+void raise_impl (ErrorCode code, SharedString::Impl details);
 
 [[noreturn]] ALWAYS_INLINE
-void raise (ErrorCode code, AnyString details) {
+void raise (ErrorCode code, SharedString details) {
     auto impl = details.impl;
     details.impl = {};
     raise_impl(code, impl);
@@ -86,9 +86,9 @@ constexpr ErrorCode e_External = "uni::e_External";
  // Probably useless without rtti
 UniqueString demangle_cpp_name (const char* name) noexcept;
 
-void add_tag_impl (Error&, AnyString::Impl name, AnyString::Impl value);
+void add_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value);
 
-inline void Error::add_tag (AnyString name, AnyString value) {
+inline void Error::add_tag (SharedString name, SharedString value) {
     auto n = name.impl; name.impl = {};
     auto v = value.impl; value.impl = {};
     add_tag_impl(*this, n, v);

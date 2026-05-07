@@ -45,7 +45,7 @@ static void raise_ResourceValueEmpty () {
 
 [[noreturn, gnu::cold]]
 static void tag_error_with_resource_data (
-    const AnyString& name, ResourceState state, StaticString operation
+    const SharedString& name, ResourceState state, StaticString operation
 ) {
     Error& e = current_error();
     e.add_tag("ayu::ResourceName", name);
@@ -218,7 +218,7 @@ void Resource::set_value (AnyVal&& value) try {
     tag_error_with_resource(this, "set_value");
 }
 
-Link Resource::operator[] (const AnyString& key) { return link()[key]; }
+Link Resource::operator[] (const SharedString& key) { return link()[key]; }
 Link Resource::operator[] (u32 index) { return link()[index]; }
 
 ///// CONSTRUCTION, DESTRUCTION
@@ -338,9 +338,9 @@ void save (ResourceRef res, PrintOptions opts) try {
     if (ResourceTransaction::depth) {
         struct SaveCommitter : Committer {
             UniqueArray<u8> blob;
-            AnyString path;
+            SharedString path;
             File outfile;
-            SaveCommitter (UniqueArray<u8>&& b, AnyString&& p, File&& f) :
+            SaveCommitter (UniqueArray<u8>&& b, SharedString&& p, File&& f) :
                 blob(move(b)), path(move(p)), outfile(move(f))
             { }
             void commit () noexcept override {
@@ -684,7 +684,7 @@ void rename (ResourceRef old_res, ResourceRef new_res) try {
     tag_error_with_resources({old_res, new_res}, "rename");
 }
 
-AnyString resource_filepath (const IRI& name) try {
+SharedString resource_filepath (const IRI& name) try {
     auto scheme = require_scheme(name);
     return scheme->get_filepath(name);
 } catch (Error& e) {
@@ -989,7 +989,7 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
         load(SharedResource("ayu-test:/wrongtype.ayu"_iri));
     }, "ResourceScheme::accepts_type rejects wrong type");
 
-    AnyString ordinary_path;
+    SharedString ordinary_path;
     throws_code<e_ResourceSchemeNotFound>([&]{
         ordinary_path = resource_filepath("file:/foo/bar"_iri);
     }, "Can't use file:/ resource when there's a scheme registered.");

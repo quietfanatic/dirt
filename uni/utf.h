@@ -35,7 +35,7 @@ UniqueString sanitize_utf8 (Str) noexcept;
 
  // If input is valid, returns it.  Otherwise calls sanitize_utf8.
 inline
-AnyString sanitize_utf8 (AnyString s) {
+SharedString sanitize_utf8 (SharedString s) {
     if (valid_utf8(s)) return s;
     else return sanitize_utf8(s);
 }

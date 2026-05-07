@@ -53,7 +53,7 @@ UniqueString File::read (Str path_err) {
     if (size < 0) {
         raise_io_error("ftell", path_err);
     }
-    require(usize(size) < AnyString::max_size_);
+    require(usize(size) < SharedString::max_size_);
     auto r = UniqueString(Uninitialized(size));
      // Reset position
     res = fseek(handle, 0, SEEK_SET);

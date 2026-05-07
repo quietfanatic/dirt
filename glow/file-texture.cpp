@@ -5,7 +5,7 @@
 
 namespace glow {
 
-FileTexture::FileTexture (AnyString filename, u32 target) : Texture(target) {
+FileTexture::FileTexture (SharedString filename, u32 target) : Texture(target) {
     if (target) {
         load_texture_from_file(target, filename);
     }

@@ -87,7 +87,7 @@ struct TraverseToTree {
                     return use_attrs_no_rebuild(trav, attrs);
                 }
                 else {
-                    new (trav.dest) Tree(AnyArray<TreePair>());
+                    new (trav.dest) Tree(SharedArray<TreePair>());
                     return;
                 }
             }
@@ -110,7 +110,7 @@ struct TraverseToTree {
                     return use_elems(trav, elems);
                 }
                 else {
-                    new (trav.dest) Tree(AnyArray<Tree>());
+                    new (trav.dest) Tree(SharedArray<Tree>());
                     return;
                 }
             }
@@ -224,7 +224,7 @@ struct TraverseToTree {
                     );
                 }
                  // DON'T consume sub object because it could be shared.
-                for (auto& pair : AnyArray<TreePair>(move(value))) {
+                for (auto& pair : SharedArray<TreePair>(move(value))) {
                     new_object.emplace_back_expect_capacity(pair);
                 }
                 continue;
@@ -236,7 +236,7 @@ struct TraverseToTree {
                         "serialize to an array of 0 or 1 elements"
                     );
                 }
-                if (auto a = AnyArray<Tree>(move(value))) {
+                if (auto a = SharedArray<Tree>(move(value))) {
                     new (&value) Tree(move(a[0]));
                     SharableBuffer<Tree>::deallocate(a.impl.data);
                     a.impl = {};
@@ -338,7 +338,7 @@ struct TraverseToTree {
         if (collapsed.form != Form::Array) {
             raise(e_General, "Collapsed elem did not serialize to an Array tree.");
         }
-        array.append(AnyArray<Tree>(move(collapsed)));
+        array.append(SharedArray<Tree>(move(collapsed)));
         new (trav.dest) Tree(move(array));
     }
 
@@ -372,7 +372,7 @@ struct TraverseToTree {
          // If len is 0, don't even bother calling the contiguous_elems
          // function.  This shortcut isn't needed for computed_elems.
         if (!len) {
-            new (trav.dest) Tree(AnyArray<Tree>());
+            new (trav.dest) Tree(SharedArray<Tree>());
             return;
         }
         auto array = UniqueArray<Tree>(Capacity(len));

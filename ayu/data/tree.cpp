@@ -101,7 +101,7 @@ static bool tree_eq_object (const Tree& a, const Tree& b) noexcept {
      // The same attributes can be in different orders, so just compare each
      // attribute to each attribute for O(a.size * b.size).  In theory there are
      // faster algorithms, but they either require storing extra data in the
-     // objects (which would break compatibility with AnyArray<TreePair>) or
+     // objects (which would break compatibility with SharedArray<TreePair>) or
      // would only be worth it for very large objects.
     auto ab = a.data.as_object_ptr;
     auto ae = ab + a.size;
@@ -187,7 +187,7 @@ static tap::TestSet tests ("dirt/ayu/data/tree", []{
     is(
         Tree::object(TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}),
         Tree::object(TreePair{"b", Tree(1)}, TreePair{"a", Tree(0)}),
-        "AnyArray<TreePair> with same attributes in different order are equal"
+        "SharedArray<TreePair> with same attributes in different order are equal"
     );
     isnt(
         Tree::object(TreePair{"a", Tree(0)}, TreePair{"b", Tree(1)}),

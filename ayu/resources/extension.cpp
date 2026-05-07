@@ -48,7 +48,7 @@ UniqueArray<u8> ResourceExtension::to_blob (
     return UniqueArray<u8>(move(str));
 }
 
-void ResourceExtension::activate (const AnyString& name) noexcept {
+void ResourceExtension::activate (const SharedString& name) noexcept {
     for (auto c : name) {
         require((c < 'A' || c > 'Z') && c != '.' && c != '/');
     }

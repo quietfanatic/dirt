@@ -23,7 +23,7 @@ namespace ayu::in {
 struct ComparableAddress { };
 static_assert(sizeof(ComparableAddress) == 1);
 
-using NameFunc = AnyString();
+using NameFunc = SharedString();
 
 enum class DescFlags : u8 {
     PreferArray = 1 << 0,

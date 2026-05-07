@@ -81,7 +81,7 @@ AYU_DESCRIBE(wind::Window,
     attrs(
         attr("title", funcs(
             [](const Window& window){
-                return AnyString(SDL_GetWindowTitle(window));
+                return SharedString(SDL_GetWindowTitle(window));
             },
             [](Window& window, Str title){
                 SDL_SetWindowTitle(window, title.c_str());

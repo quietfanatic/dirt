@@ -22,11 +22,11 @@
 #include "describe-base.h"
 
 namespace ayu::in {
-    AnyString make_optional_name (Type t) noexcept;
-    AnyString make_pointer_name (Type t, int flags) noexcept;
-    AnyString make_template_name_1 (StaticString prefix, Type t) noexcept;
-    AnyString make_variadic_name (StaticString prefix, const Type* types, u32 len) noexcept;
-    AnyString make_array_name (Type t, u32 len) noexcept;
+    SharedString make_optional_name (Type t) noexcept;
+    SharedString make_pointer_name (Type t, int flags) noexcept;
+    SharedString make_template_name_1 (StaticString prefix, Type t) noexcept;
+    SharedString make_variadic_name (StaticString prefix, const Type* types, u32 len) noexcept;
+    SharedString make_array_name (Type t, u32 len) noexcept;
 } // ayu::in
 
  // std::optional serializes to [] for nullopt and [value] for value.  To make
@@ -105,16 +105,16 @@ AYU_DESCRIBE_TEMPLATE(
 )
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T),
-    AYU_DESCRIBE_TEMPLATE_TYPE(uni::AnyArray<T>),
+    AYU_DESCRIBE_TEMPLATE_TYPE(uni::SharedArray<T>),
     desc::computed_name([]{
         return ayu::in::make_template_name_1(
-            "uni::AnyArray<", ayu::Type::of<T>()
+            "uni::SharedArray<", ayu::Type::of<T>()
         );
     }),
     desc::length(desc::template value_methods<
-        uni::usize, &uni::AnyArray<T>::size, &uni::AnyArray<T>::resize
+        uni::usize, &uni::SharedArray<T>::size, &uni::SharedArray<T>::resize
     >()),
-    desc::contiguous_elems([](uni::AnyArray<T>& v){
+    desc::contiguous_elems([](uni::SharedArray<T>& v){
          // Make sure to return mut_data() because data() is const/readonly.
          // This array should not become shared while this pointer is active.
         return ayu::AnyPtr(v.mut_data());
@@ -148,16 +148,16 @@ AYU_DESCRIBE_TEMPLATE(
             "std::unordered_map<std::string, ", ayu::Type::of<T>()
         );
     }),
-    desc::keys(desc::template mixed_funcs<uni::AnyArray<uni::AnyString>>(
+    desc::keys(desc::template mixed_funcs<uni::SharedArray<uni::SharedString>>(
         [](const std::unordered_map<uni::UniqueString, T>& v){
-            uni::UniqueArray<uni::AnyString> r;
+            uni::UniqueArray<uni::SharedString> r;
             for (auto& p : v) {
                 r.emplace_back(p.first);
             }
-            return uni::AnyArray(r);
+            return uni::SharedArray(r);
         },
         [](std::unordered_map<std::string, T>& v,
-           const uni::AnyArray<uni::AnyString>& ks
+           const uni::SharedArray<uni::SharedString>& ks
         ){
             v.clear();
             for (auto& k : ks) {
@@ -165,7 +165,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
     )),
-    desc::computed_attrs([](std::unordered_map<std::string, T>& v, const uni::AnyString& k){
+    desc::computed_attrs([](std::unordered_map<std::string, T>& v, const uni::SharedString& k){
         auto iter = v.find(k);
         return iter != v.end()
             ? ayu::Link(&iter->second)
@@ -183,16 +183,16 @@ AYU_DESCRIBE_TEMPLATE(
             "std::map<std::string, ", ayu::Type::of<T>()
         );
     }),
-    desc::keys(desc::template mixed_funcs<uni::AnyArray<uni::AnyString>>(
+    desc::keys(desc::template mixed_funcs<uni::SharedArray<uni::SharedString>>(
         [](const std::map<std::string, T>& v){
-            uni::UniqueArray<uni::AnyString> r;
+            uni::UniqueArray<uni::SharedString> r;
             for (auto& p : v) {
                 r.emplace_back(p.first);
             }
-            return uni::AnyArray(r);
+            return uni::SharedArray(r);
         },
         [](std::map<std::string, T>& v,
-           const uni::AnyArray<uni::AnyString>& ks
+           const uni::SharedArray<uni::SharedString>& ks
         ){
             v.clear();
             for (auto& k : ks) {
@@ -200,7 +200,7 @@ AYU_DESCRIBE_TEMPLATE(
             }
         }
     )),
-    desc::computed_attrs([](std::map<std::string, T>& v, const uni::AnyString& k){
+    desc::computed_attrs([](std::map<std::string, T>& v, const uni::SharedString& k){
         auto iter = v.find(k);
         return iter != v.end()
             ? ayu::Link(&iter->second)
@@ -379,7 +379,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class T, uni::usize n),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::array<T, n>),
     desc::computed_name([]{
-        return uni::AnyString(uni::cat(
+        return uni::SharedString(uni::cat(
             "std::array<", ayu::Type::of<T>().name(),
             ", ", n, '>'
         ));
@@ -395,7 +395,7 @@ AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class A, class B),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::pair<A, B>),
     desc::computed_name([]{
-        return uni::AnyString(uni::cat(
+        return uni::SharedString(uni::cat(
             "std::pair<", ayu::Type::of<A>().name(),
             ", ", ayu::Type::of<B>().name(), '>'
         ));
@@ -436,7 +436,7 @@ namespace ayu::in {
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class... Ts),
     AYU_DESCRIBE_TEMPLATE_TYPE(std::tuple<Ts...>),
-    desc::computed_name([]()->uni::AnyString{
+    desc::computed_name([]()->uni::SharedString{
         static_assert(
             (!std::is_reference_v<Ts> && ...),
             "Cannot instantiate AYU description of a tuple with references as type parameters"
