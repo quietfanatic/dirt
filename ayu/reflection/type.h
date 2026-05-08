@@ -76,9 +76,9 @@ struct Type {
      // It is also safe to use this in a translation unit that doesn't have any
      // AYU_DESCRIBE blocks.
      //
-     // For maximum safety, always use Type::For unless you absolutely need it
+     // For maximum safety, always use Type::of unless you absolutely need it
      // to be constexpr, and if you do use this, test with optimizations enabled
-     // (-O1 is enough).
+     // (-O1 should be enough).
     template <Describable T> static constexpr
     Type constexpr_of () noexcept {
         return Type((const void*)&AYU_Describe<T>::AYU_description);
@@ -91,9 +91,9 @@ constexpr auto operator <=> (Type a, Type b) { return a.data <=> b.data; }
 
 ///// DYNAMICALLY TYPED OPERATIONS
 
- // Allocate a buffer appropriate for containing an instance of this type.
- // This uses operator new(size, align, nothrow), so either use
- // type.deallocate(p) or operator delete(p, align) to delete the pointer.
+ // Allocate a buffer appropriate for containing an instance of this type.  This
+ // uses operator new(size, align, nothrow), so either use dynamic_deallocate(p)
+ // or operator delete(p, align) to delete the pointer.
 inline
 void* dynamic_allocate (Type t) noexcept {
     return operator new(
@@ -101,7 +101,7 @@ void* dynamic_allocate (Type t) noexcept {
     );
 }
 
- // Deallocate a buffer previously allocated with allocate()
+ // Deallocate a buffer previously allocated with dynamic_allocate()
 inline
 void dynamic_deallocate (Type t, void* p) noexcept {
     operator delete(p, t.cpp_size(), std::align_val_t(t.cpp_align()));
@@ -109,7 +109,7 @@ void dynamic_deallocate (Type t, void* p) noexcept {
 
  // Construct an instance of this type in-place.  Doesn't check that the target
  // location has the required size and alignment.  May throw
- // CannotDefaultConstruct or CannotDestruct.
+ // TypeCantDefaultConstruct or TypeCantDestruct.
 void dynamic_default_construct (Type, void*);
 
  // Like dynamic_default_construct but skips the destructor check, so only use
@@ -118,7 +118,7 @@ void dynamic_default_construct (Type, void*);
 void dynamic_default_construct_without_destructor (Type, void*);
 
  // Destroy an instance of this type in-place.  The memory will not be
- // deallocated.  May throw CannotDestroy.
+ // deallocated.  May throw TypeCantDestroy.
 void dynamic_destroy (Type, Mu*);
 
  // Allocate and construct an instance of this type.
@@ -126,6 +126,8 @@ Mu* dynamic_default_new (Type);
 
  // Destruct and deallocate and instance of this type.
 void dynamic_delete (Type, Mu*);
+
+///// CASTING
 
  // Cast from derived class to base class.  Does a depth-first search through
  // the derived class's description looking for accessors like:
@@ -148,6 +150,8 @@ Mu* dynamic_upcast (Type from, Type to, Mu*);
  // tries upcast then downcast) but it was dragging down refactoring and I
  // didn't end up actually using it.
 
+///// ERRORS
+
  // Tried to look up a type by name but there is no registered type with that
  // name.
 constexpr ErrorCode e_TypeNameNotFound = "ayu::e_TypeNameNotFound";
@@ -157,6 +161,8 @@ constexpr ErrorCode e_TypeCantDefaultConstruct = "ayu::e_TypeCantDefaultConstruc
 constexpr ErrorCode e_TypeCantDestroy = "ayu::e_TypeCantDestroy";
  // Tried to cast between types that can't be casted between.
 constexpr ErrorCode e_TypeCantCast = "ayu::e_TypeCantCast";
+
+///// INTERNAL
 
 } // namespace ayu
 

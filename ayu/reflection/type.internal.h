@@ -21,7 +21,6 @@ namespace ayu::in {
  // versions, neither are C-style casts), but static_cast to a common base
  // type is.
 struct ComparableAddress { };
-static_assert(sizeof(ComparableAddress) == 1);
 
 using NameFunc = SharedString();
 
@@ -46,6 +45,8 @@ enum class TypeFlags : u8 {
 };
 DECLARE_ENUM_BITWISE_OPERATORS(TypeFlags)
 
+ // Put an Accessor at the top of every Description so that a Type can act as an
+ // Accessor*.  This allows Link to be two pointers long instead of three.
 struct IdentityAccessor : Accessor {
     constexpr IdentityAccessor () :
         Accessor(AcrForm::Identity, AccessCaps::AllowEverything)

@@ -10,10 +10,9 @@ namespace ayu {
  // This is a bitfield that communicates what kind of access is possible for an
  // Link or Accessor, and what kind of access is requested for an access.
 enum class AccessCaps : u8 {
-     // Request/allow access to either the original item or a
-     // default-constructed value which will be written back to the item after
-     // the callback.  Neglecting to write to it in the callback may clear the
-     // item.
+     // Request/allow access to either the original item or a default-
+     // constructed value which will be written back to the item after the
+     // callback.  Neglecting to write to it in the callback may clear the item.
      //
      // This is bit 1 to match bit 1 of AnyPtr.
     Write = 0x1,

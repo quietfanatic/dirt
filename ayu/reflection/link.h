@@ -22,9 +22,9 @@
 // assigns the referenced value with operator=.  write() may or may not clear
 // the item's value before calling the callback, so if you want to keep the
 // item's original value, use modify().  Some Links are readonly, and trying to
-// write to them will throw WriteReadonly.
+// write to them will throw e_WriteReadonly.
 //
-// An Link can be implicitly cast to a raw C++ pointer if the item it points to
+// A Link can be implicitly cast to a raw C++ pointer if the item it points to
 // is addressable and has a type that can be upcasted to the pointer's type.  A
 // readonly Link can only be cast to a const pointer.  A raw C++ pointer can be
 // implicitly cast to a Link if the pointed-to type is known to AYU.
@@ -161,7 +161,7 @@ struct Link {
         return r;
     }
 
-     // Can throw either TypeCantCast or LinkUnaddressable
+     // Can throw either TypeCantCast or AddressUnaddressable
     Mu* address_as (Type t) const {
         if (!acr_p) [[unlikely]] return null;
         return address().upcast_to(t).address;
@@ -179,7 +179,7 @@ struct Link {
      // Copying getter.
     template <ConstableDescribable T>
     T get_as () const {
-         // TODO: detect value_func(s) and avoid a copy
+         // TODO: detect value_func(s) and avoid a copy?
         T r;
         read(AccessCB(r, [](T& r, Type t, Mu* v){
             r = *AnyPtr(t, v).upcast_to<T>();
@@ -207,11 +207,12 @@ struct Link {
         }));
     }
 
-     // Cast to pointer
+     // Cast to dynamic pointer
     operator AnyPtr () const {
         return address();
     }
 
+     // Cast to native pointer
     template <ConstableDescribable T>
     operator T* () const {
         return address_as<T>();

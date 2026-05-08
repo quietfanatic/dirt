@@ -96,9 +96,9 @@ struct Tree {
         Tree(StaticString(v), f)
     { }
 
+     // These are only truly constexpr if the passed array is empty.
     explicit constexpr Tree (SharedArray<Tree>, TreeFlags = {});
-     // This can throw e_TreeObjectKeyDuplicate.  Only truly constexpr if the
-     // passed array is empty.
+     // This can throw e_TreeObjectKeyDuplicate.
     explicit constexpr Tree (SharedArray<TreePair>, TreeFlags = {});
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
