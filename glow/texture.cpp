@@ -45,8 +45,9 @@ void texture_from_file (u32 target, SharedString filepath) {
 #endif
 }
 
-void texture_from_image (u32 target, const ImageRef& img) noexcept {
+void texture_from_image (u32 target, const ImageView& img) noexcept {
     require(img.size.x * img.size.y > 0);
+    require(img.stride == img.size.x);
     glTexImage2D(
         target, 0, GL_RGBA8,
         img.size.x, img.size.y, 0,
@@ -58,14 +59,7 @@ void texture_from_image (u32 target, const ImageRef& img) noexcept {
 void texture_from_file_qoi (u32 target, SharedString filepath) {
      // TODO: detect 3-channel file and use GL_RGB8
     UniqueImage image = image_from_file_qoi(move(filepath));
-    texture_from_image(target, image.Image_data());
-     // Now upload texture
-    require(image.size.x * image.size.y > 0);
-    glTexImage2D(
-        target, 0, GL_RGBA8,
-        image.size.x, image.size.y, 0,
-        GL_RGBA, GL_UNSIGNED_BYTE, image.pixels
-    );
+    texture_from_image(target, image);
 }
 
 enum TextureTarget { };

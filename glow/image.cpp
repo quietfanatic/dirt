@@ -5,34 +5,6 @@
 
 namespace glow {
 
-[[noreturn, gnu::cold]]
-void raise_SubImageBoundsNotProper (const SubImage& self) {
-    raise(e_SubImageBoundsNotProper, ayu::show(&self.bounds));
-}
-
-[[noreturn, gnu::cold]]
-void raise_SubImageOutOfBounds (const SubImage& self, IVec size) {
-    raise(e_SubImageOutOfBounds, cat(
-        "SubImage is out of bounds of image at ", ayu::show(self.image),
-        "\n    Image size: ", ayu::show(&size),
-        "\n    SubImage bounds: ", ayu::show(&self.bounds)
-    ));
-}
-
-void SubImage::validate () {
-    if (bounds != GINF) {
-        if (!proper(bounds)) {
-            raise_SubImageBoundsNotProper(*this);
-        }
-        if (image) {
-            auto data = image->Image_data();
-            if (!contains(data.bounds(), bounds)) {
-                raise_SubImageOutOfBounds(*this, data.size);
-            }
-        }
-    }
-}
-
 UniqueImage image_from_blob (Slice<u8> blob, Str filepath) {
     return image_from_blob_qoi(blob, filepath);
 }
@@ -45,13 +17,33 @@ UniqueImage image_from_file (SharedString filepath) {
 #endif
 }
 
+bool FileImageExtension::accepts_type (ayu::Type type) {
+    return type == ayu::Type::of<FileImage>();
+}
+
+void FileImageExtension::from_blob (
+    ayu::AnyVal& value, Slice<u8> blob,
+    ayu::ResourceRef res, ayu::ResourceScheme* scheme
+) {
+    scheme->validate_type(ayu::Type::of<FileImage>());
+    auto path = ayu::resource_filepath(res->name());
+    expect(!value);
+    value = ayu::AnyVal::make<FileImage>(path, blob);
+};
+
+UniqueArray<u8> FileImageExtension::to_blob (
+    const ayu::AnyVal&, ayu::ResourceRef, ayu::PrintOptions
+) {
+    raise(e_General, "Saving image files is NYI");
+}
+
 struct UniqueImagePixelsProxy : UniqueImage { };
 
 } using namespace glow;
 
  // You can't serialize this directly (no default constructor due to pure
  // virtual methods), but it needs to have a description so it can be addressed.
-AYU_DESCRIBE(glow::Image,
+AYU_DESCRIBE(glow::ImageSource,
     attrs()
 )
 
@@ -76,9 +68,10 @@ AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
 
 AYU_DESCRIBE(glow::UniqueImage,
     attrs(
-        attr("glow::Image", base<glow::Image>(), include),
+        attr("glow::ImageSource", base<glow::ImageSource>(), include),
          // TODO: allocate here instead of in the proxy?
         attr("size", &UniqueImage::size),
+         // TODO: reinterpreting accessor
         attr("pixels", ref_func<UniqueImagePixelsProxy>(
             [](UniqueImage& img) -> UniqueImagePixelsProxy& {
                 return static_cast<UniqueImagePixelsProxy&>(img);
@@ -87,11 +80,12 @@ AYU_DESCRIBE(glow::UniqueImage,
     )
 )
 
-AYU_DESCRIBE(glow::SubImage,
+ // You shouldn't deserialize this in item_from_tree.  Instead you should use
+ // FileImageExtension.  The main reason we have this description is just to
+ // allow dynamic upcasting to glow::ImageSource.
+AYU_DESCRIBE(glow::FileImage,
     attrs(
-        attr("image", &SubImage::image),
-        attr("bounds", &SubImage::bounds, optional)
-    ),
-    init([](SubImage& v){ v.validate(); })
+        attr("glow::ImageSource", base<glow::ImageSource>(), include),
+        attr("filepath", member(&FileImage::filepath, readonly))
+    )
 )
-

@@ -11,10 +11,10 @@
         ]
     }]
     texture: [glow::ImageTexture {
-        image: #image
+        source: #image
         filter: GL_LINEAR
     }]
     texture2: [glow::ImageTexture {
-        image: image.qoi
+        source: image.qoi
     }]
 }]

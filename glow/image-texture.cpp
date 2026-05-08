@@ -5,6 +5,34 @@
 
 namespace glow {
 
+[[noreturn, gnu::cold]]
+void raise_SubImageBoundsNotProper (const SubImage& self) {
+    raise(e_SubImageBoundsNotProper, ayu::show(&self.bounds));
+}
+
+[[noreturn, gnu::cold]]
+void raise_SubImageOutOfBounds (const SubImage& self, IVec size) {
+    raise(e_SubImageOutOfBounds, cat(
+        "SubImage is out of bounds of image at ", ayu::show(self.source),
+        "\n    Image size: ", ayu::show(&size),
+        "\n    SubImage bounds: ", ayu::show(&self.bounds)
+    ));
+}
+
+void SubImage::validate () {
+    if (bounds != GINF) {
+        if (!proper(bounds)) {
+            raise_SubImageBoundsNotProper(*this);
+        }
+        if (source) {
+            auto data = source->get();
+            if (!contains(data.bounds(), bounds)) {
+                raise_SubImageOutOfBounds(*this, data.size);
+            }
+        }
+    }
+}
+
 ImageTexture::ImageTexture () : Texture(GL_TEXTURE_2D) {
     glBindTexture(target, id);
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -23,7 +51,7 @@ void ImageTexture::init () {
             || target == GL_TEXTURE_RECTANGLE
         );
         glBindTexture(target, id);
-        ImageRef data = source;
+        ImageView data = source;
         UniqueImage processed (data.size);
         for (i32 y = 0; y < data.size.y; y++)
         for (i32 x = 0; x < data.size.x; x++) {
@@ -45,6 +73,14 @@ void ImageTexture::init () {
 }
 
 } using namespace glow;
+
+AYU_DESCRIBE(glow::SubImage,
+    attrs(
+        attr("source", &SubImage::source),
+        attr("bounds", &SubImage::bounds, optional)
+    ),
+    init([](SubImage& v){ v.validate(); })
+)
 
 AYU_DESCRIBE(glow::ImageTexture,
     attrs(

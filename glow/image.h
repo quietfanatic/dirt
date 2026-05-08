@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include "../ayu/resources/extension.h"
 #include "../geo/rect.h"
 #include "../geo/vec.h"
 #include "colors.h"
@@ -8,7 +9,8 @@
 namespace glow {
 using namespace geo;
 
-struct ImageRef {
+ // Non-owning view of an image.
+struct ImageView {
      // The width and height in pixels.  This is a signed IVec but neither
      // component can be negative.  Because of this, images cannot be more than
      // 2 billion x 2 billion pixels.  I hope you'll forgive me.
@@ -19,9 +21,9 @@ struct ImageRef {
      // Pointer to pixel data, arranged top-down left-to-right.
      //   {0, 0}, {1, 0}, {0, 1}, {1, 1}
     RGBA8* pixels = null;
-    constexpr ImageRef () { }
-    constexpr ImageRef (IVec s, RGBA8* p) : size(s), stride(s.x), pixels(p) { }
-    constexpr ImageRef (IVec s, i32 t, RGBA8* p) : size(s), stride(t), pixels(p) { }
+    constexpr ImageView () { }
+    constexpr ImageView (IVec s, RGBA8* p) : size(s), stride(s.x), pixels(p) { }
+    constexpr ImageView (IVec s, i32 t, RGBA8* p) : size(s), stride(t), pixels(p) { }
 
      // The bounds of the image as a rectangle.  Note that this will be
      // upside-down; bounds().b refers to the top of the image.
@@ -34,16 +36,26 @@ struct ImageRef {
     }
 };
 
- // A generic interface for images that can be lazily loaded.
-struct Image {
-     // Load and return image data.
-    virtual ImageRef Image_data () = 0;
-     // Clear lazily-loaded data
-    virtual void Image_trim () { };
+ // A generic interface for fetching image data
+struct ImageSource {
+    using GetterFunc = ImageView(ImageSource&);
+    GetterFunc& getter;
+    ImageView get () { return getter(*this); }
+};
+
+ // Mixin to implement ImageSource based on conversion to ImageView
+template <class T>
+struct ImageSourceImp : ImageSource {
+    static ImageView get_ (ImageSource& s0) {
+        auto& s1 = static_cast<ImageSourceImp<T>&>(s0);
+        auto& s2 = static_cast<T&>(s1);
+        return ImageView(s2);
+    }
+    constexpr ImageSourceImp () : ImageSource(get_) { }
 };
 
  // An image that owns its pixels and cannot be trimmed.
-struct UniqueImage : Image {
+struct UniqueImage : ImageSourceImp<UniqueImage> {
     IVec size;
      // The pixel buffer is allocated with std::malloc.  If you steal it you
      // need to deallocate it with std::free.
@@ -51,71 +63,33 @@ struct UniqueImage : Image {
 
     constexpr UniqueImage () : pixels(null) { }
      // Create from already-allocated pixels.
-    UniqueImage (IVec s, RGBA8*&& p) : size(s), pixels(p) { p = nullptr; }
+    constexpr UniqueImage (IVec s, RGBA8*&& p) :
+        size(s), pixels(p)
+    { p = nullptr; }
      // Allocate new pixels array.  The contents are undefined.
     explicit UniqueImage (IVec size) noexcept;
 
-    constexpr UniqueImage (UniqueImage&& o) : size(o.size), pixels(o.pixels) {
-        o.pixels = null;
-    }
+    constexpr UniqueImage (UniqueImage&& o) :
+        UniqueImage(o.size, move(o.pixels))
+    { }
     UniqueImage& operator= (UniqueImage&& o) {
         this->~UniqueImage();
-        size = o.size; pixels = o.pixels; o.pixels = null;
+        new (this) UniqueImage(move(o));
         return *this;
     }
 
     ~UniqueImage ();
 
+    operator ImageView () { return {size, pixels}; }
+
     constexpr explicit operator bool () const { return pixels; }
+
     IRect bounds () const { return {{0, 0}, size}; }
-    constexpr operator ImageRef () const { return {size, pixels}; }
 
     RGBA8& operator [] (IVec i) {
         expect(pixels);
         expect(contains(bounds(), i));
         return pixels[i.y * size.x + i.x];
-    }
-    const RGBA8& operator [] (IVec i) const {
-        expect(pixels);
-        expect(contains(bounds(), i));
-        return pixels[i.y * size.x + i.x];
-    }
-
-    ImageRef Image_data () override { return {size, pixels}; }
-};
-
- // Const reference type that refers to a portion of another image.
-struct SubImage {
-     // Image that is being referenced.
-    Image* image = null;
-     // Area of the subimage in pixels.  Coordinates refer to the corners
-     // between pixels, not the pixels themselves.  As a special case, GINF
-     // refers to the entire image.  Otherwise, cannot have negative width or
-     // height and cannot be outside the bounds of the image.
-    IRect bounds = GINF;
-
-     // Will throw if bounds is outside the image or is not proper.
-     // Can't check if the bounds or image size is changed later.
-    void validate ();
-
-    constexpr SubImage () { }
-    SubImage (Image* image, const IRect& bounds = GINF) :
-        image(image), bounds(bounds)
-    { validate(); }
-
-    constexpr explicit operator bool () { return image; }
-
-    operator ImageRef () const {
-        auto data = image->Image_data();
-        if (bounds != GINF) {
-            require(contains(data.bounds(), bounds));
-            return ImageRef(
-                geo::size(bounds),
-                data.stride,
-                data.pixels + bounds.b * data.stride + bounds.l
-            );
-        }
-        else return data;
     }
 };
 
@@ -130,9 +104,39 @@ UniqueImage image_from_file_qoi (SharedString filepath);
 UniqueImage image_from_file_sail (SharedString filepath);
 #endif
 
-constexpr ayu::ErrorCode e_SubImageBoundsNotProper = "glow::SubImageBoundsNotProper";
-constexpr ayu::ErrorCode e_SubImageOutOfBounds = "glow::SubImageOutOfBounds";
-constexpr uni::ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
+ // An image that can lazily load itself from a file.  Intended to be an AYU
+ // resource type.
+struct FileImage : ImageSourceImp<FileImage> {
+     // Serialized
+    SharedString filepath;
+     // Not serialized
+    IVec size;
+    RGBA8* pixels;
+
+     // Don't load
+    constexpr FileImage (const SharedString& p = "") : filepath(p) { }
+     // Do load // TODO: deprecate in favor of setting members
+    FileImage (const SharedString& p, Slice<u8> encoded);
+
+    ~FileImage () { }
+
+     // Autoload
+    operator ImageView ();
+     // Free memory until next autoload.  Size remains.
+    void trim ();
+};
+
+ // Allow using image files as AYU resources
+struct FileImageExtension : ayu::ResourceExtension {
+    bool accepts_type (ayu::Type) override; // Only accepts FileImage
+    void from_blob (ayu::AnyVal&, Slice<u8>, ayu::ResourceRef, ayu::ResourceScheme*) override;
+    UniqueArray<u8> to_blob (const ayu::AnyVal&, ayu::ResourceRef, ayu::PrintOptions) override;
+    using ayu::ResourceExtension::ResourceExtension;
+};
+
+constexpr ErrorCode e_SubImageBoundsNotProper = "glow::SubImageBoundsNotProper";
+constexpr ErrorCode e_SubImageOutOfBounds = "glow::SubImageOutOfBounds";
+constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 
  // Don't use lilac for these allocations, because they're almost guaranteed to
  // be so large they get passed on to malloc anyway (they'd have to be smaller
@@ -145,4 +149,29 @@ inline UniqueImage::UniqueImage (IVec s) noexcept :
 
 inline UniqueImage::~UniqueImage () { std::free(pixels); }
 
+inline FileImage::FileImage (const SharedString& p, Slice<u8> encoded) :
+    filepath(p)
+{
+    auto img = image_from_blob(encoded);
+    size = img.size;
+    pixels = img.pixels;
+    img.pixels = null;
 }
+
+inline FileImage::operator ImageView () {
+    if (!pixels) {
+        auto img = image_from_file(filepath);
+        size = img.size;
+        pixels = img.pixels;
+        img.pixels = null;
+    }
+    return ImageView(size, pixels);
+}
+inline void FileImage::trim () {
+    if (pixels) { // Keep size
+        std::free(pixels);
+        pixels = null;
+    }
+}
+
+} // glow

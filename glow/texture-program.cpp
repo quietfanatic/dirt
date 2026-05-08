@@ -47,7 +47,7 @@ AYU_DESCRIBE(glow::TextureProgram,
 #include "../ayu/traversal/to-tree.h"
 #include "../tap/tap.h"
 #include "../wind/window.h"
-#include "file-image.h"
+#include "image.h"
 #include "image-texture.h"
 #include "test-environment.h"
 
@@ -66,10 +66,10 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
         tex2 = ayu::link_from_iri("test:/texture-test.ayu#texture2");
     }, "Can load texture from file image");
 
-    auto fi = dynamic_cast<FileImage*>(tex2->source.image);
-    ok(!!fi->storage, "FileImage was not automatically trimmed");
+    auto fi = static_cast<FileImage*>(tex2->source.source);
+    ok(!!fi->pixels, "FileImage was not automatically trimmed");
     fi->trim();
-    ok(!fi->storage, "Can trim FileImage");
+    ok(!fi->pixels, "Can trim FileImage");
 
     RGBA8 bg = u32(0x331100ee);
     RGBA8 fg = u32(0x2674dbf0);
@@ -78,13 +78,13 @@ static tap::TestSet tests ("dirt/glow/texture-program", []{
     is(tex->size(), IVec{7, 5}, "Created texture has correct size");
     is(tex2->size(), IVec{7, 5}, "File image texture has correct size");
 
-    UniqueImage tex_image (ImageRef(tex->source).size);
+    UniqueImage tex_image (ImageView(tex->source).size);
     glBindTexture(tex->target, *tex);
     glGetTexImage(tex->target, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex_image.pixels);
     is(tex_image[{4, 3}], fg, "Created texture has correct content");
 
     glBindTexture(tex2->target, *tex2);
-    UniqueImage tex2_image (ImageRef(tex2->source).size);
+    UniqueImage tex2_image (ImageView(tex2->source).size);
     glGetTexImage(tex2->target, 0, GL_RGBA, GL_UNSIGNED_BYTE, tex2_image.pixels);
     is(tex2_image[{4, 3}], fg2, "File image texture has corrent content");
 
