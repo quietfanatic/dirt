@@ -5,11 +5,13 @@
 #include "../uni/common.h"
 #include "../uni/errors.h"
 #include "../uni/strings.h"
+#include "../geo/vec.h"
 
 namespace iri { struct IRI; }
 
 namespace glow {
 using namespace uni;
+using namespace geo;
 using iri::IRI;
 
 struct FileImage;

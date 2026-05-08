@@ -1,7 +1,6 @@
 #include "colors.h"
 
 #include "../ayu/reflection/describe.h"
-#include "../geo/vec.h"
 #include "../uni/text.h"
 
 using namespace glow;
@@ -86,9 +85,7 @@ AYU_DESCRIBE(glow::RGBA8,
             case ayu::Form::Array: {
                 auto a = Slice<ayu::Tree>(t);
                 if (a.size() == 3) {
-                    auto rgbf = geo::Vec3(
-                        float(a[0]), float(a[1]), float(a[2])
-                    );
+                    auto rgbf = Vec3(float(a[0]), float(a[1]), float(a[2]));
                     for (u32 i = 0; i < 3; i++) {
                         if (rgbf[i] < 0 || rgbf[i] > 1) {
                             raise(e_General, "Component out of range for [r g b a] format; must be between 0 and 1.");
@@ -98,7 +95,7 @@ AYU_DESCRIBE(glow::RGBA8,
                     v = RGBA8(u8(rgbf[0]), u8(rgbf[1]), u8(rgbf[2]), 255);
                 }
                 else if (a.size() == 4) {
-                    auto rgbaf = geo::Vec4(
+                    auto rgbaf = Vec4(
                         float(a[0]), float(a[1]), float(a[2]), float(a[3])
                     );
                     for (u32 i = 0; i < 4; i++) {
@@ -107,7 +104,9 @@ AYU_DESCRIBE(glow::RGBA8,
                         }
                     }
                     rgbaf *= 255.f;
-                    v = RGBA8(u8(rgbaf[0]), u8(rgbaf[1]), u8(rgbaf[2]), u8(rgbaf[3]));
+                    v = RGBA8(
+                        u8(rgbaf[0]), u8(rgbaf[1]), u8(rgbaf[2]), u8(rgbaf[3])
+                    );
                 }
                 else {
                     ayu::raise_LengthRejected(

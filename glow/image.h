@@ -3,11 +3,9 @@
 #include <optional>
 #include "../ayu/resources/extension.h"
 #include "../geo/rect.h"
-#include "../geo/vec.h"
 #include "colors.h"
 
 namespace glow {
-using namespace geo;
 
  // Non-owning view of an image.
 struct ImageView {

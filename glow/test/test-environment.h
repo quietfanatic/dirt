@@ -11,10 +11,10 @@
 namespace glow::test {
 
 struct TestEnvironment {
-    geo::IVec size;
+    IVec size;
     ayu::FolderResourceScheme test_scheme;
     wind::Window window;
-    TestEnvironment (geo::IVec size = {120, 120}) :
+    TestEnvironment (IVec size = {120, 120}) :
         size(size),
         test_scheme(
             "test",
