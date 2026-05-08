@@ -217,7 +217,7 @@ AYU_DESCRIBE(ayu::RouteRef,
 // TODO: more tests
 
 #ifndef TAP_DISABLE_TESTS
-#include "../test/test-environment.private.h"
+#include "../test/test-environment.h"
 
 static tap::TestSet tests ("dirt/ayu/traversal/route", []{
     using namespace tap;

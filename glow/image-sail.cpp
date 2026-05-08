@@ -419,14 +419,14 @@ AYU_DESCRIBE(SailPixelFormat,
 #include "../ayu/resources/resource.h"
 #include "../tap/tap.h"
 #include "colors.h"
-#include "test-environment.h"
+#include "test/test-environment.h"
 #include "texture.h"
 
 static tap::TestSet tests ("dirt/glow/image-sail", []{
     using namespace tap;
     using namespace geo;
 
-    TestEnvironment env;
+    test::TestEnvironment env;
 
     Texture tex (GL_TEXTURE_2D);
 

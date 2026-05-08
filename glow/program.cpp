@@ -178,16 +178,16 @@ AYU_DESCRIBE(glow::Program,
 #include "../tap/tap.h"
 #include "../wind/window.h"
 #include "colors.h"
-#include "test-environment.h"
+#include "test/test-environment.h"
 
 static tap::TestSet tests ("dirt/glow/program", []{
     using namespace tap;
     using namespace geo;
-    TestEnvironment env;
+    test::TestEnvironment env;
 
     Program* program;
     doesnt_throw([&]{
-        program = ayu::ResourceRef(iri::IRI("test:/test-program.ayu"))["program"][1];
+        program = ayu::ResourceRef(iri::IRI("test:/program-test.ayu"))["program"][1];
     }, "Can load program from ayu document");
     program->use();
     i32 u_screen_rect = glGetUniformLocation(*program, "u_screen_rect");

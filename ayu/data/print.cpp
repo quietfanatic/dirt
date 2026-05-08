@@ -440,7 +440,7 @@ void tree_to_file (const Tree& t, SharedString filename, PrintOptions opts) {
 #ifndef TAP_DISABLE_TESTS
 #include "../../tap/tap.h"
 #include "../resources/resource.h"
-#include "../test/test-environment.private.h"
+#include "../test/test-environment.h"
 #include "parse.h"
 
 static tap::TestSet tests ("dirt/ayu/data/print", []{

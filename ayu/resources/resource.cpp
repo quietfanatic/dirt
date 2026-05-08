@@ -791,7 +791,7 @@ AYU_DESCRIBE(ayu::ResourceRef,
 ///// TESTS
 
 #ifndef TAP_DISABLE_TESTS
-#include "../test/test-environment.private.h"
+#include "../test/test-environment.h"
 #include "collection.h"
 
 AYU_DESCRIBE_INSTANTIATE(std::vector<i32*>)

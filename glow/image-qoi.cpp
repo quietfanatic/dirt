@@ -213,14 +213,14 @@ UniqueImage image_from_file_qoi (SharedString filepath) {
 #include "../glow/gl.h"
 #include "../tap/tap.h"
 #include "colors.h"
-#include "test-environment.h"
+#include "test/test-environment.h"
 #include "texture.h"
 
 static tap::TestSet tests ("dirt/glow/image-qoi", []{
     using namespace tap;
     using namespace geo;
 
-    TestEnvironment env;
+    test::TestEnvironment env;
 
     Texture tex (GL_TEXTURE_2D);
 
