@@ -90,6 +90,13 @@ struct UniqueFunction<Ret(Args...)> {
      // Destroy
     ALWAYS_INLINE constexpr
     ~UniqueFunction () { if (imp) imp->delete_p(imp); }
+
+     // Reinterpret as another kind of function.  It's your responsibility to
+     // make sure the function types are compatible.
+    template <class Sig> [[gnu::artificial]] ALWAYS_INLINE constexpr
+    const UniqueFunction<Sig>& reinterpret () const {
+        return *(const UniqueFunction<Sig>*)this;
+    }
 };
 
 } // uni

@@ -100,7 +100,8 @@ struct CallbackRef<Ret(Args...)> {
         return wrapper(context, std::forward<Args>(args)...);
     }
 
-     // Reinterpret as another kind of function
+     // Reinterpret as another kind of function.  It's your responsibility to
+     // make sure the function types are compatible.
     template <class Sig> [[gnu::artificial]] ALWAYS_INLINE constexpr
     const CallbackRef<Sig>& reinterpret () const {
         return *(const CallbackRef<Sig>*)this;
