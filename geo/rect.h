@@ -46,7 +46,8 @@ struct GRect {
      // Create the undefined rectangle.  Most operations are not defined on the
      // undefined rectangle.
     constexpr GRect (GNAN_t n) : l(n), b(n), r(n), t(n) { }
-     // Create an infinitely large (possibly negative) rectangle.
+     // Create an infinitely large (possibly negative) rectangle.  TODO: there's
+     // something wrong with this, IRect, and operator==.
     constexpr GRect (GINF_t i) : l(-i), b(-i), r(i), t(i) { }
      // Create from lower-left and upper-right corners
     constexpr GRect (const GVec<T, 2>& lb, const GVec<T, 2>& rt) :

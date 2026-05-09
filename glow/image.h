@@ -32,40 +32,32 @@ struct ImageView {
         expect(contains(bounds(), i));
         return pixels[i.y * stride + i.x];
     }
-};
 
- // A generic interface for fetching image data
-struct ImageSource {
-    using GetterFunc = ImageView(ImageSource&);
-    GetterFunc& getter;
-    ImageView get () { return getter(*this); }
-};
-
- // Mixin to implement ImageSource based on conversion to ImageView
-template <class T>
-struct ImageSourceImp : ImageSource {
-    static ImageView get_ (ImageSource& s0) {
-        auto& s1 = static_cast<ImageSourceImp<T>&>(s0);
-        auto& s2 = static_cast<T&>(s1);
-        return ImageView(s2);
+    constexpr ImageView subview (const IRect& b) {
+        expect(contains(bounds(), b));
+        return ImageView(geo::size(b), stride, &pixels[b.b * stride + b.l]);
     }
-    constexpr ImageSourceImp () : ImageSource(get_) { }
 };
 
  // An image that owns its pixels and cannot be trimmed.
-struct UniqueImage : ImageSourceImp<UniqueImage> {
+struct UniqueImage {
     IVec size;
      // The pixel buffer is allocated with std::malloc.  If you steal it you
-     // need to deallocate it with std::free.
+     // need to deallocate it with std::free. [1]
     RGBA8* pixels;
 
     constexpr UniqueImage () : pixels(null) { }
+
      // Create from already-allocated pixels.
     constexpr UniqueImage (IVec s, RGBA8*&& p) :
         size(s), pixels(p)
     { p = nullptr; }
+
      // Allocate new pixels array.  The contents are undefined.
-    explicit UniqueImage (IVec size) noexcept;
+    explicit UniqueImage (IVec s) noexcept :
+        size((require(area(s) >= 0), s)),
+        pixels((RGBA8*)std::malloc(area(s) * sizeof(RGBA8)))
+    { }
 
     constexpr UniqueImage (UniqueImage&& o) :
         UniqueImage(o.size, move(o.pixels))
@@ -76,7 +68,7 @@ struct UniqueImage : ImageSourceImp<UniqueImage> {
         return *this;
     }
 
-    ~UniqueImage ();
+    ~UniqueImage () { std::free(pixels); }
 
     operator ImageView () { return {size, pixels}; }
 
@@ -102,26 +94,33 @@ UniqueImage image_from_file_qoi (SharedString filepath);
 UniqueImage image_from_file_sail (SharedString filepath);
 #endif
 
- // An image that can lazily load itself from a file.  Intended to be an AYU
- // resource type.
-struct FileImage : ImageSourceImp<FileImage> {
-     // Serialized
+ // An image that is (potentially) associated with a file so it can be trimmed
+ // and reloaded.  Intended to be an AYU resource type.
+struct FileImage : UniqueImage {
     SharedString filepath;
-     // Not serialized
-    IVec size;
-    RGBA8* pixels;
 
-     // Don't load
+     // Set filepath but don't load
     constexpr FileImage (const SharedString& p = "") : filepath(p) { }
-     // Do load // TODO: deprecate in favor of setting members
-    FileImage (const SharedString& p, Slice<u8> encoded);
+
+     // Construct already loaded
+    constexpr FileImage (const SharedString& p, UniqueImage&& img) :
+        UniqueImage(move(img)), filepath(p)
+    { }
 
     ~FileImage () { }
 
-     // Autoload
-    operator ImageView ();
-     // Free memory until next autoload.  Size remains.
-    void trim ();
+     // Load if unloaded
+    void load () {
+        if (!pixels) {
+            static_cast<UniqueImage&>(*this) = image_from_file(filepath);
+        }
+    }
+     // Free memory until next load.  Size remains.
+    void trim () {
+        if (!filepath) return; // Can't trim if no backing file!
+        std::free(pixels); // no-op if null
+        pixels = null; // Keep size
+    }
 };
 
  // Allow using image files as AYU resources
@@ -132,44 +131,12 @@ struct FileImageExtension : ayu::ResourceExtension {
     using ayu::ResourceExtension::ResourceExtension;
 };
 
-constexpr ErrorCode e_SubImageBoundsNotProper = "glow::SubImageBoundsNotProper";
-constexpr ErrorCode e_SubImageOutOfBounds = "glow::SubImageOutOfBounds";
 constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 
- // Don't use lilac for these allocations, because they're almost guaranteed to
- // be so large they get passed on to malloc anyway (they'd have to be smaller
- // than 24x24 to use the small-size allocator).  Also, libsail uses
- // malloc/free internally, so matching that allows us to steal its buffers.
-inline UniqueImage::UniqueImage (IVec s) noexcept :
-    size((require(area(s) >= 0), s)),
-    pixels((RGBA8*)std::malloc(area(size) * sizeof(RGBA8)))
-{ }
-
-inline UniqueImage::~UniqueImage () { std::free(pixels); }
-
-inline FileImage::FileImage (const SharedString& p, Slice<u8> encoded) :
-    filepath(p)
-{
-    auto img = image_from_blob(encoded);
-    size = img.size;
-    pixels = img.pixels;
-    img.pixels = null;
-}
-
-inline FileImage::operator ImageView () {
-    if (!pixels) {
-        auto img = image_from_file(filepath);
-        size = img.size;
-        pixels = img.pixels;
-        img.pixels = null;
-    }
-    return ImageView(size, pixels);
-}
-inline void FileImage::trim () {
-    if (pixels) { // Keep size
-        std::free(pixels);
-        pixels = null;
-    }
-}
-
 } // glow
+
+ // [1]
+ // We're directly calling malloc and free instead of using lilac, because most
+ // images are too large for lilac's small allocator (they'd have to be smaller
+ // than 32x32), and because SAIL uses malloc/free internally, so this allows us
+ // to steal its buffers.

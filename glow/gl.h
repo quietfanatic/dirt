@@ -2,6 +2,7 @@
 
 #include "common.h"
 
+//#define GLOW_TRACE_GL
 #ifdef GLOW_TRACE_GL
 #include "../uni/io.h"
 #include "../uni/strings.h"

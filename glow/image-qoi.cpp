@@ -172,39 +172,6 @@ UniqueImage image_from_file_qoi (SharedString filepath) {
 
 } using namespace glow;
 
-///// FOOTNOTES
- // [1]  So.  According to the spec and the reference implementation, every
- // pixel is supposed to update the history array.  We're skipping that step for
- // QOI_OP_RUN and QOI_OP_INDEX, because they use pixels that have already been
- // entered into the history.  This optimization is valid in almost all cases.
- // HOWEVER!  It breaks down if the input starts with QOI_OP_RUN.  This is
- // because the initial values for the history and the last-seen-pixel are
- // inconsistent: the history is filled with 0s, but the lsp has a=255, so
- // officially, a starting run ought to set history[59] to {0,0,0,255}.  Now,
- // when I export a QOI with The GIMP, it doesn't seem to do this (though the
- // file is still conforming, because using history is optional).  The reference
- // encoder also does not update history on a run.  But a different encoder
- // could do this, so we must assume it could happen.
- //
- // We are still, however, going to cheat a little, in that we won't check for
- // an initial run, we'll just set the history entry always.  In theory, an
- // encoder COULD emit a QOI_OP_INDEX that uses this history entry, assuming it
- // has been initialized to {0,0,0,0}.  That would be weird--borderline
- // malicious--when the properly hashed entry 0 is right there.  I suppose I
- // could see a hyper-aggressively compressing encoder doing so, if it's filled
- // the proper history entry with something else, so it gets its {0,0,0,0} from
- // an improper entry.  And if it does that, then according to the spec even
- // QOI_OP_INDEX must update the history, meaning that indexing an improper
- // entry for {0,0,0,0} would set the proper entry to {0,0,0,0}, which would
- // threaten our optimization even more.
- //
- // So I'm just gonna assume that will never happen.  If an encoder wants to
- // spend that much effort to occasionally save a pittance of bytes, it should
- // be spending those cycles on DEFLATE or something instead.
- //
- // Alternatively, you can #define GLOW_DECODE_QOI_PARANOID to make sure all
- // possible scenarios are covered, at a slight performance loss.
-
 ///// TESTS
 
  // TODO: move this test somewhere else
@@ -238,3 +205,36 @@ static tap::TestSet tests ("dirt/glow/image-qoi", []{
 });
 
 #endif
+
+///// FOOTNOTES
+ // [1]  So.  According to the spec and the reference implementation, every
+ // pixel is supposed to update the history array.  We're skipping that step for
+ // QOI_OP_RUN and QOI_OP_INDEX, because they use pixels that have already been
+ // entered into the history.  This optimization is valid in almost all cases.
+ // HOWEVER!  It breaks down if the input starts with QOI_OP_RUN.  This is
+ // because the initial values for the history and the last-seen-pixel are
+ // inconsistent: the history is filled with 0s, but the lsp has a=255, so
+ // officially, a starting run ought to set history[59] to {0,0,0,255}.  Now,
+ // when I export a QOI with The GIMP, it doesn't seem to do this (though the
+ // file is still conforming, because using history is optional).  The reference
+ // encoder also does not update history on a run.  But a different encoder
+ // could do this, so we must assume it could happen.
+ //
+ // We are still, however, going to cheat a little, in that we won't check for
+ // an initial run, we'll just set the history entry always.  In theory, an
+ // encoder COULD emit a QOI_OP_INDEX that uses this history entry, assuming it
+ // has been initialized to {0,0,0,0}.  That would be weird--borderline
+ // malicious--when the properly hashed entry 0 is right there.  I suppose I
+ // could see a hyper-aggressively compressing encoder doing so, if it's filled
+ // the proper history entry with something else, so it gets its {0,0,0,0} from
+ // an improper entry.  And if it does that, then according to the spec even
+ // QOI_OP_INDEX must update the history, meaning that indexing an improper
+ // entry for {0,0,0,0} would set the proper entry to {0,0,0,0}, which would
+ // threaten our optimization even more.
+ //
+ // So I'm just gonna assume that will never happen.  If an encoder wants to
+ // spend that much effort to occasionally save a pittance of bytes, it should
+ // be spending those cycles on DEFLATE or something instead.
+ //
+ // Alternatively, you can #define GLOW_DECODE_QOI_PARANOID to make sure all
+ // possible scenarios are covered, at a slight performance loss.

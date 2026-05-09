@@ -11,9 +11,9 @@ UniqueImage image_from_blob (Slice<u8> blob, Str filepath) {
 
 UniqueImage image_from_file (SharedString filepath) {
 #ifdef GLOW_USE_SAIL
-    return image_from_file_sail(filepath);
+    return image_from_file_sail(move(filepath));
 #else
-    return image_from_file_qoi(filepath);
+    return image_from_file_qoi(move(filepath));
 #endif
 }
 
@@ -27,8 +27,9 @@ void FileImageExtension::from_blob (
 ) {
     scheme->validate_type(ayu::Type::of<FileImage>());
     auto path = ayu::resource_filepath(res->name());
+    auto img = image_from_blob(blob);
     expect(!value);
-    value = ayu::AnyVal::make<FileImage>(path, blob);
+    value = ayu::AnyVal::make<FileImage>(path, move(img));
 };
 
 UniqueArray<u8> FileImageExtension::to_blob (
@@ -41,10 +42,17 @@ struct UniqueImagePixelsProxy : UniqueImage { };
 
 } using namespace glow;
 
- // You can't serialize this directly (no default constructor due to pure
- // virtual methods), but it needs to have a description so it can be addressed.
-AYU_DESCRIBE(glow::ImageSource,
-    attrs()
+AYU_DESCRIBE(glow::UniqueImage,
+    attrs(
+         // TODO: allocate here instead of in the proxy?
+        attr("size", &UniqueImage::size),
+         // TODO: reinterpreting accessor
+        attr("pixels", ref_func<UniqueImagePixelsProxy>(
+            [](UniqueImage& img) -> UniqueImagePixelsProxy& {
+                return static_cast<UniqueImagePixelsProxy&>(img);
+            }
+        ))
+    )
 )
 
 AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
@@ -66,26 +74,10 @@ AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
     })
 )
 
-AYU_DESCRIBE(glow::UniqueImage,
-    attrs(
-        attr("glow::ImageSource", base<glow::ImageSource>(), include),
-         // TODO: allocate here instead of in the proxy?
-        attr("size", &UniqueImage::size),
-         // TODO: reinterpreting accessor
-        attr("pixels", ref_func<UniqueImagePixelsProxy>(
-            [](UniqueImage& img) -> UniqueImagePixelsProxy& {
-                return static_cast<UniqueImagePixelsProxy&>(img);
-            }
-        ))
-    )
-)
-
- // You shouldn't deserialize this in item_from_tree.  Instead you should use
- // FileImageExtension.  The main reason we have this description is just to
- // allow dynamic upcasting to glow::ImageSource.
+ // Consider using FileImageExtension instead of storing this in .ayu data.
 AYU_DESCRIBE(glow::FileImage,
     attrs(
-        attr("glow::ImageSource", base<glow::ImageSource>(), include),
-        attr("filepath", member(&FileImage::filepath, readonly))
+        attr("glow::UniqueImage", base<glow::UniqueImage>(), include),
+        attr("filepath", member(&FileImage::filepath, readonly), optional)
     )
 )

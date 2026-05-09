@@ -1,5 +1,5 @@
 [ayu::Collection {
-    image: [glow::UniqueImage {
+    image: [glow::FileImage {
         size: [7 5]
         pixels: [
             $=0x2674dbf0

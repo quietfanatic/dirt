@@ -7,8 +7,8 @@
 namespace glow {
 
  // A texture in video memory.
- // glGenTextures will be called on construction and glDeleteTextures on
- // destruction.  Does NOT call glBindTexture on construction.
+ // On construction, calls glGenTextures and glBindTexture.
+ // On destruction, calls glDeleteTextures.
 struct Texture {
      // Specifies what kind of texture this is.  GL_TEXTURE_*.
      // If 0, texture won't actually be created.  Serialized.
@@ -53,48 +53,26 @@ void texture_from_file_qoi (u32 target, SharedString filepath);
 void texture_from_file_sail (u32 target, SharedString filepath);
 #endif
 
- // Reference type that refers to a portion of another image.  This is not
- // considered an ImageSource.  TODO: fold into ImageTexture
-struct SubImage {
-     // Image that is being referenced.
-    ImageSource* source = null;
-     // Area of the subimage in pixels.  Coordinates refer to the corners
-     // between pixels, not the pixels themselves.  As a special case, GINF
-     // refers to the entire image.  Otherwise, cannot have negative width or
-     // height and cannot be outside the bounds of the image.
-    IRect bounds = GINF;
-
-     // Will throw if bounds is outside the image or is not proper.
-     // Can't check if the bounds or image size is changed later.
-    void validate ();
-
-    constexpr SubImage () { }
-    SubImage (ImageSource* s, const IRect& b = GINF) :
-        source(s), bounds(b)
-    { validate(); }
-
-    constexpr explicit operator bool () { return source; }
-
-    operator ImageView () {
-        auto r = source->get();
-        if (bounds != GINF) {
-            require(contains(r.bounds(), bounds));
-            r.size = geo::size(bounds);
-            r.pixels += bounds.b * r.stride + bounds.l;
-        }
-        return r;
-    }
-};
-
  // Represents a texture loaded from an image.  Does not support mipmaps.
  // WARNING: Do not provide a target when deserializing unless you also provide
  // a filter mode.  I need to fix the problems around texture target
  // deserialization.
 struct ImageTexture : Texture {
-    SubImage source;
+    FileImage* source = null;
+     // 0 means the entire image; otherwise must not be empty.
+    IRect bounds;
+     // TODO: remove this in favor of inverting bounds?
     BVec flip = {false, true}; // Flip vertically by default
     ImageTexture ();
     void init ();
+
+    ImageView source_view () {
+        source->load();
+        ImageView r = *source;
+         // TODO: validation
+        if (bounds) r = r.subview(bounds);
+        return r;
+    }
 };
 
  // An image texture that defaults to GL_NEAREST filtering
