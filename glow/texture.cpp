@@ -48,13 +48,23 @@ void texture_from_file (u32 target, SharedString filepath) {
 }
 
 void texture_from_image (u32 target, const ImageView& img) noexcept {
-    require(img.size.x * img.size.y > 0);
-    require(img.stride == img.size.x);
-    glTexImage2D(
-        target, 0, GL_RGBA8,
-        img.size.x, img.size.y, 0,
-        GL_RGBA, GL_UNSIGNED_BYTE, img.pixels
-    );
+    require(img.size.x > 0 && img.size.y > 0);
+    if (img.contiguous()) {
+        glTexImage2D(
+            target, 0, GL_RGBA8,
+            img.size.x, img.size.y, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, img.pixels
+        );
+    }
+    else {
+        UniqueImage contiguated (img.size);
+        blit(contiguated, img);
+        glTexImage2D(
+            target, 0, GL_RGBA8,
+            contiguated.size.x, contiguated.size.y, 0,
+            GL_RGBA, GL_UNSIGNED_BYTE, contiguated.pixels
+        );
+    }
 }
 
  // texture_from_file_sail is in image-sail.cpp
@@ -76,15 +86,8 @@ PixelTexture::PixelTexture () {
 
 void ImageTexture::init () {
     if (target && source) {
-        ImageView img = source_view();
-        UniqueImage processed (img.size);
-        for (i32 y = 0; y < img.size.y; y++)
-        for (i32 x = 0; x < img.size.x; x++) {
-            processed.pixels[y * processed.size.x + x] =
-                img.pixels[(img.size.y - y - 1) * img.stride + x];
-        }
         glBindTexture(target, id);
-        texture_from_image(target, processed);
+        texture_from_image(target, source_view());
     }
 }
 

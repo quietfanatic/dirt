@@ -35,6 +35,8 @@ using BVec4 = GVec<bool, 4>;
 // or .x, .y, etc.  We're not going so far as to implement swizzling like .zxy
 // and stuff.
 
+// TODO: simplify and have operator[] type-pun this to T*
+
 template <class T, usize n>
 using GVecStorageGeneric = T[n];
 
@@ -404,9 +406,9 @@ constexpr auto rem (const GVec<TA, n>& a, const GVec<TB, n>& b) {
  // Dot product of two vectors.
 template <class T, usize n>
 constexpr auto dot (const GVec<T, n>& a, const GVec<T, n>& b) {
-    decltype(wide_multiply(a[0], b[0])) r = 0;
+    decltype(widen(a[0]) * widen(b[0])) r = 0;
     for (usize i = 0; i < n; i++) {
-        r += wide_multiply(a[i], b[i]);
+        r += widen(a[i]) * widen(b[i]);
     }
     return r;
 }

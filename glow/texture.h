@@ -40,8 +40,9 @@ struct Texture {
     i32 bpp (i32 level = 0);
 };
 
- // Load texture from an image.  The image must be contiguous (stride ==
- // size.x).  TODO: see if we can relax that requirement.
+ // Load texture from an image.  Must do an extra copy unless the image is fully
+ // contiguous.  Does not automatically flipy, so if you call this on an image
+ // loaded from a file, the texture will be upside-down.
 void texture_from_image (u32 target, const ImageView& img) noexcept;
 
  // Load straight from a file to an OpenGL texture.  When using SAIL, Supports a
@@ -59,19 +60,19 @@ void texture_from_file_sail (u32 target, SharedString filepath);
  // deserialization.
 struct ImageTexture : Texture {
     FileImage* source = null;
-     // 0 means the entire image; otherwise must not be empty.
+     // 0 means the entire image; otherwise must not be empty.  Must be proper.
     IRect bounds;
-     // TODO: remove this in favor of inverting bounds?
     BVec flip = {false, true}; // Flip vertically by default
     ImageTexture ();
     void init ();
 
     ImageView source_view () {
+        require((!bounds || area(bounds)) && proper(bounds));
         source->load();
-        ImageView r = *source;
-         // TODO: validation
-        if (bounds) r = r.subview(bounds);
-        return r;
+        require(contains(source->bounds(), bounds));
+        ImageView img = *source;
+        if (bounds) img = img.crop(bounds);
+        return img.flip(flip);
     }
 };
 

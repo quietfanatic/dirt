@@ -5,6 +5,26 @@
 
 namespace glow {
 
+void blit (const ImageView&__restrict dst, const ImageView&__restrict src) noexcept {
+    RGBA8*__restrict out = dst.pixels;
+    RGBA8*__restrict in = src.pixels;
+    require(dst.size == src.size);
+    if (dst.contiguous() & src.contiguous()) {
+        std::memcpy(out, in, area(dst.size) * sizeof(RGBA8));
+    }
+    else for (i32 y = 0; y < dst.size.y; y++) {
+        RGBA8* o = out;
+        RGBA8* i = in;
+        for (i32 x = 0; x < dst.size.x; x++) {
+            *o = *i;
+            o += dst.stride.x;
+            i += dst.stride.x;
+        }
+        out += dst.stride.y;
+        in += src.stride.y;
+    }
+}
+
 UniqueImage image_from_blob (Slice<u8> blob, Str filepath) {
     return image_from_blob_qoi(blob, filepath);
 }
@@ -42,19 +62,6 @@ struct UniqueImagePixelsProxy : UniqueImage { };
 
 } using namespace glow;
 
-AYU_DESCRIBE(glow::UniqueImage,
-    attrs(
-         // TODO: allocate here instead of in the proxy?
-        attr("size", &UniqueImage::size),
-         // TODO: reinterpreting accessor
-        attr("pixels", ref_func<UniqueImagePixelsProxy>(
-            [](UniqueImage& img) -> UniqueImagePixelsProxy& {
-                return static_cast<UniqueImagePixelsProxy&>(img);
-            }
-        ))
-    )
-)
-
 AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
      // TODO: Allow parsing hex string as an option?
     length(funcs(
@@ -72,6 +79,19 @@ AYU_DESCRIBE(glow::UniqueImagePixelsProxy,
     contiguous_elems([](UniqueImagePixelsProxy& image){
         return ayu::AnyPtr(image.pixels);
     })
+)
+
+AYU_DESCRIBE(glow::UniqueImage,
+    attrs(
+         // TODO: allocate here instead of in the proxy?
+        attr("size", &UniqueImage::size),
+         // TODO: reinterpreting accessor
+        attr("pixels", ref_func<UniqueImagePixelsProxy>(
+            [](UniqueImage& img) -> UniqueImagePixelsProxy& {
+                return static_cast<UniqueImagePixelsProxy&>(img);
+            }
+        ))
+    )
 )
 
  // Consider using FileImageExtension instead of storing this in .ayu data.

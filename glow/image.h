@@ -7,21 +7,21 @@
 
 namespace glow {
 
- // Non-owning view of an image.
+ // Non-owning view of an image.  Some basic transformations can be done without
+ // copying any data (flips, 90-degree rotations, cropping to rectangle).
 struct ImageView {
      // The width and height in pixels.  This is a signed IVec but neither
      // component can be negative.  Because of this, images cannot be more than
      // 2 billion x 2 billion pixels.  I hope you'll forgive me.
     IVec size;
-     // Distance between rows in pixels.  If the row are stored contiguously,
-     // this is equal to size.x.
-    i32 stride = 0;
-     // Pointer to pixel data, arranged top-down left-to-right.
-     //   {0, 0}, {1, 0}, {0, 1}, {1, 1}
+     // Distance in RGBA8* pointer units between pixels in each dimension.  If
+     // the image is stored contiguously, this will be [1 size.x].
+    IVec stride;
+     // Pointer to first pixel.
     RGBA8* pixels = null;
     constexpr ImageView () { }
-    constexpr ImageView (IVec s, RGBA8* p) : size(s), stride(s.x), pixels(p) { }
-    constexpr ImageView (IVec s, i32 t, RGBA8* p) : size(s), stride(t), pixels(p) { }
+    constexpr ImageView (IVec s, RGBA8* p) : size(s), stride(1, s.x), pixels(p) { }
+    constexpr ImageView (IVec s, IVec t, RGBA8* p) : size(s), stride(t), pixels(p) { }
 
      // The bounds of the image as a rectangle.  Note that this will be
      // upside-down; bounds().b refers to the top of the image.
@@ -30,14 +30,75 @@ struct ImageView {
     constexpr const RGBA8& operator [] (IVec i) const {
         expect(pixels);
         expect(contains(bounds(), i));
-        return pixels[i.y * stride + i.x];
+        return pixels[dot(stride, i)];
     }
 
-    constexpr ImageView subview (const IRect& b) {
+    constexpr ImageView crop (const IRect& b) const {
         expect(contains(bounds(), b));
-        return ImageView(geo::size(b), stride, &pixels[b.b * stride + b.l]);
+        return ImageView(
+            geo::size(b), stride, pixels + dot(stride, lb(b))
+        );
     }
+    constexpr ImageView flipx () const {
+        ImageView r = *this;
+        r.pixels += stride.x * (size.x - 1);
+        r.stride.x = -stride.x;
+        return r;
+    }
+    constexpr ImageView flipy () const {
+        ImageView r = *this;
+        r.pixels += stride.y * (size.y - 1);
+        r.stride.y = -stride.y;
+        return r;
+    }
+     // Flips along the diagonal, keeping the [0 0] corner constant.
+    constexpr ImageView flipxy () const {
+        return ImageView({size.y, size.x}, {stride.y, stride.x}, pixels);
+    }
+    constexpr ImageView rotcw () const {
+        return flipy().flipxy();
+    }
+    constexpr ImageView rotccw () const {
+        return flipx().flipxy();
+    }
+    constexpr ImageView rot180 () const {
+        return flipx().flipy();
+    }
+
+     // Flip according to a BVec
+    constexpr ImageView flip (BVec f) const {
+        ImageView r = *this;
+        if (f.x) r = r.flipx();
+        if (f.y) r = r.flipy();
+        return r;
+    }
+
+     // If true, all pixels are contiguous in memory and can be copied with a
+     // single call to memcpy().  This is the case if the ImageView was
+     // converted directly from a UniqueImage.
+    constexpr bool contiguous () const {
+        return (stride.x == 1) & (stride.y == size.x);
+    }
+//     // Transform based on a highly restricted matrix.  The matrix must be
+//     // diagonal or antidiagonal, and must have two 0s and two +/- 1s.
+//    constexpr ImageView transform (const GMat<i32, 2, 2>& mat) const {
+//        GMat<bool, 2, 2> abs = {
+//            !!mat[0][0], !!mat[0][1], !!mat[1][0], !!mat[1][1]
+//        };
+//        GMat<bool, 2, 2> sign = {
+//            mat[0][0] < 0, mat[0][1] < 0, mat[1][0] < 0, mat[1][1] < 0
+//        };
+//         // Make it so 1 maps to 0 and -1 maps to size - 1
+//        IVec adjuster = mat * 
+//        return ImageView(
+//            abs * size,
+//            mat * stride,
+//            pixels + sign * (size - 1)
+//        );
+//    }
 };
+
+void blit (const ImageView& out, const ImageView& b) noexcept;
 
  // An image that owns its pixels and cannot be trimmed.
 struct UniqueImage {
@@ -94,6 +155,8 @@ UniqueImage image_from_file_qoi (SharedString filepath);
 UniqueImage image_from_file_sail (SharedString filepath);
 #endif
 
+constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
+
  // An image that is (potentially) associated with a file so it can be trimmed
  // and reloaded.  Intended to be an AYU resource type.
 struct FileImage : UniqueImage {
@@ -130,8 +193,6 @@ struct FileImageExtension : ayu::ResourceExtension {
     UniqueArray<u8> to_blob (const ayu::AnyVal&, ayu::ResourceRef, ayu::PrintOptions) override;
     using ayu::ResourceExtension::ResourceExtension;
 };
-
-constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 
 } // glow
 
