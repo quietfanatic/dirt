@@ -8,7 +8,8 @@ namespace glow {
 void blit (const ImageView&__restrict dst, const ImageView&__restrict src) noexcept {
     RGBA8*__restrict out = dst.pixels;
     RGBA8*__restrict in = src.pixels;
-    require(dst.size == src.size);
+    expect(dst.size == src.size);
+    expect(dst.size.x >= 0 && dst.size.y >= 0);
     if (dst.contiguous() & src.contiguous()) {
         std::memcpy(out, in, area(dst.size) * sizeof(RGBA8));
     }
@@ -16,12 +17,10 @@ void blit (const ImageView&__restrict dst, const ImageView&__restrict src) noexc
         RGBA8* o = out;
         RGBA8* i = in;
         for (i32 x = 0; x < dst.size.x; x++) {
-            *o = *i;
-            o += dst.stride.x;
-            i += dst.stride.x;
+            *o++ = *i++;
         }
-        out += dst.stride.y;
-        in += src.stride.y;
+        out += dst.stride;
+        in += src.stride;
     }
 }
 

@@ -54,25 +54,28 @@ void texture_from_file_qoi (u32 target, SharedString filepath);
 void texture_from_file_sail (u32 target, SharedString filepath);
 #endif
 
- // Represents a texture loaded from an image.  Does not support mipmaps.
+ // Represents a texture loaded from an image.  Does not support mipmaps.  Will
+ // flip image vertically from y-down (image decoder style) to y-up (OpenGL
+ // texture style).
  // WARNING: Do not provide a target when deserializing unless you also provide
  // a filter mode.  I need to fix the problems around texture target
  // deserialization.
 struct ImageTexture : Texture {
     FileImage* source = null;
      // 0 means the entire image; otherwise must not be empty.  Must be proper.
+     // This is in y-down coordinates.
     IRect bounds;
-    BVec flip = {false, true}; // Flip vertically by default
     ImageTexture ();
     void init ();
 
+     // Get view of the source from a texture perspective (y-up)
     ImageView source_view () {
         require((!bounds || area(bounds)) && proper(bounds));
         source->load();
         require(contains(source->bounds(), bounds));
         ImageView img = *source;
         if (bounds) img = img.crop(bounds);
-        return img.flip(flip);
+        return img.flipy();
     }
 };
 

@@ -235,8 +235,7 @@ AYU_DESCRIBE(glow::ImageTexture,
          // TODO: figure out how to make this optional without regenning texture
         attr("Texture", base<Texture>(), include),
         attr("source", &ImageTexture::source),
-        attr("bounds", &ImageTexture::bounds, optional),
-        attr("flip", &ImageTexture::flip, optional)
+        attr("bounds", &ImageTexture::bounds, optional)
     ),
     init([](ImageTexture& v){ v.init(); })
 )
