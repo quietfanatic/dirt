@@ -35,8 +35,7 @@ using BVec4 = GVec<bool, 4>;
 // or .x, .y, etc.  We're not going so far as to implement swizzling like .zxy
 // and stuff.
 
-// TODO: simplify and have operator[] type-pun this to T*
-
+ // Typedef this so we can call its destructor
 template <class T, usize n>
 using GVecStorageGeneric = T[n];
 
@@ -44,7 +43,7 @@ template <class T, usize n>
 struct GVecStorage {
     GVecStorageGeneric<T, n> e;
 };
-template <class T> requires (std::is_trivially_destructible_v<T>)
+template <class T>
 struct GVecStorage<T, 2> {
     union {
         GVecStorageGeneric<T, 2> e;
@@ -53,19 +52,11 @@ struct GVecStorage<T, 2> {
             T y;
         };
     };
+    ~GVecStorage () requires (std::is_trivially_destructible_v<T>) = default;
+    ~GVecStorage () requires (!std::is_trivially_destructible_v<T>)
+        { e.~GVecStorageGeneric(); }
 };
-template <class T> requires (!std::is_trivially_destructible_v<T>)
-struct GVecStorage<T, 2> {
-    union {
-        GVecStorageGeneric<T, 2> e;
-        struct {
-            T x;
-            T y;
-        };
-    };
-    ~GVecStorage () { e.~GVecStorageGeneric(); }
-};
-template <class T> requires (std::is_trivially_destructible_v<T>)
+template <class T>
 struct GVecStorage<T, 3> {
     union {
         GVecStorageGeneric<T, 3> e;
@@ -75,20 +66,11 @@ struct GVecStorage<T, 3> {
             T z;
         };
     };
+    ~GVecStorage () requires (std::is_trivially_destructible_v<T>) = default;
+    ~GVecStorage () requires (!std::is_trivially_destructible_v<T>)
+        { e.~GVecStorageGeneric(); }
 };
-template <class T> requires (!std::is_trivially_destructible_v<T>)
-struct GVecStorage<T, 3> {
-    union {
-        GVecStorageGeneric<T, 3> e;
-        struct {
-            T x;
-            T y;
-            T z;
-        };
-    };
-    ~GVecStorage () { e.~GVecStorageGeneric(); }
-};
-template <class T> requires (std::is_trivially_destructible_v<T>)
+template <class T>
 struct GVecStorage<T, 4> {
     union {
         GVecStorageGeneric<T, 4> e;
@@ -99,19 +81,9 @@ struct GVecStorage<T, 4> {
             T w;
         };
     };
-};
-template <class T> requires (!std::is_trivially_destructible_v<T>)
-struct GVecStorage<T, 4> {
-    union {
-        GVecStorageGeneric<T, 4> e;
-        struct {
-            T x;
-            T y;
-            T z;
-            T w;
-        };
-    };
-    ~GVecStorage () { e.~GVecStorageGeneric(); }
+    ~GVecStorage () requires (std::is_trivially_destructible_v<T>) = default;
+    ~GVecStorage () requires (!std::is_trivially_destructible_v<T>)
+        { e.~GVecStorageGeneric(); }
 };
 
 ///// GVec CLASS
@@ -139,10 +111,9 @@ struct GVec : GVecStorage<T, n> {
         }
     }
      // Construct the undefined vector
-    template <class = void> requires (
+    constexpr GVec (GNAN_t nan) requires (
         requires (GNAN_t nan) { T(nan); }
-    )
-    constexpr GVec (GNAN_t nan) : GVec(T(nan)) { }
+    ) : GVec(T(nan)) { }
 
      // Implicitly coerce from another vector
     template <class T2>
