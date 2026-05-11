@@ -552,13 +552,13 @@ IRI IRI::add_slash_to_path () const {
 namespace iri::test {
 
 struct TestCase {
-    Str i = "";
-    Str b = "";
-    Str s = "";
-    Str a = "";
-    Str p = "";
-    Str q = "";
-    Str f = "";
+    StaticString i = "";
+    StaticString b = "";
+    StaticString s = "";
+    StaticString a = "";
+    StaticString p = "";
+    StaticString q = "";
+    StaticString f = "";
     Error e = Error::NoError;
 };
 

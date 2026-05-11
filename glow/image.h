@@ -28,8 +28,8 @@ struct ImageView {
         expect(s.x >= 0 && s.y >= 0);
     }
 
-     // The bounds of the image as a rectangle.  Note that this will be
-     // upside-down; bounds().b refers to the top of the image.
+     // The bounds of the image as a rectangle.  Note that for y-down style
+     // images, this will be upside-down; bounds().b will be on the top.
     constexpr IRect bounds () const { return {{0, 0}, size}; }
 
     constexpr const RGBA8& operator [] (IVec i) const {
@@ -45,7 +45,7 @@ struct ImageView {
             geo::size(b), stride, pixels + (stride * b.b + b.l)
         );
     }
-     // Flip view vertically, swapping the top and bottom.
+     // Flip view vertically without reallocating, swapping the top and bottom.
     constexpr ImageView flipy () const {
         return ImageView(size, -stride, pixels + stride * (size.y-1));
     }
@@ -103,6 +103,9 @@ struct UniqueImage {
         expect(contains(bounds(), i));
         return pixels[i.y * size.x + i.x];
     }
+
+    ImageView crop (const IRect& b) { return ImageView(*this).crop(b); }
+    ImageView flipy () { return ImageView(*this).flipy(); }
 };
 
  // Load from memory.  NYI for non-QOI formats.
@@ -117,6 +120,15 @@ UniqueImage image_from_file_sail (SharedString filepath);
 #endif
 
 constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
+
+ // Write to memory.  NYI for non-qoi formats.
+UniqueArray<u8> image_to_blob (const ImageView&, Str filepath = "");
+UniqueArray<u8> image_to_blob_qoi (const ImageView&, Str filepath = "");
+ // Write to file.  NYI for non-qoi formats.
+void image_to_file (const ImageView&, SharedString filepath);
+void image_to_file_qoi (const ImageView&, SharedString filepath);
+
+constexpr ErrorCode e_SaveImageFailed = "glow::e_SaveImageFailed";
 
  // An image that is (potentially) associated with a file so it can be trimmed
  // and reloaded.  Intended to be an AYU resource type.

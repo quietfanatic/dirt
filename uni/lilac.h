@@ -44,7 +44,7 @@
  // size 0 will return a non-null pointer to a minimally-allocated region.
  //
  // You can override the global operator new and operator delete by linking
- // lilac-global-override.cpp into the program.  Only do this is your entire
+ // lilac-global-override.cpp into the program.  Only do this if your entire
  // program is singlethreaded, or at least never allocates memory on another
  // thread.  You cannot replace malloc and free because lilac relies on malloc
  // to reserve its initial memory pool and to handle large allocations.

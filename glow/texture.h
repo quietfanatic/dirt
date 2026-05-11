@@ -55,7 +55,7 @@ void texture_from_file_sail (u32 target, SharedString filepath);
 #endif
 
  // Represents a texture loaded from an image.  Does not support mipmaps.  Will
- // flip image vertically from y-down (image decoder style) to y-up (OpenGL
+ // flip image vertically from y-down (image editor style) to y-up (OpenGL
  // texture style).
  // WARNING: Do not provide a target when deserializing unless you also provide
  // a filter mode.  I need to fix the problems around texture target

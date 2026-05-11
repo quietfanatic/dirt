@@ -15,20 +15,30 @@ void raise_LoadImageFailed (Str filepath, Str mess) {
     ));
 }
 
+[[noreturn, gnu::cold]] static
+void raise_SaveImageFailed (Str filepath, Str mess) {
+     // TODO: tag
+    raise(e_LoadImageFailed, cat(
+        "Failed to load image from ", filepath, ": ", mess
+    ));
+}
+
 } using namespace in;
 
+ // If this returns u8, GCC will try to vectorize this badly for some reason.
 static constexpr
-u8 hash_pixel (u8 r, u8 g, u8 b, u8 a) {
+u32 hash_pixel (u8 r, u8 g, u8 b, u8 a) {
     return (r*3 + g*5 + b*7 + a*11) & 63;
 }
 
+///// DECODER
 
  // Returns 0 if successful, + if too much input, - if too little input.
 NOINLINE static
 int decode_qoi (
     RGBA8*__restrict out, RGBA8* out_end,
     const u8*__restrict in, const u8* in_end
-) {
+) noexcept {
     RGBA8 history [64] = {};
      // We're primarily keeping the pixel coalesced in one register, because the
      // two most common ops (index and run) only care about the coalesced form.
@@ -98,36 +108,34 @@ int decode_qoi (
             }
             else { // QOI_OP_RGB or QOI_OP_RGBA
                  // Some hacky hacks to make this path branchless
-                r = in[1];
-                g = in[2];
-                b = in[3];
-                a = ((volatile u8*)in)[4]; // Don't discard this load
-                if (*in == 0b11111110) a = px.a;
+                RGBA8 new_px;
+                std::memcpy(&new_px.repr, in+1, 4);
+                if (*in == 0b11111110) new_px.a = px.a;
                 in += *in - 0b11111110 + 4; // Add 4 or 5
-                goto new_pixel;
+                px = new_px;
+                r = px.r; g = px.g; b = px.b; a = px.a;
             }
         }
-        else if (*in >= 0b10000000) [[likely]] { // QOI_OP_LUMA
-            i8 dg = *in - 0b10000000 - 32;
-            i8 dr_g = ((in[1] & 0b11110000) >> 4) - 8;
-            i8 db_g = ((in[1] & 0b00001111) >> 0) - 8;
-            r = px.r + dr_g + dg;
-            g = px.g + dg;
-            b = px.b + db_g + dg;
-            a = px.a;
-            in += 2;
-            goto new_pixel;
+        else {
+            if (*in >= 0b10000000) [[likely]] { // QOI_OP_LUMA
+                i8 dg = *in - 0b10000000 - 32;
+                i8 dr_g = ((in[1] & 0b11110000) >> 4) - 8;
+                i8 db_g = ((in[1] & 0b00001111) >> 0) - 8;
+                r = px.r + dr_g + dg;
+                g = px.g + dg;
+                b = px.b + db_g + dg;
+                a = px.a;
+                in += 2;
+            }
+            else { // QOI_OP_DIFF
+                r = px.r + ((*in & 0b00110000) >> 4) - 2;
+                g = px.g + ((*in & 0b00001100) >> 2) - 2;
+                b = px.b + ((*in & 0b00000011) >> 0) - 2;
+                a = px.a;
+                in += 1;
+            }
+            px = {r, g, b, a};
         }
-        else { // QOI_OP_DIFF
-            r = px.r + ((*in & 0b00110000) >> 4) - 2;
-            g = px.g + ((*in & 0b00001100) >> 2) - 2;
-            b = px.b + ((*in & 0b00000011) >> 0) - 2;
-            a = px.a;
-            in += 1;
-            goto new_pixel;
-        }
-        new_pixel:
-        px = {r, g, b, a};
         (out++)->repr = px.repr;
         history[hash_pixel(r, g, b, a)].repr = px.repr;
     }
@@ -165,23 +173,153 @@ UniqueImage image_from_blob_qoi (Slice<u8> blob, Str filepath) {
     return r;
 }
 
-UniqueImage image_from_file_qoi (SharedString filepath) {
-    auto blob = blob_from_file(filepath);
-    return image_from_blob_qoi(blob, filepath);
+///// ENCODER
+
+NOINLINE
+u8* encode_qoi (u8*__restrict out, const ImageView&__restrict img) noexcept {
+    expect(img.size.x >= 0 && img.size.y >= 0);
+    if (img.size.x == 0 || img.size.y == 0) [[unlikely]] return out;
+     // Set up pointer-walking infrastructure
+    const RGBA8*__restrict in = img.pixels;
+    const RGBA8* in_end = in + img.size.x;
+    const RGBA8* in_end_end = in_end + img.stride * img.size.y;
+     // Cut out one branch if the image is contiguous
+    if (img.contiguous()) {
+        in_end = in_end_end - img.stride;
+    }
+     // Encoder state
+    RGBA8 history [64] = {};
+    RGBA8 last = {0, 0, 0, 255};
+
+    loop:
+     // First check for runs
+    if (in->repr == last.repr) {
+        start_run:
+        u32 run = 0b11000000; // QOI_OP_RUN (this encodes length 1)
+        continue_run:
+         // Bump pointer
+        in += 1;
+        if (in == in_end) [[unlikely]] {
+             // Bump pointer a little harder
+            in_end += img.stride;
+            if (in_end == in_end_end) {
+                 // Bumped pointer so hard we ran out of input
+                *out++ = run;
+                return out;
+            }
+            in += img.stride - img.size.x;
+        }
+         // Run continues?
+        if (in->repr == last.repr) {
+            if (run == 0b11111101) {
+                 // Run is already at max length of 62
+                *out++ = run;
+                 // Start new run at length 1
+                goto start_run;
+            }
+            run += 1;
+            goto continue_run;
+        }
+         // Run done
+        *out++ = run;
+         // fall through
+    }
+     // Now either read or write history
+    u32 hash = hash_pixel(in->r, in->g, in->b, in->a);
+    if (history[hash].repr == in->repr) {
+        *out++ = 0b00000000 | hash; // QOI_OP_INDEX
+        goto next;
+    }
+    else history[hash].repr = in->repr;
+     // New pixel.  How shall we encode it?
+    if (in->a == last.a) {
+         // See if we can cram the delta encoding into one byte.  All of these
+         // values are specced to wrap around at 8 bits.  We can range check all
+         // of them at once by oring them together.
+        u8 dr = in->r - last.r + 2;
+        u8 dg = in->g - last.g + 2;
+        u8 db = in->b - last.b + 2;
+        if (!((dr | dg | db) & 0b11111100)) {
+            *out++ = 0b01000000 | (dr << 4) | (dg << 2) | db; // QOI_OP_DIFF
+            goto next;
+        }
+         // Okay try the two-byte encoding.  Even if the bitfields have different
+         // sizes, we can still check for overflow with only one branch.
+        u8 dr_g = (in->r - last.r) - (in->g - last.g) + 8;
+        u8 dg2 = in->g - last.g + 32;
+        u8 db_g = (in->b - last.b) - (in->g - last.g) + 8;
+        if (!((dg2 & 0b11000000) | ((dr_g | db_g) & 0b11110000))) {
+            *out++ = 0b10000000 | dg2; // QOI_OP_LUMA
+            *out++ = (dr_g << 4) | db_g;
+            goto next;
+        }
+         // Nope, this pixel is too weird to compress
+        *out++ = 0b11111110; // QOI_OP_RGB
+        *out++ = in->r;
+        *out++ = in->g;
+        *out++ = in->b;
+        *out = in->a; // Do a 32-bit store
+        goto next;
+    }
+    else {
+         // If the alpha changes we have to write the full RGBA pixel
+        *out++ = 0b11111111; // QOI_OP_RGBA
+        *out++ = in->r;
+        *out++ = in->g;
+        *out++ = in->b;
+        *out++ = in->a;
+        goto next;
+    }
+
+    next:
+     // Don't forget this!
+    last.repr = in->repr;
+     // Move pointer to the right
+    in += 1;
+    if (in == in_end) [[unlikely]] {
+         // Hit right edge so start next row
+        in_end += img.stride;
+        if (in_end == in_end_end) {
+             // Hit bottom-right corner so we're done
+            return out;
+        }
+        in += img.stride - img.size.x;
+    }
+    goto loop;
+}
+
+UniqueArray<u8> image_to_blob_qoi (const ImageView& img, Str filepath) {
+    expect(img.size.x >= 0 && img.size.y >= 0);
+    usize len = area(img.size);
+    if (len > 400000000) raise_SaveImageFailed(filepath, "Image is too large");
+     // Worst case 5 bytes per pixel + 14 byte header + 8 byte footer
+    u8* buf = SharableBuffer<u8>::allocate(5 * len + 22);
+    std::memcpy(buf, "qoif", 4);
+    write_u32be(buf+4, img.size.x);
+    write_u32be(buf+8, img.size.y);
+     // channels: RGBA.  TODO: propagate this.
+    buf[12] = 4;
+     // colorspace: sRGB.  I don't think we're really using sRGB, but SAIL's
+     // QOI loader refuses to load it unless this is 0.
+    buf[13] = 0;
+    u8* end = encode_qoi(buf + 14, img);
+    write_u64be(end, 1);
+    end += 8;
+    UniqueArray<u8> r;
+    expect(u32(end - buf) == end - buf);
+    r.impl = {u32(end - buf), buf};
+    return r;
 }
 
 } using namespace glow;
 
 ///// TESTS
 
- // TODO: move this test somewhere else
 #ifndef TAP_DISABLE_TESTS
 #include "../ayu/resources/resource.h"
-#include "../glow/gl.h"
 #include "../tap/tap.h"
 #include "colors.h"
 #include "test/test-environment.h"
-#include "texture.h"
 
 static tap::TestSet tests ("dirt/glow/image-qoi", []{
     using namespace tap;
@@ -189,17 +327,14 @@ static tap::TestSet tests ("dirt/glow/image-qoi", []{
 
     test::TestEnvironment env;
 
-    Texture tex (GL_TEXTURE_2D);
-
-    auto path = ayu::resource_filepath(iri::IRI("test:/image.qoi"));
-    texture_from_file_qoi(GL_TEXTURE_2D, path);
-
-    auto size = tex.size();
-    is(size, IVec{7, 5}, "Created texture has correct size");
-    UniqueArray<RGBA8> got_pixels (area(size));
-    glGetTexImage(tex.target, 0, GL_RGBA, GL_UNSIGNED_BYTE, got_pixels.data());
-    is(got_pixels[10], RGBA8(0x2674dbff), "Created texture has correct content");
-    is(got_pixels[34], RGBA8(0x2674dbff), "Created texture has correct content");
+    auto path = ayu::resource_filepath(iri::IRI("test:/testcard_rgba.qoi"));
+    auto input = blob_from_file(path);
+    UniqueImage img = image_from_blob(input);
+    auto output = image_to_blob(img);
+    if (!is(input, output, "QOI Decoder and encoder agree")) {
+        auto outpath = ayu::resource_filepath(iri::IRI("test:/TESTFAIL-testcard_rgba.qoi"));
+        blob_to_file(output, outpath);
+    }
 
     done_testing();
 });

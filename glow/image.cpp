@@ -2,25 +2,29 @@
 
 #include "../ayu/reflection/describe.h"
 #include "../ayu/traversal/to-tree.h"
+#include "../uni/io.h"
 
 namespace glow {
 
-void blit (const ImageView&__restrict dst, const ImageView&__restrict src) noexcept {
-    RGBA8*__restrict out = dst.pixels;
-    RGBA8*__restrict in = src.pixels;
-    expect(dst.size == src.size);
+ // This doesn't need to be all that optimized.
+void blit (const ImageView& dst, const ImageView& src) noexcept {
     expect(dst.size.x >= 0 && dst.size.y >= 0);
+    expect(dst.size == src.size);
     if (dst.contiguous() & src.contiguous()) {
-        std::memcpy(out, in, area(dst.size) * sizeof(RGBA8));
+        std::memcpy(dst.pixels, src.pixels, area(dst.size) * sizeof(RGBA8));
     }
-    else for (i32 y = 0; y < dst.size.y; y++) {
-        RGBA8* o = out;
-        RGBA8* i = in;
-        for (i32 x = 0; x < dst.size.x; x++) {
-            *o++ = *i++;
+    else {
+        auto o = dst.pixels;
+        auto i = src.pixels;
+        auto oe = dst.pixels + dst.stride * dst.size.y;
+        auto s = dst.size.x * sizeof(RGBA8);
+        auto ot = dst.stride;
+        auto it = src.stride;
+        while (o < oe) {
+            std::memcpy(o, i, s);
+            o += ot;
+            i += it;
         }
-        out += dst.stride;
-        in += src.stride;
     }
 }
 
@@ -34,6 +38,24 @@ UniqueImage image_from_file (SharedString filepath) {
 #else
     return image_from_file_qoi(move(filepath));
 #endif
+}
+
+UniqueImage image_from_file_qoi (SharedString filepath) {
+    auto blob = blob_from_file(filepath);
+    return image_from_blob_qoi(blob, move(filepath));
+}
+
+UniqueArray<u8> image_to_blob (const ImageView& img, Str filepath) {
+    return image_to_blob_qoi(img, filepath);
+}
+
+void image_to_file (const ImageView& img, SharedString filepath) {
+    return image_to_file_qoi(img, move(filepath));
+}
+
+void image_to_file_qoi (const ImageView& img, SharedString filepath) {
+    auto blob = image_to_blob_qoi(img, filepath);
+    blob_to_file(blob, move(filepath));
 }
 
 bool FileImageExtension::accepts_type (ayu::Type type) {
