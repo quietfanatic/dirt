@@ -116,6 +116,9 @@
  //   - Custom allocators are not supported.  They are rarely used in STL
  //     containers and mainly serve to clutter up error messages.
  //   - Some of the more obscure methods may be missing or named differently.
+ //   - Strings are not guaranteed to be NUL-terminated internally.  This means
+ //     that the c_str() method cannot be called on const strings, as it may
+ //     have to modify the buffer.
  //   - SharedArray and SharedString return const references from operator[]
  //     instead of mutable references, to avoid accidentally triggering
  //     copy-on-write.  To trigger COW, Use mut_get() or cast them to Unique*.

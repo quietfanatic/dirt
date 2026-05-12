@@ -242,6 +242,9 @@ void t33b (SharedString a) {
 void t33c (SharedString&& a) {
     t33b(move(a));
 }
+void t33d () {
+    t33b("asdf");
+}
 NOINLINE
 void c33a (std::string&& a) {
     printf("%s\n", a.c_str());

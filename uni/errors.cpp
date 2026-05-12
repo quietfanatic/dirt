@@ -7,7 +7,9 @@
 #include "io.h"
 
 namespace uni {
+using namespace in;
 
+[[gnu::cold]]
 const char* Error::what () const noexcept {
     if (!what_cache) {
         StaticString code_s = code;
@@ -28,41 +30,60 @@ const char* Error::what () const noexcept {
     }
     return what_cache.c_str();
 }
+[[gnu::cold]] NOINLINE
+Error::Error (const Error&) noexcept = default;
+[[gnu::cold]] NOINLINE
 Error::~Error () { }
 
-Str Error::get_tag (Str name) {
+[[gnu::cold]]
+Str Error::get_tag (Str name) noexcept {
     for (auto& [n, v] : tags) {
-        if (n.data() == name.data() || n == name) return v;
+        if (n == name) return v;
     }
     return "";
 }
-void add_tag_impl (Error& e, SharedString::Impl name, SharedString::Impl value) {
+[[gnu::cold]]
+void in::set_tag_impl (Error& e, SharedString::Impl name, SharedString::Impl value) noexcept {
+    SharedString n; n.impl = name;
+    SharedString v; v.impl = value;
+    e.what_cache = "";
+    for (auto it = e.tags.rbegin(); it != e.tags.rend(); it++) {
+        if (it->first == n) {
+            it->second = move(v);
+            return;
+        }
+    }
+    e.tags.emplace_back(move(n), move(v));
+}
+[[gnu::cold]]
+void in::add_tag_impl (Error& e, SharedString::Impl name, SharedString::Impl value) noexcept {
     SharedString n; n.impl = name;
     SharedString v; v.impl = value;
     e.what_cache = "";
     e.tags.emplace_back(move(n), move(v));
 }
 
-Error& current_error () {
-    try { throw; }
-    catch (Error& e) { return e; }
+[[gnu::cold]]
+Error& current_error () noexcept {
+    try { throw; } catch (Error& e) { return e; }
     catch (std::exception& ex) {
         Error e;
         e.code = e_External;
         e.details = ex.what();
         e.external = std::current_exception();
-        throw e;
+        try { throw e; } catch (Error& e) { return e; }
     }
     catch (...) {
         Error e;
         e.code = e_External;
         e.details = "(nonstandard exception)";
         e.external = std::current_exception();
-        throw e;
+        try { throw e; } catch (Error& e) { return e; }
     }
 }
 
-void raise_impl (ErrorCode code, SharedString::Impl details) {
+[[gnu::cold]]
+void in::raise_impl (ErrorCode code, SharedString::Impl details) {
     Error e;
     e.code = code;
     e.details.impl = details;

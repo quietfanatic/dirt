@@ -22,6 +22,8 @@
 
 namespace uni {
 
+///// ERROR CLASS
+
  // ErrorCodes are always compared stringwise, not by address.  It's tempting to
  // use const char* for this to faintly reduce compiled code size, but string
  // literals can't be compared by address (the compiler doesn't always
@@ -45,39 +47,29 @@ struct Error : std::exception {
      // A lot of exception handling stuff assumes that the string returned by
      // what() will last a while, so store it here.
     mutable UniqueString what_cache;
+    Error () noexcept = default;
+    Error (const Error&) noexcept;
     ~Error ();
     const char* what () const noexcept override;
 
      // Returns the value of the tag, or "" if it doesn't exist.
-    Str get_tag (Str name);
+    Str get_tag (Str name) noexcept;
+     // Sets tag (replaces last occurrence if already exists)
+    void set_tag (SharedString name, SharedString value) noexcept;
      // Adds the tag (doesn't check if it's already been added)
-    void add_tag (SharedString name, SharedString value);
+    void add_tag (SharedString name, SharedString value) noexcept;
      // If you want to prevent duplicate tags, do
      //     if (!e.get_tag("foo")) {
      //         e.add_tag("foo", cat("glarch ", barch, " parch"));
      //     }
 };
 
-[[gnu::cold]]
-Error& current_error ();
+ // Get current Error.  If handling a different sort of exception, wraps it in
+ // an Error with .code = e_External and .external = the original exception.
+Error& current_error () noexcept;
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
-[[noreturn, gnu::cold]] NOINLINE
-void raise_impl (ErrorCode code, SharedString::Impl details);
-
-[[noreturn]] ALWAYS_INLINE
-void raise (ErrorCode code, SharedString details) {
-    auto impl = details.impl;
-    details.impl = {};
-    raise_impl(code, impl);
-}
-
- // Unspecified error
-constexpr ErrorCode e_General = "uni::e_General";
- // Error that is only thrown on debug builds
-constexpr ErrorCode e_Debug = "uni::e_Debug";
- // Someone else's error type, std::rethrow_exception(e.external) to unwrap
-constexpr ErrorCode e_External = "uni::e_External";
+[[noreturn]] void raise (ErrorCode code, SharedString details);
 
  // Call this when an exception is thrown in a place where cleaning up is
  // impossible.
@@ -86,12 +78,43 @@ constexpr ErrorCode e_External = "uni::e_External";
  // Probably useless without rtti
 UniqueString demangle_cpp_name (const char* name) noexcept;
 
-void add_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value);
+///// GENERAL ERROR CODES
 
-inline void Error::add_tag (SharedString name, SharedString value) {
+ // Unspecified error
+constexpr ErrorCode e_General = "uni::e_General";
+ // Someone else's error type, std::rethrow_exception(e.external) to unwrap
+constexpr ErrorCode e_External = "uni::e_External";
+
+///// INLINES
+
+namespace in {
+
+[[noreturn, gnu::cold]] NOINLINE
+void raise_impl (ErrorCode code, SharedString::Impl details);
+void set_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value) noexcept;
+void add_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value) noexcept;
+
+} // in
+
+[[gnu::cold]] ALWAYS_INLINE
+void Error::set_tag (SharedString name, SharedString value) noexcept {
     auto n = name.impl; name.impl = {};
     auto v = value.impl; value.impl = {};
-    add_tag_impl(*this, n, v);
+    in::set_tag_impl(*this, n, v);
+}
+
+[[gnu::cold]] ALWAYS_INLINE
+void Error::add_tag (SharedString name, SharedString value) noexcept {
+    auto n = name.impl; name.impl = {};
+    auto v = value.impl; value.impl = {};
+    in::add_tag_impl(*this, n, v);
+}
+
+[[gnu::cold]] ALWAYS_INLINE
+void raise (ErrorCode code, SharedString details) {
+    auto impl = details.impl;
+    details.impl = {};
+    in::raise_impl(code, impl);
 }
 
 } // uni

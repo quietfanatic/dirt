@@ -7,7 +7,7 @@
 
 namespace uni {
 
-///// BASIC INTERFACE
+///// CAT BASIC INTERFACE
 
  // Concatenation for character strings.  Returns the result of converting all
  // the arguments to strings, concatenated into a single string.
@@ -44,7 +44,7 @@ Head& encat (Head& h, const Tail&... t) {
     return h = cat(move(h), t...);
 }
 
-///// ADVANCED INTERFACE
+///// MISC
 
  // Literal suffix for StaticString.  This is usually unnecessary, as raw
  // const char[] arrays are generally treated as static strings by the arrays
@@ -52,6 +52,8 @@ Head& encat (Head& h, const Tail&... t) {
 consteval StaticString operator""_s (const char* p, usize s) {
     return StaticString(p, s);
 }
+
+///// CAT ADVANCED INTERFACE
 
  // Trait for string conversions.  This must have:
  //    using Self = Type;
