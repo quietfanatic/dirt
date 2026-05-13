@@ -343,17 +343,19 @@ void save (ResourceRef res, PrintOptions opts) try {
             SaveCommitter (UniqueArray<u8>&& b, SharedString&& p, File&& f) :
                 blob(move(b)), path(move(p)), outfile(move(f))
             { }
-            void commit () noexcept override {
-                outfile.write(Str(blob), path);
-            }
+            void commit () noexcept override try {
+                 // TODO: propagate this error somehow?  Retry?
+                outfile.write(Str(blob));
+            } catch (...) { unrecoverable_exception("when committing a write to a file"); }
         };
         ResourceTransaction::add_committer(
             new SaveCommitter(move(blob), move(path), move(outfile))
         );
     }
-    else {
-        outfile.write(Str(blob), path);
-    }
+    else try {
+        outfile.write(Str(blob));
+        outfile.close();
+    } catch (Error& e) { e.set_tag("uni::FilePath", path); throw; }
 } catch (...) {
     tag_error_with_resource(res, "save");
 }

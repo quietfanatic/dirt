@@ -47,36 +47,54 @@ struct Error : std::exception {
      // A lot of exception handling stuff assumes that the string returned by
      // what() will last a while, so store it here.
     mutable UniqueString what_cache;
+     // Construction
+    [[gnu::cold]]
     Error () noexcept = default;
+    [[gnu::cold]]
+    Error (ErrorCode c, SharedString&& d) noexcept;
+    [[gnu::cold]]
+    Error (std::exception_ptr&& e) noexcept;
+     // Error is copyable and movable, but it generally results in smaller code
+     // to directly throw Error(...), then catch it to add tags and rethrow.
+    [[gnu::cold]]
     Error (const Error&) noexcept;
+    [[gnu::cold]]
+    Error (Error&&) noexcept = default;
+    [[gnu::cold]]
     ~Error ();
+    [[gnu::cold]]
     const char* what () const noexcept override;
 
      // Returns the value of the tag, or "" if it doesn't exist.
+    [[gnu::cold]]
     Str get_tag (Str name) noexcept;
      // Sets tag (replaces last occurrence if already exists)
+    [[gnu::cold]]
     void set_tag (SharedString name, SharedString value) noexcept;
      // Adds the tag (doesn't check if it's already been added)
+    [[gnu::cold]]
     void add_tag (SharedString name, SharedString value) noexcept;
-     // If you want to prevent duplicate tags, do
-     //     if (!e.get_tag("foo")) {
-     //         e.add_tag("foo", cat("glarch ", barch, " parch"));
-     //     }
+     // set_tag then rethrow.  *this must be the current exception!
+    [[noreturn, gnu::cold]]
+    void rethrow_with_tag (SharedString name, SharedString value);
+     // Lightweight variant
+    [[noreturn, gnu::cold]]
+    void rethrow_with_tag (StaticString name, const char* value);
 };
 
  // Get current Error.  If handling a different sort of exception, wraps it in
  // an Error with .code = e_External and .external = the original exception.
+[[gnu::cold]]
 Error& current_error () noexcept;
 
  // Simple noinline wrapper around construct and throw to reduce code bloat
-[[noreturn]] void raise (ErrorCode code, SharedString details);
+[[noreturn, gnu::cold]]
+void raise (ErrorCode code, SharedString details);
 
  // Call this when an exception is thrown in a place where cleaning up is
  // impossible.
-[[noreturn]] void unrecoverable_exception (Str when) noexcept;
-
- // Probably useless without rtti
-UniqueString demangle_cpp_name (const char* name) noexcept;
+[[noreturn, gnu::cold]]
+void unrecoverable_exception (Str when) noexcept;
 
 ///// GENERAL ERROR CODES
 
@@ -91,26 +109,36 @@ namespace in {
 
 [[noreturn, gnu::cold]] NOINLINE
 void raise_impl (ErrorCode code, SharedString::Impl details);
+[[gnu::cold]]
 void set_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value) noexcept;
+[[gnu::cold]]
 void add_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value) noexcept;
+[[noreturn, gnu::cold]]
+void rethrow_with_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value);
 
 } // in
 
-[[gnu::cold]] ALWAYS_INLINE
+ALWAYS_INLINE
 void Error::set_tag (SharedString name, SharedString value) noexcept {
     auto n = name.impl; name.impl = {};
     auto v = value.impl; value.impl = {};
     in::set_tag_impl(*this, n, v);
 }
-
-[[gnu::cold]] ALWAYS_INLINE
+ALWAYS_INLINE
 void Error::add_tag (SharedString name, SharedString value) noexcept {
     auto n = name.impl; name.impl = {};
     auto v = value.impl; value.impl = {};
     in::add_tag_impl(*this, n, v);
 }
+ALWAYS_INLINE
+void Error::rethrow_with_tag (SharedString name, SharedString value) {
+    auto n = name.impl; name.impl = {};
+    auto v = value.impl; value.impl = {};
+    in::rethrow_with_tag_impl(*this, n, v);
+}
 
-[[gnu::cold]] ALWAYS_INLINE
+
+ALWAYS_INLINE
 void raise (ErrorCode code, SharedString details) {
     auto impl = details.impl;
     details.impl = {};

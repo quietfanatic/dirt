@@ -12,46 +12,67 @@ namespace uni {
 
 namespace in {
 
-[[gnu::cold]] NOINLINE
-void warn_close_failed (const char* message, Str path) {
-    if (!path) path = "a file";
-    warn_utf8(cat(
-        message, path, ": ", strerror(errno), '\n'
-    ));
+[[noreturn, gnu::cold]] NOINLINE
+void raise_io_error (const char* op) try {
+    throw Error(e_IOError, "IO operation failed");
+}
+catch (Error& e) {
+    e.add_tag("uni::IOOperation", StaticString(op));
+    e.rethrow_with_tag("strerror(errno)", strerror(errno));
 }
 
-[[noreturn, gnu::cold]] NOINLINE
-void raise_io_error (const char* op, Str path_err) {
-    Error e;
-    e.code = e_IOError;
-    e.details = "IO operation failed";
-    e.add_tag("errno", strerror(errno));
-    e.add_tag("uni::IOOperation", op);
-    if (path_err) {
-        e.add_tag("uni::IOPath", path_err);
-    }
-    throw e;
+[[gnu::cold]] NOINLINE
+void warn_close_failed (StaticString thing) {
+    warn_utf8(cat(
+        "WARNING: ignoring failure to close a ", thing, ": ",  strerror(errno), '\n'
+    ));
 }
 
 } using namespace in;
 
-[[noreturn, gnu::cold]] NOINLINE
-void File::raise_open_failed (Str path_err, int errnum) const {
-    if (errnum) errno = errnum;
-    raise_io_error("open", path_err);
+NOINLINE
+File::File (const char* path, const char* mode) :
+    File(try_open(path, mode))
+{
+    if (!handle) try {
+        raise_io_error("open");
+    } catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+}
+[[gnu::no_stack_protector]] NOINLINE
+File::File (Str path, const char* mode) {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    new (this) File(buf, mode);
 }
 
-UniqueString File::read (Str path_err) {
+[[gnu::no_stack_protector]] NOINLINE
+File File::try_open (Str path, const char* mode) noexcept {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    return try_open(buf, mode);
+}
+
+[[noreturn, gnu::cold]] NOINLINE
+void File::raise_open_failed (int errnum) const {
+    if (errnum) errno = errnum;
+    raise_io_error("open");
+}
+
+UniqueString File::read () {
      // Find how big the file is and preallocate
     int res = fseek(handle, 0, SEEK_END);
     if (res < 0) {
          // Reading from unseekable files is NYI
         seek_failed:
-        raise_io_error("fseek", path_err);
+        raise_io_error("fseek");
     }
     long size = ftell(handle);
     if (size < 0) {
-        raise_io_error("ftell", path_err);
+        raise_io_error("ftell");
     }
     require(usize(size) < SharedString::max_size_);
     auto r = UniqueString(Uninitialized(size));
@@ -61,23 +82,155 @@ UniqueString File::read (Str path_err) {
      // Read
     usize did_read = fread(r.data(), 1, r.size(), handle);
     if (did_read != r.size()) {
-        raise_io_error("read", path_err);
+        raise_io_error("read");
     }
     return r;
 }
 
-void Dir::raise_open_failed (Str path_err, int errnum) const {
-    if (errnum) errno = errnum;
-    raise_io_error("open dir", path_err);
+void File::write (Str content) {
+    usize did_write = fwrite(content.data(), 1, content.size(), handle);
+    if (did_write != content.size()) {
+        in::raise_io_error("write");
+    }
 }
 
-UniqueArray<UniqueString> Dir::list (Str path_err) {
-    UniqueArray<UniqueString> r;
+void File::close_throw () {
+    int res = fclose(handle);
+    handle = null;
+    if (res != 0) raise_io_error("close");
+}
+
+void File::close_warn () noexcept {
+    int res = fclose(handle);
+    handle = null;
+    if (res != 0) [[unlikely]] warn_close_failed("file");
+}
+
+NOINLINE
+UniqueString string_from_file (const char* path) try {
+    File f = File::try_open(path);
+    if (!f) raise_io_error("open");
+    UniqueString r = f.read();
+    f.close();
+    return r;
+} catch (Error& e) {
+    e.rethrow_with_tag("uni::FilePath", path);
+}
+[[gnu::no_stack_protector]] NOINLINE
+UniqueString string_from_file (Str path) {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    return string_from_file(buf);
+}
+
+NOINLINE
+void string_to_file (Str content, const char* path) try {
+    File f = File::try_open(path, "wb");
+    if (!f) raise_io_error("open");
+    f.write(content);
+    f.close();
+}
+catch (Error& e) {
+    e.rethrow_with_tag("uni::FilePath", path);
+}
+[[gnu::no_stack_protector]] NOINLINE
+void string_to_file (Str content, Str path) {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    string_to_file(content, buf);
+}
+
+NOINLINE
+Dir::Dir (const char* path) :
+    Dir(try_open_at(AT_FDCWD, path))
+{
+    if (!handle) try {
+        raise_io_error("open dir");
+    } catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+}
+[[gnu::no_stack_protector]] NOINLINE
+Dir::Dir (Str path) {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    new (this) Dir(buf);
+}
+
+NOINLINE
+Dir Dir::try_open_at (int parent_fd, const char* path) noexcept {
+    Dir r;
+    r.fd = openat(parent_fd, path, O_RDONLY|O_DIRECTORY);
+    if (r.fd >= 0) {
+        r.handle = fdopendir(r.fd);
+    }
+    else r.handle = null;
+    return r;
+}
+[[gnu::no_stack_protector]] NOINLINE
+Dir Dir::try_open_at (int parent_fd, Str path) noexcept {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    return Dir::try_open_at(parent_fd, buf);
+}
+
+UniqueArray<SharedString> Dir::list () {
+    UniqueArray<SharedString> r;
     while (1) {
-        dirent* entry = list_one(path_err);
+        dirent* entry = list_one();
         if (!entry) return r;
         r.emplace_back(entry->d_name);
     }
+}
+
+dirent* Dir::list_one () {
+    errno = 0;
+    dirent* r = readdir(handle);
+    if (!r && errno) {
+        in::raise_io_error("list dir");
+    }
+    return r;
+}
+
+void Dir::close_throw () {
+    int res = closedir(handle);
+    handle = null;
+    fd = 0;
+    if (res < 0) raise_io_error("close dir");
+}
+
+void Dir::close_warn () noexcept {
+    int res = closedir(handle);
+    handle = null;
+    fd = 0;
+    if (res < 0) [[unlikely]] warn_close_failed("directory");
+}
+
+ // One-stop directory IO
+NOINLINE
+UniqueArray<SharedString> list_dir (const char* path) try {
+    Dir d = Dir::try_open_at(AT_FDCWD, path);
+    if (!d) raise_io_error("open dir");
+    UniqueArray<SharedString> r = d.list();
+    d.close();
+    return r;
+} catch (Error& e) {
+    e.add_tag("uni::FilePath", path);
+    throw;
+}
+[[gnu::no_stack_protector]] NOINLINE
+UniqueArray<SharedString> list_dir (Str path) {
+    require(path.size() < 65536);
+    char buf [path.size() + 1];
+    buf[path.size()] = 0;
+    std::memcpy(buf, path.data(), path.size());
+    return list_dir(buf);
 }
 
 ///// CONSOLE IO
@@ -86,26 +239,26 @@ void print_utf8 (Str s) noexcept {
 #ifdef _WIN32
     [[maybe_unused]] static auto set = _setmode(_fileno(stdout), _O_WTEXT);
     auto s16 = to_utf16(s);
-    auto len = fwrite(s16.data(), 2, s16.size(), stdout);
+    auto len = std::fwrite(s16.data(), 2, s16.size(), stdout);
     require(len == s16.size());
 #else
-    auto len = fwrite(s.data(), 1, s.size(), stdout);
+    auto len = std::fwrite(s.data(), 1, s.size(), stdout);
     require(len == s.size());
 #endif
-    fflush(stdout);
+    std::fflush(stdout);
 }
 
 void warn_utf8 (Str s) noexcept {
 #ifdef _WIN32
     [[maybe_unused]] static auto set = _setmode(_fileno(stderr), _O_WTEXT);
     auto s16 = to_utf16(s);
-    auto len = fwrite(s16.data(), 2, s16.size(), stderr);
+    auto len = sdt::fwrite(s16.data(), 2, s16.size(), stderr);
     require(len == s16.size());
 #else
-    auto len = fwrite(s.data(), 1, s.size(), stderr);
+    auto len = std::fwrite(s.data(), 1, s.size(), stderr);
     require(len == s.size());
 #endif
-    fflush(stderr);
+    std::fflush(stderr);
 }
 
 ///// LOWER LEVEL
@@ -118,7 +271,7 @@ std::FILE* fopen_utf8 (const char* filename, const char* mode) noexcept {
         reinterpret_cast<const wchar_t*>(to_utf16(mode).c_str())
     );
 #else
-    return fopen(filename, mode);
+    return std::fopen(filename, mode);
 #endif
 }
 
@@ -128,7 +281,7 @@ int remove_utf8 (const char* filename) noexcept {
         reinterpret_cast<const wchar_t*>(to_utf16(filename).c_str())
     );
 #else
-    return remove(filename);
+    return std::remove(filename);
 #endif
 }
 

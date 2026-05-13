@@ -5,24 +5,27 @@
 #include <dirent.h>
 #include <fcntl.h>
 
+#include "arrays.h"
 #include "callback-ref.h"
 #include "common.h"
 #include "errors.h"
-#include "strings.h"
 
 namespace uni {
 
 ///// FILE IO
 
  // RAII file object that throws exceptions.  Does not keep the path, because
- // it's only useful for error reporting.  Instead, pass the path to read() and
- // write() if you want good error messages.
+ // it's only useful for error reporting.  Instead, catch the error and tag it
+ // with the path.
 struct File {
+     // TODO: investiage if we want to use fd instead.  We already rely on POSIX
+     // IO headers.
     FILE* handle;
      // Empty object
     constexpr File () : handle(null) { }
      // Open file, throws on failure
-    explicit File (SharedString, const char* mode = "rb");
+    explicit File (const char* path, const char* mode = "rb");
+    explicit File (Str path, const char* mode = "rb");
      // Move construct
     constexpr File (File&& o) : handle(o.handle) { o.handle = null; }
      // Move assign
@@ -31,57 +34,69 @@ struct File {
         handle = o.handle; o.handle = null;
         return *this;
     }
-     // Close file
-    constexpr ~File () { if (handle) close(); }
+     // Autoclose file (close manually if you need error information).
+    constexpr ~File () { if (handle) close_warn(); }
 
      // Check if open
     constexpr explicit operator bool () { return handle; }
 
      // Doesn't throw on failure, instead returns empty and sets errno.  If you
-     // don't like the errno you get, call raise_open_failed.
-    static File try_open (SharedString path, const char* mode = "rb") noexcept;
+     // don't like the errno you get, call raise_open_failed
+    static File try_open (const char* path, const char* mode = "rb") noexcept;
+    static File try_open (Str path, const char* mode = "rb") noexcept;
+     // (this).  If passed non-zero, will set errno, otherwise will use existing
+     // errno.
+    [[noreturn]] void raise_open_failed (int errnum = 0) const;
 
-    [[noreturn]] void raise_open_failed (
-        Str path_err = "", int errnum = 0
-    ) const;
+     // Get the entire file's contents in a string.  Will throw on failure.
+    UniqueString read ();
+     // Write the entire file's contents.  Will throw on failure.
+    void write (Str);
 
-    UniqueString read (Str path_err = "");
-    void write (Str, Str path_err = "");
-
-     // Warns to stderr on failure.  Usually called automatically.
-    void close (Str path_err = "") noexcept;
+     // If closing fails, will throw an exception.
+    void close () { close_throw(); expect(!handle); }
+    void close_throw ();
+     // If closing fails, will warn instead of throwing.  Note that there is no
+     // way to recover the filename.  If you need better error diagnostics, then
+     // call .close() before letting the File destroy itself and catch it then.
+     // TODO: pluggable on_close_failed function.
+    void close_warn () noexcept;
 };
 
- // One-step file IO
-UniqueString string_from_file (SharedString path);
+ // One-step file IO.  Automatically tags errno with uni::FilePath.
+UniqueString string_from_file (const char* path);
+UniqueString string_from_file (Str path);
 
-void string_to_file (Str, SharedString path);
+void string_to_file (Str content, const char* path);
+void string_to_file (Str content, Str path);
 
+ // The code for all IO errors.
 constexpr ErrorCode e_IOError = "uni::e_IOError";
 
 ///// DIRECTORY IO
 
- // Analogous to File
+ // Analogous to File.
 struct Dir {
     DIR* handle;
     int fd;
      // Empty object
     constexpr Dir () : handle(null), fd(0) { }
      // Open from path
-    explicit Dir (SharedString p);
+    explicit Dir (const char* path);
+    explicit Dir (Str path);
      // Move construct
     constexpr Dir (Dir&& o) :
         handle(o.handle), fd(o.fd)
     { o.handle = null; o.fd = 0; }
      // Move assign
     constexpr Dir& operator= (Dir&& o) {
-        if (handle) close();
+        if (handle) close_warn();
         handle = o.handle; o.handle = null;
         fd = o.fd; o.fd = 0;
         return *this;
     }
      // Close file
-    constexpr ~Dir () { if (handle) close(); }
+    constexpr ~Dir () { if (handle) close_warn(); }
 
      // Check openness
     constexpr explicit operator bool () const { return handle; }
@@ -90,17 +105,16 @@ struct Dir {
      // AT_FDCWD from <fcntl.h>.  Doesn't throw, but returns empty and sets
      // errno.  If you don't like the errno you get, call raise_open_failed().
      // TODO: avoid extra string copy when recursing
-    static Dir try_open_at (int parent_fd, SharedString path) noexcept;
+    static Dir try_open_at (int parent_fd, const char* path) noexcept;
+    static Dir try_open_at (int parent_fd, Str path) noexcept;
 
-    [[noreturn]] void raise_open_failed (
-        Str path_err = "", int errnum = 0
-    ) const;
+    [[noreturn]] void raise_open_failed (int errnum = 0) const;
 
      // Get everything including . and ..
-    UniqueArray<UniqueString> list (Str path_err = "");
+    UniqueArray<SharedString> list ();
 
      // Get one dirent (you probably want list or a range loop instead).
-    dirent* list_one (Str path_err = "");
+    dirent* list_one ();
 
      // Minimum interface to allow range loops.  TODO: const char*
     struct iterator {
@@ -110,16 +124,22 @@ struct Dir {
         iterator& operator++ () { entry = self.list_one(); return *this; }
         bool operator != (iterator o) const { return entry != o.entry; }
     };
-    iterator begin (Str path_err = "") {
-        return iterator{*this, list_one(path_err)};
+    iterator begin () {
+        return iterator{*this, list_one()};
     }
     iterator end () {
         return iterator{*this, null};
     }
 
-     // Warns to stderr on failure.  Usually called automatically.
-    void close (Str path_err = "") noexcept;
+    void close () { close_throw(); expect(!handle); }
+    void close_throw ();
+     // Warns to stderr on failure.
+    void close_warn () noexcept;
 };
+
+ // One-stop directory IO.  Gets everything including . and ..
+UniqueArray<SharedString> list_dir (const char* path);
+UniqueArray<SharedString> list_dir (Str path);
 
 ///// CONSOLE IO
 
@@ -138,50 +158,22 @@ int remove_utf8 (const char* filename) noexcept;
 
 ///// INLINES
 
-namespace in {
-    [[noreturn, gnu::cold]]
-    void raise_io_error (const char* operation, Str path);
-    [[gnu::cold]]
-    void warn_close_failed (const char* message, Str path);
-}
-
-inline File::File (SharedString path, const char* mode) :
-    File(try_open(path, mode))
-{
-    if (!handle) raise_open_failed(path);
-}
-
-inline File File::try_open (SharedString path, const char* mode) noexcept {
+inline File File::try_open (const char* path, const char* mode) noexcept {
     File r;
-    r.handle = fopen_utf8(path.c_str(), mode);
+    r.handle = fopen_utf8(path, mode);
     return r;
 }
 
-inline void File::write (Str content, Str path_err) {
-    usize did_write = fwrite(content.data(), 1, content.size(), handle);
-    if (did_write != content.size()) {
-        in::raise_io_error("write", path_err);
-    }
+inline UniqueArray<u8> blob_from_file (const char* path) {
+    auto s = string_from_file(path);
+    UniqueArray<u8> r;
+    r.impl.size = s.impl.size;
+    r.impl.data = (u8*)s.impl.data;
+    s.impl = {};
+    return r;
 }
-
-inline void File::close (Str path_err) noexcept {
-    int res = fclose(handle);
-    handle = null;
-    if (res != 0) [[unlikely]] {
-        in::warn_close_failed("Warning: Failed to close file ", path_err);
-    }
-}
-
-inline UniqueString string_from_file (SharedString path) {
-    return File(path).read(path);
-}
-
-inline void string_to_file (Str content, SharedString path) {
-    File(path, "wb").write(content, path);
-}
-
-inline UniqueArray<u8> blob_from_file (SharedString path) {
-    auto s = string_from_file(move(path));
+inline UniqueArray<u8> blob_from_file (Str path) {
+    auto s = string_from_file(path);
     UniqueArray<u8> r;
     r.impl.size = s.impl.size;
     r.impl.data = (u8*)s.impl.data;
@@ -189,42 +181,11 @@ inline UniqueArray<u8> blob_from_file (SharedString path) {
     return r;
 }
 
-inline void blob_to_file (Slice<u8> content, SharedString path) {
-    string_to_file(content.reinterpret<char>(), move(path));
+inline void blob_to_file (Slice<u8> content, const char* path) {
+    string_to_file(content.reinterpret<char>(), path);
 }
-
-inline Dir::Dir (SharedString path) :
-    Dir(try_open_at(AT_FDCWD, path))
-{
-    if (!handle) raise_open_failed(path);
-}
-
-inline Dir Dir::try_open_at (int parent_fd, SharedString path) noexcept {
-    Dir r;
-    r.fd = openat(parent_fd, path.c_str(), O_RDONLY|O_DIRECTORY);
-    if (r.fd >= 0) {
-        r.handle = fdopendir(r.fd);
-    }
-    else r.handle = null;
-    return r;
-}
-
-inline dirent* Dir::list_one (Str path_err) {
-    errno = 0;
-    dirent* r = readdir(handle);
-    if (errno) {
-        in::raise_io_error("list dir", path_err);
-    }
-    return r;
-}
-
-inline void Dir::close (Str path_err) noexcept {
-    int res = closedir(handle);
-    handle = null;
-    fd = 0;
-    if (res < 0) [[unlikely]] {
-        in::warn_close_failed("Warning: Failed to close directory ", path_err);
-    }
+inline void blob_to_file (Slice<u8> content, Str path) {
+    string_to_file(content.reinterpret<char>(), path);
 }
 
 } // namespace ayu
