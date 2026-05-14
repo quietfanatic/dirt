@@ -5,6 +5,7 @@
 #include <sail-common/image.h>
 #include <sail-common/log.h>
 #include <sail-common/palette.h>
+#include <sail-common/utils.h>
 #include <sail-manip/convert.h>
 #include "../ayu/reflection/describe.h"
 #include "../ayu/traversal/to-tree.h"
@@ -248,7 +249,11 @@ UniqueImage image_from_file_sail (const char* filepath) try {
     if (res != SAIL_OK) raise_LoadImageFailed(res);
     bool ignore_alpha = false;
     if (image->pixel_format != SAIL_PIXEL_FORMAT_BPP32_RGBA) {
-        if (!sail_has_alpha(image->pixel_format)) ignore_alpha = true;
+         // Not available until very recent SAIL versions
+        // ignore_alpha = !sail_has_alpha(image->pixel_format);
+        require(u32(image->pixel_format) <= n_formats);
+        auto format = formats[u32(image->pixel_format)].gl_format;
+        ignore_alpha = (format != GL_RGBA && format != GL_BGRA);
         sail_image* old_image = image;
         res = sail_convert_image(old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image);
         sail_destroy_image(old_image);
