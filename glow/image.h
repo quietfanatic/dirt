@@ -109,24 +109,29 @@ struct UniqueImage {
 };
 
  // Load from memory.  NYI for non-QOI formats.
-UniqueImage image_from_blob (Slice<u8> content, Str filepath = "");
-UniqueImage image_from_blob_qoi (Slice<u8> blob, Str filepath = "");
+UniqueImage image_from_blob (Slice<u8> content);
+UniqueImage image_from_blob_qoi (Slice<u8> blob);
  // Load from a file.  Will use SAIL if GLOW_USE_SAIL is defined, otherwise can
  // only load QOI files.
-UniqueImage image_from_file (SharedString filepath);
-UniqueImage image_from_file_qoi (SharedString filepath);
+UniqueImage image_from_file (const char* filepath);
+UniqueImage image_from_file (Str filepath);
+UniqueImage image_from_file_qoi (const char* filepath);
+UniqueImage image_from_file_qoi (Str filepath);
 #ifdef GLOW_USE_SAIL
-UniqueImage image_from_file_sail (SharedString filepath);
+UniqueImage image_from_file_sail (const char* filepath);
+UniqueImage image_from_file_sail (Str filepath);
 #endif
 
 constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 
  // Write to memory.  NYI for non-qoi formats.
-UniqueArray<u8> image_to_blob (const ImageView&, Str filepath = "");
-UniqueArray<u8> image_to_blob_qoi (const ImageView&, Str filepath = "");
+UniqueArray<u8> image_to_blob (const ImageView&);
+UniqueArray<u8> image_to_blob_qoi (const ImageView&);
  // Write to file.  NYI for non-qoi formats.
-void image_to_file (const ImageView&, SharedString filepath);
-void image_to_file_qoi (const ImageView&, SharedString filepath);
+void image_to_file (const ImageView&, const char* filepath);
+void image_to_file (const ImageView&, Str filepath);
+void image_to_file_qoi (const ImageView&, const char* filepath);
+void image_to_file_qoi (const ImageView&, Str filepath);
 
 constexpr ErrorCode e_SaveImageFailed = "glow::e_SaveImageFailed";
 

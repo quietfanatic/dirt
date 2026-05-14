@@ -9,34 +9,35 @@
 namespace snd {
 using namespace uni;
 
-void in::raise_LoadAudioFailed (Str filename, Str mess) {
-    if (!filename) filename = "string";
-    raise(e_LoadAudioFailed, cat(
-        "Failed to load audio from ", filename, ": ", mess
-    ));
+void in::raise_LoadAudioFailed (StaticString mess) {
+    raise(e_LoadAudioFailed, mess);
 }
 
-UniqueAudio audio_from_blob (Slice<u8> blob, Str filename) {
-    if (blob.size() < 4) in::raise_LoadAudioFailed(filename, "File is too short");
+UniqueAudio audio_from_blob (Slice<u8> blob) {
+    if (blob.size() < 4) in::raise_LoadAudioFailed("File is too short");
     u32 magic = read_u32le(blob.begin());
     if (magic == read_u32le("qoaf")) {
-        return audio_from_blob_qoa(blob, filename);
+        return audio_from_blob_qoa(blob);
     }
     else if (magic == read_u32le("RIFF")) {
-        return audio_from_blob_wav(blob, filename);
+        return audio_from_blob_wav(blob);
     }
-    else in::raise_LoadAudioFailed(filename, "Unknown magic number");
+    else in::raise_LoadAudioFailed("Unknown magic number");
 }
 
-UniqueAudio audio_from_file (SharedString filename) {
-    auto blob = blob_from_file(filename);
-    return audio_from_blob(blob, filename);
+UniqueAudio audio_from_file (const char* path) {
+    auto blob = blob_from_file(path);
+    try { return audio_from_blob(blob); }
+    catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+}
+UniqueAudio audio_from_file (Str path) {
+    return with_c_str(path, [](auto buf){ return audio_from_file(buf); });
 }
 
-void audio_to_file_qoa (const UniqueAudio& au, SharedString filename) {
-    auto blob = audio_to_blob_qoa(au, filename);
-    blob_to_file(blob, move(filename));
-}
+void audio_to_file_qoa (const UniqueAudio& au, const char* path) try {
+    auto blob = audio_to_blob_qoa(au);
+    blob_to_file(blob, path);
+} catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
 
 bool AudioExtensionQOA::accepts_type (ayu::Type type) {
     return type == ayu::Type::of<UniqueAudio>();

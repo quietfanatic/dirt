@@ -6,8 +6,8 @@ namespace snd {
 using namespace in;
 
  // Only s16 PCM is supported
-UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename) {
-    Str mess;
+UniqueAudio audio_from_blob_wav (Slice<u8> blob) {
+    StaticString mess;
     const u8* in = blob.reinterpret<u8>().begin();
     const u8* in_end = blob.reinterpret<u8>().end();
     u32 internal_size;
@@ -68,7 +68,7 @@ UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename) {
         in += chunk_size;
     }
     mess = "No data chunk found";
-    bad: raise_LoadAudioFailed(filename, mess);
+    bad: raise_LoadAudioFailed(mess);
     bad_sample: mess = "Unsupported sample format"; goto bad;
     bad_fmt: mess = "Bad WAV format chunk"; goto bad;
 }

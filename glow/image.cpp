@@ -28,34 +28,56 @@ void blit (const ImageView& dst, const ImageView& src) noexcept {
     }
 }
 
-UniqueImage image_from_blob (Slice<u8> blob, Str filepath) {
-    return image_from_blob_qoi(blob, filepath);
+UniqueImage image_from_blob (Slice<u8> blob) {
+    return image_from_blob_qoi(blob);
 }
 
-UniqueImage image_from_file (SharedString filepath) {
+UniqueImage image_from_file (const char* path) {
 #ifdef GLOW_USE_SAIL
-    return image_from_file_sail(move(filepath));
+    return image_from_file_sail(path);
 #else
-    return image_from_file_qoi(move(filepath));
+    return image_from_file_qoi(path);
+#endif
+}
+UniqueImage image_from_file (Str path) {
+#ifdef GLOW_USE_SAIL
+    return image_from_file_sail(path);
+#else
+    return image_from_file_qoi(path);
 #endif
 }
 
-UniqueImage image_from_file_qoi (SharedString filepath) {
-    auto blob = blob_from_file(filepath);
-    return image_from_blob_qoi(blob, move(filepath));
+UniqueImage image_from_file_qoi (const char* path) try {
+    auto blob = blob_from_file(path);
+    return image_from_blob_qoi(blob);
+} catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+
+UniqueImage image_from_file_qoi (Str path) {
+    return with_c_str(path, [](auto buf){
+        return image_from_file_qoi(buf);
+    });
 }
 
-UniqueArray<u8> image_to_blob (const ImageView& img, Str filepath) {
-    return image_to_blob_qoi(img, filepath);
+UniqueArray<u8> image_to_blob (const ImageView& img) {
+    return image_to_blob_qoi(img);
 }
 
-void image_to_file (const ImageView& img, SharedString filepath) {
-    return image_to_file_qoi(img, move(filepath));
+void image_to_file (const ImageView& img, const char* path) {
+    return image_to_file_qoi(img, path);
+}
+void image_to_file (const ImageView& img, Str path) {
+    return image_to_file_qoi(img, path);
 }
 
-void image_to_file_qoi (const ImageView& img, SharedString filepath) {
-    auto blob = image_to_blob_qoi(img, filepath);
-    blob_to_file(blob, move(filepath));
+void image_to_file_qoi (const ImageView& img, const char* path) try {
+    auto blob = image_to_blob_qoi(img);
+    blob_to_file(blob, path);
+} catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+
+void image_to_file_qoi (const ImageView& img, Str path) {
+    return with_c_str(path, [&](auto buf){
+        return image_to_file_qoi(img, buf);
+    });
 }
 
 bool FileImageExtension::accepts_type (ayu::Type type) {

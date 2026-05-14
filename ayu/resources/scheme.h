@@ -57,8 +57,7 @@ struct ResourceScheme {
 
      // Turn an IRI into a filename.  If "" is returned, it means there is no
      // valid filename for this IRI, and ResourceNoFilepath is likely to be
-     // thrown soon.  It is okay to name a non-existent file: that file will be
-     // created when the resource is saved.
+     // thrown soon.  It is okay to name a non-existent file.
      //
      // TODO: Non-file resource schemes
     virtual SharedString get_filepath (const IRI&) { return ""; }
@@ -72,8 +71,8 @@ struct ResourceScheme {
     constexpr ResourceScheme () { }
 
      // Constructing with a name automatically activates the scheme.  The name
-     // must be a valid IRI scheme matching [a-z][a-z0-9+.-]* and must not be
-     // the same as any other ResourceScheme name, otherwise a runtime assert
+     // must be a canonical IRI scheme matching [a-z][a-z0-9+.-]* and must not
+     // be the same as any other ResourceScheme name, otherwise a runtime assert
      // will be triggered.
     explicit
     ResourceScheme (const SharedString& name) { activate(name); }

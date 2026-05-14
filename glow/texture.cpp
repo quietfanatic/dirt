@@ -39,11 +39,18 @@ i32 Texture::bpp (i32 level) {
     return rsize + gsize + bsize + asize;
 }
 
-void texture_from_file (u32 target, SharedString filepath) {
+void texture_from_file (u32 target, const char* filepath) {
 #ifdef GLOW_USE_SAIL
-    texture_from_file_sail(target, move(filepath));
+    texture_from_file_sail(target, filepath);
 #else
-    texture_from_file_qoi(target, move(filepath));
+    texture_from_file_qoi(target, filepath);
+#endif
+}
+void texture_from_file (u32 target, Str filepath) {
+#ifdef GLOW_USE_SAIL
+    texture_from_file_sail(target, filepath);
+#else
+    texture_from_file_qoi(target, filepath);
 #endif
 }
 
@@ -68,10 +75,16 @@ void texture_from_image (u32 target, const ImageView& img) noexcept {
 }
 
  // texture_from_file_sail is in image-sail.cpp
-void texture_from_file_qoi (u32 target, SharedString filepath) {
+void texture_from_file_qoi (u32 target, const char* filepath) {
      // TODO: detect 3-channel file and use GL_RGB8
-    UniqueImage image = image_from_file_qoi(move(filepath));
-    texture_from_image(target, image);
+    UniqueImage image = image_from_file_qoi(filepath);
+    try { texture_from_image(target, image); }
+    catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
+}
+void texture_from_file_qoi (u32 target, Str filepath) {
+    with_c_str(filepath, [&](auto buf){
+        texture_from_file_qoi(target, buf);
+    });
 }
 
 ImageTexture::ImageTexture () : Texture(GL_TEXTURE_2D) {

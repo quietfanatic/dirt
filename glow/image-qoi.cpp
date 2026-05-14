@@ -8,18 +8,14 @@ namespace glow {
 namespace in {
 
 [[noreturn, gnu::cold]] static
-void raise_LoadImageFailed (Str filepath, Str mess) {
-     // TODO: tag
-    raise(e_LoadImageFailed, cat(
-        "Failed to load image from ", filepath, ": ", mess
-    ));
+void raise_LoadImageFailed (StaticString mess) {
+    raise(e_LoadImageFailed, mess);
 }
 
 [[noreturn, gnu::cold]] static
-void raise_SaveImageFailed (Str filepath, Str mess) {
-     // TODO: tag
-    raise(e_LoadImageFailed, cat(
-        "Failed to load image from ", filepath, ": ", mess
+void raise_ImageTooLarge (IVec size) {
+    raise(e_SaveImageFailed, cat(
+        "Image is too large (", size.x, 'x', size.y, " = ", area(size), " > 400000000)"
     ));
 }
 
@@ -143,18 +139,18 @@ int decode_qoi (
     return out < out_end ? 1 : in_end - in;
 }
 
-UniqueImage image_from_blob_qoi (Slice<u8> blob, Str filepath) {
-    if (blob.size() < 14 + 8) raise_LoadImageFailed(filepath, "File is too short");
-    if (Str(blob.slice(0, 4)) != "qoif") raise_LoadImageFailed(filepath, "File is not QOI format");
+UniqueImage image_from_blob_qoi (Slice<u8> blob) {
+    if (blob.size() < 14 + 8) raise_LoadImageFailed("File is too short");
+    if (Str(blob.slice(0, 4)) != "qoif") raise_LoadImageFailed("File is not QOI format");
     if (Str(blob.slice(blob.size()-8)) != "\x00\x00\x00\x00\x00\x00\x00\x01") {
-        raise_LoadImageFailed(filepath, "QOI file doesn't end properly");
+        raise_LoadImageFailed("QOI file doesn't end properly");
     }
     const u8* in = blob.begin();
     const u8* in_end = blob.end();
     u32 width = read_u32be(in + 4);
     u32 height = read_u32be(in + 8);
     u64 len = width * height;
-    if (len > 400000000) raise_LoadImageFailed(filepath, "Image is too large");
+    if (len > 400000000) raise_LoadImageFailed("Image is too large");
      // Ignore channels and colorspace for now.
 
     UniqueImage r (IVec(width, height));
@@ -165,8 +161,8 @@ UniqueImage image_from_blob_qoi (Slice<u8> blob, Str filepath) {
 
     int res = decode_qoi(out, out_end, in, in_end);
     if (res) {
-        raise_LoadImageFailed(filepath,
-            res > 0 ? Str("Too much data") : Str("Not enough data")
+        raise_LoadImageFailed(
+            res > 0 ? StaticString("Too much data") : StaticString("Not enough data")
         );
     }
 
@@ -288,10 +284,10 @@ u8* encode_qoi (u8*__restrict out, const ImageView&__restrict img) noexcept {
     goto loop;
 }
 
-UniqueArray<u8> image_to_blob_qoi (const ImageView& img, Str filepath) {
+UniqueArray<u8> image_to_blob_qoi (const ImageView& img) {
     expect(img.size.x >= 0 && img.size.y >= 0);
     usize len = area(img.size);
-    if (len > 400000000) raise_SaveImageFailed(filepath, "Image is too large");
+    if (len > 400000000) raise_ImageTooLarge(img.size);
      // Worst case 5 bytes per pixel + 14 byte header + 8 byte footer
     u8* buf = SharableBuffer<u8>::allocate(5 * len + 22);
     std::memcpy(buf, "qoif", 4);

@@ -119,11 +119,11 @@ constexpr FormatInfo formats [n_formats] = {
     {FT::Convert,GL_RGBA8,GL_RGBA,GL_UNSIGNED_BYTE}, // SPF_BPP64_YUVA
 };
 
-void texture_from_file_sail (u32 target, SharedString filepath) {
+void texture_from_file_sail (u32 target, const char* filepath) try {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
-    auto res = sail_load_from_file(filepath.c_str(), &image);
-    if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
+    auto res = sail_load_from_file(filepath, &image);
+    if (res != SAIL_OK) raise_LoadImageFailed(res);
      // Translate SAIL formats into OpenGL formats
     require(u32(image->pixel_format) <= n_formats);
     auto format = formats[u32(image->pixel_format)];
@@ -141,7 +141,7 @@ void texture_from_file_sail (u32 target, SharedString filepath) {
             old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image
         );
         sail_destroy_image(old_image);
-        if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
+        if (res != SAIL_OK) raise_LoadImageFailed(res);
     }
      // Detect greyscale images and unused alpha channels.  Only bothering to do
      // it for the most common formats.
@@ -234,22 +234,34 @@ void texture_from_file_sail (u32 target, SharedString filepath) {
         glTexParameteri(target, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
     }
 }
+catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
+void image_from_file_sail (u32 target, Str filepath) {
+    with_c_str(filepath, [&](auto buf){
+        texture_from_file_sail(target, buf);
+    }
+}
 
-UniqueImage image_from_file_sail (SharedString filepath) {
+UniqueImage image_from_file_sail (const char* filepath) try {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
     auto res = sail_load_from_file(filepath.c_str(), &image);
-    if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
+    if (res != SAIL_OK) raise_LoadImageFailed(res);
     if (image->pixel_format != SAIL_PIXEL_FORMAT_BPP32_RGBA) {
         sail_image* old_image = image;
         res = sail_convert_image(old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image);
         sail_destroy_image(old_image);
-        if (res != SAIL_OK) raise_LoadImageFailed(filepath, res);
+        if (res != SAIL_OK) raise_LoadImageFailed(res);
     }
     UniqueImage r (IVec(image->width, image->height), (RGBA8*)image->pixels);
     image->pixels = null;
     sail_destroy_image(image);
     return r;
+}
+catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
+UniqueImage image_from_file_sail (Str filepath) {
+    return with_c_str(filepath, [](auto buf){
+        return image_from_file_sail(buf);
+    }
 }
 
 void in::raise_LoadImageFailed (Str filepath, sail_status_t res) {

@@ -299,11 +299,11 @@ void qoa_decode_frames (
 
 } using namespace in;
 
-UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename) {
+UniqueAudio audio_from_blob_qoa (Slice<u8> blob) {
     const u8* in = blob.begin();
     const u8* in_end = blob.end();
     UniqueAudio r;
-    Str mess;
+    StaticString mess;
     { // Validate file header
         if (in_end - in < 16 || read_u32le(in) != read_u32le("qoaf")) {
             mess = "File is not QOA format"; goto bad;
@@ -379,7 +379,7 @@ UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename) {
         qoa_decode_frames(r.samples, in, n_frames, r.n_channels);
     }
     return r;
-    bad: raise_LoadAudioFailed(filename, mess);
+    bad: raise_LoadAudioFailed(mess);
 }
 
 namespace in {
@@ -537,7 +537,7 @@ struct QOAEncoder {
 
 } // in
 
-UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio& au, Str) {
+UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio& au) {
     usize file_size = qoa_filesize(au.n_channels, au.n_samples);
     auto r = UniqueArray<u8>(Uninitialized(file_size));
     QOAEncoder encoder;

@@ -48,10 +48,13 @@ void texture_from_image (u32 target, const ImageView& img) noexcept;
  // Load straight from a file to an OpenGL texture.  When using SAIL, Supports a
  // few more efficient internal formats, but only up to 8bit color.  Call
  // glBindTexture first.
-void texture_from_file (u32 target, SharedString filepath);
-void texture_from_file_qoi (u32 target, SharedString filepath);
+void texture_from_file (u32 target, const char* filepath);
+void texture_from_file (u32 target, Str filepath);
+void texture_from_file_qoi (u32 target, const char* filepath);
+void texture_from_file_qoi (u32 target, Str filepath);
 #ifdef GLOW_USE_SAIL
-void texture_from_file_sail (u32 target, SharedString filepath);
+void texture_from_file_sail (u32 target, const char* filepath);
+void texture_from_file_sail (u32 target, Str filepath);
 #endif
 
  // Represents a texture loaded from an image.  Does not support mipmaps.  Will

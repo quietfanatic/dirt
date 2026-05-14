@@ -61,12 +61,20 @@ struct UniqueAudio {
     constexpr explicit operator bool () const { return samples; }
 };
 
-UniqueAudio audio_from_blob (Slice<u8> content, Str filename = "");
-UniqueAudio audio_from_file (SharedString filename);
-UniqueAudio audio_from_blob_qoa (Slice<u8> blob, Str filename = "");
-UniqueAudio audio_from_blob_wav (Slice<u8> blob, Str filename = "");
-UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&, Str filename = "");
-void audio_to_file_qoa (const UniqueAudio&, SharedString filename);
+ // Loading audio
+UniqueAudio audio_from_blob (Slice<u8> content);
+UniqueAudio audio_from_blob_qoa (Slice<u8> blob);
+UniqueAudio audio_from_blob_wav (Slice<u8> blob);
+
+UniqueAudio audio_from_file (const char* path);
+UniqueAudio audio_from_file (Str path);
+
+ // Saving audio.  Curiously, it is currently impossible for audio_to_blob_qoa
+ // to fail, but we're leaving the possibility open in the API.
+UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&);
+ // (This can fail of course, because it does IO.)
+void audio_to_file_qoa (const UniqueAudio&, const char* path);
+void audio_to_file_qoa (const UniqueAudio&, Str path);
 
 constexpr ErrorCode e_LoadAudioFailed = "snd::e_LoadAudioFailed";
 
@@ -92,7 +100,7 @@ struct AudioExtensionWAV : ayu::ResourceExtension {
 namespace snd::in {
 
 [[noreturn, gnu::cold]]
-void raise_LoadAudioFailed(Str filename, Str mess);
+void raise_LoadAudioFailed(StaticString mess);
 
 } // snd::in
 
