@@ -444,7 +444,7 @@ static tap::TestSet tests ("dirt/glow/image-sail", []{
 
     Texture tex (GL_TEXTURE_2D);
 
-    auto path = ayu::resource_filepath(iri::IRI("test:/image.qoi"));
+    auto path = ayu::resource_filepath(iri::IRI("glow-test:/image.qoi"));
     texture_from_file_sail(GL_TEXTURE_2D, path);
 
     auto size = tex.size();

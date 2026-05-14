@@ -133,7 +133,7 @@ struct FolderResourceScheme : ResourceScheme {
     virtual SharedString get_filepath (const IRI& iri) override {
         if (!iri.hierarchical()) return "";
         IRI abs = IRI(iri.path().slice(1), folder);
-        return iri::to_fs_path(abs);
+        return iri::to_filepath(abs);
     }
 
      // Constructing from an IRI can be constexpr
@@ -153,7 +153,7 @@ struct FolderResourceScheme : ResourceScheme {
 
      // Construct with an OS path to a folder.
     FolderResourceScheme (Str f) :
-        FolderResourceScheme(iri::from_fs_path(cat(f, '/')))
+        FolderResourceScheme(iri::from_filepath(cat(f, '/')))
     { }
      // (with auto-activate)
     explicit FolderResourceScheme (const SharedString& n, Str f) :

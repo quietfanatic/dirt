@@ -187,7 +187,7 @@ static tap::TestSet tests ("dirt/glow/program", []{
 
     Program* program;
     doesnt_throw([&]{
-        program = ayu::ResourceRef(iri::IRI("test:/program-test.ayu"))["program"][1];
+        program = ayu::ResourceRef(iri::IRI("glow-test:/program-test.ayu"))["program"][1];
     }, "Can load program from ayu document");
     program->use();
     i32 u_screen_rect = glGetUniformLocation(*program, "u_screen_rect");

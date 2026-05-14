@@ -112,7 +112,7 @@ void update_working_directory () noexcept {
     char* cwd = get_current_dir_name();
     auto slashed = cat((const char*)cwd, '/');
     std::free(cwd);
-    current_working_directory = expect(from_fs_path(slashed));
+    current_working_directory = expect(from_filepath(slashed));
 }
 
 NOINLINE static
@@ -121,7 +121,7 @@ IRI get_program_location () {
     require(len > 0);
     auto path = new char [len];
     require(wai_getExecutablePath(path, len, nullptr) == len);
-    IRI r = from_fs_path(Str(path, len));
+    IRI r = from_filepath(Str(path, len));
     expect(r);
      // Promote the IRI's SharedString to static, unless someone replaced IRI's
      // string type with something incompatible.
@@ -142,7 +142,7 @@ const IRI& program_location () noexcept {
 ///// TO/FROM FILESYSTEM PATHS
 
 NOINLINE
-IRI from_fs_path (Str path, const IRI& base) noexcept {
+IRI from_filepath (Str path, const IRI& base) noexcept {
     if (!path) return IRI();
     auto encoded = encode_path(path);
     if constexpr (backwards_slashes) {
@@ -190,7 +190,7 @@ IRI from_fs_path (Str path, const IRI& base) noexcept {
 }
 
 NOINLINE
-UniqueString to_fs_path (const IRI& iri) noexcept {
+UniqueString to_filepath (const IRI& iri) noexcept {
     require(iri.scheme() == "file");
     require(!iri.authority());  // authority can exist if empty
     require(iri.hierarchical());
@@ -232,7 +232,7 @@ static tap::TestSet tests ("dirt/iri/path", []{
     else {
         exp = "file:/foo/bar%3Fbaz";
     }
-    is(from_fs_path("/foo/bar?baz").spec(), exp, "from_fs_path");
+    is(from_filepath("/foo/bar?baz").spec(), exp, "from_filepath");
     SharedString exp2;
     if constexpr (backwards_slashes) {
         Str wd = working_directory().path();
@@ -241,7 +241,7 @@ static tap::TestSet tests ("dirt/iri/path", []{
     else {
         exp2 = "/foo/bar?baz";
     }
-    is(to_fs_path(IRI(exp)), exp2, "to_fs_path");
+    is(to_filepath(IRI(exp)), exp2, "to_filepath");
 
     done_testing();
 });

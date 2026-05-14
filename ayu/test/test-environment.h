@@ -18,7 +18,7 @@ namespace ayu::test {
             auto testdir = IRI("res/dirt/ayu/test", iri::program_location());
             require(testdir);
             trs = std::make_unique<test::TestResourceScheme>(
-                "ayu-test", iri::to_fs_path(testdir)
+                "ayu-test", iri::to_filepath(testdir)
             );
         }
     };

@@ -326,12 +326,12 @@ static tap::TestSet tests ("dirt/glow/image-qoi", []{
 
     test::TestEnvironment env;
 
-    auto path = ayu::resource_filepath(iri::IRI("test:/testcard_rgba.qoi"));
+    auto path = ayu::resource_filepath(iri::IRI("glow-test:/testcard_rgba.qoi"));
     auto input = blob_from_file(path);
     UniqueImage img = image_from_blob(input);
     auto output = image_to_blob(img);
     if (!is(input, output, "QOI Decoder and encoder agree")) {
-        auto outpath = ayu::resource_filepath(iri::IRI("test:/TESTFAIL-testcard_rgba.qoi"));
+        auto outpath = ayu::resource_filepath(iri::IRI("glow-test:/TESTFAIL-testcard_rgba.qoi"));
         blob_to_file(outpath, output);
     }
 

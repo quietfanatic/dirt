@@ -77,7 +77,6 @@ void texture_from_image (u32 target, const ImageView& img) noexcept {
 
  // texture_from_file_sail is in image-sail.cpp
 void texture_from_file_qoi (u32 target, const char* filepath) {
-     // TODO: detect 3-channel file and use GL_RGB8
     UniqueImage image = image_from_file_qoi(filepath);
     try { texture_from_image(target, image); }
     catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
@@ -291,7 +290,7 @@ void draw_texture (
     require(tex.target == GL_TEXTURE_2D);
 
     static TextureProgram* program = ayu::track(
-        program, "test:/texture-test.ayu#program"
+        program, "glow-test:/texture-test.ayu#program"
     );
 
     glUniform1fv(program->u_screen_rect, 4, &screen_rect.l);
@@ -313,12 +312,12 @@ static tap::TestSet tests ("dirt/glow/texture", []{
 
     ImageTexture* tex;
     doesnt_throw([&]{
-        tex = ayu::link_from_iri("test:/texture-test.ayu#texture");
+        tex = ayu::link_from_iri("glow-test:/texture-test.ayu#texture");
     }, "Can load texture");
 
     ImageTexture* tex2;
     doesnt_throw([&]{
-        tex2 = ayu::link_from_iri("test:/texture-test.ayu#texture2");
+        tex2 = ayu::link_from_iri("glow-test:/texture-test.ayu#texture2");
     }, "Can load texture from file image");
 
     auto fi = static_cast<FileImage*>(tex2->source);
@@ -377,7 +376,7 @@ static tap::TestSet tests ("dirt/glow/texture", []{
     no_match:;
     if (!ok(match, "Texture program wrote correct pixels")) {
          // NOTE: these images will be upside-down.
-         // TODO: bring image parsing/saving back
+         // TODO: restore this
 //        expected.save(ayu::resource_filename("/dirt/glow/test/texture-fail-expected"));
 //        got.save(ayu::resource_filename("/dirt/glow/test/texture-fail-got"));
     }

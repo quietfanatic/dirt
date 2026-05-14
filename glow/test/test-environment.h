@@ -19,7 +19,7 @@ struct TestEnvironment {
     TestEnvironment (IVec size = {120, 120}) :
         size(size),
         test_scheme(
-            "test",
+            "glow-test",
             []{
                 char* base = require_sdl(SDL_GetBasePath());
                 auto folder = cat(base, "res/dirt/glow/test");

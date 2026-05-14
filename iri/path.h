@@ -77,11 +77,11 @@ const IRI& program_location () noexcept;
  // (file:/foo/bar, not file:///foo/bar).  If base is not provided, relative
  // paths will be resolved against working_directory().  Windows paths will look
  // like file:/c:/foo/bar.
-IRI from_fs_path (Str, const IRI& base = IRI()) noexcept;
+IRI from_filepath (Str, const IRI& base = IRI()) noexcept;
 
  // Get a path from the given IRI.  The IRI must start with file:/ and must not
  // have an non-empty authority or a query or fragment.  If the path is a
  // directory, the trailing / will not be chopped off.
-UniqueString to_fs_path (const IRI&) noexcept;
+UniqueString to_filepath (const IRI&) noexcept;
 
 } // iri
