@@ -32,13 +32,11 @@ struct Parser {
 
     const char* end;
     const char* begin;
-    Str filename;
     u32 shallowth;
 
-    Parser (Str s, Str filename) :
+    Parser (Str s) :
         end(s.end()),
-        begin(s.begin()),
-        filename(filename)
+        begin(s.begin())
     { }
 
     Tree parse () {
@@ -530,7 +528,7 @@ struct Parser {
     void error (const char* in, Str mess) {
         auto pos = get_source_pos(in);
         raise(e_ParseFailed, cat(
-            mess, " at ", filename, ':', pos.line, ':', pos.col
+            mess, " at ", pos.line, ':', pos.col
         ));
     }
 };
@@ -538,24 +536,32 @@ struct Parser {
 } using namespace in;
 
  // Finally:
-Tree tree_from_string (Str s, Str filename) {
+Tree tree_from_string (Str s) {
     require(s.size() <= SharedString::max_size_);
-    return Parser(s, filename).parse();
+    return Parser(s).parse();
 }
 
-UniqueArray<Tree> tree_list_from_string (Str s, Str filename) {
+UniqueArray<Tree> tree_list_from_string (Str s) {
     require(s.size() <= SharedString::max_size_);
-    return Parser(s, filename).parse_list();
+    return Parser(s).parse_list();
 }
 
-Tree tree_from_file (SharedString filename) {
-    UniqueString s = string_from_file(filename);
-    return tree_from_string(s, filename);
+Tree tree_from_file (const char* path) {
+    UniqueString s = string_from_file(path);
+    try { return tree_from_string(s); }
+    catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+}
+Tree tree_from_file (Str path) {
+    return with_c_str(path, [](auto buf){ return tree_from_file(buf); });
 }
 
-UniqueArray<Tree> tree_list_from_file (SharedString filename) {
-    UniqueString s = string_from_file(filename);
-    return tree_list_from_string(s, filename);
+UniqueArray<Tree> tree_list_from_file (const char* path) {
+    UniqueString s = string_from_file(path);
+    try { return tree_list_from_string(s); }
+    catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
+}
+UniqueArray<Tree> tree_list_from_file (Str path) {
+    return with_c_str(path, [](auto buf){ return tree_list_from_file(buf); });
 }
 
 } using namespace ayu;
