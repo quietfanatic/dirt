@@ -131,11 +131,11 @@ struct Dir {
      // Get one dirent (you probably want list or a range loop instead).
     dirent* list_one ();
 
-     // Minimum interface to allow range loops.  TODO: const char*
+     // Minimum interface to allow range loops.
     struct iterator {
         Dir& self;
         dirent* entry;
-        Str operator* () const { return (const char*)entry->d_name; }
+        const char* operator* () const { return (const char*)entry->d_name; }
         iterator& operator++ () { entry = self.list_one(); return *this; }
         bool operator != (iterator o) const { return entry != o.entry; }
     };

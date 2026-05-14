@@ -74,27 +74,15 @@ static usize to_utf16_buffer (char16* buffer, Str s) {
 }
 
 UniqueString16 to_utf16 (Str s) noexcept {
-     // TODO: remove local copy, it's usually not worth it, especially with
-     // lilac providing super-fast heap allocation.
-     // Buffer is not null-terminated
-     // Worst-case inflation is 1 code unit (2 bytes) per byte
-    usize buffer_size = s.size();
-     // We'll say 10k is okay to allocate on the stack
-    if (buffer_size < 10000 / sizeof(char16)) {
-        char16 buffer [buffer_size];
-        usize len = to_utf16_buffer(buffer, s);
-        return UniqueString16(buffer, len);
-    }
-    else {
-         // Modern virtual memory systems mean that for big enough allocations,
-         // even if we vastly overallocate we won't actually use much more
-         // physical RAM than we write to.
-        auto buffer = new char16 [buffer_size];
-        usize len = to_utf16_buffer(buffer, s);
-        auto r = UniqueString16(buffer, len);
-        delete[] buffer;
-        return r;
-    }
+     // Worst-case inflation is 1 code unit (2 bytes) per byte.  Modern virtual
+     // memory systems mean that for big enough allocations, even if we vastly
+     // overallocate we won't actually use much more physical RAM than we write
+     // to.
+    auto buffer = new char16 [s.size()];
+    usize len = to_utf16_buffer(buffer, s);
+    auto r = UniqueString16(buffer, len);
+    delete[] buffer;
+    return r;
 }
 
 static usize from_utf16_buffer (char* buffer, Str16 s) {
@@ -140,25 +128,12 @@ static usize from_utf16_buffer (char* buffer, Str16 s) {
 }
 
 UniqueString from_utf16 (Str16 s) noexcept {
-     // Buffer is not null-terminated
      // Worst-case inflation is 3 bytes per code unit (1.5x)
-    usize buffer_size = s.size() * 3;
-     // We'll say 10k is okay to allocate on the stack
-    if (buffer_size < 10000 / sizeof(char)) {
-        char buffer [buffer_size];
-        usize len = from_utf16_buffer(buffer, s);
-        return UniqueString(buffer, len);
-    }
-    else {
-         // Modern virtual memory systems mean that for big enough allocations,
-         // even if we vastly overallocate we won't actually use much more
-         // physical RAM than we write to.
-        auto buffer = new char [buffer_size];
-        usize len = from_utf16_buffer(buffer, s);
-        auto r = UniqueString(buffer, len);
-        delete[] buffer;
-        return r;
-    }
+    auto buffer = new char [s.size() * 3];
+    usize len = from_utf16_buffer(buffer, s);
+    auto r = UniqueString(buffer, len);
+    delete[] buffer;
+    return r;
 }
 
 bool valid_utf8 (Str s) noexcept {
@@ -275,25 +250,12 @@ static usize sanitize_buffer (char* buffer, Str s) noexcept {
 }
 
 UniqueString sanitize_utf8 (Str s) noexcept {
-     // Buffer is not null-terminated
      // Worst-case inflation is 2 bytes per byte
-    usize buffer_size = s.size() * 2;
-     // We'll say 10k is okay to allocate on the stack
-    if (buffer_size < 10000 / sizeof(char)) {
-        char buffer [buffer_size];
-        usize len = sanitize_buffer(buffer, s);
-        return UniqueString(buffer, len);
-    }
-    else {
-         // Modern virtual memory systems mean that for big enough allocations,
-         // even if we vastly overallocate we won't actually use much more
-         // physical RAM than we write to.
-        auto buffer = new char [buffer_size];
-        usize len = sanitize_buffer(buffer, s);
-        auto r = UniqueString(buffer, len);
-        delete[] buffer;
-        return r;
-    }
+    auto buffer = new char [s.size() * 2];
+    usize len = sanitize_buffer(buffer, s);
+    auto r = UniqueString(buffer, len);
+    delete[] buffer;
+    return r;
 }
 
 } using namespace uni;
