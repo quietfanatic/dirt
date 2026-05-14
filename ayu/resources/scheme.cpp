@@ -53,7 +53,7 @@ constinit auto default_scheme = FolderResourceScheme("file:/"_iri);
 
 ResourceScheme* get_scheme (const IRI& name) {
     Str scheme = name.scheme();
-    if (auto schemes = g_universe->schemes) {
+    if (auto& schemes = g_universe->schemes) {
         usize hash = uni::hash(scheme);
         for (auto& entry : schemes) {
             if (entry.hash == hash && entry.name == scheme) {

@@ -86,9 +86,9 @@ static constinit ResourceExtension default_default_extension;
 ResourceExtension* get_extension (const IRI& name) {
      // TODO: lowercase!
     Str ext = iri::path_extension(name.path());
-    if (g_universe->extensions) {
+    if (auto& exts = g_universe->extensions) {
         auto hash = uni::hash(ext);
-        for (auto& entry : g_universe->extensions) {
+        for (auto& entry : exts) {
             if (entry.hash == hash && entry.name == ext) {
                 return entry.extension;
             }

@@ -95,7 +95,7 @@ struct ResourceExtension {
     void deactivate () noexcept;
 };
 
- // Returns null if not found
+ // Returns null if not found.  May return the default extension.
 ResourceExtension* get_extension (const IRI&);
  // Throws ResourceExtensionNotFound if not found
 ResourceExtension* require_extension (const IRI&);

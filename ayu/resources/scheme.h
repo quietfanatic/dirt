@@ -99,7 +99,7 @@ struct ResourceScheme {
     void deactivate () noexcept;
 };
 
- // Returns null if there's no scheme
+ // Returns null if there's no scheme.  May return the default scheme.
 ResourceScheme* get_scheme (const IRI& name);
  // May throw ResourceSchemeNotFound
 ResourceScheme* require_scheme (const IRI& name);
