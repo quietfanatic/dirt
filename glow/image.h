@@ -18,6 +18,7 @@ struct ImageView {
      // this will be size.x.  This can be negative, in which case the image is
      // flipped vertically.
     i32 stride;
+    bool ignore_alpha = false;
      // Pointer to first pixel.
     RGBA8* pixels = null;
     constexpr ImageView () { }
@@ -25,6 +26,9 @@ struct ImageView {
         expect(s.x >= 0 && s.y >= 0);
     }
     constexpr ImageView (IVec s, i32 t, RGBA8* p) : size(s), stride(t), pixels(p) {
+        expect(s.x >= 0 && s.y >= 0);
+    }
+    constexpr ImageView (IVec s, i32 t, bool i, RGBA8* p) : size(s), stride(t), ignore_alpha(i), pixels(p) {
         expect(s.x >= 0 && s.y >= 0);
     }
 
@@ -42,12 +46,12 @@ struct ImageView {
     constexpr ImageView crop (const IRect& b) const {
         expect(contains(bounds(), b));
         return ImageView(
-            geo::size(b), stride, pixels + (stride * b.b + b.l)
+            geo::size(b), stride, ignore_alpha, pixels + (stride * b.b + b.l)
         );
     }
-     // Flip view vertically without reallocating, swapping the top and bottom.
+     // Flip view vertically without reallocing, swapping the top and bottom.
     constexpr ImageView flipy () const {
-        return ImageView(size, -stride, pixels + stride * (size.y-1));
+        return ImageView(size, -stride, ignore_alpha, pixels + stride * (size.y-1));
     }
      // If true, all pixels are contiguous in memory and can be copied with a
      // single call to memcpy().  This is the case if the ImageView was
@@ -64,6 +68,9 @@ void blit (const ImageView& out, const ImageView& b) noexcept;
  // An image that owns its pixels and cannot be trimmed.
 struct UniqueImage {
     IVec size;
+     // Doesn't change the image represntation or how it's processed.  This is
+     // only to save video memory when uploading to a texture.
+    bool ignore_alpha = false;
      // The pixel buffer is allocated with std::malloc.  If you steal it you
      // need to deallocate it with std::free. [1]
     RGBA8* pixels;
@@ -92,7 +99,7 @@ struct UniqueImage {
 
     ~UniqueImage () { std::free(pixels); }
 
-    operator ImageView () { return {size, pixels}; }
+    operator ImageView () { return {size, size.x, ignore_alpha, pixels}; }
 
     constexpr explicit operator bool () const { return pixels; }
 

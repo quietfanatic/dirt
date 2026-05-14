@@ -56,9 +56,10 @@ void texture_from_file (u32 target, Str filepath) {
 
 void texture_from_image (u32 target, const ImageView& img) noexcept {
     require(img.size.x > 0 && img.size.y > 0);
+    u32 internal_format = img.ignore_alpha ? GL_RGB8 : GL_RGBA8;
     if (img.contiguous()) {
         glTexImage2D(
-            target, 0, GL_RGBA8,
+            target, 0, internal_format,
             img.size.x, img.size.y, 0,
             GL_RGBA, GL_UNSIGNED_BYTE, img.pixels
         );
@@ -67,7 +68,7 @@ void texture_from_image (u32 target, const ImageView& img) noexcept {
         UniqueImage contiguated (img.size);
         blit(contiguated, img);
         glTexImage2D(
-            target, 0, GL_RGBA8,
+            target, 0, internal_format,
             contiguated.size.x, contiguated.size.y, 0,
             GL_RGBA, GL_UNSIGNED_BYTE, contiguated.pixels
         );

@@ -246,13 +246,16 @@ UniqueImage image_from_file_sail (const char* filepath) try {
     sail_image* image;
     auto res = sail_load_from_file(filepath, &image);
     if (res != SAIL_OK) raise_LoadImageFailed(res);
+    bool ignore_alpha = false;
     if (image->pixel_format != SAIL_PIXEL_FORMAT_BPP32_RGBA) {
+        if (!sail_has_alpha(image->pixel_format)) ignore_alpha = true;
         sail_image* old_image = image;
         res = sail_convert_image(old_image, SAIL_PIXEL_FORMAT_BPP32_RGBA, &image);
         sail_destroy_image(old_image);
         if (res != SAIL_OK) raise_LoadImageFailed(res);
     }
     UniqueImage r (IVec(image->width, image->height), (RGBA8*)image->pixels);
+    r.ignore_alpha = ignore_alpha;
     image->pixels = null;
     sail_destroy_image(image);
     return r;

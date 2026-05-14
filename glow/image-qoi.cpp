@@ -151,9 +151,13 @@ UniqueImage image_from_blob_qoi (Slice<u8> blob) {
     u32 height = read_u32be(in + 8);
     u64 len = width * height;
     if (len > 400000000) raise_LoadImageFailed("Image is too large");
-     // Ignore channels and colorspace for now.
 
     UniqueImage r (IVec(width, height));
+
+    if (in[12] != 3 && in[12] != 4) raise_LoadImageFailed("n_channels is not 3 or 4");
+    r.ignore_alpha = (in[12] == 3);
+     // Ignore colorspace for now.
+
     RGBA8* out = r.pixels;
     RGBA8* out_end = out + len;
     in += 14;
@@ -293,8 +297,7 @@ UniqueArray<u8> image_to_blob_qoi (const ImageView& img) {
     std::memcpy(buf, "qoif", 4);
     write_u32be(buf+4, img.size.x);
     write_u32be(buf+8, img.size.y);
-     // channels: RGBA.  TODO: propagate this.
-    buf[12] = 4;
+    buf[12] = img.ignore_alpha ? 3 : 4;
      // colorspace: sRGB.  I don't think we're really using sRGB, but SAIL's
      // QOI loader refuses to load it unless this is 0.
     buf[13] = 0;
