@@ -73,8 +73,8 @@ UniqueAudio audio_from_file (Str path);
  // to fail, but we're leaving the possibility open in the API.
 UniqueArray<u8> audio_to_blob_qoa (const UniqueAudio&);
  // (This can fail of course, because it does IO.)
-void audio_to_file_qoa (const UniqueAudio&, const char* path);
-void audio_to_file_qoa (const UniqueAudio&, Str path);
+void audio_to_file_qoa (const char* path, const UniqueAudio&);
+void audio_to_file_qoa (Str path, const UniqueAudio&);
 
 constexpr ErrorCode e_LoadAudioFailed = "snd::e_LoadAudioFailed";
 

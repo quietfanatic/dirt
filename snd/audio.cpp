@@ -31,12 +31,12 @@ UniqueAudio audio_from_file (const char* path) {
     catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
 }
 UniqueAudio audio_from_file (Str path) {
-    return with_c_str(path, [](auto buf){ return audio_from_file(buf); });
+    return with_c_str(path, [](auto cs){ return audio_from_file(cs); });
 }
 
-void audio_to_file_qoa (const UniqueAudio& au, const char* path) try {
+void audio_to_file_qoa (const char* path, const UniqueAudio& au) try {
     auto blob = audio_to_blob_qoa(au);
-    blob_to_file(blob, path);
+    blob_to_file(path, blob);
 } catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
 
 bool AudioExtensionQOA::accepts_type (ayu::Type type) {
@@ -111,14 +111,14 @@ static tap::TestSet tests ("dirt/snd/audio", []{
         auto qoa_wav = audio_from_file(cat(dir, "ui_wood_error.qoa.wav"));
         if (!is(qoa, qoa_wav, "Decode qoa")) {
             auto wrong = Slice<u8>((u8*)qoa.samples, qoa.size() * 2);
-            blob_to_file(wrong, cat(dir, "ui_wood_error.s16le.test"));
+            blob_to_file(cat(dir, "ui_wood_error.s16le.test"), wrong);
         }
     }
     {
         auto wav = audio_from_file(cat(dir, "ui_wood_error.wav"));
         auto encoded = audio_to_blob_qoa(wav);
         if (!is(encoded, qoa_raw, "Encode qoa")) {
-            blob_to_file(encoded, cat(dir, "ui_wood_error.qoa.test"));
+            blob_to_file(cat(dir, "ui_wood_error.qoa.test"), encoded);
         }
     }
     done_testing();

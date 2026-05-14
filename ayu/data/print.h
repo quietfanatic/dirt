@@ -27,8 +27,8 @@ UniqueString tree_to_string (const Tree&, PrintOptions opts = {});
  // Like tree_to_string but uses defaults optimized for tree_to_file.
 UniqueString tree_to_string_for_file (const Tree&, PrintOptions opts = {});
  // calls tree_to_string_for_file and then string_to_file.
-void tree_to_file (const Tree&, const char* filename, PrintOptions opts = {});
-void tree_to_file (const Tree&, Str filename, PrintOptions opts = {});
+void tree_to_file (const char* filepath, const Tree&, PrintOptions opts = {});
+void tree_to_file (Str filepath, const Tree&, PrintOptions opts = {});
 
  // This is the only exception code tree_to_string can throw.
 constexpr ErrorCode e_PrintOptionsInvalid = "ayu::e_PrintOptionsInvalid";

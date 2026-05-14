@@ -128,10 +128,10 @@ constexpr ErrorCode e_LoadImageFailed = "glow::e_LoadImageFailed";
 UniqueArray<u8> image_to_blob (const ImageView&);
 UniqueArray<u8> image_to_blob_qoi (const ImageView&);
  // Write to file.  NYI for non-qoi formats.
-void image_to_file (const ImageView&, const char* filepath);
-void image_to_file (const ImageView&, Str filepath);
-void image_to_file_qoi (const ImageView&, const char* filepath);
-void image_to_file_qoi (const ImageView&, Str filepath);
+void image_to_file (const char* filepath, const ImageView&);
+void image_to_file (Str filepath, const ImageView&);
+void image_to_file_qoi (const char* filepath, const ImageView&);
+void image_to_file_qoi (Str filepath, const ImageView&);
 
 constexpr ErrorCode e_SaveImageFailed = "glow::e_SaveImageFailed";
 

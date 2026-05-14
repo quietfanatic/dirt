@@ -53,8 +53,8 @@ UniqueImage image_from_file_qoi (const char* path) try {
 } catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
 
 UniqueImage image_from_file_qoi (Str path) {
-    return with_c_str(path, [](auto buf){
-        return image_from_file_qoi(buf);
+    return with_c_str(path, [](auto cs){
+        return image_from_file_qoi(cs);
     });
 }
 
@@ -62,21 +62,21 @@ UniqueArray<u8> image_to_blob (const ImageView& img) {
     return image_to_blob_qoi(img);
 }
 
-void image_to_file (const ImageView& img, const char* path) {
-    return image_to_file_qoi(img, path);
+void image_to_file (const char* path, const ImageView& img) {
+    return image_to_file_qoi(path, img);
 }
-void image_to_file (const ImageView& img, Str path) {
-    return image_to_file_qoi(img, path);
+void image_to_file (Str path, const ImageView& img) {
+    return image_to_file_qoi(path, img);
 }
 
-void image_to_file_qoi (const ImageView& img, const char* path) try {
+void image_to_file_qoi (const char* path, const ImageView& img) try {
     auto blob = image_to_blob_qoi(img);
-    blob_to_file(blob, path);
+    blob_to_file(path, blob);
 } catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
 
-void image_to_file_qoi (const ImageView& img, Str path) {
-    return with_c_str(path, [&](auto buf){
-        return image_to_file_qoi(img, buf);
+void image_to_file_qoi (Str path, const ImageView& img) {
+    return with_c_str(path, [&](auto cs){
+        return image_to_file_qoi(cs, img);
     });
 }
 

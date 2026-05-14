@@ -71,9 +71,15 @@ struct File {
  // One-step file IO.  Automatically tags errno with uni::FilePath.
 UniqueString string_from_file (const char* path);
 UniqueString string_from_file (Str path);
-
-void string_to_file (Str content, const char* path);
-void string_to_file (Str content, Str path);
+UniqueArray<u8> blob_from_file (const char* path);
+UniqueArray<u8> blob_from_file (Str path);
+ // BE AWARE that the filepath is always the first argument, in following with
+ // data-flows-right-to-left convention, even though the functions are named
+ // with processing-left-and-storage-right convention.
+void string_to_file (const char* path, Str content);
+void string_to_file (Str path, Str content);
+void blob_to_file (const char* path, Slice<u8> content);
+void blob_to_file (Str path, Slice<u8> content);
 
  // The code for all IO errors.
 constexpr ErrorCode e_IOError = "uni::e_IOError";
@@ -188,11 +194,11 @@ inline UniqueArray<u8> blob_from_file (Str path) {
     return r;
 }
 
-inline void blob_to_file (Slice<u8> content, const char* path) {
-    string_to_file(content.reinterpret<char>(), path);
+inline void blob_to_file (const char* path, Slice<u8> content) {
+    string_to_file(path, content.reinterpret<char>());
 }
-inline void blob_to_file (Slice<u8> content, Str path) {
-    string_to_file(content.reinterpret<char>(), path);
+inline void blob_to_file (Str path, Slice<u8> content) {
+    string_to_file(path, content.reinterpret<char>());
 }
 
 } // namespace ayu

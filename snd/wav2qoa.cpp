@@ -14,7 +14,7 @@ int main (int argc, char** argv) {
     Str in = (const char*)argv[1];
     Str out = (const char*)argv[2];
     UniqueAudio au = audio_from_file(in);
-    audio_to_file_qoa(au, out);
+    audio_to_file_qoa(out, au);
     return 0;
 }
 

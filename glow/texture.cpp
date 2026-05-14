@@ -82,8 +82,8 @@ void texture_from_file_qoi (u32 target, const char* filepath) {
     catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
 }
 void texture_from_file_qoi (u32 target, Str filepath) {
-    with_c_str(filepath, [&](auto buf){
-        texture_from_file_qoi(target, buf);
+    with_c_str(filepath, [&](auto cs){
+        texture_from_file_qoi(target, cs);
     });
 }
 

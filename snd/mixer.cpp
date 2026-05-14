@@ -432,8 +432,8 @@ static tap::TestSet tests ("dirt/snd/mixer", []{
 
     if (failures()) {
         string_to_file(
-            ayu::show(&out, ayu::PrintOptions::Pretty),
-            cat(dir, "mixer-out-0.ayu")
+            cat(dir, "mixer-out-0.ayu"),
+            ayu::show(&out, ayu::PrintOptions::Pretty)
         );
     }
 
@@ -452,8 +452,8 @@ static tap::TestSet tests ("dirt/snd/mixer", []{
 
     if (failures()) {
         string_to_file(
-            ayu::show(&out, ayu::PrintOptions::Pretty),
-            cat(dir, "mixer-out-1.ayu")
+            cat(dir, "mixer-out-1.ayu"),
+            ayu::show(&out, ayu::PrintOptions::Pretty)
         );
     }
 

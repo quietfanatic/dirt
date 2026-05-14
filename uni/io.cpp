@@ -40,15 +40,15 @@ File::File (const char* path, const char* mode) :
 }
 [[gnu::no_stack_protector]] NOINLINE
 File::File (Str path, const char* mode) {
-    with_c_str(path, [&](auto buf){
-        new (this) File(buf, mode);
+    with_c_str(path, [&](auto cs){
+        new (this) File(cs, mode);
     });
 }
 
 [[gnu::no_stack_protector]] NOINLINE
 File File::try_open (Str path, const char* mode) noexcept {
-    return with_c_str(path, [&](auto buf){
-        return try_open(buf, mode);
+    return with_c_str(path, [&](auto cs){
+        return try_open(cs, mode);
     });
 }
 
@@ -114,13 +114,13 @@ UniqueString string_from_file (const char* path) try {
 }
 [[gnu::no_stack_protector]] NOINLINE
 UniqueString string_from_file (Str path) {
-    return with_c_str(path, [](auto buf){
-        return string_from_file(buf);
+    return with_c_str(path, [](auto cs){
+        return string_from_file(cs);
     });
 }
 
 NOINLINE
-void string_to_file (Str content, const char* path) try {
+void string_to_file (const char* path, Str content) try {
     File f = File::try_open(path, "wb");
     if (!f) raise_io_error("open");
     f.write(content);
@@ -130,9 +130,9 @@ catch (Error& e) {
     e.rethrow_with_tag("uni::FilePath", path);
 }
 [[gnu::no_stack_protector]] NOINLINE
-void string_to_file (Str content, Str path) {
-    with_c_str(path, [&](auto buf){
-        string_to_file(content, buf);
+void string_to_file (Str path, Str content) {
+    with_c_str(path, [&](auto cs){
+        string_to_file(cs, content);
     });
 }
 
@@ -146,8 +146,8 @@ Dir::Dir (const char* path) :
 }
 [[gnu::no_stack_protector]] NOINLINE
 Dir::Dir (Str path) {
-    with_c_str(path, [&](auto buf){
-        new (this) Dir(buf);
+    with_c_str(path, [&](auto cs){
+        new (this) Dir(cs);
     });
 }
 
@@ -160,8 +160,8 @@ Dir Dir::try_open_at (int parent_fd, const char* path) noexcept {
 }
 [[gnu::no_stack_protector]] NOINLINE
 Dir Dir::try_open_at (int parent_fd, Str path) noexcept {
-    return with_c_str(path, [&](auto buf){
-        return Dir::try_open_at(parent_fd, buf);
+    return with_c_str(path, [&](auto cs){
+        return Dir::try_open_at(parent_fd, cs);
     });
 }
 
@@ -211,8 +211,8 @@ UniqueArray<SharedString> list_dir (const char* path) try {
 }
 [[gnu::no_stack_protector]] NOINLINE
 UniqueArray<SharedString> list_dir (Str path) {
-    return with_c_str(path, [](auto buf){
-        return list_dir(buf);
+    return with_c_str(path, [](auto cs){
+        return list_dir(cs);
     });
 }
 

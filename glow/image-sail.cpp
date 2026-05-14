@@ -236,8 +236,8 @@ void texture_from_file_sail (u32 target, const char* filepath) try {
 }
 catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
 void texture_from_file_sail (u32 target, Str filepath) {
-    with_c_str(filepath, [&](auto buf){
-        texture_from_file_sail(target, buf);
+    with_c_str(filepath, [&](auto cs){
+        texture_from_file_sail(target, cs);
     });
 }
 

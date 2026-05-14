@@ -431,12 +431,12 @@ UniqueString tree_to_string_for_file (const Tree& t, PrintOptions opts) {
     return printer.print(t, 4080 - 16);
 }
 
-void tree_to_file (const Tree& t, const char* path, PrintOptions opts) try {
+void tree_to_file (const char* path, const Tree& t, PrintOptions opts) try {
     auto s = tree_to_string_for_file(t, opts);
-    return string_to_file(s, path);
+    return string_to_file(path, s);
 } catch (Error& e) { e.rethrow_with_tag("uni::FilePath", path); }
-void tree_to_file (const Tree& t, Str path, PrintOptions opts) {
-    with_c_str(path, [&](auto buf){ tree_to_file(t, buf, opts); });
+void tree_to_file (Str path, const Tree& t, PrintOptions opts) {
+    with_c_str(path, [&](auto cs){ tree_to_file(cs, t, opts); });
 }
 
 } using namespace ayu;
