@@ -30,6 +30,7 @@ struct Transaction {
 
     static void add_committer (Committer*&& co) {
         committers.emplace_back(move(co));
+        co = null;
     }
 
      // Manually commit.  All current committers will be cleared, but the

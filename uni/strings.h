@@ -4,6 +4,7 @@
 #include <cmath>
 #include "arrays.h"
 #include "text.h"
+#include "callback-ref.h"
 
 namespace uni {
 
@@ -51,6 +52,18 @@ Head& encat (Head& h, const Tail&... t) {
  // library.
 consteval StaticString operator""_s (const char* p, usize s) {
     return StaticString(p, s);
+}
+
+ // Utility to allocate a NUL-terminated string on the stack.  The input is
+ // limited to 64k-1 chars (enough for a POSIX filename).
+template <class F> requires (
+    requires (F&& f, char* buf) { std::forward<F>(f)(buf); }
+) auto with_c_str (Str s, F&& f) {
+    require(s.size() <= 65535);
+    char buf [s.size() + 1];
+    buf[s.size()] = 0;
+    std::memcpy(buf, s.data(), s.size());
+    return std::forward<F>(f)((char*)buf);
 }
 
 ///// CAT ADVANCED INTERFACE

@@ -97,6 +97,10 @@ struct UniqueFunction<Ret(Args...)> {
     const UniqueFunction<Sig>& reinterpret () const {
         return *(const UniqueFunction<Sig>*)this;
     }
+    template <class Sig> [[gnu::artificial]] ALWAYS_INLINE constexpr
+    UniqueFunction<Sig>& reinterpret () {
+        return *(UniqueFunction<Sig>*)this;
+    }
 };
 
 } // uni

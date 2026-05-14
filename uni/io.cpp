@@ -40,20 +40,16 @@ File::File (const char* path, const char* mode) :
 }
 [[gnu::no_stack_protector]] NOINLINE
 File::File (Str path, const char* mode) {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    new (this) File(buf, mode);
+    with_c_str(path, [&](auto buf){
+        new (this) File(buf, mode);
+    });
 }
 
 [[gnu::no_stack_protector]] NOINLINE
 File File::try_open (Str path, const char* mode) noexcept {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    return try_open(buf, mode);
+    return with_c_str(path, [&](auto buf){
+        return try_open(buf, mode);
+    });
 }
 
 [[noreturn, gnu::cold]] NOINLINE
@@ -118,11 +114,9 @@ UniqueString string_from_file (const char* path) try {
 }
 [[gnu::no_stack_protector]] NOINLINE
 UniqueString string_from_file (Str path) {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    return string_from_file(buf);
+    return with_c_str(path, [](auto buf){
+        return string_from_file(buf);
+    });
 }
 
 NOINLINE
@@ -137,11 +131,9 @@ catch (Error& e) {
 }
 [[gnu::no_stack_protector]] NOINLINE
 void string_to_file (Str content, Str path) {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    string_to_file(content, buf);
+    with_c_str(path, [&](auto buf){
+        string_to_file(content, buf);
+    });
 }
 
 NOINLINE
@@ -154,30 +146,23 @@ Dir::Dir (const char* path) :
 }
 [[gnu::no_stack_protector]] NOINLINE
 Dir::Dir (Str path) {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    new (this) Dir(buf);
+    with_c_str(path, [&](auto buf){
+        new (this) Dir(buf);
+    });
 }
 
 NOINLINE
 Dir Dir::try_open_at (int parent_fd, const char* path) noexcept {
     Dir r;
-    r.fd = openat(parent_fd, path, O_RDONLY|O_DIRECTORY);
-    if (r.fd >= 0) {
-        r.handle = fdopendir(r.fd);
-    }
-    else r.handle = null;
-    return r;
+    int fd = openat(parent_fd, path, O_RDONLY|O_DIRECTORY);
+    if (fd < 0) return Dir();
+    return Dir(fdopendir(fd), int(fd));
 }
 [[gnu::no_stack_protector]] NOINLINE
 Dir Dir::try_open_at (int parent_fd, Str path) noexcept {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    return Dir::try_open_at(parent_fd, buf);
+    return with_c_str(path, [&](auto buf){
+        return Dir::try_open_at(parent_fd, buf);
+    });
 }
 
 UniqueArray<SharedString> Dir::list () {
@@ -226,11 +211,9 @@ UniqueArray<SharedString> list_dir (const char* path) try {
 }
 [[gnu::no_stack_protector]] NOINLINE
 UniqueArray<SharedString> list_dir (Str path) {
-    require(path.size() < 65536);
-    char buf [path.size() + 1];
-    buf[path.size()] = 0;
-    std::memcpy(buf, path.data(), path.size());
-    return list_dir(buf);
+    return with_c_str(path, [](auto buf){
+        return list_dir(buf);
+    });
 }
 
 ///// CONSOLE IO

@@ -23,6 +23,8 @@ struct File {
     FILE* handle;
      // Empty object
     constexpr File () : handle(null) { }
+     // Take ownership
+    constexpr File (FILE*&& h) : handle(move(h)) { h = null; }
      // Open file, throws on failure
     explicit File (const char* path, const char* mode = "rb");
     explicit File (Str path, const char* mode = "rb");
@@ -49,6 +51,9 @@ struct File {
     [[noreturn]] void raise_open_failed (int errnum = 0) const;
 
      // Get the entire file's contents in a string.  Will throw on failure.
+     // Due to UniqueString's limitations, this cannot read a file larger than
+     // 2GB.  If you need to read a file bigger than that, you should probably
+     // stream or mmap it instead.
     UniqueString read ();
      // Write the entire file's contents.  Will throw on failure.
     void write (Str);
@@ -81,6 +86,10 @@ struct Dir {
     int fd;
      // Empty object
     constexpr Dir () : handle(null), fd(0) { }
+     // Take ownership
+    constexpr Dir (DIR*&& h, int&& f) : handle(move(h)), fd(move(f)) {
+        h = null; f = 0;
+    }
      // Open from path
     explicit Dir (const char* path);
     explicit Dir (Str path);
@@ -159,9 +168,7 @@ int remove_utf8 (const char* filename) noexcept;
 ///// INLINES
 
 inline File File::try_open (const char* path, const char* mode) noexcept {
-    File r;
-    r.handle = fopen_utf8(path, mode);
-    return r;
+    return File(fopen_utf8(path, mode));
 }
 
 inline UniqueArray<u8> blob_from_file (const char* path) {
