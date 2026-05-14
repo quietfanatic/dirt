@@ -38,6 +38,10 @@ struct Error : std::exception {
     ErrorCode code;
      // More information about the error, subject to change.
     SharedString details;
+     // Domain-specific numeric error code if applicable.  The interpretation of
+     // this depends on code (the string one).  For IO errors, this will be
+     // errno.
+    i64 number = 0;
      // Extra information in name: value format
     UniqueArray<std::pair<SharedString, SharedString>> tags;
      // If this wrapped a different error, this stores it.  code will be
@@ -51,7 +55,7 @@ struct Error : std::exception {
     [[gnu::cold]]
     Error () noexcept = default;
     [[gnu::cold]]
-    Error (ErrorCode c, SharedString&& d) noexcept;
+    Error (ErrorCode c, SharedString&& d, i64 n = 0) noexcept;
     [[gnu::cold]]
     Error (std::exception_ptr&& e) noexcept;
      // Error is copyable and movable, but it generally results in smaller code
@@ -90,6 +94,12 @@ Error& current_error () noexcept;
  // Simple noinline wrapper around construct and throw to reduce code bloat
 [[noreturn, gnu::cold]]
 void raise (ErrorCode code, SharedString details);
+[[noreturn, gnu::cold]]
+void raise (ErrorCode code, SharedString details, i64 number);
+
+///// MISC UTILITY
+
+UniqueString show_source_location (std::source_location) noexcept;
 
  // Call this when an exception is thrown in a place where cleaning up is
  // impossible.
@@ -98,7 +108,9 @@ void unrecoverable_exception (Str when) noexcept;
 
 ///// GENERAL ERROR CODES
 
- // Unspecified error
+ // Unspecified error.  Use this for rare situations that you can't be bothered
+ // to make a new error code for (be sure to write something descriptive in
+ // details though).
 constexpr ErrorCode e_General = "uni::e_General";
  // Someone else's error type, std::rethrow_exception(e.external) to unwrap
 constexpr ErrorCode e_External = "uni::e_External";
@@ -107,14 +119,16 @@ constexpr ErrorCode e_External = "uni::e_External";
 
 namespace in {
 
-[[noreturn, gnu::cold]] NOINLINE
-void raise_impl (ErrorCode code, SharedString::Impl details);
 [[gnu::cold]]
 void set_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value) noexcept;
 [[gnu::cold]]
 void add_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value) noexcept;
 [[noreturn, gnu::cold]]
 void rethrow_with_tag_impl (Error&, SharedString::Impl name, SharedString::Impl value);
+[[noreturn, gnu::cold]] NOINLINE
+void raise_impl (ErrorCode code, SharedString::Impl details);
+[[noreturn, gnu::cold]] NOINLINE
+void raise_impl (ErrorCode code, SharedString::Impl details, i64 number);
 
 } // in
 
@@ -137,12 +151,18 @@ void Error::rethrow_with_tag (SharedString name, SharedString value) {
     in::rethrow_with_tag_impl(*this, n, v);
 }
 
-
 ALWAYS_INLINE
 void raise (ErrorCode code, SharedString details) {
     auto impl = details.impl;
     details.impl = {};
     in::raise_impl(code, impl);
+}
+
+ALWAYS_INLINE
+void raise (ErrorCode code, SharedString details, i64 number) {
+    auto impl = details.impl;
+    details.impl = {};
+    in::raise_impl(code, impl, number);
 }
 
 } // uni

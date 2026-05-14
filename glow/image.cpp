@@ -6,26 +6,29 @@
 
 namespace glow {
 
- // This doesn't need to be all that optimized.
+NOINLINE
+void blit_noncontig (const ImageView& dst, const ImageView& src) noexcept {
+    expect(dst.size.x >= 0 && dst.size.y >= 0);
+    expect(dst.size == src.size);
+    auto o = dst.pixels;
+    auto i = src.pixels;
+    auto oe = dst.pixels + dst.stride * dst.size.y;
+    auto s = dst.size.x * sizeof(RGBA8);
+    auto ot = dst.stride;
+    auto it = src.stride;
+    while (o < oe) {
+        std::memcpy(o, i, s);
+        o += ot;
+        i += it;
+    }
+}
 void blit (const ImageView& dst, const ImageView& src) noexcept {
     expect(dst.size.x >= 0 && dst.size.y >= 0);
     expect(dst.size == src.size);
     if (dst.contiguous() & src.contiguous()) {
         std::memcpy(dst.pixels, src.pixels, area(dst.size) * sizeof(RGBA8));
     }
-    else {
-        auto o = dst.pixels;
-        auto i = src.pixels;
-        auto oe = dst.pixels + dst.stride * dst.size.y;
-        auto s = dst.size.x * sizeof(RGBA8);
-        auto ot = dst.stride;
-        auto it = src.stride;
-        while (o < oe) {
-            std::memcpy(o, i, s);
-            o += ot;
-            i += it;
-        }
-    }
+    else blit_noncontig(dst, src);
 }
 
 UniqueImage image_from_blob (Slice<u8> blob) {

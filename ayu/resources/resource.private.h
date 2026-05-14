@@ -9,7 +9,9 @@
 namespace ayu::in {
 
  // The "Universe" manages the set of loaded resources and related global data.
- // There isn't a whole lot of meaning to keeping this data all together.
+ // There isn't a whole lot of meaning to keeping this data all together,
+ // besides to reduce the number of global variable loads, which are kinda fat
+ // in modern C++.
 
 struct ResourceSchemeEntry {
     usize hash;

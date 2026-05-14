@@ -267,11 +267,11 @@ UniqueImage image_from_file_sail (Str filepath) {
     });
 }
 
-void in::raise_LoadImageFailed (sail_status_t res) {
+void in::raise_LoadImageFailed (sail_status_t res) try {
     expect(res != SAIL_OK);
-    raise(e_LoadImageFailed, cat(
-        "Failed to load image from file (SAIL_ERROR_", ayu::show(&res), ')'
-    ));
+    raise(e_LoadImageFailed, cat("Failed to load image from file"), i64(res));
+} catch (Error& e) {
+    e.rethrow_with_tag("sail_status_t", cat("SAIL_ERROR_", ayu::show(&res), ')'));
 }
 
 } using namespace glow;

@@ -14,12 +14,12 @@ void init () noexcept {
 }
 
 [[gnu::cold]]
-void requirement_failed_sdl (std::source_location loc) {
-    raise(e_SDLRequirementFailed, uni::cat(
-        "ERROR: require_sdl() failed at ", loc.file_name(),
-        ':', loc.line(), "\n       in ", loc.function_name(),
-        "\n       SDL_GetError() == ", SDL_GetError(), "\n"
-    ));
+void requirement_failed_sdl (std::source_location loc) try {
+    raise(e_SDLRequirementFailed, "ERROR: require_sdl() failed");
+} catch (Error& e) {
+    e.add_tag("std::source_location", show_source_location(loc));
+     // SDL doesn't have numeric error codes
+    e.rethrow_with_tag("SDL_GetError()", SDL_GetError());
 }
 
 } using namespace glow;

@@ -6,8 +6,8 @@ namespace uni {
 using namespace in;
 
 NOINLINE
-Error::Error (ErrorCode c, SharedString&& d) noexcept :
-    code(c), details(move(d))
+Error::Error (ErrorCode c, SharedString&& d, i64 n) noexcept :
+    code(c), details(move(d)), number(n)
 { }
 NOINLINE
 Error::Error (std::exception_ptr&& e) noexcept :
@@ -85,6 +85,7 @@ void Error::rethrow_with_tag (StaticString name, const char* value) {
     throw;
 }
 
+NOINLINE
 Error& current_error () noexcept {
     try { throw; } catch (Error& e) { return e; }
     catch (...) {
@@ -93,9 +94,22 @@ Error& current_error () noexcept {
     }
 }
 
+NOINLINE
+UniqueString show_source_location (std::source_location loc) noexcept {
+    return cat(
+        loc.file_name(), ':', loc.line(), ':', loc.column(),
+        ' ', loc.function_name()
+    );
+}
+
 void in::raise_impl (ErrorCode code, SharedString::Impl details) {
     SharedString d; d.impl = details;
     throw Error(code, move(d));
+}
+
+void in::raise_impl (ErrorCode code, SharedString::Impl details, i64 number) {
+    SharedString d; d.impl = details;
+    throw Error(code, move(d), number);
 }
 
 void unrecoverable_exception (Str when) noexcept {

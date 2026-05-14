@@ -14,11 +14,10 @@ namespace in {
 
 [[noreturn, gnu::cold]] NOINLINE
 void raise_io_error (const char* op) try {
-    throw Error(e_IOError, "IO operation failed");
+    throw Error(e_IOError, strerror(errno), errno);
 }
 catch (Error& e) {
-    e.add_tag("uni::IOOperation", StaticString(op));
-    e.rethrow_with_tag("strerror(errno)", strerror(errno));
+    e.rethrow_with_tag("uni::IOOperation", StaticString(op));
 }
 
 [[gnu::cold]] NOINLINE

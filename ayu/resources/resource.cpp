@@ -44,23 +44,23 @@ static void raise_ResourceValueEmpty () {
 }
 
 [[noreturn, gnu::cold]]
-static void tag_error_with_resource_data (
+static void rethrow_with_resource_data (
     const SharedString& name, ResourceState state, StaticString operation
 ) {
     Error& e = current_error();
     e.add_tag("ayu::ResourceName", name);
     e.add_tag("ayu::ResourceOperation", operation);
     e.add_tag("ayu::ResourceState", show(&state));
-    throw e;
+    throw;
 }
 
 [[noreturn, gnu::cold]]
-static void tag_error_with_resource (ResourceRef res, StaticString operation) {
-    tag_error_with_resource_data(res->name().spec(), res->state(), operation);
+static void rethrow_with_resource (ResourceRef res, StaticString operation) {
+    rethrow_with_resource_data(res->name().spec(), res->state(), operation);
 }
 
 [[noreturn, gnu::cold]]
-static void tag_error_with_resources (
+static void rethrow_with_resources (
     Slice<ResourceRef> reses, StaticString operation
 ) {
     Error& e = current_error();
@@ -77,7 +77,7 @@ static void tag_error_with_resources (
             show(&state)
         );
     }
-    throw e;
+    throw;
 }
 
 struct Break {
@@ -215,7 +215,7 @@ void Resource::set_value (AnyVal&& value) try {
     self->value = move(v);
     self->state = RS::Loaded;
 } catch (...) {
-    tag_error_with_resource(this, "set_value");
+    rethrow_with_resource(this, "set_value");
 }
 
 Link Resource::operator[] (const SharedString& key) { return link()[key]; }
@@ -235,7 +235,7 @@ SharedResource::SharedResource (const IRI& name) {
         scheme->validate_name(name);
     }
     catch (...) {
-        tag_error_with_resource_data(
+        rethrow_with_resource_data(
             name.possibly_invalid_spec(), RS::Unloaded, "construct"
         );
     }
@@ -265,7 +265,7 @@ SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
         if (self->state != RS::Unloaded) raise_ResourceStateInvalid();
     }
     catch (...) {
-        tag_error_with_resource(*this, "construct with value");
+        rethrow_with_resource(*this, "construct with value");
     }
     self->set_value(move(v));
 }
@@ -315,7 +315,7 @@ void load (ResourceRef res) try {
     self->state = RS::Loaded;
 } catch (...) {
     load_cancel(res);
-    tag_error_with_resource(res, "load");
+    rethrow_with_resource(res, "load");
 }
 
 void save (ResourceRef res, PrintOptions opts) try {
@@ -357,7 +357,7 @@ void save (ResourceRef res, PrintOptions opts) try {
         outfile.close();
     } catch (Error& e) { e.set_tag("uni::FilePath", path); throw; }
 } catch (...) {
-    tag_error_with_resource(res, "save");
+    rethrow_with_resource(res, "save");
 }
 
 static void really_unload (ResourcePrivate* self) {
@@ -517,7 +517,7 @@ void unload (Slice<ResourceRef> to_unload) try {
         if (!info.res->reachable) really_unload(info.res);
     }
 } catch (...) {
-    tag_error_with_resources(to_unload, "unload");
+    rethrow_with_resources(to_unload, "unload");
 }
 
 void force_unload (ResourceRef res) noexcept {
@@ -666,7 +666,7 @@ void reload (Slice<ResourceRef> to_reload) try {
     }
 }
 catch (...) {
-    tag_error_with_resources(to_reload, "reload");
+    rethrow_with_resources(to_reload, "reload");
 }
 
 void rename (ResourceRef old_res, ResourceRef new_res) try {
@@ -683,7 +683,7 @@ void rename (ResourceRef old_res, ResourceRef new_res) try {
     new_self->state = RS::Loaded;
     old_self->state = RS::Unloaded;
 } catch (...) {
-    tag_error_with_resources({old_res, new_res}, "rename");
+    rethrow_with_resources({old_res, new_res}, "rename");
 }
 
 SharedString resource_filepath (const IRI& name) try {

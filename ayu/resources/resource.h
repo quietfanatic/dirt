@@ -184,7 +184,7 @@ inline void unload (ResourceRef r) { unload(Slice<ResourceRef>(&r, 1)); }
  // left dangling.  This can still be rolled back by a ResourceTransaction.
 void force_unload (ResourceRef) noexcept;
 inline void force_unload (Slice<ResourceRef> rs) noexcept {
-    for (auto& r : rs) force_unload(r);
+    for (auto& r : rs) force_unload(r); // TODO: transaction lol
 }
 
  // Reloads a resource.  Throws if the resource is not RS::Loaded.  This does
@@ -193,15 +193,13 @@ inline void force_unload (Slice<ResourceRef> rs) noexcept {
  //   2. Loads a new value for the resource, as if by calling load().
  //   3. Scans other resources and tracked variables for links to this one and
  //      updates them to point to the new value instead of the old one.  If a
- //      link would become invalid or cannot be updated, the reload is
- //      cancelled, the resource's old value is restored, and ReloadWouldBreak
- //      is thrown.
+ //      link would become invalid or cannot be updated, the reload is cancelled
+ //      and ReloadWouldBreak is thrown.
  //   4. Destroys the old value.
  //
  // This operation is fully transactional.  If a recoverable exception is thrown
- // or if a surrounding ResourceTransaction rolls back, then the reload will be
- // cancelled, the new value will be deleted, and the old value and all updated
- // links will be restored.
+ // or if a surrounding ResourceTransaction rolls back, then the new value will
+ // be deleted, and the old value and all updated links will be restored.
 void reload (ResourceRef);
  // Reload multiple resources simultaneously.  This may be necessary or simply
  // more efficient if there are link cycles.
@@ -255,7 +253,7 @@ UniqueArray<SharedResource> loaded_resources () noexcept;
 template <class T>
 void track (T& v);
 
- // Stop tracking a variable.
+ // Stop tracking a variable.  You might never need to do this.
 template <class T>
 void untrack (T& v);
 
@@ -267,8 +265,8 @@ void untrack (T& v);
  //     );
  //
  // If the call to link_from_iri throws, the variable will not be tracked.
- // However, if the Link fails to convert to whatever you assign it to, then
- // the variable will still be tracked.
+ // However, if the returned Link fails to convert to whatever you assign it to,
+ // then the variable will still be tracked.
 template <class T> [[nodiscard]]
 Link track (T& v, const IRI& loc);
 
