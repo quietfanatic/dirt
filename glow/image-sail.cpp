@@ -15,7 +15,7 @@ namespace glow {
 
 namespace in {
 [[noreturn, gnu::cold]] static
-void raise_LoadImageFailed (Str, sail_status_t);
+void raise_LoadImageFailed (sail_status_t);
 } using namespace in;
 
 constexpr u16 UNSUPPORTED = 0;
@@ -235,16 +235,16 @@ void texture_from_file_sail (u32 target, const char* filepath) try {
     }
 }
 catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
-void image_from_file_sail (u32 target, Str filepath) {
+void texture_from_file_sail (u32 target, Str filepath) {
     with_c_str(filepath, [&](auto buf){
         texture_from_file_sail(target, buf);
-    }
+    });
 }
 
 UniqueImage image_from_file_sail (const char* filepath) try {
     sail_set_log_barrier(SAIL_LOG_LEVEL_WARNING);
     sail_image* image;
-    auto res = sail_load_from_file(filepath.c_str(), &image);
+    auto res = sail_load_from_file(filepath, &image);
     if (res != SAIL_OK) raise_LoadImageFailed(res);
     if (image->pixel_format != SAIL_PIXEL_FORMAT_BPP32_RGBA) {
         sail_image* old_image = image;
@@ -261,14 +261,13 @@ catch (Error& e) { e.rethrow_with_tag("uni::FilePath", filepath); }
 UniqueImage image_from_file_sail (Str filepath) {
     return with_c_str(filepath, [](auto buf){
         return image_from_file_sail(buf);
-    }
+    });
 }
 
-void in::raise_LoadImageFailed (Str filepath, sail_status_t res) {
-     // TODO: tag
+void in::raise_LoadImageFailed (sail_status_t res) {
     expect(res != SAIL_OK);
     raise(e_LoadImageFailed, cat(
-        "Failed to load image from file (SAIL_ERROR_", ayu::show(&res), "): ", filepath
+        "Failed to load image from file (SAIL_ERROR_", ayu::show(&res), ')'
     ));
 }
 

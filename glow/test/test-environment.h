@@ -13,6 +13,8 @@ namespace glow::test {
 struct TestEnvironment {
     IVec size;
     ayu::FolderResourceScheme test_scheme;
+    ayu::ResourceExtension ayu_extension;
+    glow::FileImageExtension qoi_extension;
     wind::Window window;
     TestEnvironment (IVec size = {120, 120}) :
         size(size),
@@ -27,6 +29,10 @@ struct TestEnvironment {
         ),
         window("Test window", size, wind::GLAttributes{.alpha = 8})
     {
+        if (auto ext = ayu::get_extension("a:a.ayu")) ext->deactivate();
+        if (auto ext = ayu::get_extension("a:a.qoi")) ext->deactivate();
+        ayu_extension.activate("ayu");
+        qoi_extension.activate("qoi");
          // Some gl drivers won't render to hidden windows, so do our best to hide
          // the window manually
         SDL_MinimizeWindow(window);
