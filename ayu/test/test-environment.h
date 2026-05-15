@@ -11,13 +11,16 @@ namespace ayu::test {
             return type == Type::of<Collection>()
                 || type == Type::of<i32>();
         }
+        bool allows_save (const IRI& name) override {
+            return name == "ayu-test:/test-output.ayu";
+        }
     };
     struct TestEnvironment {
         std::unique_ptr<TestResourceScheme> trs;
         TestEnvironment () {
             auto testdir = IRI("res/dirt/ayu/test", iri::program_location());
             require(testdir);
-            trs = std::make_unique<test::TestResourceScheme>(
+            trs = std::make_unique<TestResourceScheme>(
                 "ayu-test", iri::to_filepath(testdir)
             );
         }

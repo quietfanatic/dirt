@@ -21,8 +21,13 @@ void raise_ResourceTypeRejected (Type type) {
 }
 
 [[noreturn, gnu::cold]]
+void raise_ResourceCannotSave () {
+    raise(e_ResourceCannotSave, "Resource with this scheme cannot be saved");
+}
+
+[[noreturn, gnu::cold]]
 void raise_ResourceNoFilepath () {
-    raise(e_ResourceNoFilepath, "Resource has no associated filepath.");
+    raise(e_ResourceNoFilepath, "Resource has no associated filepath");
 }
 
 void ResourceScheme::activate (const SharedString& name) noexcept {

@@ -74,10 +74,14 @@ static bool tree_eq_number (const Tree& a, const Tree& b) noexcept {
     else {
         double af = a.floaty ? a.data.as_double : a.data.as_i64;
         double bf = b.floaty ? b.data.as_double : b.data.as_i64;
-        if (!std::isunordered(af, bf)) [[likely]] {
-            return af == bf;
+         // Using <=> seems to be the most reliable way to get the compiler to
+         // only issue one compare instruction.
+        auto res = af <=> bf;
+        if (res == (0.0 <=> 0.0)) return true;
+        else if (res == (NAN <=> NAN)) {
+            return af != af && bf != bf;
         }
-        else return af != af && bf != bf;
+        else return false;
     }
 }
 static bool tree_eq_string (const Tree& a, const Tree& b) noexcept {

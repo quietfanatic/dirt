@@ -17,6 +17,8 @@ void raise_ResourceNameRejected ();
 [[noreturn, gnu::cold]]
 void raise_ResourceTypeRejected (Type);
 [[noreturn, gnu::cold]]
+void raise_ResourceCannotSave ();
+[[noreturn, gnu::cold]]
 void raise_ResourceNoFilepath ();
 
  // Registers a resource scheme at startup.  The path parameter passed to all
@@ -53,6 +55,13 @@ struct ResourceScheme {
 
     void validate_type (Type t) {
         if (!accepts_type(t)) raise_ResourceTypeRejected(t);
+    }
+
+     // If you want to prevent saving of resources, return false from this.
+    virtual bool allows_save (const IRI&) { return true; }
+
+    void require_saveable (const IRI& name) {
+        if (!allows_save(name)) raise_ResourceCannotSave();
     }
 
      // Turn an IRI into a filename.  If "" is returned, it means there is no
@@ -114,6 +123,8 @@ constexpr ErrorCode e_ResourceNameRejected = "ayu::e_ResourceNameRejected";
  // provided for the resource.  This can happen either while loading from a
  // file, or when setting a resource's value programmatically.
 constexpr ErrorCode e_ResourceTypeRejected = "ayu::e_ResourceTypeRejected";
+ // Tried to save a resource but its scheme refused.
+constexpr ErrorCode e_ResourceCannotSave = "ayu::e_ResourceCannotSave";
  // The ResourceScheme associated with the resource name did not provide a
  // filepath for its name.
 constexpr ErrorCode e_ResourceNoFilepath = "ayu::e_ResourceNoFilepath";
@@ -159,6 +170,13 @@ struct FolderResourceScheme : ResourceScheme {
     explicit FolderResourceScheme (const SharedString& n, Str f) :
         FolderResourceScheme(f)
     { activate(n); }
+};
+
+ // Mixin to disable saving
+template <class Base>
+struct UnsaveableResourceScheme : Base {
+    using Base::Base;
+    virtual bool allows_save (const IRI&) override { return false; }
 };
 
 } // namespace ayu

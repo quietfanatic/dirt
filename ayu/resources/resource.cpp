@@ -178,15 +178,9 @@ AnyVal& Resource::get_value () noexcept {
     return static_cast<ResourcePrivate*>(this)->value;
 }
 
-void Resource::set_value (AnyVal&& value) try {
-    auto self = static_cast<ResourcePrivate*>(this);
+static void set_value_inner (ResourcePrivate* self, AnyVal&& value) {
     AnyVal v = move(value);
-
     if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot set_value while a scan is ongoing");
-
-    if (self->state == RS::Loading) {
-        raise_ResourceStateInvalid();
-    }
     if (!v) {
         raise_ResourceValueEmpty();
     }
@@ -209,13 +203,31 @@ void Resource::set_value (AnyVal&& value) try {
             }
         };
         ResourceTransaction::add_committer(
-            new SetValueCommitter(this, move(self->value))
+            new SetValueCommitter(self, move(self->value))
         );
     }
     self->value = move(v);
     self->state = RS::Loaded;
+}
+
+void Resource::set_value (AnyVal&& value) try {
+    auto self = static_cast<ResourcePrivate*>(this);
+    if (self->state == RS::Loading) {
+        raise_ResourceStateInvalid();
+    }
+    set_value_inner(self, move(value));
 } catch (...) {
     rethrow_with_resource(this, "set_value");
+}
+
+void Resource::new_value (AnyVal&& value) try {
+    auto self = static_cast<ResourcePrivate*>(this);
+    if (self->state != RS::Unloaded) {
+        raise_ResourceStateInvalid();
+    }
+    set_value_inner(self, move(value));
+} catch (...) {
+    rethrow_with_resource(this, "new_value");
 }
 
 Link Resource::operator[] (const SharedString& key) { return link()[key]; }
@@ -254,20 +266,6 @@ SharedResource::SharedResource (const IRI& name) {
     if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot construct new Resource while a scan is ongoing");
     new (this) SharedResource(new ResourcePrivate(name));
     g_universe->resources.emplace_back(hash, *this);
-}
-
-SharedResource::SharedResource (const IRI& name, AnyVal&& value) :
-    SharedResource(name)
-{
-    auto self = static_cast<ResourcePrivate*>(p.p);
-    AnyVal v = move(value);
-    try {
-        if (self->state != RS::Unloaded) raise_ResourceStateInvalid();
-    }
-    catch (...) {
-        rethrow_with_resource(*this, "construct with value");
-    }
-    self->set_value(move(v));
 }
 
 ///// RESOURCE OPERATIONS
@@ -328,6 +326,7 @@ void save (ResourceRef res, PrintOptions opts) try {
     KeepRouteCache klc;
 
     auto scheme = require_scheme(self->name);
+    scheme->require_saveable(self->name);
     auto ext = require_extension(self->name);
     scheme->validate_type(self->value.type);
     ext->validate_type(self->value.type);
@@ -838,8 +837,8 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     ok(!!input->value(), "Resource has value after loading");
 
     throws_code<e_ResourceStateInvalid>([&]{
-        SharedResource(input->name(), AnyVal::make<int>(3));
-    }, "Creating resource throws on duplicate");
+        input->new_value(AnyVal::make<int>(3));
+    }, "new_value throws when already loaded");
 
     doesnt_throw([&]{ unload(input); }, "unload");
     is(input->state(), RS::Unloaded, "Resource state is RS::Unloaded after unloading");
@@ -990,6 +989,12 @@ static tap::TestSet tests ("dirt/ayu/resources/resource", []{
     throws_code<e_ResourceTypeRejected>([&]{
         load(SharedResource("ayu-test:/wrongtype.ayu"_iri));
     }, "ResourceScheme::accepts_type rejects wrong type");
+
+    throws_code<e_ResourceCannotSave>([&]{
+        load(input);
+        save(input);
+    }, "Cannot save resources if scheme returns false from allows_save");
+    unload(input);
 
     SharedString ordinary_path;
     throws_code<e_ResourceSchemeNotFound>([&]{

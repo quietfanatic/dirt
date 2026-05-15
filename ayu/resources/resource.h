@@ -50,11 +50,13 @@ struct Resource : in::RefCounted {
      // initialized, and will disappear if the load fails or is rolled back.
     AnyVal& get_value () noexcept;
      // If the resource is RS::Unloaded, sets is state to RS::Loaded without
-     // loading from the source, and sets its value.  Throw ResourceStateInvalid
-     // if the state is RS::Loading.  Throws ResourceTypeRejected if the
-     // ResourceScheme associated with this Resource returns false from
-     // accepts_type.
+     // loading from the source, and sets its value.  Throws
+     // ResourceStateInvalid if the state is RS::Loading.  Throws
+     // ResourceTypeRejected if the ResourceScheme associated with this Resource
+     // returns false from accepts_type.
     void set_value (AnyVal&&);
+     // Same as above, but also requires that the state is RS::Unloaded.
+    void new_value (AnyVal&&);
 
      // Like value() and get_value() but returns an AnyPtr.  Use caution if the
      // resource is currently being loaded or a transaction is active.
@@ -83,12 +85,6 @@ struct SharedResource {
     constexpr SharedResource () { }
      // Refers to the resource with this name, but does not load it yet.
     SharedResource (const IRI& name);
-     // Creates the resource already loaded with the given data, without reading
-     // from the source.  Will throw ResourceStateInvalid if a resource with
-     // this name is already loaded or ResourceValueInvalid if value is empty.
-     // This is equivalent to creating the SharedResource and then calling
-     // set_value.  TODO: remove this and add create_value or something
-    SharedResource (const IRI& name, AnyVal&& value);
 
     Resource& operator* () const { return *p.p; }
     Resource* operator-> () const { return p.p; }
@@ -286,6 +282,8 @@ constexpr ErrorCode e_ResourceUnloadWouldBreak = "ayu::e_ResourceUnloadWouldBrea
  // Tried to reload a resource, but there was a link pointing to an item inside
  // of it which couldn't be updated for some reason.
 constexpr ErrorCode e_ResourceReloadWouldBreak = "ayu::e_ResourceReloadWouldBreak";
+ // Tried to save a resource, but its scheme was registered as readonly.
+constexpr ErrorCode e_ResourceSaveReadonly = "ayu::e_ResourceSaveReadonly";
 
 ///// INTERNAL
 
