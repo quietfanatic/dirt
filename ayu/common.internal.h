@@ -21,7 +21,6 @@ inline void plog (const char*) { }
 
  // Predeclare some private classes.
 struct DescriptionPrivate;
-struct DocumentData;
 void delete_Route (const Route*) noexcept;
 void delete_Resource_if_unloaded (Resource*) noexcept;
 
@@ -77,11 +76,5 @@ template <class T, void(& deleter )(T*)> ALWAYS_INLINE
 bool operator != (const RCP<T, deleter>& a, const RCP<T, deleter>& b) {
     return a.p != b.p;
 }
-
-template <class T>
-struct Hashed {
-    usize hash;
-    T value;
-};
 
 }  // namespace ayu::in

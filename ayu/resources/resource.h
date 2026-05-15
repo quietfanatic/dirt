@@ -1,9 +1,14 @@
- // A resource represents a top-level named piece of program data.  A
- // resource has:
- //     - a source, which is generally a file on disk
- //     - a name, which is an IRI that identifies the source
- //     - a value, which is an AnyVal
- //     - a state, which is usually RS::Unloaded or RS::Loaded.
+ // A resource represents a top-level piece of program data.  A resource has:
+ //
+ //  - a name, which is an IRI that identifies and locates the resource
+ //  - a state, which is usually RS::Unloaded or RS::Loaded
+ //  - a value, which is an AnyVal and can be modified
+ //  - an associated source, which is typically a file on disk
+ //  - an associated ResourceScheme, which determines where and how to find the
+ //    resource's source
+ //  - an associated ResourceExtension, which determines how to convert the
+ //    resource's source to and from its value
+ //
  // You can load, save, unload, and reload resources.
 
 #pragma once
@@ -180,7 +185,8 @@ inline void unload (ResourceRef r) { unload(Slice<ResourceRef>(&r, 1)); }
  // left dangling.  This can still be rolled back by a ResourceTransaction.
 void force_unload (ResourceRef) noexcept;
 inline void force_unload (Slice<ResourceRef> rs) noexcept {
-    for (auto& r : rs) force_unload(r); // TODO: transaction lol
+    ResourceTransaction tr;
+    for (auto& r : rs) force_unload(r);
 }
 
  // Reloads a resource.  Throws if the resource is not RS::Loaded.  This does
@@ -243,13 +249,14 @@ UniqueArray<SharedResource> loaded_resources () noexcept;
  // become unserializable, because the tracked variable does not have an
  // associated Route.
  //
- // You should not call track on an item that is in a resource, because
- // everything in resources is already tracked.  TODO: detect this and
- // debug-assert.
+ // You must not call track on an item that is in a resource, because
+ // everything in resources is already tracked.  This error will not be detected
+ // (it would be too expensive to check even for debug builds).
 template <class T>
 void track (T& v);
 
- // Stop tracking a variable.  You might never need to do this.
+ // Stop tracking a variable.  You might never need to do this.  The parameter
+ // must be currently tracked, otherwise it's UB with debug assert.
 template <class T>
 void untrack (T& v);
 

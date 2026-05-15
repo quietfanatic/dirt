@@ -61,8 +61,7 @@
 //
 // The IRI class is pretty lightweight, with one reference-counted string and
 // four u16s.  16 bytes on 32-bit and 24 bytes on 64-bit.  However it is NOT
-// threadsafe.  If you want to pass IRIs between threads, martial them through
-// UniqueString first.  TODO: Add make_not_shared like for arrays.
+// threadsafe as currently implemented.
 //
 // There are no facilities for parsing query strings yet.
 //

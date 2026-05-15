@@ -19,33 +19,20 @@ using iri::IRI;
 
 ///// BASIC TYPES AND STUFF
 
- // resources/collection.h
-struct Collection;
-
- // resources/resource.h
-struct Resource;
-struct SharedResource;
-struct ResourceRef;
-
- // traversal/route.h
-struct Route;
-struct SharedRoute;
-struct RouteRef;
-
- // reflection/type.h
-struct Type;
-
- // reflection/anyptr.h
-struct AnyPtr;
-
- // reflection/link.h
-struct Link;
-
- // reflection/anyval.h
-struct AnyVal;
-
- // data/tree.h
-struct Tree;
+struct AnyPtr; // reflection/anyptr.h
+struct AnyVal; // reflection/anyval.h
+struct Collection; // resources/collection.h
+struct Link; // reflection/link.h
+struct Resource; // resources/resource.h
+struct ResourceExtension; // resources/extension.h
+struct ResourceRef; // resources/resource.h
+struct ResourceScheme; // resources/scheme.h
+struct Route; // traversal/route.h
+struct RouteRef; // traversal/route.h
+struct SharedResource; // resources/resource.h
+struct SharedRoute; // traversal/route.h
+struct Tree; // data/tree.h
+struct Type; // reflection/type.h
 
  // Since GCC 12.0, std::pair has extra concept shenanigans that cause weird
  // complicated errors when used with ArrayInterface, so we're throwing it in

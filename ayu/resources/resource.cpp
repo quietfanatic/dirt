@@ -730,6 +730,7 @@ namespace in {
 
 void track_ptr (AnyPtr item) noexcept {
     expect(item);
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot track new variable while a scan is ongoing");
 #ifndef NDEBUG
     for (auto& g : g_universe->tracked) {
         expect(g != item);
@@ -739,6 +740,7 @@ void track_ptr (AnyPtr item) noexcept {
 }
 
 void untrack_ptr (AnyPtr item) noexcept {
+    if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot untrack variable while a scan is ongoing");
     auto& gs = g_universe->tracked;
     for (auto& g : gs) {
         if (g == item) {
