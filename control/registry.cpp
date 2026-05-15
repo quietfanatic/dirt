@@ -1,5 +1,6 @@
 #include "registry.internal.h"
 
+#include "../uni/io.h"
 #include "command-base.h"
 
 namespace control::in {
@@ -7,45 +8,38 @@ namespace control::in {
 struct UnknownCommand : CommandBase<UnknownCommand> { };
 
 [[gnu::cold, noreturn]] NOINLINE
-void raise_CommandNameDuplicate (const void* command) {
-    auto cmd = (const UnknownCommand*)command;
-    raise(e_CommandNameDuplicate, cat(
-        "Duplicate command name: ", cmd->name
-    ));
-}
-
-[[gnu::cold, noreturn]] NOINLINE
 void raise_CommandNotFound (Str name) {
     raise(e_CommandNotFound, cat("No command named: ", name));
 }
 
 NOINLINE
-void register_command (const void* command, void* registry) {
+void register_command (void* registry, const void* command) noexcept {
+    auto reg = (UnknownCommand::Registry*)registry;
     auto cmd = (const UnknownCommand*)command;
-    auto reg = (UniqueArray<const UnknownCommand*>*)registry;
-    for (auto c : *reg) {
-        if (c->name_hash == cmd->name_hash && c->name == cmd->name) {
-            raise_CommandNameDuplicate(cmd);
+    auto hash = uni::hash(cmd->name);
+    for (auto [h, c] : *reg) {
+        if (hash == h && c->name == cmd->name) {
+            warn_utf8(cat("Duplicate command name: ", cmd->name));
+            abort();
         }
     }
-    reg->emplace_back(cmd);
+    reg->emplace_back(hash, cmd);
 }
 
- // TODO: binary search
 NOINLINE
-const void* lookup_command (Str name, const void* registry) noexcept {
-    auto reg = (const UniqueArray<const UnknownCommand*>*)registry;
-    auto h = uni::hash(name);
-    for (auto c : *reg) {
-        if (h == c->name_hash && name == c->name) {
+const void* lookup_command (const void* registry, Str name) noexcept {
+    auto reg = (const UnknownCommand::Registry*)registry;
+    auto hash = uni::hash(name);
+    for (auto [h, c] : *reg) {
+        if (hash == h && name == c->name) {
             return c;
         }
     }
     return null;
 }
 
-const void* get_command (Str name, const void* registry) {
-    if (auto r = lookup_command(name, registry)) return r;
+const void* get_command (const void* registry, Str name) {
+    if (auto r = lookup_command(registry, name)) return r;
     else raise_CommandNotFound(name);
 }
 

@@ -1,5 +1,4 @@
-// A function type that can be used with ayu, to make a non-turing-complete
-// imperative DSL.
+// A function type that can be used with ayu to make an imperative DSL.
 
 #pragma once
 
@@ -27,7 +26,6 @@ struct CommandBase<Cmd, Ret(Ctx)> {
     Handler* handler;
     ayu::Type args_type;
     StaticString name;
-    usize name_hash;
 
     constexpr CommandBase (
         Handler* h,
@@ -36,8 +34,7 @@ struct CommandBase<Cmd, Ret(Ctx)> {
     ) :
         handler(h),
         args_type(a),
-        name(n),
-        name_hash(uni::hash(n))
+        name(n)
     { }
 
      // Named constructor because there's no way to provide explicit template
@@ -91,27 +88,25 @@ struct CommandBase<Cmd, Ret(Ctx)> {
     template <auto f>
     using parallel_collapse_type = ConvertToCollapseHandler<f>::type;
 
-     // TODO: put hashes in the registry for better cache locality?
-    static UniqueArray<const Cmd*> registry;
+    using Registry = UniqueArray<Hashed<const Cmd*>>;
+    static Registry registry;
 
     NOINLINE void init () const {
-        in::register_command(this, &registry);
+        in::register_command(&registry, this);
     }
 
     static const Cmd* lookup (Str name) noexcept {
-        return (const Cmd*)in::lookup_command(name, &registry);
+        return (const Cmd*)in::lookup_command(&registry, name);
     }
 
     static const Cmd* get (Str name) {
-        return (const Cmd*)in::get_command(name, &registry);
+        return (const Cmd*)in::get_command(&registry, name);
     }
 };
 
 template <class Cmd, class Ret, class Ctx>
-constinit UniqueArray<const Cmd*> CommandBase<Cmd, Ret(Ctx)>::registry;
+constinit CommandBase<Cmd, Ret(Ctx)>::Registry CommandBase<Cmd, Ret(Ctx)>::registry;
 
- // Tried to register multiple commands with the same name in the same domain
-constexpr uni::ErrorCode e_CommandNameDuplicate = "control::e_CommandNameDuplicate";
  // Tried to get a command that doesn't exist in this domain
 constexpr uni::ErrorCode e_CommandNotFound = "control::e_CommandNotFound";
 
