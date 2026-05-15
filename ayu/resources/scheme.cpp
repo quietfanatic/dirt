@@ -54,7 +54,7 @@ void ResourceScheme::deactivate () noexcept {
 
  // The default scheme.  Don't activate this because it is only used when there
  // are no active schemes.
-constinit auto default_scheme = FolderResourceScheme("file:/"_iri);
+constinit auto default_scheme = FolderScheme("file:/"_iri);
 
 ResourceScheme* get_scheme (const IRI& name) {
     Str scheme = name.scheme();

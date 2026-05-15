@@ -28,9 +28,8 @@ void raise_ResourceNoFilepath ();
  // Currently, resources in a scheme are only allowed to link to other resources
  // in the same scheme.
  //
- // If no ResourceSchemes are active, then a default FolderResourceScheme with
- // the name "file" will be used, which maps resource names directly to files in
- // the filesystem.
+ // If no ResourceSchemes are active, then a default scheme will be used which
+ // maps "file:/" resource names directly to system filepaths.
  //
  // ResourceSchemes are allowed to be constructed and activated at init time,
  // but you can't use them until main starts.
@@ -132,7 +131,7 @@ constexpr ErrorCode e_ResourceNoFilepath = "ayu::e_ResourceNoFilepath";
 ///// FOLDER RESOURCE SCHEMES
 
  // Maps resource names to the contents of a folder.
-struct FolderResourceScheme : ResourceScheme {
+struct FolderScheme : ResourceScheme {
      // Must be a file:/ IRI
     IRI folder;
 
@@ -148,7 +147,7 @@ struct FolderResourceScheme : ResourceScheme {
     }
 
      // Constructing from an IRI can be constexpr
-    constexpr FolderResourceScheme (const IRI& f) :
+    constexpr FolderScheme (const IRI& f) :
         folder(f)
     {
         require(
@@ -158,23 +157,23 @@ struct FolderResourceScheme : ResourceScheme {
         );
     }
      // (but not if you auto-activate it)
-    explicit FolderResourceScheme (const SharedString& n, const IRI& f) :
-        FolderResourceScheme(f)
+    explicit FolderScheme (const SharedString& n, const IRI& f) :
+        FolderScheme(f)
     { activate(n); }
 
      // Construct with an OS path to a folder.
-    FolderResourceScheme (Str f) :
-        FolderResourceScheme(iri::from_filepath(cat(f, '/')))
+    FolderScheme (Str f) :
+        FolderScheme(iri::from_filepath(cat(f, '/')))
     { }
      // (with auto-activate)
-    explicit FolderResourceScheme (const SharedString& n, Str f) :
-        FolderResourceScheme(f)
+    explicit FolderScheme (const SharedString& n, Str f) :
+        FolderScheme(f)
     { activate(n); }
 };
 
  // Mixin to disable saving
 template <class Base>
-struct UnsaveableResourceScheme : Base {
+struct UnsaveableScheme : Base {
     using Base::Base;
     virtual bool allows_save (const IRI&) override { return false; }
 };

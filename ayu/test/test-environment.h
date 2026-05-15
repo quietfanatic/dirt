@@ -5,8 +5,8 @@
 #include "../resources/scheme.h"
 
 namespace ayu::test {
-    struct TestResourceScheme : FolderResourceScheme {
-        using FolderResourceScheme::FolderResourceScheme;
+    struct TestScheme : FolderScheme {
+        using FolderScheme::FolderScheme;
         bool accepts_type (Type type) override {
             return type == Type::of<Collection>()
                 || type == Type::of<i32>();
@@ -16,11 +16,11 @@ namespace ayu::test {
         }
     };
     struct TestEnvironment {
-        std::unique_ptr<TestResourceScheme> trs;
+        std::unique_ptr<TestScheme> trs;
         TestEnvironment () {
             auto testdir = IRI("res/dirt/ayu/test", iri::program_location());
             require(testdir);
-            trs = std::make_unique<TestResourceScheme>(
+            trs = std::make_unique<TestScheme>(
                 "ayu-test", iri::to_filepath(testdir)
             );
         }

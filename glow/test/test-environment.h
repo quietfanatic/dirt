@@ -12,7 +12,7 @@ namespace glow::test {
 
 struct TestEnvironment {
     IVec size;
-    ayu::FolderResourceScheme test_scheme;
+    ayu::FolderScheme test_scheme;
     ayu::ResourceExtension ayu_extension;
     glow::FileImageExtension qoi_extension;
     wind::Window window;
