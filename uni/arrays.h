@@ -543,7 +543,6 @@ struct ArrayInterface {
             set_copy(o, len);
         }
         else {
-             // TODO: reinterpret same-size integers?
             static_assert(
                 ac::mut_default
                     ? std::is_same_v<T2, T>
@@ -585,7 +584,6 @@ struct ArrayInterface {
             set_copy(o, len-1);
         }
         else {
-             // TODO: reinterpret between same-size chars?
             static_assert(std::is_same_v<T2, T>,
                 "Cannot construct borrowed string from raw C array if their "
                 "element types do not match exactly."
@@ -1589,9 +1587,8 @@ struct ArrayInterface {
 
      // Multiple-element insert.  If any of the iterator operators or the copy
      // constructor throw, the program will crash.  This is the one exception to
-     // the mostly-strong exception guarantee.  TODO: we can probably fix this;
-     // copy_fill already destructs the copied elements, so we'd just have to
-     // move the tail back.
+     // the mostly-strong exception guarantee.  We could fix this but it's too
+     // rare to be worth the extra code.
     template <ArrayIterator Ptr>
     void insert (usize offset, Ptr p, usize s) requires (
         ac::supports_owned
@@ -2384,9 +2381,9 @@ bool operator== (
     }
 }
 
- // I can't be bothered to learn what <=> is supposed to return.  They should
- // have just made it int.  TODO: We actually need to work with the difference
- // between partial ordering and strong ordering to support floats.
+ // operator<=> can return any of std::strong_ordering, std::weak_ordering, and
+ // std::partial_ordering.  Comparing an array yields the same type as comparing
+ // an element of the array.
 template <class ac, class T, class B>
 constexpr auto operator<=> (
     const ArrayInterface<ac, T>& a, const B& b
@@ -2403,9 +2400,9 @@ constexpr auto operator<=> (
         ++ad, ++bd
     ) {
         auto res = *ad <=> *bd;
-        if (res != (0 <=> 0)) return res;
+        if (res != decltype(res)(0 <=> 0)) return res;
     }
-    return as <=> bs;
+    return decltype(*ad <=> *bd)(as <=> bs);
 }
 template <class ac, class T, usize len> constexpr
 auto operator<=> (
@@ -2422,9 +2419,9 @@ auto operator<=> (
         ++ad, ++bd
     ) {
         auto res = *ad <=> *bd;
-        if (res != (0 <=> 0)) return res;
+        if (res != decltype(res)(0 <=> 0)) return res;
     }
-    return as <=> bs;
+    return decltype(*ad <=> *bd)(as <=> bs);
 }
 
 template <class ac, class T> constexpr
