@@ -82,6 +82,8 @@ constexpr usize hash (const T& v) {
     else static_assert(sizeof(usize) == 8 || sizeof(usize) == 4);
 }
 
+///// HASH COMBINING
+
  // Returns a hash with only the given number of bits.  Any higher bits are 0.
 template <class T>
 constexpr T hash_fold (T h, u8 bits) {
@@ -97,5 +99,14 @@ template <class T>
 constexpr T hash_combine (T a, T b) {
     return a * 3 + b;
 }
+
+///// UTILITY
+
+ // Store a hash along with an object
+template <class T>
+struct Hashed {
+    usize hash;
+    T value;
+};
 
 } // namespace uni
