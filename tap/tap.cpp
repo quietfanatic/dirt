@@ -14,7 +14,6 @@ uni::UniqueArray<const TestSet*>& testers () {
     return testers;
 }
 
- // TODO: move to StringConversion
 uni::UniqueString type_name (const std::type_info& type) {
 #if __has_include(<cxxabi.h>)
     int status;
@@ -104,7 +103,7 @@ void done_testing () {
     plan(in::num_tested);
 }
 
-bool ok_bool (bool succeeded, uni::Str name) {
+bool ok (bool succeeded, uni::Str name) {
     in::num_tested += 1;
     if (!succeeded) in::num_failed += 1;
     uni::UniqueString suffix;

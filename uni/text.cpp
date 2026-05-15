@@ -4,48 +4,6 @@
 
 namespace uni {
 
-static
-const char* find_first_difference (const char* a, const char* b, const char* ae) {
-    auto aem8 = ae - 8;
-    if (a <= aem8) {
-        u64 av;
-        u64 bv;
-        while (a < aem8) {
-            std::memcpy(&av, a, 8);
-            std::memcpy(&bv, b, 8);
-            if (av != bv) {
-                different_u64s:
-                int same_bits;
-                if constexpr (std::endian::native == std::endian::little) {
-                    same_bits = std::countr_zero(av ^ bv);
-                }
-                else {
-                    same_bits = std::countl_zero(av ^ bv);
-                }
-                expect(same_bits < 64);
-                auto same_bytes = same_bits >> 3;
-                expect(a + same_bytes < ae);
-                return a + same_bytes;
-            }
-            a += 8;
-            b += 8;
-        }
-        b += aem8 - a;
-        a = aem8;
-        std::memcpy(&av, a, 8);
-        std::memcpy(&bv, b, 8);
-        if (av != bv) goto different_u64s;
-        return ae;
-    }
-    #pragma GCC unroll 0
-    while (a < ae) {
-        if (*a != *b) return a;
-        a += 1;
-        b += 1;
-    }
-    return ae;
-}
-
 ALWAYS_INLINE static
 bool digit (char a) { return a >= '0' && a <= '9'; }
 
@@ -71,7 +29,7 @@ int natural_compare (Str a, Str b) noexcept {
      // Use a faster algorithm to find the first difference, then work from
      // there.
     auto ae = a.begin() + (a.size() <= b.size() ? a.size() : b.size());
-    auto ap = find_first_difference(a.begin(), b.begin(), ae);
+    auto ap = a.begin() + mem_first_difference(a.begin(), b.begin(), ae - a.begin());
     if (ap == ae) {
          // Didn't find a difference, so the longer side is after.
         return (a.size() > b.size()) - (a.size() < b.size());

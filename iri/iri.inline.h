@@ -131,7 +131,9 @@ struct ConstexprValidator {
         in += 2;
         while (in < end) switch (char_behavior(*in)) {
             case CharProps::Ordinary:
-                 // TODO: must be lowercase
+                if (*in >= 'A' && *in <= 'Z') {
+                    ERROR_canonical_authority_must_be_lowercase();
+                }
                 in++; break;
             case CharProps::Slash:
                 authority_end = in - begin;
@@ -289,6 +291,7 @@ struct ConstexprValidator {
     [[noreturn]] static void ERROR_character_must_canonically_not_be_percent_encoded () { never(); }
     [[noreturn]] static void ERROR_canonical_percent_sequence_must_be_uppercase () { never(); }
     [[noreturn]] static void ERROR_canonical_scheme_must_be_lowercase () { never(); }
+    [[noreturn]] static void ERROR_canonical_authority_must_be_lowercase () { never(); }
     [[noreturn]] static void ERROR_canonical_path_cannot_have_dot_or_dotdot () { never(); }
 };
 

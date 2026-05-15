@@ -140,7 +140,7 @@
 #include "buffers.h"
 #include "common.h"
 #include "copy-ref.h"
-#include "memeq.h"
+#include "mem.h"
 
 namespace uni {
 

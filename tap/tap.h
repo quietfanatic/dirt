@@ -106,10 +106,11 @@ void plan (unsigned num_tests);
 void done_testing ();
 
  // Run a test.  If succeeded is true, the test passes, otherwise it fails.
- // TODO: check if we need this wrapper
-bool ok_bool (bool succeeded, uni::Str name = "");
-template <class T>
-bool ok (T s, uni::Str n = "") { return ok_bool(!!s, n); }
+bool ok (bool succeeded, uni::Str name = "");
+
+template <class T>  // consider this an explicit conversion
+bool ok (T s, uni::Str n = "") { return ok(!!s, n); }
+
  // The try_* versions of testing functions fail if the code throws an exception.
  // Otherwise, they behave like the non-try versions with the returned result.
 template <class F>

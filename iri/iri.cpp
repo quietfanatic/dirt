@@ -2,6 +2,7 @@
 
 #include "../uni/assertions.h"
 #include "../uni/strings.h"
+#include "../uni/mem.h"
 
 namespace iri {
 using namespace in;
@@ -416,22 +417,34 @@ IRI in::parse_and_canonicalize (Str ref, const IRI& base) noexcept {
     );
 }
 
+ // These branches are more heavyweight so isolate them
 NOINLINE static
-SharedString examine_hierarchical_path (const IRI& self, const IRI& base) {
-    u32 tail = self.authority_end + 1;
-    u32 i;
-    for (
-        i = self.authority_end + 1;
-        i < self.path_end && i < base.path_end;
-        i++
-    ) {
-        if (self.spec_[i] != base.spec_[i]) goto found_difference;
-        else if (self.spec_[i] == '/') tail = i + 1;
+SharedString relative_to_in_path (const IRI& self, const IRI& base, u32 diff) {
+     // Undo the s-1 cheat
+    if (diff < base.spec_.size() && self.spec_[diff] == base.spec_[diff]) diff += 1;
+     // Search backwards for the last /.  We know there is one.
+    u32 tail = diff;
+    while (self.spec_[tail-1] != '/') tail--;
+    if (diff < self.path_end && diff < base.path_end) {
+         // Okay the paths are different, so count how many extra segments are
+         // in the base, and prepend that many ../s.
+        u32 dotdots = 0;
+        for (u32 i = diff; i < base.path_end; i++) {
+            if (base.spec_[i] == '/') dotdots++;
+        }
+        usize cap = dotdots * 3 + (self.spec_.size() - tail);
+        expect(cap < UniqueString::max_size_);
+        auto r = UniqueString(Capacity(cap));
+        for (u32 i = 0; i < dotdots; i++) {
+            r.append_expect_capacity("../");
+        }
+        r.append_expect_capacity(self.spec_.slice(tail));
+        return r;
     }
-     // Okay, the paths are identical.  Return the last segment.
-    if (tail != self.path_end) {
-         // BUT if it contains : we need to prepend ./ so it isn't
-         // interpreted as a scheme.
+    else if (tail != self.path_end) {
+         // Okay the paths are identical.  Return the last segment.  BUT if it
+         // contains : we need to prepend ./ so it isn't interpreted as a
+         // scheme.
         for (usize i = tail; i < self.path_end; i++) {
             if (self.spec_[i] == '/') break;
             else if (self.spec_[i] == ':') {
@@ -446,21 +459,6 @@ SharedString examine_hierarchical_path (const IRI& self, const IRI& base) {
          // we're supposed to return . then.
         return ".";
     }
-    found_difference:
-     // Okay the paths are different, so count how many extra segments are
-     // in the base, and prepend that many ../s.
-    u32 dotdots = 0;
-    for (; i < base.path_end; i++) {
-        if (base.spec_[i] == '/') dotdots++;
-    }
-    usize cap = dotdots * 3 + (self.spec_.size() - tail);
-    expect(cap < UniqueString::max_size_);
-    auto r = UniqueString(Capacity(cap));
-    for (u32 i = 0; i < dotdots; i++) {
-        r.append_expect_capacity("../");
-    }
-    r.append_expect_capacity(self.spec_.slice(tail));
-    return r;
 }
 
 SharedString IRI::relative_to (const IRI& base) const noexcept {
@@ -479,11 +477,8 @@ SharedString IRI::relative_to (const IRI& base) const noexcept {
     u32 s = spec_.size() - 1;
     u32 bs = base.spec_.size();
     if (bs < s) s = bs;
-    u32 diff;
     expect(s > 0); // valid IRI is always at least two bytes
-    for (diff = 0; diff < s; diff++) {
-        if (spec_[diff] != base.spec_[diff]) break;
-    }
+    u32 diff = mem_first_difference(spec_.data(), base.spec_.data(), s);
      // We don't need to check for the existence of components, because if a
      // component doesn't exist its size will be 0, so there's no room for diff
      // to be inside of it (unless it's at the end, but the end won't be
@@ -508,8 +503,7 @@ SharedString IRI::relative_to (const IRI& base) const noexcept {
              // Non-hierchical paths can't be chopped any further.
             goto return_everything;
         }
-         // TODO: reuse diff for this
-        else return examine_hierarchical_path(*this, base);
+        else return relative_to_in_path(*this, base, diff);
     }
     else if (diff >= scheme_end && base.scheme_end == scheme_end) {
         tail = scheme_end + 1; // skip the :
