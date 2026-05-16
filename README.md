@@ -20,7 +20,7 @@ into its own repo.  So far there is:
  - glow: Image loading and some thin wrappers around OpenGL objects for use with
    ayu.
  - snd: Some audio codecs and a simple stereo mixer.
- - control: A text command system made to work with ayu.
+ - cmd: A text command system made to work with ayu.
  - whereami: Get the directory of the executable.
    From https://github.com/gpakosz/whereami
  - wind: A simple SDL\_Window wrapper, some types to represent keyboard and

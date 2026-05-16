@@ -7,7 +7,7 @@
 #include "args-tuple.h"
 #include "registry.internal.h"
 
-namespace control {
+namespace cmd {
 using namespace uni;
 
 ///// COMMAND
@@ -108,49 +108,49 @@ template <class Cmd, class Ret, class Ctx>
 constinit CommandBase<Cmd, Ret(Ctx)>::Registry CommandBase<Cmd, Ret(Ctx)>::registry;
 
  // Tried to get a command that doesn't exist in this domain
-constexpr uni::ErrorCode e_CommandNotFound = "control::e_CommandNotFound";
+constexpr uni::ErrorCode e_CommandNotFound = "cmd::e_CommandNotFound";
 
-} // control
+} // cmd
 
 ///// MACROS
 
 #ifdef __GNUC__
-#define CONTROL_REGISTER_COMMAND(cmd) \
-[[gnu::constructor]] static inline void _control_init_##cmd () { cmd.init(); }
+#define CMD_REGISTER_COMMAND(cmd) \
+[[gnu::constructor]] static inline void CMD_init_##cmd () { cmd.init(); }
 #else
-#define CONTROL_REGISTER_COMMAND(cmd) \
-[[maybe_unused]] static inline const bool _control_init_##cmd = (cmd.init(), false);
+#define CMD_REGISTER_COMMAND(cmd) \
+[[maybe_unused]] static inline const bool CMD_init_##cmd = (cmd.init(), false);
 #endif
 
-#define CONTROL_COMMAND_FUNCTION_NAME(Cmd, name, f, min, ...) \
-constexpr Cmd _control_command_##f = \
+#define CMD_COMMAND_FUNCTION_NAME(Cmd, name, f, min, ...) \
+constexpr Cmd CMD_command_##f = \
     Cmd::function<&f, min>(name __VA_OPT__(,) __VA_ARGS__); \
-CONTROL_REGISTER_COMMAND(_control_command_##f)
+CMD_REGISTER_COMMAND(CMD_command_##f)
 
-#define CONTROL_COMMAND_FUNCTION(Cmd, f, min, ...) \
-    CONTROL_COMMAND_FUNCTION_NAME(Cmd, #f, f, min, __VA_ARGS__)
+#define CMD_COMMAND_FUNCTION(Cmd, f, min, ...) \
+    CMD_COMMAND_FUNCTION_NAME(Cmd, #f, f, min, __VA_ARGS__)
 
-#define CONTROL_COMMAND_COLLAPSE_NAME(Cmd, name, f, ...) \
-constexpr Cmd _control_command_##f = \
+#define CMD_COMMAND_COLLAPSE_NAME(Cmd, name, f, ...) \
+constexpr Cmd CMD_command_##f = \
     Cmd::collapse<&f>(name __VA_OPT__(,) __VA_ARGS__); \
-CONTROL_REGISTER_COMMAND(_control_command_##f)
+CMD_REGISTER_COMMAND(CMD_command_##f)
 
-#define CONTROL_COMMAND_COLLAPSE(Cmd, f, ...) \
-    CONTROL_COMMAND_COLLAPSE_NAME(Cmd, #f, f, __VA_ARGS__)
+#define CMD_COMMAND_COLLAPSE(Cmd, f, ...) \
+    CMD_COMMAND_COLLAPSE_NAME(Cmd, #f, f, __VA_ARGS__)
 
-#define CONTROL_COMMAND_METHOD_NAME(Cmd, name, Inv, m, min, ...) \
-constexpr Cmd _control_command_##m = \
+#define CMD_COMMAND_METHOD_NAME(Cmd, name, Inv, m, min, ...) \
+constexpr Cmd CMD_command_##m = \
     Cmd::function<&Inv::m, min>(name __VA_OPT__(,) __VA_ARGS__); \
-CONTROL_REGISTER_COMMAND(_control_command_##m)
+CMD_REGISTER_COMMAND(CMD_command_##m)
 
-#define CONTROL_COMMAND_METHOD(Cmd, Inv, m, min, ...) \
-    CONTROL_COMMAND_METHOD_NAME(Cmd, #m, Inv, m, min, __VA_ARGS__)
+#define CMD_COMMAND_METHOD(Cmd, Inv, m, min, ...) \
+    CMD_COMMAND_METHOD_NAME(Cmd, #m, Inv, m, min, __VA_ARGS__)
 
-#define CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, name, Inv, m, ...) \
-constexpr Cmd _control_command_##m = \
+#define CMD_COMMAND_METHOD_COLLAPSE_NAME(Cmd, name, Inv, m, ...) \
+constexpr Cmd CMD_command_##m = \
     Cmd::collapse<&Inv::m>(name __VA_OPT__(,) __VA_ARGS__); \
-CONTROL_REGISTER_COMMAND(_control_command_##m)
+CMD_REGISTER_COMMAND(CMD_command_##m)
 
-#define CONTROL_COMMAND_METHOD_COLLAPSE(Cmd, Inv, m, ...) \
-    CONTROL_COMMAND_METHOD_COLLAPSE_NAME(Cmd, #m, Inv, m, __VA_ARGS__)
+#define CMD_COMMAND_METHOD_COLLAPSE(Cmd, Inv, m, ...) \
+    CMD_COMMAND_METHOD_COLLAPSE_NAME(Cmd, #m, Inv, m, __VA_ARGS__)
 

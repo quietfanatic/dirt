@@ -7,7 +7,7 @@
 #include "../ayu/reflection/describe-standard.h"
 #include "../ayu/reflection/type.h"
 
-namespace control {
+namespace cmd {
 using namespace uni;
 
 ///// STATEMENT
@@ -44,38 +44,38 @@ struct Statement {
     }
 };
 
-} // control
+} // cmd
 
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(class Cmd),
-    AYU_DESCRIBE_TEMPLATE_TYPE(control::Statement<Cmd>),
+    AYU_DESCRIBE_TEMPLATE_TYPE(cmd::Statement<Cmd>),
     desc::computed_name([]()->uni::SharedString{
         return ayu::in::make_template_name_1(
-            "control::Statement<", ayu::Type::of<Cmd>()
+            "cmd::Statement<", ayu::Type::of<Cmd>()
         );
     }),
-    desc::to_tree([](const control::Statement<Cmd>& v){
+    desc::to_tree([](const cmd::Statement<Cmd>& v){
         if (!v.args) return ayu::Tree::array();
         else return ayu::Tree();
     }),
-    desc::from_tree([](control::Statement<Cmd>& v, const ayu::Tree& t){
+    desc::from_tree([](cmd::Statement<Cmd>& v, const ayu::Tree& t){
         v = {};
         return !uni::Slice<ayu::Tree>(t);
     }),
     desc::elems(
         desc::elem(desc::template funcs(
-            [](const control::Statement<Cmd>& v)->uni::SharedString{
+            [](const cmd::Statement<Cmd>& v)->uni::SharedString{
                 if (!v) return "";
                 return v.command->name;
             },
-            [](control::Statement<Cmd>& v, uni::Str m){
+            [](cmd::Statement<Cmd>& v, uni::Str m){
                 v = {};
                 v.command = Cmd::get(m);
                 v.args = ayu::dynamic_default_new(v.command->args_type);
             }
         )),
         desc::elem(desc::anyptr_func(
-            [](control::Statement<Cmd>& v){
+            [](cmd::Statement<Cmd>& v){
                 if (!v) return ayu::AnyPtr();
                 return ayu::AnyPtr(v.command->args_type, (ayu::Mu*)v.args);
             }

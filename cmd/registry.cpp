@@ -3,7 +3,7 @@
 #include "../uni/io.h"
 #include "command-base.h"
 
-namespace control::in {
+namespace cmd::in {
 
 struct UnknownCommand : CommandBase<UnknownCommand> { };
 
@@ -45,14 +45,14 @@ const void* get_command (const void* registry, Str name) {
     else raise_CommandNotFound(name);
 }
 
-} // control
+} // cmd
 
 #ifndef TAP_DISABLE_TESTS
 #include "statement.h"
 #include "../ayu/reflection/describe-base.h"
 #include "../ayu/traversal/from-tree.h"
 
-namespace control::test {
+namespace cmd::test {
 
 struct TestCommand : CommandBase<TestCommand, void(int&)> {
     using CommandBase<TestCommand, void(int&)>::CommandBase;
@@ -62,15 +62,15 @@ using TestStatement = Statement<TestCommand>;
 void test (int& out, int in) {
     out = in;
 }
-CONTROL_COMMAND_FUNCTION(TestCommand, test, 1)
+CMD_COMMAND_FUNCTION(TestCommand, test, 1)
 
-} // control::test
+} // cmd::test
 
-AYU_DESCRIBE(control::test::TestCommand)
+AYU_DESCRIBE(cmd::test::TestCommand)
 
-static tap::TestSet tests ("dirt/control/registry", []{
+static tap::TestSet tests ("dirt/cmd/registry", []{
     using namespace tap;
-    using namespace control::test;
+    using namespace cmd::test;
     int result = 0;
     TestStatement st;
     ayu::item_from_string(&st, "[test 444]");

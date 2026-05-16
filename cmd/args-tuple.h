@@ -4,7 +4,7 @@
 #include "../uni/common.h"
 #include "../ayu/reflection/describe-standard.h"
 
-namespace control {
+namespace cmd {
 using namespace uni;
 
 ///// ARGS TUPLE
@@ -198,21 +198,21 @@ struct ArgsTupleElems {
 SharedString make_ArgsTuple_name (i32 min, StaticArray<ayu::Type> types) {
     expect(types);
     return cat(
-        "control::ArgsTuple<", min, ", ",
+        "cmd::ArgsTuple<", min, ", ",
         Caterator(", ", types.size(), [types](u32 i){
             return expect(types[i].name());
         }), '>'
     );
 }
 
-} // namespace control
+} // cmd
 
 AYU_DESCRIBE_TEMPLATE(
     AYU_DESCRIBE_TEMPLATE_PARAMS(uni::i32 min, class... Pars),
-    AYU_DESCRIBE_TEMPLATE_TYPE(control::ArgsTuple<min, Pars...>),
+    AYU_DESCRIBE_TEMPLATE_TYPE(cmd::ArgsTuple<min, Pars...>),
     []{
         if constexpr (sizeof...(Pars) == 0) {
-            return desc::name("control::ArgsTuple<0>");
+            return desc::name("cmd::ArgsTuple<0>");
         }
         else {
             return desc::computed_name([]()->uni::SharedString{
@@ -220,13 +220,13 @@ AYU_DESCRIBE_TEMPLATE(
                 static constexpr const ayu::Type types [] = {
                     ayu::Type::constexpr_of<Pars>()...
                 };
-                return control::make_ArgsTuple_name(
+                return cmd::make_ArgsTuple_name(
                     min, uni::StaticArray<ayu::Type>(types)
                 );
             });
         }
     }(),
-    control::ArgsTupleElems<min, Pars...>::make(
+    cmd::ArgsTupleElems<min, Pars...>::make(
         std::index_sequence_for<Pars...>{}
     )
 )
