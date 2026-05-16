@@ -390,10 +390,10 @@ const Pair<AnyPtr, SharedRoute>* search_route_cache (AnyPtr item) {
         u32 mid = (top + bottom) / 2;
         auto& e = route_cache[mid];
         if (e.first.address == item.address) {
-            Type aa = e.first.type();
-            Type bb = item.type();
-            if (aa == bb) return &e;
-            bool up = aa < bb;
+            Type at = e.first.type();
+            Type bt = item.type();
+            if (at == bt) return &e;
+            bool up = at < bt;
             if (up) bottom = mid + 1;
             if (!up) top = mid;
         }

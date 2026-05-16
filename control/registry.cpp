@@ -30,12 +30,14 @@ NOINLINE
 const void* lookup_command (const void* registry, Str name) noexcept {
     auto reg = (const UnknownCommand::Registry*)registry;
     auto hash = uni::hash(name);
+     // We could possibly use a binary search, but it isn't worth the extra
+     // complexity.  This isn't particularly performance-critical.
     for (auto [h, c] : *reg) {
         if (hash == h && name == c->name) {
             return c;
         }
     }
-    return null;
+    [[unlikely]] return null;
 }
 
 const void* get_command (const void* registry, Str name) {
