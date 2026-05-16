@@ -8,7 +8,7 @@
 
 union SDL_Event;
 
-namespace control {
+namespace wind {
 using namespace uni;
 
 enum class InputType : u8 {
@@ -65,4 +65,4 @@ i32 input_to_integer (Input i) noexcept;
 Input input_from_string (Str c);
 StaticString input_to_string (Input i);
 
-} // namespace control
+} // wind

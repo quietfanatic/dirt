@@ -6,7 +6,7 @@
 #include "../ayu/reflection/describe.h"
 #include "../uni/hash.h"
 
-namespace control {
+namespace wind {
 
 Input input_from_event (SDL_Event* event) noexcept {
     Input r;
@@ -478,14 +478,14 @@ static bool input_from_tree_no_modifiers (InputNoModifiers& input, const ayu::Tr
     }
 }
 
-} using namespace control;
+} using namespace wind;
 
-AYU_DESCRIBE(control::Input,
+AYU_DESCRIBE(wind::Input,
     to_tree(&input_to_tree),
     from_tree(&input_from_tree)
 )
 
-AYU_DESCRIBE(control::InputNoModifiers,
+AYU_DESCRIBE(wind::InputNoModifiers,
     to_tree(&input_to_tree_no_modifiers),
     from_tree(&input_from_tree_no_modifiers)
 )
@@ -495,7 +495,7 @@ AYU_DESCRIBE(control::InputNoModifiers,
 #include "../ayu/traversal/from-tree.h"
 #include "../ayu/traversal/to-tree.h"
 
-static tap::TestSet tests ("dirt/control/input", []{
+static tap::TestSet tests ("dirt/wind/input", []{
     using namespace tap;
 
     auto test2 = [](Str s, Input expect, Str s2){

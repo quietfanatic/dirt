@@ -5,12 +5,11 @@ This is a collection of random useful C++ libraries, with a focus on performance
 and usability.  There isn't much documentation because I only just split it off
 into its own repo.  So far there is:
 
- - tap: A testing library for the Test Anything Protocol.  Does not depend on
-   anything else in this repo.
  - uni: Some random universal stuff that doesn't depend on anything else,
    including array and string classes that are faster than the STL's, a tiny
    callback reference type, modern assertions, and UTF-8/UTF-16 conversion
    routines.
+ - tap: A testing library for the Test Anything Protocol.
  - iri: A lightweight International Resource Identifier (Unicode URI) class.
  - ayu: A data language, a C++ reflection and serialization system, and a
    resource management system.
@@ -20,12 +19,12 @@ into its own repo.  So far there is:
    customize it to mean whatever you want.
  - glow: Image loading and some thin wrappers around OpenGL objects for use with
    ayu.
- - snd: Some audio codecs.
- - control: Types representing keyboard and mouse inputs, and a command system,
-   all made to work with ayu and SDL2.
+ - snd: Some audio codecs and a simple stereo mixer.
+ - control: A text command system made to work with ayu.
  - whereami: Get the directory of the executable.
    From https://github.com/gpakosz/whereami
- - wind: A thin wrapper around SDL\_Window for use with ayu.
+ - wind: A simple SDL\_Window wrapper, some types to represent keyboard and
+   mouse input, and some step-draw loops, made to work with ayu and SDL2.
 
 ### BUILDING AND USAGE
 
