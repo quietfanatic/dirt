@@ -31,7 +31,7 @@ into its own repo.  So far there is:
 These are things I made to scratch my own itches.  You can use them if you want
 but the interface and organization are subject to change without notice.
 
-Most of the code here requires C++20.
+Most of the code here requires C++23.
 
 This repo has no build workflow of its own yet.  I've been using it with gcc,
 but it might compile with clang and msvc with a little work.
