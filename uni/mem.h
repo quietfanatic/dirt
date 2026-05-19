@@ -1,6 +1,5 @@
 #pragma once
 #include "common.h"
-#include <type_traits> // is_constant_evaluated
 #include <cstring>
 
 namespace uni {
@@ -41,13 +40,15 @@ bool memeq (const void* a, const void* b, usize s) {
 #if defined(__amd64__) || defined(__aarch64__) || defined(_M_X64) || defined(_M_ARM64)
      // The ordinary algorithm can't be constexpr because of reinterpret_casts,
      // but std::memcmp gets special treatment to be constexpr.
-    if (std::is_constant_evaluated()) {
+    if consteval {
 #else
     if (true) {
 #endif
         return s == 0 || std::memcmp(a, b, s) == 0;
     }
-    else return in::memeq_internal((const char*)a, (const char*)b, s);
+    else {
+        return in::memeq_internal((const char*)a, (const char*)b, s);
+    }
 }
 
  // Get the index of the first character that's different between the two
@@ -55,14 +56,16 @@ bool memeq (const void* a, const void* b, usize s) {
 ALWAYS_INLINE constexpr
 usize mem_first_difference (const char* a, const char* b, usize s) {
 #if defined(__amd64__) || defined(__aarch64__) || defined(_M_X64) || defined(_M_ARM64)
-    if (std::is_constant_evaluated()) {
+    if consteval {
 #else
     if (true) {
 #endif
         for (usize i = 0; i < s && a[i] == b[i]; i++);
         return s;
     }
-    else return in::mem_first_difference_internal(a, b, a + s) - a;
+    else {
+        return in::mem_first_difference_internal(a, b, a + s) - a;
+    }
 }
 
 } // uni

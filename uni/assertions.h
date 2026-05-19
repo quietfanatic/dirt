@@ -11,7 +11,7 @@ void abort_assertion_failed (
     std::source_location = std::source_location::current()
 ) noexcept;
 
- // Aborts if the condition isn't true in all build configurations.
+ // Aborts if the argument isn't truthy.
 template <class T> ALWAYS_INLINE static constexpr
 T&& require (
     T&& v, std::source_location loc = std::source_location::current()
@@ -28,7 +28,8 @@ T&& require (
  // This is more likely if there are many expect()s in a row, or if the return
  // value is used, or if there's a branch in the argument that's similar to
  // another branch outside (which can affect that branch even if the argument is
- // optimizaed away).
+ // optimized away).  TODO: check if this is still the case now that we're using
+ // [[assume]] internally.
  //
  // If you want to have a debug assert that completely disappears in release
  // builds, then just use assert().
