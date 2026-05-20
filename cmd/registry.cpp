@@ -48,7 +48,7 @@ const void* get_command (const void* registry, Str name) {
 } // cmd
 
 #ifndef TAP_DISABLE_TESTS
-#include "statement.h"
+#include "instruction.h"
 #include "../ayu/reflection/describe-base.h"
 #include "../ayu/traversal/from-tree.h"
 
@@ -57,7 +57,7 @@ namespace cmd::test {
 struct TestCommand : CommandBase<TestCommand, void(int&)> {
     using CommandBase<TestCommand, void(int&)>::CommandBase;
 };
-using TestStatement = Statement<TestCommand>;
+using TestInstruction = Instruction<TestCommand>;
 
 void test (int& out, int in) {
     out = in;
@@ -72,7 +72,7 @@ static tap::TestSet tests ("dirt/cmd/registry", []{
     using namespace tap;
     using namespace cmd::test;
     int result = 0;
-    TestStatement st;
+    TestInstruction st;
     ayu::item_from_string(&st, "[test 444]");
     st(result);
     is(result, 444, "Test command worked.");

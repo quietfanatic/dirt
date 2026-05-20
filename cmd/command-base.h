@@ -154,3 +154,4 @@ CMD_REGISTER_COMMAND(CMD_command_##m)
 #define CMD_COMMAND_METHOD_COLLAPSE(Cmd, Inv, m, ...) \
     CMD_COMMAND_METHOD_COLLAPSE_NAME(Cmd, #m, Inv, m, __VA_ARGS__)
 
+#define CMD_GET_COMMAND(cmd) CMD_command_##cmd

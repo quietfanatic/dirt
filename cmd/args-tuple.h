@@ -15,7 +15,7 @@ using namespace uni;
 template <u32 i, class Par>
 struct ArgsTupleHead {
     static_assert(!std::is_reference_v<Par>);
-    Par arg;
+    [[no_unique_address]] Par arg;
 };
 
 template <u32 i, class... Pars>
@@ -24,7 +24,7 @@ template <u32 i>
 struct ArgsTupleTail<i> {
     template <u32 n> static consteval
     auto member_pointer () {
-        static_assert((ArgsTupleTail*)null, "StatementStorage<...>::member_pointer<n> out of bounds");
+        static_assert((ArgsTupleTail*)null, "ArgsTuple<...>::member_pointer<n> out of bounds");
     }
 };
 
