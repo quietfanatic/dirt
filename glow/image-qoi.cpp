@@ -67,37 +67,26 @@ int decode_qoi (
                  // smallest runs, but I don't think it's worth the extra branch
                  // mispredictions.
                 u32 len = u32(*in) - 0b11000000 + 1;
-                RGBA8* real_end = out + len;
-                 // If we have extra room, we can round up the run length to a
-                 // multiple of 4 so the compiler can vectorize it without a
-                 // bunch of tail-cleanup branches.  It'd be simpler to
-                 // explicitly do 4 at a time, which could skip the rounding up
-                 // calculation, but then the compiler always makes a worse loop
-                 // (it seems to invent an integer loop count variable instead
-                 // of comparing pointers like we asked it to).
-                 //
-                 // Note that this two-loop setup is still more compact what the
-                 // compiler would generate if left to its own devices.  I wish
-                 // I had RISC-V vectors.
-                RGBA8* optimistic_end = out + ((len + 3) & ~3);
-                if (optimistic_end <= out_end) {
-                    expect(out < optimistic_end);
-                    while (out < optimistic_end) {
-                        (out++)->repr = px.repr;
+                RGBA8* run_end = out + len;
+                 // If we have extra room, do it four at a time.
+                if (run_end + 3 < out_end) [[likely]] {
+                    u32 four [4] = {px.repr, px.repr, px.repr, px.repr};
+                    do {
+                        std::memcpy(out, four, 16);
+                        out += 4;
                     }
-                    out = real_end;
+                    while (out < run_end);
+                    out = run_end;
                 }
-                else [[unlikely]] {
+                else {
                      // No extra room, so we have to be precise.
-                    if (real_end > out_end) [[unlikely]] break;
-                    expect(out < real_end);
+                    if (run_end > out_end) [[unlikely]] break;
                      // This should happen at most once or twice so don't unroll
                      // or vectorize it.
                     #pragma GCC unroll 0
                     #pragma GCC novector
-                    while (out < real_end) {
-                        (out++)->repr = px.repr;
-                    }
+                    do { (out++)->repr = px.repr; }
+                    while (out != run_end);
                 }
                 in += 1;
                 continue;
@@ -113,7 +102,7 @@ int decode_qoi (
             }
         }
         else {
-            if (*in >= 0b10000000) [[likely]] { // QOI_OP_LUMA
+            if (*in >= 0b10000000) { // QOI_OP_LUMA
                 i8 dg = *in - 0b10000000 - 32;
                 i8 dr_g = ((in[1] & 0b11110000) >> 4) - 8;
                 i8 db_g = ((in[1] & 0b00001111) >> 0) - 8;
@@ -191,12 +180,12 @@ u8* encode_qoi (u8*__restrict out, const ImageView&__restrict img) noexcept {
     RGBA8 history [64] = {};
     RGBA8 last = {0, 0, 0, 255};
 
-    loop:
+  loop:
      // First check for runs
     if (in->repr == last.repr) {
-        start_run:
+      start_run:
         u32 run = 0b11000000; // QOI_OP_RUN (this encodes length 1)
-        continue_run:
+      continue_run:
          // Bump pointer
         in += 1;
         if (in == in_end) [[unlikely]] {
@@ -271,7 +260,7 @@ u8* encode_qoi (u8*__restrict out, const ImageView&__restrict img) noexcept {
         goto next;
     }
 
-    next:
+  next:
      // Don't forget this!
     last.repr = in->repr;
      // Move pointer to the right

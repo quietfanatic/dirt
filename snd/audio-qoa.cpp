@@ -211,7 +211,7 @@ struct LMSState {
 };
 #endif
 
-static
+ALWAYS_INLINE static
 void qoa_decode_slice (
     LMSState&__restrict state, i16*__restrict out,
     const u8*__restrict in, u32 n_channels
@@ -221,7 +221,6 @@ void qoa_decode_slice (
     auto& table = residual_lookup[scalefactor_i];
     slice <<= 4;
     auto out_end = out + (20 * n_channels);
-    #pragma GCC unroll 0
     do {
          // Predict
         auto pred = state.predict();
@@ -258,7 +257,7 @@ struct DecodeFrameReturn {
     const u8* in;
 };
 
-static
+ALWAYS_INLINE static
 DecodeFrameReturn qoa_decode_frame (
     i16*__restrict out, const u8*__restrict in, u32 n_channels
 ) {
@@ -266,25 +265,27 @@ DecodeFrameReturn qoa_decode_frame (
     u32 n_samples = read_u16be(in + 4);
     in += 8; // header already validated
     expect(n_channels > 0 && n_channels <= 8);
-    #pragma GCC unroll 0
-    for (u32 c = 0; c < n_channels; c++) {
-        in = states[c].read(in);
-    }
+    u32 c = 0;
+    do { in = states[c].read(in); }
+    while (++c < n_channels);
      // Input is interleaved per-slice, output per-sample.
     expect(n_samples > 0);
-    #pragma GCC unroll 0
-    for (i32 s = n_samples; s > 0; s -= 20) {
-        #pragma GCC unroll 0
-        for (u32 c = 0; c < n_channels; c++) {
+    i32 s = n_samples;
+    do {
+        u32 c = 0;
+        do {
             qoa_decode_slice(states[c], out, in, n_channels);
             out += 1;
             in += 8;
-        }
+        } while (++c < n_channels);
         out += 19 * n_channels;
     }
+    while ((s -= 20) > 0);
     return {out, in};
 }
 
+ // If everything goes right, the compiler will specialize for n_channels=1.  At
+ // some point we might make that explicit with a template.
 NOINLINE static
 void qoa_decode_frames (
     i16*__restrict out, const u8*__restrict in,
@@ -293,8 +294,7 @@ void qoa_decode_frames (
     do {
         auto r = qoa_decode_frame(out, in, n_channels);
         out = r.out; in = r.in;
-        n_frames -= 1;
-    } while (n_frames);
+    } while (n_frames -= 1);
 }
 
 } using namespace in;
@@ -405,7 +405,6 @@ struct QOAEncoder {
         u32 best_scalefactor;
         LMSState best_state;
         u64 best_slice;
-        #pragma GCC unroll 0
         for (u32 sfi = 0; sfi < 16; sfi++) {
              // Start with previous scalefactor like reference encoder
             u32 scalefactor = (last_scalefactor + sfi) & 15;
@@ -415,7 +414,6 @@ struct QOAEncoder {
             u64 rank = 0;
             LMSState state = channel_state;
             expect(slice_samples > 0 && slice_samples <= 20);
-            #pragma GCC unroll 0
             for (u32 i = 0; i < slice_samples; i++) {
                  // Predict
                 auto prediction = state.predict();
@@ -491,13 +489,11 @@ struct QOAEncoder {
         out += 8;
          // Write predictor states
         expect(n_channels > 0 && n_channels <= 8);
-        #pragma GCC unroll 0
         for (u32 c = 0; c < n_channels; c++) {
             out = states[c].write(out);
         }
          // Now encode slices
         expect(frame_slices);
-        #pragma GCC unroll 0
         while (frame_slices) {
             u32 slice_samples = geo::min(samples_left, 20u);
             for (usize c = 0; c < n_channels; c++) {
@@ -517,7 +513,6 @@ struct QOAEncoder {
         u8*__restrict out, const i16*__restrict in,
         u8* out_end, const i16* in_end
     ) {
-        #pragma GCC unroll 0
         for (u32 c = 0; c < n_channels; c++) {
             states[c].init();
         }
@@ -525,7 +520,6 @@ struct QOAEncoder {
         write_u32be(out+4, samples_left);
         out += 8;
         expect(samples_left);
-        #pragma GCC unroll 0
         while (samples_left) {
             auto r = encode_frame(out, in);
             out = r.out; in = r.in;
