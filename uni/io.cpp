@@ -8,6 +8,8 @@
 #include "utf.h"
 #endif
 
+#include "strings.h"
+
 namespace uni {
 
 namespace in {

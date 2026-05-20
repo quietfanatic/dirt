@@ -1,6 +1,7 @@
 #include "errors.h"
 
 #include "io.h"
+#include "strings.h"
 
 namespace uni {
 using namespace in;

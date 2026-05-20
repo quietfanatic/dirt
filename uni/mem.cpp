@@ -59,8 +59,8 @@ bool in::memeq_internal (const char* a, const char* b, usize s) {
     else [[unlikely]] if (s) {
          // There isn't really anything satisfying to do here.  We're
          // prioritizing the speed of the longer strings, so here we're more
-         // concerned with register usage, code size, and branch predictor
-         // pressure than raw speed.
+         // concerned with code size and branch predictor pressure than raw
+         // speed.
 
          // Naive version
         //for (u32 i = 0; i < s; i++) {
@@ -78,7 +78,7 @@ bool in::memeq_internal (const char* a, const char* b, usize s) {
         //}
         //return a[0] == b[0];
 
-         // Branchless version (for noinline)
+         // Branchless version (for noinline; problematic when inlined)
         return !((a[s-1] ^ b[s-1])
                | (a[s>>1] ^ b[s>>1])
                | (a[0] ^ b[0]));
@@ -92,23 +92,11 @@ const char* in::mem_first_difference_internal (const char* a, const char* b, con
     if (a <= aem8) {
         u64 av;
         u64 bv;
+        #pragma GCC novector // really not necessary.
         while (a < aem8) {
             std::memcpy(&av, a, 8);
             std::memcpy(&bv, b, 8);
-            if (av != bv) {
-                different_u64s:
-                int same_bits;
-                if constexpr (std::endian::native == std::endian::little) {
-                    same_bits = std::countr_zero(av ^ bv);
-                }
-                else {
-                    same_bits = std::countl_zero(av ^ bv);
-                }
-                expect(same_bits < 64);
-                auto same_bytes = same_bits >> 3;
-                expect(a + same_bytes < ae);
-                return a + same_bytes;
-            }
+            if (av != bv) goto find_byte;
             a += 8;
             b += 8;
         }
@@ -116,8 +104,21 @@ const char* in::mem_first_difference_internal (const char* a, const char* b, con
         a = aem8;
         std::memcpy(&av, a, 8);
         std::memcpy(&bv, b, 8);
-        if (av != bv) goto different_u64s;
+        if (av != bv) goto find_byte;
         return ae;
+
+      find_byte:
+        u32 same_bits;
+        if constexpr (std::endian::native == std::endian::little) {
+            same_bits = std::countr_zero(av ^ bv);
+        }
+        else {
+            same_bits = std::countl_zero(av ^ bv);
+        }
+        expect(same_bits < 64);
+        u32 same_bytes = same_bits >> 3;
+        expect(a + same_bytes < ae);
+        return a + same_bytes;
     }
     #pragma GCC unroll 0
     while (a < ae) {
