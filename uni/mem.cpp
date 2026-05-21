@@ -38,7 +38,6 @@ bool in::memeq_internal (const char* a, const char* b, usize s) {
             b += 8;
         } while (a < ae);
          // Finish off with the possibly overlapping final eight bytes.
-         // Do a little math to save one register.
         std::memcpy(&av, ae, 8);
         std::memcpy(&bv, b + (ae - a), 8);
         return av == bv;
@@ -63,21 +62,23 @@ bool in::memeq_internal (const char* a, const char* b, usize s) {
          // speed.
 
          // Naive version
-        //for (u32 i = 0; i < s; i++) {
-        //    if (a[i] != b[i]) return false;
-        //}
-        //return true;
-
+        if (0) {
+            for (u32 i = 0; i < s; i++) {
+                if (a[i] != b[i]) return false;
+            }
+            return true;
+        }
          // Smallest version (for if we're inlined)
-        //if (s >= 2) {
-        //    u16 av;
-        //    u16 bv;
-        //    std::memcpy(&av, a + s - 2, 2);
-        //    std::memcpy(&bv, b + s - 2, 2);
-        //    if (av != bv) return false;
-        //}
-        //return a[0] == b[0];
-
+        if (0) {
+            if (s >= 2) {
+                u16 av;
+                u16 bv;
+                std::memcpy(&av, a + s - 2, 2);
+                std::memcpy(&bv, b + s - 2, 2);
+                if (av != bv) return false;
+            }
+            return a[0] == b[0];
+        }
          // Branchless version (for noinline; problematic when inlined)
         return !((a[s-1] ^ b[s-1])
                | (a[s>>1] ^ b[s>>1])

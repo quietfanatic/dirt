@@ -19,7 +19,7 @@ i32 adjust (char c) {
         return c == '/' ? 1 : 3;
     }
     else if (c == '\\') return 2;
-    else [[likely]] return u8(c) << 2; // leave 0 as 0
+    else [[likely]] return i32(u8(c)) << 2; // leave 0 as 0
 }
 
 ALWAYS_INLINE static
