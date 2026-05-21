@@ -29,7 +29,7 @@ struct Printer {
      // estimate-first-and-allocate-once strategy, but when the length
      // estimation gets complicated enough, it gets slower than reallocating.
     NOINLINE
-    char* extend (char* p, u32 more) {
+    char* extend (char* p, usize more) {
         char* old_begin = begin;
         char* new_begin = SharableBuffer<char>::allocate_plenty(
             p - old_begin + more
@@ -42,7 +42,7 @@ struct Printer {
         return p - old_begin + begin;
     }
 
-    char* reserve (char* p, u32 more) {
+    char* reserve (char* p, usize more) {
         if (p + more >= end) [[unlikely]] return extend(p, more);
         else return p;
     }
@@ -183,6 +183,7 @@ struct Printer {
         return self.print_string_s(p, s, &t);
     }
 
+    NOINLINE
     char* print_string_s (char* p, Str s, const Tree* t) {
         p = reserve(p, 2 + s.size());
         if (opts % O::Json) goto quoted;

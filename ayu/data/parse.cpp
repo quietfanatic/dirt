@@ -95,22 +95,22 @@ struct Parser {
 
     NOINLINE Str parse_word (const char* in) {
         const char* start = in;
+      next:
         in++; // First character already known to be part of word
-        while (in < end) {
-            if (char_continues_word(*in)) [[likely]] {
-                in++;
-            }
+      check:
+        if (in < end) {
+            if (char_continues_word(*in)) [[likely]] goto next;
             else if (*in == ':') {
                  // Allow :: for c++ types
-                if (in + 1 < end && in[1] == ':') {
-                    in += 2;
+                if (in + 2 < end && in[1] == ':' && char_term(in[2]) == CHAR_TERM_WORD) {
+                    in += 3;
+                    goto check;
                 }
-                else return Str(start, in);
             }
             else if (*in == '"') {
-                error(in, "\" cannot occur inside a word (is the first \" missing?)");
+                error(in, "\" cannot occur inside a word");
             }
-            else [[likely]] return Str(start, in);
+            else [[likely]];
         }
         return Str(start, in);
     }
@@ -173,7 +173,7 @@ struct Parser {
          // Forbid ending with a .
         if (num_end[0] == '.') {
             if (num_end + 1 >= word.end() ||
-                (num_end[1] & ~('a' & ~'A')) == (hex ? 'P' : 'E')
+                (num_end[1] | ('a' & ~'A')) == (hex ? 'p' : 'e')
             ) error(num_end, "Number cannot end with a dot.");
         }
         return parse_floating<hex>(word, r, minus);
@@ -336,17 +336,10 @@ struct Parser {
     NOINLINE static
     const char* got_array (Parser& self, const char* in, Tree& r) {
         if (!--self.shallowth) self.error(in, "Exceeded limit of 200 nested arrays/objects");
-        const char* start = in;
         in++;  // for the [
         in = self.skip_ws(in);
         UniqueArray<Tree> a;
         while (in < self.end) {
-            if (*in == '}') [[unlikely]] {
-                auto sp = self.get_source_pos(start);
-                self.error(in, cat(
-                    "Mismatch between [ at ", sp.line, ':', sp.col, " and }"
-                ));
-            }
             if (*in == ']') {
                 new (&r) Tree(move(a));
                 ++self.shallowth;
@@ -355,23 +348,16 @@ struct Parser {
             in = self.parse_term(in, a.emplace_back());
             in = self.skip_comma(in);
         }
-        self.error(in, "Missing ] before end of input");
+        self.error(in, "Missing ]");
     }
 
     NOINLINE static
     const char* got_object (Parser& self, const char* in, Tree& r) {
         if (!--self.shallowth) self.error(in, "Exceeded limit of 200 nested arrays/objects");
-        const char* start = in;
         in++;  // for the {
         in = self.skip_ws(in);
         UniqueArray<TreePair> o;
         while (in < self.end) {
-            if (*in == ']') [[unlikely]] {
-                auto sp = self.get_source_pos(start);
-                self.error(in, cat(
-                    "Mismatch between { at ", sp.line, ':', sp.col, " and ]"
-                ));
-            }
             if (*in == '}') {
                 new (&r) Tree(move(o));
                 ++self.shallowth;
@@ -383,19 +369,19 @@ struct Parser {
                 self.error(in, "Can't use non-string as key in object");
             }
             in = self.skip_ws(in);
-            if (in >= self.end) goto not_terminated;
+            if (in >= self.end) break;
             if (*in == ':') in++;
             else [[unlikely]] {
                 self.check_error_chars(in);
                 self.error(in, "Missing : after name in object");
             }
             in = self.skip_ws(in);
-            if (in >= self.end) goto not_terminated;
+            if (in >= self.end) break;
             Tree& value = o.emplace_back(SharedString(move(key)), Tree()).second;
             in = self.parse_term(in, value);
             in = self.skip_comma(in);
         }
-        not_terminated: self.error(in, "Missing } before end of input");
+        self.error(in, "Missing }");
     }
 
 ///// SHORTCUTS
@@ -444,40 +430,38 @@ struct Parser {
 
 ///// NON-SEMANTIC CONTENT
 
-    const char* skip_comment (const char* in) {
-        in += 2;  // for two -s
+    template <bool comma> NOINLINE static
+    const char* skip_ws_comma (const char* in, const char* end) {
         while (in < end) {
-            if (*in++ == '\n') break;
-        }
-        return in;
-    }
-
-    const char* skip_ws_inline (const char* in) {
-        while (in < end) {
-            if (char_is_ws(*in)) {
+            if (char_is_ws(*in)) [[likely]] {
                 in++;
+                continue;
             }
             else if (*in == '-') [[unlikely]] {
                 if (in + 1 < end && in[1] == '-') {
-                    in = skip_comment(in);
+                    in += 2;
+                     // Unrolling/vectorizing this just isn't worth it.
+                    #pragma GCC unroll 0
+                    #pragma GCC novector
+                    while (in < end) { if (*in++ == '\n') break; }
                 }
-                else return in;
+                else break;
             }
-            else return in;
+            else if (comma && *in == ',') {
+                in++;
+                return skip_ws_comma<false>(in, end);
+            }
+            else break;
         }
         return in;
     }
 
-    NOINLINE const char* skip_ws (const char* in) {
-        return skip_ws_inline(in);
+    const char* skip_ws (const char* in) {
+        return skip_ws_comma<false>(in, end);
     }
 
-    NOINLINE const char* skip_comma (const char* in) {
-        in = skip_ws_inline(in);
-        if (in < end && *in == ',') {
-            in = skip_ws_inline(in + 1);
-        }
-        return in;
+    const char* skip_comma (const char* in) {
+        return skip_ws_comma<true>(in, end);
     }
 
     const char* skip_bom (const char* in) {
