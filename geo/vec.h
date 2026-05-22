@@ -100,7 +100,7 @@ struct GVec : GVecStorage<T, n> {
         GVecStorage<T, n>{.e = {T(args)...}}
     {
 #ifndef NDEBUG
-        expect(valid(*this));
+        assume(valid(*this));
 #endif
     }
 
@@ -125,11 +125,11 @@ struct GVec : GVecStorage<T, n> {
 
      // Get individual element
     constexpr T& operator [] (usize i) {
-        expect(i < n);
+        assume(i < n);
         return this->e[i];
     }
     constexpr const T& operator [] (usize i) const {
-        expect(i < n);
+        assume(i < n);
         return this->e[i];
     }
      // Check for the zero vector.  Does not check definedness.
@@ -171,7 +171,7 @@ constexpr bool valid (const GVec<T, n>& a) {
 template <class T, usize n>
 constexpr bool defined (const GVec<T, n>& a) {
 #ifndef NDEBUG
-    expect(valid(a));
+    assume(valid(a));
 #endif
     return defined(a[0]);
 }

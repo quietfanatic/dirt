@@ -227,7 +227,7 @@ struct TraverseSetKeys {
          // Check returned keys for duplicates
         for (u32 i = 0; i < keys.size(); i++)
         for (u32 j = 0; j < i; j++) {
-            expect(keys[i] != keys[j]);
+            assume(keys[i] != keys[j]);
         }
 #endif
         if (keys.size() >= trav.keys->size()) {
@@ -299,7 +299,7 @@ struct TraverseAttr {
         auto& trav = static_cast<const GetAttrTraversal<>&>(tr);
         auto desc = trav.desc();
         if (desc->keys_acr()) {
-            return use_computed_attrs(trav, expect(desc->computed_attrs())->f);
+            return use_computed_attrs(trav, assume(desc->computed_attrs())->f);
         }
         else if (auto attrs = desc->attrs()) {
             return use_attrs(trav, attrs);
@@ -406,7 +406,7 @@ struct TraverseGetLength {
             if (desc->flags % DescFlags::ElemsNeedRebuild) {
                 u32 collapsed_i = elems->n_elems - 1;
                 auto elem = elems->elem(collapsed_i);
-                expect(elem->acr()->attr_flags % AttrFlags::Collapse);
+                assume(elem->acr()->attr_flags % AttrFlags::Collapse);
                 elem->acr()->read(*v, AccessCB(len, &visit));
                 len += collapsed_i;
             }
@@ -451,7 +451,7 @@ struct TraverseSetLength {
                  // depend on earlier non-collapsed elems.
                 u32 collapsed_i = elems->n_elems - 1;
                 auto elem = elems->elem(collapsed_i);
-                expect(elem->acr()->attr_flags % AttrFlags::Collapse);
+                assume(elem->acr()->attr_flags % AttrFlags::Collapse);
                 len -= collapsed_i; // Should be safe to overwrite
                 elem->acr()->write(*v, AccessCB(len, &visit));
             }
@@ -512,7 +512,7 @@ struct TraverseElem {
                 use_contiguous_elems(trav, length);
             }
             else {
-                use_computed_elems(trav, expect(desc->computed_elems())->f);
+                use_computed_elems(trav, assume(desc->computed_elems())->f);
             }
         }
         else if (auto elems = desc->elems()) {
@@ -574,7 +574,7 @@ struct TraverseElem {
         u32 len;
         read_length_acr(len, trav.type, trav.address, length_acr);
         if (trav.index >= len) return;
-        auto f = expect(trav.desc()->contiguous_elems())->f;
+        auto f = assume(trav.desc()->contiguous_elems())->f;
         AnyPtr ptr = f(*trav.address);
         ptr.address = (Mu*)(
             (char*)ptr.address + trav.index * ptr.type().cpp_size()
@@ -635,7 +635,7 @@ void in::read_length_acr_cb (u32& len, Type t, Mu* v) {
 }
 
 void in::write_length_acr_cb (u32& len, Type t, Mu* v) {
-    expect(len <= SharedArray<Tree>::max_size_);
+    assume(len <= SharedArray<Tree>::max_size_);
     if (t == Type::of<u32>()) {
         reinterpret_cast<u32&>(*v) = len;
     }

@@ -89,7 +89,7 @@ struct Printer {
 
     char* print_small_int (char* p, const Tree& t) {
         i64 v = t.data.as_i64;
-        expect(v >= 0 && v < 10);
+        assume(v >= 0 && v < 10);
         bool hex = !(opts % O::Json) && t.flags % TreeFlags::PreferHex;
         if (hex) {
             *p++ = '0'; *p++ = 'x';
@@ -101,7 +101,7 @@ struct Printer {
     NOINLINE
     char* print_i64 (char* p, const Tree& t) {
         i64 v = t.data.as_i64;
-        expect(v < 0 || v >= 10);
+        assume(v < 0 || v >= 10);
         if (v < 0) {
             *p++ = '-';
             v = -v;
@@ -163,7 +163,7 @@ struct Printer {
                 ? std::chars_format::hex
                 : std::chars_format::general
         );
-        expect(ec == std::errc());
+        assume(ec == std::errc());
         return ptr;
     }
 
@@ -178,7 +178,7 @@ struct Printer {
 
     NOINLINE static
     char* print_string (Printer& self, char* p, const Tree& t) {
-        expect(t.form == Form::String);
+        assume(t.form == Form::String);
         auto s = Str(t);
         return self.print_string_s(p, s, &t);
     }
@@ -265,7 +265,7 @@ struct Printer {
 
     NOINLINE static
     char* print_array (Printer& self, char* p, const Tree& t) {
-        expect(t.form == Form::Array);
+        assume(t.form == Form::Array);
         auto a = Slice<Tree>(t);
         if (a.empty()) {
             return pstr_reserved(p, "[]");
@@ -310,7 +310,7 @@ struct Printer {
 
     NOINLINE static
     char* print_object (Printer& self, char* p, const Tree& t) {
-        expect(t.form == Form::Object);
+        assume(t.form == Form::Object);
         auto o = Slice<TreePair>(t);
         if (o.empty()) {
             return pstr_reserved(p, "{}");
@@ -387,12 +387,12 @@ struct Printer {
             &print_object,
             &print_error
         };
-        expect(u8(t.form) < 8);
+        assume(u8(t.form) < 8);
         return printers[u8(t.form)](*this, p, t);
     }
 
     UniqueString print (const Tree& t, u32 cap) {
-        expect(cap >= 24);
+        assume(cap >= 24);
         begin = SharableBuffer<char>::allocate_plenty(cap);
         end = begin + SharableBuffer<char>::header(begin)->capacity;
          // Do it

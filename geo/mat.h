@@ -52,7 +52,7 @@ struct GMat {
             e[c][r] = es[c * rows + r];
         }
 #ifndef NDEBUG
-        expect(valid(*this));
+        assume(valid(*this));
 #endif
     }
 
@@ -61,7 +61,7 @@ struct GMat {
         requires (sizeof...(Args) == cols)
     constexpr GMat (Args... args) : e{GVec<T, rows>{args}...} {
 #ifndef NDEBUG
-        expect(valid(*this));
+        assume(valid(*this));
 #endif
 }
 
@@ -96,12 +96,12 @@ struct GMat {
 
      // Get a column as a vector
     constexpr GVec<float, rows>& operator [] (usize c) {
-        expect(c < cols);
+        assume(c < cols);
         return e[c];
     }
      // Same but const
     constexpr const GVec<float, rows>& operator [] (usize c) const {
-        expect(c < cols);
+        assume(c < cols);
         return e[c];
     }
      // Don't use this to check for definedness.  This only checks if each
@@ -143,7 +143,7 @@ constexpr bool valid (const GMat<T, cols, rows>& a) {
 template <class T, usize cols, usize rows>
 constexpr bool defined (const GMat<T, cols, rows>& a) {
 #ifndef NDEBUG
-    expect(valid(a));
+    assume(valid(a));
 #endif
     if constexpr (cols * rows > 0) {
         return defined(a[0][0]);

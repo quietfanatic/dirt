@@ -67,7 +67,7 @@ struct RouteToIRI {
             }
             default: never();
         }
-        expect(cap > 0);
+        assume(cap > 0);
         new (&fragment) UniqueString (Uninitialized(cap));
         char* p = fragment.begin();
         *p++ = '#';
@@ -76,11 +76,11 @@ struct RouteToIRI {
 
     NOINLINE
     char* use_key (RouteRef rt, u32 cap) {
-        expect(rt->form == RF::Key);
+        assume(rt->form == RF::Key);
         auto encoded = iri::encode(*rt->key());
         char* p = visit(rt->parent(), cap + 1 + encoded.size());
         *p++ = '/';
-        expect(rt->form == RF::Key);
+        assume(rt->form == RF::Key);
         char* r = p + encoded.size();
         std::memcpy(p, encoded.data(), encoded.size());
         return r;
@@ -88,24 +88,24 @@ struct RouteToIRI {
 
     NOINLINE
     char* use_small_index (RouteRef rt, u32 cap) {
-        expect(rt->form == RF::Index);
+        assume(rt->form == RF::Index);
         char* p = visit(rt->parent(), cap + 2);
         *p++ = '+';
-        expect(rt->form == RF::Index);
-        expect(*rt->index() < 10);
+        assume(rt->form == RF::Index);
+        assume(*rt->index() < 10);
         *p++ = '0' + *rt->index();
         return p;
     }
 
     NOINLINE
     char* use_large_index (RouteRef rt, u32 cap) {
-        expect(rt->form == RF::Index);
-        expect(*rt->index() >= 10);
+        assume(rt->form == RF::Index);
+        assume(*rt->index() >= 10);
         u32 digits = count_decimal_digits(*rt->index());
-        expect(rt->form == RF::Index);
+        assume(rt->form == RF::Index);
         char* p = visit(rt->parent(), cap + 1 + digits);
         *p++ = '+';
-        expect(rt->form == RF::Index);
+        assume(rt->form == RF::Index);
         return write_decimal_digits(p, digits, *rt->index());
     }
 
@@ -130,7 +130,7 @@ IRI route_to_iri (RouteRef rt) {
     if (!rt) return IRI();
     RouteToIRI rti;
     char* p = rti.visit(rt, 1);
-    expect(p == rti.fragment.end());
+    assume(p == rti.fragment.end());
     return IRI(rti.fragment, *rti.base);
 }
 

@@ -153,7 +153,7 @@ struct Accessor {
     { }
 
     void access (AccessCaps mode, Mu& from, AccessCB cb) const {
-        expect(mode <= caps);
+        assume(mode <= caps);
         access_table[u8(form)](this, from, cb, mode);
     }
 

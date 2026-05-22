@@ -336,7 +336,7 @@ constexpr IRI::IRI (SharedString spec, u16 c, u16 p, u16 q, u16 h) :
 
 constexpr IRI::IRI (Error code, const SharedString& spec) :
     spec_(spec), authority_end(u16(code))
-{ expect(code != Error::NoError && code != Error::Empty); }
+{ assume(code != Error::NoError && code != Error::Empty); }
 
 constexpr IRI::IRI (const IRI& o) = default;
 constexpr IRI::IRI (IRI&& o) :
@@ -515,7 +515,7 @@ constexpr IRI IRI::chop (usize new_size) const {
     );
 }
 constexpr IRI IRI::chop (const char* new_end) const {
-    expect(new_end >= spec_.begin() && new_end <= spec_.end());
+    assume(new_end >= spec_.begin() && new_end <= spec_.end());
     return chop(new_end - spec_.begin());
 }
 

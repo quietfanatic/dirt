@@ -8,7 +8,7 @@ namespace ayu {
 namespace in {
 
 void check_uniqueness (u32 s, const TreePair* p) {
-    expect(s >= 2);
+    assume(s >= 2);
     auto e = p+s;
     auto a = p+1;
     do {
@@ -26,7 +26,7 @@ void delete_Tree_data (Tree& t) noexcept {
      // Manually delete all the elements.  We can't call UniqueArray's
      // destructor because we've already run the reference count down to 0, and
      // it debug-asserts that the reference count is 1.
-    expect(t.owned);
+    assume(t.owned);
     if (t.form == Form::String) {
         SharableBuffer<const char>::deallocate(t.data.as_char_ptr);
     }
@@ -138,7 +138,7 @@ static constexpr decltype(&tree_eq_false) tree_eqs [8] = {
 
 bool operator == (const Tree& a, const Tree& b) noexcept {
     if (a.form != b.form) return false;
-    expect(u32(a.form) < 8);
+    assume(u32(a.form) < 8);
     return in::tree_eqs[u32(a.form)](a, b);
 }
 

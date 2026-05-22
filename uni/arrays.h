@@ -515,7 +515,7 @@ struct ArrayInterface {
         std::is_same_v<std::remove_cvref_t<std::remove_pointer_t<O>>, T>
     ) {
         const T* p = o;
-        expect(p);
+        assume(p);
          // compiler might replace this with strlen
         usize s = 0;
         while (p[s]) ++s;
@@ -572,7 +572,7 @@ struct ArrayInterface {
             "assumed to be a NUL-terminated string literal, but there isn't "
             "room for a NUL terminator)."
         );
-        expect(!o[len-1]);
+        assume(!o[len-1]);
         if constexpr (len == 1) {
             impl = {};
         }
@@ -772,8 +772,8 @@ struct ArrayInterface {
         ac::supports_owned
     ) {
         ArrayInterface r (Capacity(1 + sizeof...(tail)));
-        r.emplace_back_expect_capacity(std::forward<Head>(head));
-        (r.emplace_back_expect_capacity(std::forward<Tail>(tail)), ...);
+        r.emplace_back_assume_capacity(std::forward<Head>(head));
+        (r.emplace_back_assume_capacity(std::forward<Tail>(tail)), ...);
         return r;
     }
     ALWAYS_INLINE static constexpr
@@ -945,13 +945,13 @@ struct ArrayInterface {
 
     ALWAYS_INLINE constexpr
     const T& const_get (usize i) const {
-        expect(i < size());
+        assume(i < size());
         return impl.data[i];
     }
     ALWAYS_INLINE constexpr
     T& mut_get (usize i) requires (ac::mut_default || ac::supports_owned) {
         make_mut();
-        expect(i < size());
+        assume(i < size());
         return const_cast<T&>(impl.data[i]);
     }
     ALWAYS_INLINE constexpr
@@ -1000,9 +1000,9 @@ struct ArrayInterface {
      // because size() is not a valid default argument.
     ALWAYS_INLINE constexpr
     SelfSlice const_slice (usize start, usize end) const {
-        expect(start <= end && end <= size()); // for safety
+        assume(start <= end && end <= size()); // for safety
         auto r = SelfSlice(data() + start, end - start);
-        expect(r.size() <= size()); // for optimization
+        assume(r.size() <= size()); // for optimization
         return r;
     }
     ALWAYS_INLINE constexpr
@@ -1010,9 +1010,9 @@ struct ArrayInterface {
         ac::mut_default || ac::supports_owned
     ) {
         make_mut();
-        expect(start <= end && end <= size());
+        assume(start <= end && end <= size());
         auto r = SelfMutSlice(data() + start, end - start);
-        expect(r.size() <= size());
+        assume(r.size() <= size());
         return r;
     }
     ALWAYS_INLINE constexpr
@@ -1026,9 +1026,9 @@ struct ArrayInterface {
 
     ALWAYS_INLINE constexpr
     SelfSlice const_slice (usize start = 0) const {
-        expect(start <= size());
+        assume(start <= size());
         auto r = SelfSlice(data() + start, size() - start);
-        expect(r.size() <= size());
+        assume(r.size() <= size());
         return r;
     }
     ALWAYS_INLINE constexpr
@@ -1036,9 +1036,9 @@ struct ArrayInterface {
         ac::mut_default || ac::supports_owned
     ) {
         make_mut();
-        expect(start <= size());
+        assume(start <= size());
         auto r = SelfSlice(data() + start, size() - start);
-        expect(r.size() <= size());
+        assume(r.size() <= size());
         return r;
     }
     ALWAYS_INLINE constexpr
@@ -1121,7 +1121,7 @@ struct ArrayInterface {
     usize capacity () const {
         if (owned()) {
             usize cap = header().capacity;
-            expect(cap >= min_capacity && cap <= max_capacity);
+            assume(cap >= min_capacity && cap <= max_capacity);
             return cap;
         }
         else return 0;
@@ -1139,17 +1139,14 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     bool owned () const {
         if constexpr (ac::is_Shared) {
-             // Erase these expects in release build because they can make the
-             // compiler turn non-branching code into branching code.
-#ifndef NDEBUG
-            expect(!(impl.sizex2_with_owned & 1) || impl.data);
-#endif
+             // Erase these assumes in release build because they can make the
+             // compiler turn non-branching code into branching code.  TODO: Not
+             // the case any more?
+            assert(!(impl.sizex2_with_owned & 1) || impl.data);
             return impl.sizex2_with_owned & 1;
         }
         else if constexpr (ac::supports_owned) {
-#ifndef NDEBUG
-            expect(impl.data || !impl.size);
-#endif
+            assert(impl.data || !impl.size);
             return impl.data;
         }
         else return false;
@@ -1164,7 +1161,7 @@ struct ArrayInterface {
         if constexpr (ac::is_Unique) return true;
         else if constexpr (ac::supports_owned) {
             if (owned()) {
-                expect(header().ref_count);
+                assume(header().ref_count);
                 return header().ref_count == 1;
             }
             else return !impl.data;
@@ -1252,7 +1249,7 @@ struct ArrayInterface {
      // an allocation.
     ALWAYS_INLINE constexpr
     void reserve (usize cap) requires (ac::supports_owned) {
-        expect(cap <= max_size_);
+        assume(cap <= max_size_);
         if (!unique() || cap > capacity()) {
             set_data_unique(reallocate(impl, cap));
         }
@@ -1262,7 +1259,7 @@ struct ArrayInterface {
      // to a power of two.  This is used by push_back() and similar functions.
     ALWAYS_INLINE constexpr
     void reserve_plenty (usize cap) requires (ac::supports_owned) {
-        expect(cap <= max_size_);
+        assume(cap <= max_size_);
         if (!unique() || cap > capacity()) [[unlikely]] {
             set_data_unique(reallocate_plenty(impl, cap));
         }
@@ -1387,7 +1384,7 @@ struct ArrayInterface {
      // but may cause an extra copy for UniqueArray and UniqueString.
     constexpr
     Self chop (usize new_size) const& {
-        expect(new_size <= size());
+        assume(new_size <= size());
         if constexpr (ac::is_Unique) {
              // Copying then shrinking UniqueArray wastes a lot of work.
             return Self(data(), new_size);
@@ -1399,7 +1396,7 @@ struct ArrayInterface {
      // Chopping from rvalue is less likely to copy the buffer.
     ALWAYS_INLINE constexpr
     Self chop (usize new_size) && {
-        expect(new_size <= size());
+        assume(new_size <= size());
         Self r = move(*this);
         r.shrink(new_size);
         return r;
@@ -1421,10 +1418,10 @@ struct ArrayInterface {
 
      // emplace_back but skip the capacity and uniqueness check.
     template <class... Args>
-    T& emplace_back_expect_capacity (Args&&... args) requires (
+    T& emplace_back_assume_capacity (Args&&... args) requires (
         ac::supports_owned
     ) {
-        expect(unique() && capacity() > size());
+        assume(unique() && capacity() > size());
         T& r = *new ((void*)&impl.data[size()]) T(std::forward<Args>(args)...);
         add_size(1);
         return r;
@@ -1441,17 +1438,17 @@ struct ArrayInterface {
         return emplace_back(move(v));
     }
     ALWAYS_INLINE
-    T& push_back_expect_capacity (const T& v) requires (ac::supports_owned) {
-        return emplace_back_expect_capacity(v);
+    T& push_back_assume_capacity (const T& v) requires (ac::supports_owned) {
+        return emplace_back_assume_capacity(v);
     }
     ALWAYS_INLINE
-    T& push_back_expect_capacity (T&& v) requires (ac::supports_owned) {
-        return emplace_back_expect_capacity(move(v));
+    T& push_back_assume_capacity (T&& v) requires (ac::supports_owned) {
+        return emplace_back_assume_capacity(move(v));
     }
 
     ALWAYS_INLINE
     void pop_back () {
-        expect(size() > 0);
+        assume(size() > 0);
         if constexpr (ac::is_Shared && std::is_trivially_destructible_v<T>) {
              // Compiler isn't quite smart enough to do this optimization
             impl.sizex2_with_owned -= 2;
@@ -1505,34 +1502,32 @@ struct ArrayInterface {
 
      // Append but skip the capacity check.
     template <ArrayIterator Ptr>
-    void append_expect_capacity (Ptr p, usize s) requires (
+    void append_assume_capacity (Ptr p, usize s) requires (
         ac::supports_owned
     ) {
         static_assert(std::is_copy_constructible_v<T>);
-        expect(size() + s <= max_size_);
-        expect(unique());
-        expect(capacity() >= size() + s);
+        assume(size() + s <= max_size_ && unique() && capacity() >= size() + s);
         copy_fill(impl.data + size(), move(p), s);
         add_size(s);
     }
     ALWAYS_INLINE
-    void append_expect_capacity (SelfSlice o) requires (
+    void append_assume_capacity (SelfSlice o) requires (
         ac::supports_owned
     ) {
-        append_expect_capacity(o.data(), o.size());
+        append_assume_capacity(o.data(), o.size());
     }
     template <ArrayIterator Begin, ArraySentinelFor<Begin> End>
-    void append_expect_capacity (Begin b, End e) requires (
+    void append_assume_capacity (Begin b, End e) requires (
         ac::supports_owned
     ) {
         static_assert(requires { usize(e - b); },
-            "Can't call append_expect_capacity with a range of unknown size.  "
+            "Can't call append_assume_capacity with a range of unknown size.  "
             "That's just a little too dangerous for comfort, sorry."
         );
-        return append_expect_capacity(move(b), usize(e - b));
+        return append_assume_capacity(move(b), usize(e - b));
     }
     ALWAYS_INLINE
-    void append_expect_capacity (Uninitialized u) requires (
+    void append_assume_capacity (Uninitialized u) requires (
         ac::supports_owned
     ) {
         static_assert(std::is_trivially_default_constructible_v<T>);
@@ -1545,7 +1540,7 @@ struct ArrayInterface {
      // moves it into the slot.
     template <class... Args>
     T& emplace (usize offset, Args&&... args) requires (ac::supports_owned) {
-        expect(offset <= size());
+        assume(offset <= size());
         if constexpr (noexcept(T(std::forward<Args>(args)...))) {
             T* dat = do_split(impl, offset, 1);
             T* r = new ((void*)&dat[offset]) T(std::forward<Args>(args)...);
@@ -1594,7 +1589,7 @@ struct ArrayInterface {
         ac::supports_owned
     ) {
         static_assert(std::is_copy_constructible_v<T>);
-        expect(offset < size());
+        assume(offset < size());
         if (s == 0) {
             make_unique();
         }
@@ -1641,7 +1636,7 @@ struct ArrayInterface {
     void insert (usize offset, Uninitialized u) requires (
         ac::supports_owned
     ) {
-        expect(offset < size());
+        assume(offset < size());
         if (u.size == 0) {
             make_unique();
         }
@@ -1682,7 +1677,7 @@ struct ArrayInterface {
     }
     ALWAYS_INLINE
     void erase (const T* b, const T* e) requires (ac::supports_owned) {
-        expect(e >= b);
+        assume(e >= b);
         if (e - b == 0) {
             make_unique();
         }
@@ -1789,7 +1784,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void set_owned (T* d, usize s) {
         static_assert(ac::supports_owned);
-        expect(s <= max_size_);
+        assume(s <= max_size_);
         if constexpr (ac::is_Shared) {
              // If data is null, clear the owned bit
             impl.sizex2_with_owned = (s << 1) | !!d;
@@ -1800,7 +1795,7 @@ struct ArrayInterface {
     ALWAYS_INLINE constexpr
     void set_owned_unique (T* d, usize s) {
         set_owned(d, s);
-        expect(header().ref_count == 1);
+        assume(header().ref_count == 1);
     }
     ALWAYS_INLINE constexpr
     void set_unowned (const T* d, usize s) {
@@ -1895,7 +1890,7 @@ struct ArrayInterface {
     void remove_ref () {
         if (owned()) {
             if constexpr (ac::is_Unique) {
-                expect(header().ref_count == 1);
+                assume(header().ref_count == 1);
             }
             else if constexpr (ac::supports_owned) {
                 if (--header().ref_count) {
@@ -1965,7 +1960,7 @@ struct ArrayInterface {
 
     template <ArrayIterator Ptr> [[gnu::malloc, gnu::returns_nonnull]] static
     T* allocate_copy (Ptr ptr, usize s) {
-        expect(s > 0);
+        assume(s > 0);
         T* dat = SharableBuffer<T>::allocate(s);
         try {
             return copy_fill(dat, ptr, s);
@@ -2001,7 +1996,7 @@ struct ArrayInterface {
     {
         Self& self = reinterpret_cast<Self&>(impl);
         usize s = self.size();
-        expect(cap >= s);
+        assume(cap >= s);
         T* dat = SharableBuffer<T>::allocate(cap);
          // Can't call deallocate_owned on nullptr.
         if (!self.impl.data) return dat;
@@ -2074,8 +2069,8 @@ struct ArrayInterface {
         noexcept(ac::is_Unique || std::is_nothrow_copy_constructible_v<T>)
     {
         Self& self = reinterpret_cast<Self&>(impl);
-        expect(split <= self.size());
-        expect(shift != 0);
+        assume(split <= self.size());
+        assume(shift != 0);
         usize cap = self.capacity();
         if (self.unique() && cap >= self.size() + shift) {
              // We have enough capacity so all we need to do is move the tail.
@@ -2212,8 +2207,8 @@ struct ArrayInterface {
     T* do_erase_inline (Impl impl, usize offset, usize count) {
         Self& self = reinterpret_cast<Self&>(impl);
         usize old_size = self.size();
-        expect(count != 0);
-        expect(offset <= old_size && offset + count <= old_size);
+        assume(count != 0);
+        assume(offset <= old_size && offset + count <= old_size);
         if (self.unique()) {
             try {
                  // Move some elements over.  The destination will always
@@ -2355,7 +2350,7 @@ template <class ac, class T, usize len> constexpr
 bool operator== (
     const ArrayInterface<ac, T>& a, const T(& b )[len]
 ) requires (ac::is_String) {
-    expect(!b[len-1]);
+    assume(!b[len-1]);
     usize as = a.size();
     usize bs = len - 1;
     const T* ad = a.data();
@@ -2408,7 +2403,7 @@ template <class ac, class T, usize len> constexpr
 auto operator<=> (
     const ArrayInterface<ac, T>& a, const T(& b )[len]
 ) requires (ac::is_String) {
-    expect(!b[len-1]);
+    assume(!b[len-1]);
     usize as = a.size();
     usize bs = len - 1;
     const T* ad = a.data();

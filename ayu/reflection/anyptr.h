@@ -92,9 +92,9 @@ struct AnyPtr {
     }
 
     template <ConstableDescribable T>
-    T* expect_exact () const {
-        expect(type() == Type::of<std::remove_const_t<T>>());
-        expect(readonly() == std::is_const_v<T>);
+    T* assume_exact () const {
+        assume(type() == Type::of<std::remove_const_t<T>>());
+        assume(readonly() == std::is_const_v<T>);
         return reinterpret_cast<T*>(address);
     }
 

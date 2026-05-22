@@ -25,12 +25,12 @@ struct GRange {
     constexpr GRange (GINF_t i) : l(-i), r(i) { }
     template <class A, class B>
     constexpr GRange (A l, B r) : l(l), r(r) {
-        expect(valid(*this));
+        assume(valid(*this));
     }
      // Why am I even doing this, this is so dumb
     template <class Ix>
     constexpr auto operator [] (Ix i) const {
-        expect(i < r - l);
+        assume(i < r - l);
         return l[i];
     }
      // No operator bool because it's not clear whether it should check if the
@@ -48,7 +48,7 @@ struct GRange {
     };
      // Allow indexing too I guess
     T operator [] (usize i) const {
-        expect(T(l+i) < r);
+        assume(T(l+i) < r);
         return T(l+i);
     }
 };
@@ -89,7 +89,7 @@ constexpr bool valid (const GRange<T>& a) {
 
 template <class T>
 constexpr bool defined (const GRange<T>& a) {
-    expect(valid(a));
+    assume(valid(a));
     return defined(a.l);
 }
 

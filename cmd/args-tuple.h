@@ -196,11 +196,11 @@ struct ArgsTupleElems {
 
 [[gnu::noclone]] NOINLINE inline
 SharedString make_ArgsTuple_name (i32 min, StaticArray<ayu::Type> types) {
-    expect(types);
+    assume(types);
     return cat(
         "cmd::ArgsTuple<", min, ", ",
         Caterator(", ", types.size(), [types](u32 i){
-            return expect(types[i].name());
+            return assume(types[i].name());
         }), '>'
     );
 }

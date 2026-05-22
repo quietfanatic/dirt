@@ -116,9 +116,9 @@ const char* in::mem_first_difference_internal (const char* a, const char* b, con
         else {
             same_bits = std::countl_zero(av ^ bv);
         }
-        expect(same_bits < 64);
+        assume(same_bits < 64);
         u32 same_bytes = same_bits >> 3;
-        expect(a + same_bytes < ae);
+        assume(a + same_bytes < ae);
         return a + same_bytes;
     }
     #pragma GCC unroll 0

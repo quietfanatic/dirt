@@ -28,7 +28,7 @@ void to_link_parent_addressable (const Traversal& trav, void* r) noexcept {
     switch (trav.step) {
         case TraversalStep::Acr: {
             auto& self = static_cast<const AcrTraversal&>(trav);
-            expect(self.parent->caps % AC::Address);
+            assume(self.parent->caps % AC::Address);
             new (r) Link(self.parent->address, self.acr, self.parent->caps);
             return;
         }

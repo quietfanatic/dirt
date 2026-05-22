@@ -112,7 +112,7 @@ void update_working_directory () noexcept {
     char* cwd = get_current_dir_name();
     auto slashed = cat((const char*)cwd, '/');
     std::free(cwd);
-    current_working_directory = expect(from_filepath(slashed));
+    current_working_directory = assume(from_filepath(slashed));
 }
 
 NOINLINE static
@@ -122,7 +122,7 @@ IRI get_program_location () {
     auto path = new char [len];
     require(wai_getExecutablePath(path, len, nullptr) == len);
     IRI r = from_filepath(Str(path, len));
-    expect(r);
+    assume(r);
      // Promote the IRI's SharedString to static, unless someone replaced IRI's
      // string type with something incompatible.
     if (requires { r.spec_.impl.sizex2_with_owned; }) {

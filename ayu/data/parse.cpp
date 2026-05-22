@@ -48,7 +48,7 @@ struct Parser {
         in = parse_term(in, r);
         in = skip_ws(in);
         if (in != end) error(in, "Extra stuff at end of document");
-        expect(shallowth == max_depth + 1);
+        assume(shallowth == max_depth + 1);
         return r;
     }
 
@@ -64,7 +64,7 @@ struct Parser {
             r.push_back(move(e));
             in = skip_comma(in);
         }
-        expect(shallowth == max_depth);
+        assume(shallowth == max_depth);
         return r;
     }
 
@@ -87,7 +87,7 @@ struct Parser {
         };
         if (in >= end) error(in, "Expected term but ran into end of input");
         auto index = char_term(*in);
-        expect(u32(index) < sizeof(table) / sizeof(table[0]));
+        assume(u32(index) < sizeof(table) / sizeof(table[0]));
         return table[u32(index)](*this, in, r);
     }
 
@@ -257,13 +257,13 @@ struct Parser {
             return p+1; // For the "
         }
          // Otherwise preallocate
-        auto out = UniqueString(Capacity(expect(p - in - extra_input)));
+        auto out = UniqueString(Capacity(assume(p - in - extra_input)));
          // Now read the string
-        expect(in < p);
+        assume(in < p);
         while (in < p) {
             char c = *in++;
             if (c == '\\') [[unlikely]] {
-                expect(in < p);
+                assume(in < p);
                 c = *in++;
                 if (u8(c) <= ' ' || u8(c) >= char_escape_table.size()) {
                     goto invalid_escape;
@@ -283,9 +283,9 @@ struct Parser {
                 }
                 invalid_escape: self.error(in-1, "Unknown escape sequence");
             }
-            push: out.push_back_expect_capacity(c);
+            push: out.push_back_assume_capacity(c);
         }
-        expect(*in++ == '"');
+        assume(*in++ == '"');
         new (&r) Tree(move(out));
         return in;
     }
@@ -326,7 +326,7 @@ struct Parser {
                 goto loop;
             }
         }
-        out.append_expect_capacity(from_utf16(units));
+        out.append_assume_capacity(from_utf16(units));
         return in;
         invalid_u: error(in, "Invalid \\u escape sequence");
     }
@@ -658,10 +658,10 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
      // Test depth limit
     auto big = UniqueString(Capacity(402));
     for (u32 i = 0; i < 201; i++) {
-        big.push_back_expect_capacity('[');
+        big.push_back_assume_capacity('[');
     }
     for (u32 i = 0; i < 201; i++) {
-        big.push_back_expect_capacity(']');
+        big.push_back_assume_capacity(']');
     }
     n(StaticString(big));
     auto redwood = Tree::array();

@@ -33,7 +33,7 @@ struct VoiceSpec {
     operator VoiceImp () const;
 
      // Does not validate!
-    VoiceImp expect_valid () const;
+    VoiceImp assume_valid () const;
 };
 
 struct VoiceImp {

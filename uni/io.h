@@ -59,7 +59,7 @@ struct File {
     void write (Str);
 
      // If closing fails, will throw an exception.
-    void close () { close_throw(); expect(!handle); }
+    void close () { close_throw(); assume(!handle); }
     void close_throw ();
      // If closing fails, will warn instead of throwing.  Note that there is no
      // way to recover the filename.  If you need better error diagnostics, then
@@ -146,7 +146,7 @@ struct Dir {
         return iterator{*this, null};
     }
 
-    void close () { close_throw(); expect(!handle); }
+    void close () { close_throw(); assume(!handle); }
     void close_throw ();
      // Warns to stderr on failure.
     void close_warn () noexcept;

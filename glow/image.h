@@ -23,13 +23,13 @@ struct ImageView {
     RGBA8* pixels = null;
     constexpr ImageView () { }
     constexpr ImageView (IVec s, RGBA8* p) : size(s), stride(s.x), pixels(p) {
-        expect(s.x >= 0 && s.y >= 0);
+        assume(s.x >= 0 && s.y >= 0);
     }
     constexpr ImageView (IVec s, i32 t, RGBA8* p) : size(s), stride(t), pixels(p) {
-        expect(s.x >= 0 && s.y >= 0);
+        assume(s.x >= 0 && s.y >= 0);
     }
     constexpr ImageView (IVec s, i32 t, bool i, RGBA8* p) : size(s), stride(t), ignore_alpha(i), pixels(p) {
-        expect(s.x >= 0 && s.y >= 0);
+        assume(s.x >= 0 && s.y >= 0);
     }
 
      // The bounds of the image as a rectangle.  Note that for y-down style
@@ -37,14 +37,14 @@ struct ImageView {
     constexpr IRect bounds () const { return {{0, 0}, size}; }
 
     constexpr const RGBA8& operator [] (IVec i) const {
-        expect(pixels);
-        expect(contains(bounds(), i));
+        assume(pixels);
+        assume(contains(bounds(), i));
         return pixels[stride * i.y + i.x];
     }
 
      // Get a new view constrained to a smaller rectangle.
     constexpr ImageView crop (const IRect& b) const {
-        expect(contains(bounds(), b));
+        assume(contains(bounds(), b));
         return ImageView(
             geo::size(b), stride, ignore_alpha, pixels + (stride * b.b + b.l)
         );
@@ -106,8 +106,8 @@ struct UniqueImage {
     IRect bounds () const { return {{0, 0}, size}; }
 
     RGBA8& operator [] (IVec i) {
-        expect(pixels);
-        expect(contains(bounds(), i));
+        assume(pixels);
+        assume(contains(bounds(), i));
         return pixels[i.y * size.x + i.x];
     }
 

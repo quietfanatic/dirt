@@ -9,7 +9,7 @@ namespace in {
 
 void SDLCALL mix_sdl (void* userdata, u8* out, int out_size) {
     auto& self = *(MixerSDL*)userdata;
-    expect(out_size % sizeof(StereoFloat) == 0);
+    assume(out_size % sizeof(StereoFloat) == 0);
     self.core.mix(
         (StereoFloat*)out,
         out_size / sizeof(StereoFloat),

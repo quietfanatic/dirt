@@ -264,12 +264,12 @@ DecodeFrameReturn qoa_decode_frame (
     LMSState states [8];
     u32 n_samples = read_u16be(in + 4);
     in += 8; // header already validated
-    expect(n_channels > 0 && n_channels <= 8);
+    assume(n_channels > 0 && n_channels <= 8);
     u32 c = 0;
     do { in = states[c].read(in); }
     while (++c < n_channels);
      // Input is interleaved per-slice, output per-sample.
-    expect(n_samples > 0);
+    assume(n_samples > 0);
     i32 s = n_samples;
     do {
         u32 c = 0;
@@ -413,7 +413,7 @@ struct QOAEncoder {
             u32 residual_offset = 57;
             u64 rank = 0;
             LMSState state = channel_state;
-            expect(slice_samples > 0 && slice_samples <= 20);
+            assume(slice_samples > 0 && slice_samples <= 20);
             for (u32 i = 0; i < slice_samples; i++) {
                  // Predict
                 auto prediction = state.predict();
@@ -468,7 +468,7 @@ struct QOAEncoder {
                 best_slice = slice;
             }
         }
-        expect(best_rank < u64(-1));
+        assume(best_rank < u64(-1));
         last_scalefactor = best_scalefactor;
         channel_state = best_state;
         write_u64be(out, best_slice);
@@ -488,12 +488,12 @@ struct QOAEncoder {
         write_u64be(out, header);
         out += 8;
          // Write predictor states
-        expect(n_channels > 0 && n_channels <= 8);
+        assume(n_channels > 0 && n_channels <= 8);
         for (u32 c = 0; c < n_channels; c++) {
             out = states[c].write(out);
         }
          // Now encode slices
-        expect(frame_slices);
+        assume(frame_slices);
         while (frame_slices) {
             u32 slice_samples = geo::min(samples_left, 20u);
             for (usize c = 0; c < n_channels; c++) {
@@ -519,12 +519,12 @@ struct QOAEncoder {
         std::memcpy(out, "qoaf", 4);
         write_u32be(out+4, samples_left);
         out += 8;
-        expect(samples_left);
+        assume(samples_left);
         while (samples_left) {
             auto r = encode_frame(out, in);
             out = r.out; in = r.in;
-            expect(out <= out_end);
-            expect(in <= in_end);
+            assume(out <= out_end);
+            assume(in <= in_end);
         }
     }
 };

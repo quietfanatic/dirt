@@ -8,8 +8,8 @@ namespace glow {
 
 NOINLINE
 void blit_noncontig (const ImageView& dst, const ImageView& src) noexcept {
-    expect(dst.size.x >= 0 && dst.size.y >= 0);
-    expect(dst.size == src.size);
+    assume(dst.size.x >= 0 && dst.size.y >= 0);
+    assume(dst.size == src.size);
     auto o = dst.pixels;
     auto i = src.pixels;
     auto oe = dst.pixels + dst.stride * dst.size.y;
@@ -23,8 +23,8 @@ void blit_noncontig (const ImageView& dst, const ImageView& src) noexcept {
     }
 }
 void blit (const ImageView& dst, const ImageView& src) noexcept {
-    expect(dst.size.x >= 0 && dst.size.y >= 0);
-    expect(dst.size == src.size);
+    assume(dst.size.x >= 0 && dst.size.y >= 0);
+    assume(dst.size == src.size);
     if (dst.contiguous() & src.contiguous()) {
         std::memcpy(dst.pixels, src.pixels, area(dst.size) * sizeof(RGBA8));
     }
@@ -94,7 +94,7 @@ void FileImageExtension::from_blob (
     scheme->validate_type(ayu::Type::of<FileImage>());
     auto path = ayu::resource_filepath(res->name());
     auto img = image_from_blob(blob);
-    expect(!value);
+    assume(!value);
     value = ayu::AnyVal::make<FileImage>(path, move(img));
 };
 

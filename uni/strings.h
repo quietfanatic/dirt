@@ -160,7 +160,7 @@ struct StringConversion<T> {
      // Get a close upper bound for the number of digits.
     ALWAYS_INLINE constexpr usize size () {
         count = count_decimal_digits(v);
-        expect(count > 0);
+        assume(count > 0);
         return usize(count) + sign;
     }
     constexpr char* write (char* out) const {
@@ -181,9 +181,9 @@ struct StringConversion<T> {
     constexpr StringConversion (T v) {
         if (std::isfinite(v)) {
             auto [ptr, ec] = std::to_chars(digits, digits + in::max_digits<T>, v);
-            expect(ec == std::errc());
+            assume(ec == std::errc());
             len = ptr - digits;
-            expect(len <= in::max_digits<T>);
+            assume(len <= in::max_digits<T>);
         }
         else if (v > 0) {
             std::memcpy(digits, "+inf", len = 4);

@@ -60,7 +60,7 @@ struct AnyVal {
     }
      // Check contents.
     explicit operator bool () const {
-        expect(!!type == !!data);
+        assume(!!type == !!data);
         return !!type;
     }
     bool empty () const { return !*this; }
@@ -88,7 +88,7 @@ struct AnyVal {
     }
 
     Mu& as_known (Type t) {
-        expect(type == t);
+        assume(type == t);
         return *data;
     }
     template <class T>

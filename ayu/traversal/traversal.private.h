@@ -103,7 +103,7 @@ struct ReturnLinkTraversal : ReturnLinkTraversalHead, T { };
 
 inline void return_link (const Traversal& tr) {
     auto& trav = static_cast<const ReturnLinkTraversal<>&>(tr);
-    expect(!trav.r->acr_p);
+    assume(!trav.r->acr_p);
     trav.to_link(trav.r);
 }
 
@@ -125,7 +125,7 @@ template <VisitFunc& visit> ALWAYS_INLINE
 void trav_start (
     StartTraversal& child, const Link& item, AccessCaps mode
 ) try {
-    expect(item);
+    assume(item);
 
     child.parent = null;
     child.step = TraversalStep::Start;

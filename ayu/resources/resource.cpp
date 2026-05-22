@@ -251,8 +251,8 @@ SharedResource::SharedResource (const IRI& name) {
             name.possibly_invalid_spec(), RS::Unloaded, "construct"
         );
     }
-    Str spec = expect(name.spec());
-    expect(spec.begin() < spec.end());
+    Str spec = assume(name.spec());
+    assume(spec.begin() < spec.end());
     usize hash = uni::hash(spec);
 
      // See if this resource already exists
@@ -275,11 +275,11 @@ static void load_inner (ResourcePrivate* self) {
     auto ext = require_extension(self->name);
     auto path = scheme->require_filepath(self->name);
     UniqueArray<u8> blob = blob_from_file(path);
-    expect(!self->value);
+    assume(!self->value);
     ext->from_blob(self->value, blob, self, scheme);
 #ifndef NDEBUG
-    expect(scheme->accepts_type(self->value.type));
-    expect(ext->accepts_type(self->value.type));
+    assume(scheme->accepts_type(self->value.type));
+    assume(ext->accepts_type(self->value.type));
 #endif
 }
 
@@ -424,7 +424,7 @@ void unload (Slice<ResourceRef> to_unload) try {
         if (self->state != RS::Loaded) continue;
          // Assign integer ID for indexing
         self->node_id = scan_info.size();
-        scan_info.emplace_back_expect_capacity(self, UniqueArray<Link>());
+        scan_info.emplace_back_assume_capacity(self, UniqueArray<Link>());
          // Our root set for the reachability traversal is all resources that
          // have a reference count but were not explicitly requested to be
          // unloaded.
@@ -536,7 +536,7 @@ NOINLINE static void reload_commit (UniqueArray<Update>&& updates) {
     updates.consume([](Update&& update){
         update.link2link.write(
             AccessCB(move(update), [](Update&& update, Type t, Mu* v){
-                expect(t == Type::of<Link>());
+                assume(t == Type::of<Link>());
                 reinterpret_cast<Link&>(*v) = move(update.new_link);
             })
         );
@@ -635,7 +635,7 @@ void reload (Slice<ResourceRef> to_reload) try {
     }
     catch (...) {
         reload_rollback(move(rovs));
-        expect(!rovs);
+        assume(!rovs);
         throw;
     }
      // Commit step.  TODO: Update links now and roll them back if necessary
@@ -648,11 +648,11 @@ void reload (Slice<ResourceRef> to_reload) try {
             { }
             void commit () noexcept override {
                 reload_commit(move(updates));
-                expect(!updates);
+                assume(!updates);
             }
             void rollback () noexcept override {
                 reload_rollback(move(rovs));
-                expect(!rovs);
+                assume(!rovs);
             }
         };
         ResourceTransaction::add_committer(
@@ -661,7 +661,7 @@ void reload (Slice<ResourceRef> to_reload) try {
     }
     else {
         reload_commit(move(updates));
-        expect(!updates);
+        assume(!updates);
     }
 }
 catch (...) {
@@ -677,7 +677,7 @@ void rename (ResourceRef old_res, ResourceRef new_res) try {
     if (new_self->state != RS::Unloaded) {
         raise_ResourceStateInvalid();
     }
-    expect(!new_self->value);
+    assume(!new_self->value);
     new_self->value = move(old_self->value);
     new_self->state = RS::Loaded;
     old_self->state = RS::Unloaded;
@@ -729,11 +729,11 @@ UniqueArray<SharedResource> loaded_resources () noexcept {
 namespace in {
 
 void track_ptr (AnyPtr item) noexcept {
-    expect(item);
+    assume(item);
     if (currently_scanning) raise(e_ForbiddenWhileScanning, "Cannot track new variable while a scan is ongoing");
 #ifndef NDEBUG
     for (auto& g : g_universe->tracked) {
-        expect(g != item);
+        assume(g != item);
     }
 #endif
     g_universe->tracked.push_back(item);

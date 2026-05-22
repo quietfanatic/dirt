@@ -166,7 +166,7 @@ UniqueImage image_from_blob_qoi (Slice<u8> blob) {
 
 NOINLINE
 u8* encode_qoi (u8*__restrict out, const ImageView&__restrict img) noexcept {
-    expect(img.size.x >= 0 && img.size.y >= 0);
+    assume(img.size.x >= 0 && img.size.y >= 0);
     if (img.size.x == 0 || img.size.y == 0) [[unlikely]] return out;
      // Set up pointer-walking infrastructure
     const RGBA8*__restrict in = img.pixels;
@@ -278,7 +278,7 @@ u8* encode_qoi (u8*__restrict out, const ImageView&__restrict img) noexcept {
 }
 
 UniqueArray<u8> image_to_blob_qoi (const ImageView& img) {
-    expect(img.size.x >= 0 && img.size.y >= 0);
+    assume(img.size.x >= 0 && img.size.y >= 0);
     usize len = area(img.size);
     if (len > 400000000) raise_ImageTooLarge(img.size);
      // Worst case 5 bytes per pixel + 14 byte header + 8 byte footer
@@ -294,7 +294,7 @@ UniqueArray<u8> image_to_blob_qoi (const ImageView& img) {
     write_u64be(end, 1);
     end += 8;
     UniqueArray<u8> r;
-    expect(u32(end - buf) == end - buf);
+    assume(u32(end - buf) == end - buf);
     r.impl = {u32(end - buf), buf};
     return r;
 }

@@ -125,7 +125,7 @@ void access_ChainAttrFunc (
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             Link inter = frame.self->f(*iv, frame.self->key);
              // Make sure we aren't given stricter caps than we had before.
-            expect(contains(inter.caps(), frame.self->caps));
+            assume(contains(inter.caps(), frame.self->caps));
             inter.access(frame.mode, frame.cb);
         })
     );
@@ -144,7 +144,7 @@ void access_ChainElemFunc (
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             Link inter = frame.self->f(*iv, frame.self->index);
-            expect(contains(inter.caps(), frame.self->caps));
+            assume(contains(inter.caps(), frame.self->caps));
             inter.access(frame.mode, frame.cb);
         })
     );
@@ -162,7 +162,7 @@ void access_ChainDataFunc (
     frame.self->outer->access(outer_mode, ov,
         AccessCB(frame, [](Frame& frame, Type, Mu* iv){
             AnyPtr p = frame.self->f(*iv);
-            expect(contains(p.caps(), frame.self->caps));
+            assume(contains(p.caps(), frame.self->caps));
              // We should already have done bounds checking.  Unfortunately we
              // can't reverify it in debug mode because we've lost the info
              // necessary to get the length.

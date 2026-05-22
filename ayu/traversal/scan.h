@@ -126,7 +126,7 @@ inline PushLikelyLink::PushLikelyLink (
     first_pll = this;
 }
 inline PushLikelyLink::~PushLikelyLink () {
-    expect(first_pll == this);
+    assume(first_pll == this);
     first_pll = next;
 }
 

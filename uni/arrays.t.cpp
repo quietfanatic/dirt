@@ -117,7 +117,7 @@ SharedArray<int> b22 () {
     SharedArray<int> r;
     r.reserve(32);
     for (usize i = 0; i < 32; i++) {
-        r.emplace_back_expect_capacity(i);
+        r.emplace_back_assume_capacity(i);
     }
     return r;
 }
@@ -125,7 +125,7 @@ SharedArray<int> b22 () {
 SharedArray<int> bb22 () {
     SharedArray<int> r (Capacity(32));
     for (usize i = 0; i < 32; i++) {
-        r.emplace_back_expect_capacity(i);
+        r.emplace_back_assume_capacity(i);
     }
     return r;
 }
@@ -152,7 +152,7 @@ UniqueArray<int> b23 () {
     UniqueArray<int> r;
     r.reserve(32);
     for (usize i = 0; i < 32; i++) {
-        r.emplace_back_expect_capacity(i);
+        r.emplace_back_assume_capacity(i);
     }
     return r;
 }
@@ -160,7 +160,7 @@ UniqueArray<int> b23 () {
 UniqueArray<int> t23b () {
     UniqueArray<int> r (Capacity(32));
     for (usize i = 0; i < 32; i++) {
-        r.emplace_back_expect_capacity(i);
+        r.emplace_back_assume_capacity(i);
     }
     return r;
 }
@@ -267,12 +267,12 @@ UniqueString t34b (StaticString a, SharedString b, StaticString c) {
 [[gnu::cold]]
 UniqueString t34c (StaticString a, SharedString b, StaticString c) {
     auto r = UniqueString(Capacity(a.size() + b.size() + c.size() + 29));
-    r.append_expect_capacity("Couldn't ");
-    r.append_expect_capacity(a);
-    r.append_expect_capacity(" ");
-    r.append_expect_capacity(b);
-    r.append_expect_capacity(" when its state is ");
-    r.append_expect_capacity(c);
+    r.append_assume_capacity("Couldn't ");
+    r.append_assume_capacity(a);
+    r.append_assume_capacity(" ");
+    r.append_assume_capacity(b);
+    r.append_assume_capacity(" when its state is ");
+    r.append_assume_capacity(c);
     return r;
 }
 [[gnu::cold]]
@@ -296,9 +296,9 @@ auto b34 (StaticString a, SharedString b, StaticString c) {
 [[gnu::cold]]
 auto b34b (StaticString a, SharedString b, StaticString c) {
     auto r = UniqueArray<std::pair<SharedString, SharedString>>(Capacity(3));
-    r.emplace_back_expect_capacity("tried", a);
-    r.emplace_back_expect_capacity("name", move(b));
-    r.emplace_back_expect_capacity("state", c);
+    r.emplace_back_assume_capacity("tried", a);
+    r.emplace_back_assume_capacity("name", move(b));
+    r.emplace_back_assume_capacity("state", c);
     return r;
 }
 

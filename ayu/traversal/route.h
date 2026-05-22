@@ -178,7 +178,7 @@ struct CurrentBase {
 
      // Direct constructor.  This must be a root route.
     CurrentBase (SharedRoute rt) {
-        expect(!rt->parent());
+        assume(!rt->parent());
         old = move(current_base);
         current_base = move(rt);
     }

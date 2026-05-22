@@ -71,7 +71,7 @@ bool Window::is_minimized () const {
 geo::IVec Window::size () const {
     int w, h;
     SDL_GL_GetDrawableSize(sdl_window, &w, &h);
-    expect(w > 0 && h > 0);
+    assume(w > 0 && h > 0);
     return {w, h};
 }
 

@@ -27,13 +27,13 @@ namespace ayu::in {
         const Type* types,
         u32 len
     ) noexcept {
-        expect(len >= 1);
+        assume(len >= 1);
         return cat(
             prefix, Caterator(", ", len, [types](u32 i){
                  // This will call get_type_name twice for each desc, but that
                  // should still be faster and smaller than caching all the
                  // names in a variable-length array.
-                return expect(types[i].name());
+                return assume(types[i].name());
             }), '>'
         );
     }

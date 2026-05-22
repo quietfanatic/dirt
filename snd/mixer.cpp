@@ -18,7 +18,7 @@ NOINLINE
 void grow_voices (UniqueArray<VoiceImp>& vs, u32 channel) {
     require(channel <= Mixer::highest_channel);
     vs.reserve_plenty(channel + 1);
-    expect(channel + 1 <= vs.capacity());
+    assume(channel + 1 <= vs.capacity());
     vs.grow(channel + 1);
 }
 
@@ -54,10 +54,10 @@ void VoiceSpec::validate () const {
 VoiceSpec::operator VoiceImp () const {
     if (!audio) return VoiceImp();
     validate();
-    return expect_valid();
+    return assume_valid();
 }
 
-VoiceImp VoiceSpec::expect_valid () const {
+VoiceImp VoiceSpec::assume_valid () const {
     return VoiceImp{
         .audio = audio,
         .position = geo::round(start_position * chronons_per_second(audio)),
@@ -171,10 +171,10 @@ void mix_voice (
     bool stereo = v.audio->n_channels > 1;
      // Don't forget to write this back after looping!
     i64 in_pos = v.position;
-    expect(in_pos >= 0);
+    assume(in_pos >= 0);
      // How fast to consume the input compared to the output
     i64 in_speed = (i64(v.speed) << 8) * v.audio->sample_rate / out_rate;
-    expect(in_speed >= 0);
+    assume(in_speed >= 0);
      // Figure out how much input we can get before doing something weird.
      // Subtract one from loop_end so we can specially interpolate the last
      // sample.
@@ -195,7 +195,7 @@ void mix_voice (
         ? _mm_set_epi8(-1,-1,-1,-1,-1,-1,-1,-1,7,6,5,4,3,2,1,0)
         : _mm_set_epi8(-1,-1,-1,-1,-1,-1,-1,-1,3,2,3,2,1,0,1,0);
 #endif
-    expect(out_len > 0);
+    assume(out_len > 0);
     for (u32 out_i = 0; out_i < out_len; out_i++) {
         redo:
          // Split position into index and lerper
@@ -228,7 +228,7 @@ void mix_voice (
         else if (in_pos >= i64(v.loop_end) << 32) {
              // We're looping!
             in_pos -= i64(v.loop_end - v.loop_start) << 32;
-            expect(in_pos < i64(v.loop_end) << 32);
+            assume(in_pos < i64(v.loop_end) << 32);
             goto redo;
         }
         else {
@@ -302,7 +302,7 @@ void mix_voice (
             v.volume = v.fade_volume;
             v.fade_velocity = geo::GNAN;
             if (v.fade_out) {
-                expect(v.fade_volume == 0);
+                assume(v.fade_volume == 0);
                 v.audio = null;
                 return;
             }

@@ -114,7 +114,7 @@ Block init_pool (Page*& first_partial, u32 slot_size) noexcept {
     return init_page(first_partial, slot_size, page);
 }
 
- // This complex of an expect() bogs down the optimizer
+ // This complex of an assume() bogs down the optimizer
 #ifndef NDEBUG
 static
 bool page_valid (Page* page, u32 slot_size) {
@@ -165,7 +165,7 @@ Block allocate_small (Page*& first_partial, u32 slot_size) noexcept {
         return allocate_page(first_partial, slot_size);
     }
     Page* page = first_partial;
-    expect(page_valid(page, slot_size));
+    assume(page_valid(page, slot_size));
 #ifdef UNI_LILAC_PROFILE
     u32 sc = &first_partial - global.first_partial_pages;
     profiles[sc].slots_allocated += 1;
@@ -255,16 +255,16 @@ namespace in {
 NOINLINE
 void deallocate_small (void* p, Page*& first_partial, u32 slot_size) noexcept {
      // Check that we own this pointer
-     // This expect causes optimized build to load &global too early
+     // This assume causes optimized build to load &global too early
 #ifndef NDEBUG
-    expect((char*)p > (char*)global.pool
+    assume((char*)p > (char*)global.pool
         && (char*)p < (char*)global.first_untouched_page
     );
 #endif
     Page* page = (Page*)((usize)p & ~usize(page_size - 1));
      // Check that pointer is aligned correctly
-    expect(((char*)p - (char*)page - page_overhead) % slot_size == 0);
-    expect(page_valid(page, slot_size));
+    assume(((char*)p - (char*)page - page_overhead) % slot_size == 0);
+    assume(page_valid(page, slot_size));
 #ifndef NDEBUG
      // Check watchpoint
     if (debug_protect > p && debug_protect < (char*)p + slot_size) {

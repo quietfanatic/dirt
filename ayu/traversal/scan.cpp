@@ -115,7 +115,7 @@ struct TraverseScan {
             if (auto keys = desc->keys_acr()) {
                 use_computed_attrs(trav, keys);
             }
-            else use_attrs(trav, expect(desc->attrs()));
+            else use_attrs(trav, assume(desc->attrs()));
         }
         else if (desc->preference() == DescFlags::PreferArray) {
             if (auto length = desc->length_acr()) {
@@ -124,7 +124,7 @@ struct TraverseScan {
                 }
                 else use_computed_elems(trav, length);
             }
-            else use_elems(trav, expect(desc->elems()));
+            else use_elems(trav, assume(desc->elems()));
         }
         else if (auto delegate = desc->delegate_acr()) {
             return use_delegate(trav, delegate);
@@ -138,7 +138,7 @@ struct TraverseScan {
             if (auto keys = desc->keys_acr()) {
                 use_computed_attrs(trav, keys);
             }
-            else use_attrs(trav, expect(desc->attrs()));
+            else use_attrs(trav, assume(desc->attrs()));
         }
         else if (desc->preference() == DescFlags::PreferArray) {
             if (auto length = desc->length_acr()) {
@@ -147,7 +147,7 @@ struct TraverseScan {
                 }
                 else use_computed_elems(trav, length);
             }
-            else use_elems(trav, expect(desc->elems()));
+            else use_elems(trav, assume(desc->elems()));
         }
         else if (auto delegate = desc->delegate_acr()) {
             return use_delegate(trav, delegate);
@@ -193,7 +193,7 @@ struct TraverseScan {
             auto& ks = require_readable_keys(t, v);
             new (&keys) SharedArray<SharedString>(ks);
         }));
-        auto f = expect(trav.desc()->computed_attrs())->f;
+        auto f = assume(trav.desc()->computed_attrs())->f;
          // Now scan for each key
         for (auto& key : keys) {
             auto link = f(*trav.address, key);
@@ -255,7 +255,7 @@ struct TraverseScan {
     ) {
         u32 len;
         read_length_acr(len, trav.type, trav.address, length_acr);
-        auto f = expect(trav.desc()->computed_elems())->f;
+        auto f = assume(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < len; i++) {
             auto link = f(*trav.address, i);
             if (!link) raise_ElemNotFound(trav.type, i);
@@ -289,7 +289,7 @@ struct TraverseScan {
         u32 len;
         read_length_acr(len, trav.type, trav.address, length_acr);
         if (!len) return;
-        auto f = expect(trav.desc()->contiguous_elems())->f;
+        auto f = assume(trav.desc()->contiguous_elems())->f;
         auto ptr = f(*trav.address);
         for (u32 i = 0; i < len; i++) {
             SharedRoute child_rt;
@@ -335,8 +335,8 @@ static bool have_route_cache = false;
 NOINLINE // Noinline the slow path to make the callback leaner
 bool realloc_cache (auto& cache, AnyPtr ptr, RouteRef rt) {
     cache.reserve_plenty(cache.size() + 1);
-    expect(rt);
-    cache.emplace_back_expect_capacity(ptr, rt);
+    assume(rt);
+    cache.emplace_back_assume_capacity(ptr, rt);
     return false;
 }
 
@@ -353,10 +353,10 @@ void gen_route_cache () {
          // and in that case it shouldn't matter which route gets cached.
          // It could theoretically be a problem if the pointers differ in
          // readonlyness, but that should probably never happen.
-        expect(cache.owned());
+        assume(cache.owned());
         if (cache.size() < cache.capacity()) {
-            expect(rt);
-            cache.emplace_back_expect_capacity(ptr, rt);
+            assume(rt);
+            cache.emplace_back_assume_capacity(ptr, rt);
             return false;
         }
         else return realloc_cache(cache, ptr, rt);

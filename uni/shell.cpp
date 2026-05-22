@@ -32,12 +32,12 @@ UniqueString escape_for_shell (Str in) {
     usize len = in.size() + 2;
     for (auto& c : in) if (c == '\'') len += 3;
     auto out = UniqueString(Capacity(len));
-    out.push_back_expect_capacity('\'');
+    out.push_back_assume_capacity('\'');
     for (auto& c : in) {
-        if (c == '\'') out.append_expect_capacity("'\\''");
-        else out.push_back_expect_capacity(c);
+        if (c == '\'') out.append_assume_capacity("'\\''");
+        else out.push_back_assume_capacity(c);
     }
-    out.push_back_expect_capacity('\'');
+    out.push_back_assume_capacity('\'');
     return out;
 }
 

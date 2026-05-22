@@ -68,7 +68,7 @@ Mu* Collection::extract (Mu* p) noexcept {
     Mu* tmp_value_data = entry->value.data;
     while (tmp_value_data != p) {
         entry -= 1;
-        expect(entry >= items.begin());
+        assume(entry >= items.begin());
 
         usize tmp2_name_sx2wo = entry->name_sx2wo;
         char* tmp2_name_data = entry->name_data;
@@ -100,9 +100,9 @@ AYU_DESCRIBE(ayu::Collection,
     keys(mixed_funcs<SharedArray<SharedString>>(
         [](const Collection& v){
             auto r = UniqueArray<SharedString>(Capacity(v.items.size() + 1));
-            if (v.next_id) r.emplace_back_expect_capacity("_next_id");
+            if (v.next_id) r.emplace_back_assume_capacity("_next_id");
             for (auto& item : v.items) {
-                r.emplace_back_expect_capacity(item.name());
+                r.emplace_back_assume_capacity(item.name());
             }
             return SharedArray<SharedString>(move(r));
         },
@@ -117,10 +117,10 @@ AYU_DESCRIBE(ayu::Collection,
                     if (p != end) {
                         raise(e_CollectionItemNameInvalid, "Collection item name starts with _ but is not an integer");
                     }
-                    items.emplace_back_expect_capacity(id);
+                    items.emplace_back_assume_capacity(id);
                 }
                 else {
-                    items.emplace_back_expect_capacity(k);
+                    items.emplace_back_assume_capacity(k);
                 }
             }
             v.items = move(items);

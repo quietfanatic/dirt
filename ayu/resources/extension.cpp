@@ -30,7 +30,7 @@ void ResourceExtension::from_blob (
      // accepts_type might be overridden without this being overridden, so check
      // it.
     validate_type(type);
-    expect(!value);
+    assume(!value);
     value = AnyVal(type);
      // Run item_from_tree on the AnyVal's value, not on the AnyVal itself.
      // Otherwise, the associated routes will have an extra +1 in the fragment.

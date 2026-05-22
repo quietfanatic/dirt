@@ -48,7 +48,7 @@ struct Collection {
      // Like above, but O(1) and undefined behavior if name isn't unique and a
      // valid item name.
     template <Describable T, class... Args>
-    T* new_with_name_expect_valid (SharedString name, Args&&... args);
+    T* new_with_name_assume_valid (SharedString name, Args&&... args);
 
      // Returns the item with the given name.  Can find anonymous items if you
      // pass a decimal integer prefixed with _.  Returns null if not found or if
@@ -155,7 +155,7 @@ T* Collection::new_with_name (SharedString name, Args&&... args) {
 }
 
 template <Describable T, class... Args>
-T* Collection::new_with_name_expect_valid (SharedString name, Args&&... args) {
+T* Collection::new_with_name_assume_valid (SharedString name, Args&&... args) {
 #ifndef NDEBUG
     validate_name(name);
 #endif

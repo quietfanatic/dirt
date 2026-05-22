@@ -9,18 +9,18 @@ struct ResourceRoute : Route {
     SharedResource resource;
     ResourceRoute (SharedResource res) :
         Route(RF::Resource), resource(move(res))
-    { expect(resource); }
+    { assume(resource); }
 };
 struct LinkRoute : Route {
     Link link;
     LinkRoute (Link l) :
         Route(RF::Link), link(move(l))
-    { expect(link); }
+    { assume(link); }
 };
 struct ChildRoute : Route {
     SharedRoute parent;
     ChildRoute (RouteForm f, SharedRoute p) : Route(f), parent(move(p))
-    { expect(parent); }
+    { assume(parent); }
 };
 struct KeyRoute : ChildRoute {
     SharedString key;

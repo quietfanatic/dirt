@@ -38,7 +38,7 @@ struct IFTContext {
         current = this;
     }
     ~IFTContext () {
-        expect(current == this);
+        assume(current == this);
         current = previous;
     }
 
@@ -98,8 +98,8 @@ struct TraverseFromTree {
         if (!!(ctx.swizzle_ops) | !!(ctx.init_ops)) {
             do_swizzle_init(ctx);
         }
-        expect(!ctx.swizzle_ops.owned());
-        expect(!ctx.init_ops.owned());
+        assume(!ctx.swizzle_ops.owned());
+        assume(!ctx.init_ops.owned());
     }
 
     NOINLINE static
@@ -116,7 +116,7 @@ struct TraverseFromTree {
     void do_swizzle_init (IFTContext& ctx) {
         if (ctx.swizzle_ops) {
             ctx.swizzle_ops.consume([](SwizzleOp&& op){
-                expect(!op.base->parent());
+                assume(!op.base->parent());
                 CurrentBase curb (move(op.base));
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
@@ -124,7 +124,7 @@ struct TraverseFromTree {
                     }));
                 }
                 catch (...) { tag_error_with_item(op.item); }
-                expect(!op.base);
+                assume(!op.base);
             });
              // Swizzling might add more swizzle ops; this will happen if we're
              // swizzling a pointer which points to a separate resource; that
@@ -133,7 +133,7 @@ struct TraverseFromTree {
         }
         else if (ctx.init_ops) {
             ctx.init_ops.consume([](InitOp&& op){
-                expect(!op.base->parent());
+                assume(!op.base->parent());
                 CurrentBase curb (move(op.base));
                 try {
                     op.item.modify(AccessCB(op, [](auto& op, Type, Mu* v){
@@ -141,7 +141,7 @@ struct TraverseFromTree {
                     }));
                 }
                 catch (...) { tag_error_with_item(op.item); }
-                expect(!op.base);
+                assume(!op.base);
             });
              // Initting might add more swizzle or init ops.  It'd be weird, but
              // it's allowed for an init() to load another resource.
@@ -268,7 +268,7 @@ struct TraverseFromTree {
 
         claim_attrs_use_attrs(trav, &next_list_buf[0] + 1, attrs);
         if (next_list_buf[0] != u32(-1)) {
-            expect(trav.tree->form == Form::Object);
+            assume(trav.tree->form == Form::Object);
             raise_AttrRejected(
                 trav.type, trav.tree->data.as_object_ptr[next_list_buf[0]].first
             );
@@ -281,12 +281,12 @@ struct TraverseFromTree {
     ) {
          // Computed attrs always take the entire object, so we don't need to
          // allocate a next_list.
-        expect(trav.tree->form == Form::Object);
+        assume(trav.tree->form == Form::Object);
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
         auto desc = trav.desc();
-        expect(desc->computed_attrs_offset);
+        assume(desc->computed_attrs_offset);
         auto f = desc->computed_attrs()->f;
-        expect(trav.tree->form == Form::Object);
+        assume(trav.tree->form == Form::Object);
         for (auto& pair : Slice<TreePair>(*trav.tree)) {
             write_computed_attr(trav, pair, f);
         }
@@ -314,7 +314,7 @@ struct TraverseFromTree {
         const FromTreeTraversal<>& trav, u32* next_list,
         const AttrsDcrPrivate* attrs
     ) {
-        expect(trav.tree->form == Form::Object);
+        assume(trav.tree->form == Form::Object);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto flags = attr->acr()->attr_flags;
@@ -390,16 +390,16 @@ struct TraverseFromTree {
     ) {
          // We should only get here if a parent item collapsed a child item that
          // has computed attrs.
-        expect(trav.tree->form == Form::Object);
+        assume(trav.tree->form == Form::Object);
         set_keys(trav, Slice<TreePair>(*trav.tree), keys_acr);
-        auto f = expect(trav.desc()->computed_attrs())->f;
+        auto f = assume(trav.desc()->computed_attrs())->f;
         u32* prev_next; u32 i;
         for (
             prev_next = &next_list[-1], i = *prev_next;
             i != u32(-1);
             prev_next = &next_list[i], i = *prev_next
         ) {
-            expect(trav.tree->form == Form::Object);
+            assume(trav.tree->form == Form::Object);
             write_computed_attr(trav, trav.tree->data.as_object_ptr[i], f);
         }
          // Consume entire list
@@ -446,7 +446,7 @@ struct TraverseFromTree {
             auto& ks = require_writeable_keys(t, v);
             ks = move(keys);
         }));
-        expect(!keys.owned());
+        assume(!keys.owned());
     }
 
     NOINLINE static
@@ -466,7 +466,7 @@ struct TraverseFromTree {
          // Check returned keys for duplicates
         for (u32 i = 0; i < keys.size(); i++)
         for (u32 j = 0; j < i; j++) {
-            expect(keys[i] != keys[j]);
+            assume(keys[i] != keys[j]);
         }
 #endif
         if (keys.size() >= object.size()) {
@@ -511,7 +511,7 @@ struct TraverseFromTree {
     ) {
          // Check whether length is acceptable
         u32 min = elems->chop_flag(AttrFlags::Optional);
-        expect(trav.tree->form == Form::Array);
+        assume(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         if (array.size() < min || array.size() > elems->n_elems) {
             raise_LengthRejected(trav.type, min, elems->n_elems, array.size());
@@ -533,20 +533,20 @@ struct TraverseFromTree {
          // We can only check the lower bound right now.  The upper bound will
          // be checked by the collapsed child item.
         u32 collapsed_i = elems->n_elems - 1;
-        expect(trav.tree->form == Form::Array);
+        assume(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         if (array.size() < collapsed_i) {
             raise_LengthRejected(trav.type, collapsed_i, u32(-1), array.size());
         }
         for (u32 i = 0; i < collapsed_i; i++) {
             auto acr = elems->elem(i)->acr();
-            expect(!(acr->attr_flags % AttrFlags::Ignored));
+            assume(!(acr->attr_flags % AttrFlags::Ignored));
             FromTreeTraversal<ElemTraversal> child;
             child.tree = &array[i];
             trav_elem<visit>(child, trav, acr, i, AC::Write);
         }
         auto acr = elems->elem(collapsed_i)->acr();
-        expect(acr->attr_flags % AttrFlags::Collapse);
+        assume(acr->attr_flags % AttrFlags::Collapse);
         FromTreeTraversal<ElemTraversal> child;
         Tree collapsed = Tree(SharedArray(array.slice(collapsed_i)));
         child.tree = &collapsed;
@@ -559,11 +559,11 @@ struct TraverseFromTree {
     void use_computed_elems (
         const FromTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        expect(trav.tree->form == Form::Array);
+        assume(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
         write_length_acr(len, trav.type, trav.address, length_acr);
-        auto f = expect(trav.desc()->computed_elems())->f;
+        auto f = assume(trav.desc()->computed_elems())->f;
         for (u32 i = 0; i < array.size(); i++) {
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.type, i);
@@ -580,12 +580,12 @@ struct TraverseFromTree {
     void use_contiguous_elems (
         const FromTreeTraversal<>& trav, const Accessor* length_acr
     ) {
-        expect(trav.tree->form == Form::Array);
+        assume(trav.tree->form == Form::Array);
         auto array = Slice<Tree>(*trav.tree);
         u32 len = array.size();
         write_length_acr(len, trav.type, trav.address, length_acr);
         if (array) {
-            auto f = expect(trav.desc()->contiguous_elems())->f;
+            auto f = assume(trav.desc()->contiguous_elems())->f;
             auto ptr = f(*trav.address);
             for (u32 i = 0; i < array.size(); i++) {
                 FromTreeTraversal<ContiguousElemTraversal> child;
@@ -608,8 +608,8 @@ struct TraverseFromTree {
         for (u32 i = 0; i < values->n_values; i++) {
             auto value = values->value(i);
              // These are for optimization, not safety
-            expect(trav.tree->form == Form::String);
-            expect(value->name.form == Form::String);
+            assume(trav.tree->form == Form::String);
+            assume(value->name.form == Form::String);
             if (Str(*trav.tree) == Str(value->name)) {
                 values->assign.generic(*trav.address, *value->get_value());
                 return finish_item(trav);

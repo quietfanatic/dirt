@@ -23,7 +23,7 @@ i32 adjust (char c) {
 }
 
 ALWAYS_INLINE static
-int normalize (isize v) { return expect(v) < 0 ? -1 : 1; }
+int normalize (isize v) { return assume(v) < 0 ? -1 : 1; }
 
 int natural_compare (Str a, Str b) noexcept {
      // Use a faster algorithm to find the first difference, then work from
@@ -151,11 +151,11 @@ char* write_decimal_digits (char* p, u32 count, u64 v) noexcept {
      // which is theoretically faster, but it reads a lookup table and has more
      // instructions and branches, so it's harder on caches and branch tables.
      // Division by a constant is not all that slow.
-    expect(count == count_decimal_digits(v));
-    expect(count >= 1 && count <= 20);
+    assume(count == count_decimal_digits(v));
+    assume(count >= 1 && count <= 20);
     if (count == 1) [[likely]] {
         end:
-        expect(v < 10);
+        assume(v < 10);
         *p = '0' + v;
         return p + count;
     }
@@ -163,7 +163,7 @@ char* write_decimal_digits (char* p, u32 count, u64 v) noexcept {
         p[c] = '0' + v % 10;
         v /= 10;
     }
-    expect(v);
+    assume(v);
     goto end;
 }
 

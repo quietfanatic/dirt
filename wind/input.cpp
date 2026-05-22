@@ -183,7 +183,7 @@ static constexpr auto inputs_by_hash = []{
     });
     for (usize i = 0; i < r.size()-1; i++) {
          // No collisions allowed
-        expect(r[i].hash != r[i+1].hash);
+        assume(r[i].hash != r[i+1].hash);
     }
     return r;
 }();
@@ -368,28 +368,28 @@ static ayu::Tree input_to_tree (const Input& input) {
         Capacity(1 + std::popcount(u8(input.flags)))
     );
     if (input.flags % InputFlags::Repeatable) {
-        a.emplace_back_expect_capacity("repeatable");
+        a.emplace_back_assume_capacity("repeatable");
     }
     if (input.flags % InputFlags::Ctrl) {
-        a.emplace_back_expect_capacity("ctrl");
+        a.emplace_back_assume_capacity("ctrl");
     }
     if (input.flags % InputFlags::Alt) {
-        a.emplace_back_expect_capacity("alt");
+        a.emplace_back_assume_capacity("alt");
     }
     if (input.flags % InputFlags::Shift) {
-        a.emplace_back_expect_capacity("shift");
+        a.emplace_back_assume_capacity("shift");
     }
     switch (input.type) {
         case InputType::Key: {
             switch (input.code) {
                 case SDLK_0: case SDLK_1: case SDLK_2: case SDLK_3: case SDLK_4:
                 case SDLK_5: case SDLK_6: case SDLK_7: case SDLK_8: case SDLK_9:
-                    a.emplace_back_expect_capacity(input.code - SDLK_0);
+                    a.emplace_back_assume_capacity(input.code - SDLK_0);
                     break;
                 default: {
                     StaticString name = input_to_string(input);
-                    if (!name.empty()) a.emplace_back_expect_capacity(name);
-                    else a.emplace_back_expect_capacity(input_to_integer(input));
+                    if (!name.empty()) a.emplace_back_assume_capacity(name);
+                    else a.emplace_back_assume_capacity(input_to_integer(input));
                     break;
                 }
             }
@@ -397,8 +397,8 @@ static ayu::Tree input_to_tree (const Input& input) {
         }
         case InputType::Button: {
             StaticString name = input_to_string(input);
-            expect(name);
-            a.emplace_back_expect_capacity(name);
+            assume(name);
+            a.emplace_back_assume_capacity(name);
             break;
         }
         default: never();
@@ -458,7 +458,7 @@ static ayu::Tree input_to_tree_no_modifiers (const InputNoModifiers& input) {
         }
         case InputType::Button: {
             StaticString name = input_to_string(input);
-            return ayu::Tree(expect(name));
+            return ayu::Tree(assume(name));
         }
         default: never();
     }

@@ -150,16 +150,16 @@ struct TraverseToTree {
     void use_attrs_no_rebuild (
         const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
-        expect(attrs->n_attrs);
+        assume(attrs->n_attrs);
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
-        expect(attrs->n_attrs);
+        assume(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
 
             ToTreeTraversal<AttrTraversal> child;
 
-            child.dest = &object.emplace_back_expect_capacity(
+            child.dest = &object.emplace_back_assume_capacity(
                 attr->key, Tree()
             ).second;
             child.embed_errors = trav.embed_errors;
@@ -175,18 +175,18 @@ struct TraverseToTree {
     void use_attrs (
         const ToTreeTraversal<>& trav, const AttrsDcrPrivate* attrs
     ) {
-        expect(attrs->n_attrs);
+        assume(attrs->n_attrs);
         auto object = UniqueArray<TreePair>(Capacity(attrs->n_attrs));
          // First just build the object as though none of the attrs are
          // collapsed, then rebuild the object while collapsing attrs.
-        expect(attrs->n_attrs);
+        assume(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             if (attr->acr()->attr_flags % AttrFlags::Invisible) continue;
 
             ToTreeTraversal<AttrTraversal> child;
 
-            child.dest = &object.emplace_back_expect_capacity(
+            child.dest = &object.emplace_back_assume_capacity(
                 attr->key, Tree()
             ).second;
             child.embed_errors = trav.embed_errors;
@@ -197,7 +197,7 @@ struct TraverseToTree {
         }
          // Determine length for preallocation
         u32 len = object.size();
-        expect(attrs->n_attrs);
+        assume(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto flags = attrs->attr(i)->acr()->attr_flags;
              // Ignore HasDefault; it can only decrease the length by 1, and
@@ -211,7 +211,7 @@ struct TraverseToTree {
          // Allocate
         auto new_object = decltype(object)(Capacity(len));
          // Selectively flatten
-        expect(attrs->n_attrs);
+        assume(attrs->n_attrs);
         for (u32 i = 0; i < attrs->n_attrs; i++) {
             auto attr = attrs->attr(i);
             auto flags = attr->acr()->attr_flags;
@@ -225,7 +225,7 @@ struct TraverseToTree {
                 }
                  // DON'T consume sub object because it could be shared.
                 for (auto& pair : SharedArray<TreePair>(move(value))) {
-                    new_object.emplace_back_expect_capacity(pair);
+                    new_object.emplace_back_assume_capacity(pair);
                 }
                 continue;
             }
@@ -246,7 +246,7 @@ struct TraverseToTree {
             else if (const Tree* def = attr->default_value()) {
                 if (value == *def) continue; // Drop the attr
             }
-            new_object.emplace_back_expect_capacity(
+            new_object.emplace_back_assume_capacity(
                 move(key), move(value)
             );
         }
@@ -254,8 +254,8 @@ struct TraverseToTree {
          // destructor loop (but verify in debug mode).
 #ifndef NDEBUG
         for (auto& pair : object) {
-            expect(!pair.first.owned());
-            expect(!pair.second.size);
+            assume(!pair.first.owned());
+            assume(!pair.second.size);
         }
 #endif
         SharableBuffer<TreePair>::deallocate(object.impl.data);
@@ -274,14 +274,14 @@ struct TraverseToTree {
             AccessCB(object, [](auto& object, Type t, Mu* v)
         {
             auto& ks = require_readable_keys(t, v);
-            expect(!object.owned());
+            assume(!object.owned());
             object = UniqueArray<TreePair>(ks.size(), [&](u32 i){
                 return TreePair{ks[i], Tree()};
             });
         }));
          // Populate values
         for (auto& [key, value] : object) {
-            auto f = expect(trav.desc()->computed_attrs())->f;
+            auto f = assume(trav.desc()->computed_attrs())->f;
             auto ref = f(*trav.address, key);
             if (!ref) raise_AttrNotFound(trav.type, key);
 
@@ -293,7 +293,7 @@ struct TraverseToTree {
             );
         }
         new (trav.dest) Tree(move(object));
-        expect(!object.owned());
+        assume(!object.owned());
     }
 
     NOINLINE static
@@ -305,7 +305,7 @@ struct TraverseToTree {
         for (u32 i = 0; i < len; i++) {
             auto acr = elems->elem(i)->acr();
             ToTreeTraversal<ElemTraversal> child;
-            child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.dest = &array.emplace_back_assume_capacity(Tree());
             child.embed_errors = trav.embed_errors;
             trav_elem<visit>(
                 child, trav, acr, i, AC::Read
@@ -319,20 +319,20 @@ struct TraverseToTree {
     void use_elems_collapse (
         const ToTreeTraversal<>& trav, const ElemsDcrPrivate* elems
     ) {
-        expect(elems->n_elems);
+        assume(elems->n_elems);
         auto array = UniqueArray<Tree>(Capacity(elems->n_elems));
-        expect(elems->n_elems);
+        assume(elems->n_elems);
         for (u32 i = 0; i < elems->n_elems; i++) {
             auto acr = elems->elem(i)->acr();
             ToTreeTraversal<ElemTraversal> child;
-            child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.dest = &array.emplace_back_assume_capacity(Tree());
             child.embed_errors = trav.embed_errors;
             trav_elem<visit>(
                 child, trav, acr, i, AC::Read
             );
             child.dest->flags |= child.acr->tree_flags;
         }
-        expect(array.size() >= 1);
+        assume(array.size() >= 1);
         Tree collapsed = move(array.back());
         array.pop_back();
         if (collapsed.form != Form::Array) {
@@ -350,11 +350,11 @@ struct TraverseToTree {
         read_length_acr(len, trav.type, trav.address, length_acr);
         auto array = UniqueArray<Tree>(Capacity(len));
         for (u32 i = 0; i < len; i++) {
-            auto f = expect(trav.desc()->computed_elems())->f;
+            auto f = assume(trav.desc()->computed_elems())->f;
             auto ref = f(*trav.address, i);
             if (!ref) raise_ElemNotFound(trav.type, i);
             ToTreeTraversal<ComputedElemTraversal> child;
-            child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.dest = &array.emplace_back_assume_capacity(Tree());
             child.embed_errors = trav.embed_errors;
             trav_computed_elem<visit>(
                 child, trav, ref, f, i, AC::Read
@@ -376,12 +376,12 @@ struct TraverseToTree {
             return;
         }
         auto array = UniqueArray<Tree>(Capacity(len));
-        auto f = expect(trav.desc()->contiguous_elems())->f;
+        auto f = assume(trav.desc()->contiguous_elems())->f;
         auto ptr = f(*trav.address);
-        expect(len);
+        assume(len);
         for (u32 i = 0; i < len; i++) {
             ToTreeTraversal<ContiguousElemTraversal> child;
-            child.dest = &array.emplace_back_expect_capacity(Tree());
+            child.dest = &array.emplace_back_assume_capacity(Tree());
             child.embed_errors = trav.embed_errors;
             trav_contiguous_elem<visit>(
                 child, trav, ptr, f, i, AC::Read
@@ -420,7 +420,7 @@ struct TraverseToTree {
 
     NOINLINE static
     void embed_error (const ToTreeTraversal<>& trav) {
-        expect(trav.embed_errors);
+        assume(trav.embed_errors);
         new (trav.dest) Tree(std::current_exception());
     }
 };

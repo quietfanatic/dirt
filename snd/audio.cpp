@@ -48,14 +48,14 @@ void AudioExtensionQOA::from_blob (
 ) {
     scheme->validate_type(ayu::Type::of<UniqueAudio>());
     UniqueAudio au = audio_from_blob_qoa(blob);
-    expect(!value);
+    assume(!value);
     value = ayu::AnyVal::make<UniqueAudio>(move(au));
 }
 
 UniqueArray<u8> AudioExtensionQOA::to_blob (
     const ayu::AnyVal& value, ayu::ResourceRef, ayu::PrintOptions
 ) {
-    expect(value.type == ayu::Type::of<UniqueAudio>());
+    assume(value.type == ayu::Type::of<UniqueAudio>());
     return audio_to_blob_qoa(value.as<UniqueAudio>());
 }
 
@@ -68,7 +68,7 @@ void AudioExtensionWAV::from_blob (
 ) {
     scheme->validate_type(ayu::Type::of<UniqueAudio>());
     UniqueAudio au = audio_from_blob_wav(blob);
-    expect(!value);
+    assume(!value);
     value = ayu::AnyVal::make<UniqueAudio>(move(au));
 }
 

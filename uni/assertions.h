@@ -25,7 +25,7 @@ T&& require (
  // optimization.  Unlike [[assume]], this always evaluates its argument.
  //
  // Note that occasionally this makes optimization worse instead of better.
- // This is more likely if there are many expect()s in a row, or if the return
+ // This is more likely if there are many assume()s in a row, or if the return
  // value is used, or if there's a branch in the argument that's similar to
  // another branch outside (which can affect that branch even if the argument is
  // optimized away).  TODO: check if this is still the case now that we're using
@@ -38,7 +38,7 @@ T&& require (
  // release builds, use assert() then [[assume]].
 #ifndef NDEBUG
 template <class T> ALWAYS_INLINE static constexpr
-T&& expect (
+T&& assume (
     T&& v, std::source_location loc = std::source_location::current()
 ) {
     if (!v) abort_assertion_failed(loc);
@@ -46,14 +46,13 @@ T&& expect (
 }
 #else
 template <class T> ALWAYS_INLINE static constexpr
-T&& expect (T&& v) {
-    assert(!!v);
+T&& assume (T&& v) {
     [[assume(!!v)]];
     return std::forward<T>(v);
 }
 #endif
 
- // Equivalent to expect(false) but doesn't warn about lack of return
+ // Equivalent to assume(false) but doesn't warn about lack of return
 #ifndef NDEBUG
 [[noreturn]] ALWAYS_INLINE static
 void never (std::source_location loc = std::source_location::current()) {

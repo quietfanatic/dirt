@@ -104,7 +104,7 @@ constexpr bool exact_eq (T a, T b) {
  // in an integer of the same size.
 template <Floating T>
 constexpr SameSizeInt<T> trunc (T a) {
-    expect(a >= SameSizeInt<T>(-GINF) && a <= SameSizeInt<T>(GINF));
+    assume(a >= SameSizeInt<T>(-GINF) && a <= SameSizeInt<T>(GINF));
     return SameSizeInt<T>(a);
 }
 

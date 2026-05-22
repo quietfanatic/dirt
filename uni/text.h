@@ -155,7 +155,7 @@ u32 count_hex_digits (u64 v) {
  // Lowercase.
 constexpr
 char* write_hex_digits (char* p, u32 count, u64 v) {
-    expect(count >= 1);
+    assume(count >= 1);
     if (count == 1) {
         *p++ = (v < 10 ? '0' : 'a' - 10) + v;
         return p;

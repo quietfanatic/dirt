@@ -227,7 +227,7 @@ void* allocate (usize size) noexcept {
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate (void* p, usize) noexcept {
-    expect(p);
+    assume(p);
      // Reading the size class from the page is faster than calculating it
     deallocate_unknown_size(p);
 }
@@ -248,7 +248,7 @@ void* allocate_fixed_size (usize size) noexcept {
 
 [[gnu::nonnull(1)]] ALWAYS_INLINE
 void deallocate_fixed_size (void* p, usize size) noexcept {
-    expect(p);
+    assume(p);
     i32 sc = in::get_size_class(size);
     if (sc >= 0) {
         auto& fp = in::global.first_partial_pages[sc];

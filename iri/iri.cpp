@@ -48,11 +48,11 @@ char* canonicalize_percent (char* out, const char* in, const char* in_end) {
 UniqueString encode (Str input) noexcept {
     if (!input) [[unlikely]] return "";
     usize cap = input.size();
-    expect(input.begin() < input.end());
+    assume(input.begin() < input.end());
     for (auto c : input) {
         cap += char_wants_encode(c) * 2;
     }
-    expect(cap > 0);
+    assume(cap > 0);
     char* buf = SharableBuffer<char>::allocate(cap);
     char* out = buf;
     for (auto c : input) {
@@ -72,7 +72,7 @@ UniqueString decode (Str input) noexcept {
     const char* end = input.end();
     char* buf = SharableBuffer<char>::allocate(input.size());
     char* out = buf;
-    expect(in != end);
+    assume(in != end);
     while (in != end) {
         if (*in == '%') {
             int result = read_percent(in, end);
@@ -100,7 +100,7 @@ struct IRIParser {
     u16 query_end;
 
     void parse (Str ref, const IRI& base) {
-        expect(ref);
+        assume(ref);
         in_begin = ref.begin();
         in_end = ref.end();
         if (ref.size() > maximum_length) return fail(Error::TooLong);
@@ -109,10 +109,10 @@ struct IRIParser {
         for (auto c : ref) {
             if (char_behavior(c) == CharProps::Iffy) cap += 2;
         }
-        expect(cap > 0 && cap <= maximum_length * 3);
+        assume(cap > 0 && cap <= maximum_length * 3);
         switch (relativity(ref)) {
             case Relativity::Scheme: {
-                expect(!output.owned());
+                assume(!output.owned());
                 new (&output) UniqueString(Capacity(cap));
                 return parse_scheme(output.begin(), in_begin);
             }
@@ -164,9 +164,9 @@ struct IRIParser {
     NOINLINE
     char* copy_prefix (Str prefix, usize cap) {
          // Allocate and start
-        expect(!output.owned());
+        assume(!output.owned());
         usize newcap = prefix.size() + cap;
-        expect(newcap > 0 && newcap <= maximum_length * 4);
+        assume(newcap > 0 && newcap <= maximum_length * 4);
         new (&output) UniqueString(Capacity(newcap));
         char* out = (char*)std::memcpy(output.data(), prefix.data(), prefix.size());\
         return out + prefix.size();
@@ -202,8 +202,8 @@ struct IRIParser {
 
     NOINLINE
     void parse_authority (char* out, const char* in) {
-        expect(out[-1] == ':');
-        expect(in + 2 <= in_end && Str(in, 2) == "//");
+        assume(out[-1] == ':');
+        assume(in + 2 <= in_end && Str(in, 2) == "//");
         *out++ = '/'; *out++ = '/';
         in += 2;
         while (in < in_end) switch (char_behavior(*in)) {
@@ -240,7 +240,7 @@ struct IRIParser {
     }
 
     void parse_absolute_path (char* out, const char* in) {
-        expect(*in == '/');
+        assume(*in == '/');
         *out++ = *in++;
         return parse_relative_path(out, in);
     }
@@ -304,7 +304,7 @@ struct IRIParser {
 
     NOINLINE
     void parse_nonhierarchical_path (char* out, const char* in) {
-        expect(out[-1] == ':');
+        assume(out[-1] == ':');
         while (in < in_end) switch (char_behavior(*in)) {
             case CharProps::Ordinary:
             case CharProps::Slash:
@@ -333,7 +333,7 @@ struct IRIParser {
 
     NOINLINE
     void parse_query (char* out, const char* in) {
-        expect(*in == '?');
+        assume(*in == '?');
         *out++ = *in++;
         while (in < in_end) switch (char_behavior(*in)) {
             case CharProps::Ordinary:
@@ -360,7 +360,7 @@ struct IRIParser {
 
     NOINLINE
     void parse_fragment (char* out, const char* in) {
-        expect(*in == '#');
+        assume(*in == '#');
         *out++ = *in++;
          // Note that a second # is not allowed.  If that happens, it's likely
          // that there is a nested URL with an unescaped fragment, and in that
@@ -389,12 +389,12 @@ struct IRIParser {
 
     void done (char* out, const char* in) {
         if (out - output.begin() > maximum_length) return fail(Error::TooLong);
-        expect(in == in_end);
-        expect(scheme_end < authority_end);
-        expect(scheme_end + 2 != authority_end);
-        expect(authority_end <= path_end);
-        expect(path_end <= query_end);
-        expect(query_end <= out - output.begin());
+        assume(in == in_end);
+        assume(scheme_end < authority_end);
+        assume(scheme_end + 2 != authority_end);
+        assume(authority_end <= path_end);
+        assume(path_end <= query_end);
+        assume(query_end <= out - output.begin());
         output.impl.size = out - output.begin();
     }
 
@@ -433,12 +433,12 @@ SharedString relative_to_in_path (const IRI& self, const IRI& base, u32 diff) {
             if (base.spec_[i] == '/') dotdots++;
         }
         usize cap = dotdots * 3 + (self.spec_.size() - tail);
-        expect(cap < UniqueString::max_size_);
+        assume(cap < UniqueString::max_size_);
         auto r = UniqueString(Capacity(cap));
         for (u32 i = 0; i < dotdots; i++) {
-            r.append_expect_capacity("../");
+            r.append_assume_capacity("../");
         }
-        r.append_expect_capacity(self.spec_.slice(tail));
+        r.append_assume_capacity(self.spec_.slice(tail));
         return r;
     }
     else if (tail != self.path_end) {
@@ -448,11 +448,11 @@ SharedString relative_to_in_path (const IRI& self, const IRI& base, u32 diff) {
         for (usize i = tail; i < self.path_end; i++) {
             if (self.spec_[i] == '/') break;
             else if (self.spec_[i] == ':') {
-                expect(self.spec_.size() < maximum_length);
+                assume(self.spec_.size() < maximum_length);
                 return cat("./", self.spec_.slice(tail));
             }
         }
-        return expect(self.spec_.slice(tail));
+        return assume(self.spec_.slice(tail));
     }
     else {
          // The identical paths end in /, what do we do?  Uh.....I think
@@ -477,7 +477,7 @@ SharedString IRI::relative_to (const IRI& base) const noexcept {
     u32 s = spec_.size() - 1;
     u32 bs = base.spec_.size();
     if (bs < s) s = bs;
-    expect(s > 0); // valid IRI is always at least two bytes
+    assume(s > 0); // valid IRI is always at least two bytes
     u32 diff = mem_first_difference(spec_.data(), base.spec_.data(), s);
      // We don't need to check for the existence of components, because if a
      // component doesn't exist its size will be 0, so there's no room for diff
@@ -511,7 +511,7 @@ SharedString IRI::relative_to (const IRI& base) const noexcept {
     }
     else goto return_everything;
     return_tail:
-    return expect(spec_.slice(tail));
+    return assume(spec_.slice(tail));
 }
 
 bool scheme_canonical (Str scheme) {

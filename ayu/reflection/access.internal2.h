@@ -155,7 +155,7 @@ template <class To>
 void ValueFuncAcr1<To>::_access (
     const Accessor* acr, Mu& from, AccessCB cb, AccessCaps mode
 ) {
-    expect(mode == AC::Read);
+    assume(mode == AC::Read);
     auto self = static_cast<const ValueFuncAcr<Mu, To>*>(acr);
     const To tmp = self->f(from);
     cb(Type::of<To>(), (Mu*)&tmp);

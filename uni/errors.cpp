@@ -29,14 +29,14 @@ const char* Error::what () const noexcept {
             len += 5 + tags[i].first.size() + 2 + tags[i].second.size();
         }
         what_cache = UniqueString(Capacity(len));
-        what_cache.append_expect_capacity(code_s);
-        what_cache.append_expect_capacity(": ");
-        what_cache.append_expect_capacity(details);
+        what_cache.append_assume_capacity(code_s);
+        what_cache.append_assume_capacity(": ");
+        what_cache.append_assume_capacity(details);
         for (usize i = 0; i < tags.size(); i++) {
-            what_cache.append_expect_capacity("\n    ");
-            what_cache.append_expect_capacity(tags[i].first);
-            what_cache.append_expect_capacity(": ");
-            what_cache.append_expect_capacity(tags[i].second);
+            what_cache.append_assume_capacity("\n    ");
+            what_cache.append_assume_capacity(tags[i].first);
+            what_cache.append_assume_capacity(": ");
+            what_cache.append_assume_capacity(tags[i].second);
         }
     }
     return what_cache.c_str();
@@ -73,7 +73,7 @@ NOINLINE
 void in::rethrow_with_tag_impl (Error& e, SharedString::Impl name, SharedString::Impl value) {
     set_tag_impl(e, name, value);
 #ifndef NDEBUG
-    expect(&current_error() == &e);
+    assume(&current_error() == &e);
 #endif
     throw;
 }
@@ -81,7 +81,7 @@ NOINLINE
 void Error::rethrow_with_tag (StaticString name, const char* value) {
     set_tag(name, value);
 #ifndef NDEBUG
-    expect(&current_error() == this);
+    assume(&current_error() == this);
 #endif
     throw;
 }
