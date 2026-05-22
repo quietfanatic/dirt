@@ -106,7 +106,8 @@ static bool tree_eq_object (const Tree& a, const Tree& b) noexcept {
      // attribute to each attribute for O(a.size * b.size).  In theory there are
      // faster algorithms, but they either require storing extra data in the
      // objects (which would break compatibility with SharedArray<TreePair>) or
-     // would only be worth it for very large objects.
+     // would only be worth it for very large objects.  This will not be called
+     // very often.
     auto ab = a.data.as_object_ptr;
     auto ae = ab + a.size;
     auto bb = b.data.as_object_ptr;

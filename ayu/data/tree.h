@@ -31,16 +31,16 @@ enum class TreeFlags : u8 {
     PreferHex = 0x1,
      // For Array or Object: When pretty-printing, print this item compactly,
      // all on one line (unless one of its children is expanded).
-     // For STRING: When printing in non-JSON mode, encode newlines and tabs as
+     // For String: When printing in non-JSON mode, encode newlines and tabs as
      // \n and \t.
     PreferCompact = 0x2,
      // For Array or Object: When pretty-printing, print fully expanded with one
      // element/attribute per line.
      // For String: When printing in non-JSON mode, print newlines and tabs
      // as-is without escaping them.
-     // If neither PREFER_EXPANDED nor PREFER_COMPACT is set, the printer will
-     // use some heuristics to decide which way to print it.  If both are set,
-     // which one takes priority is unspecified.
+     // If neither PreferExpanded nor PreferCompact is set, the printer will use
+     // some heuristics to decide which way to print it.  If both are set, which
+     // one takes priority is unspecified.
     PreferExpanded = 0x4,
      // For internal use only.  Ignore this.
     ValueIsPtr = 0x80,
@@ -100,6 +100,7 @@ struct Tree {
     explicit constexpr Tree (SharedArray<Tree>, TreeFlags = {});
      // This can throw e_TreeObjectKeyDuplicate.
     explicit constexpr Tree (SharedArray<TreePair>, TreeFlags = {});
+     // Wrap an error to print later
     explicit Tree (std::exception_ptr, TreeFlags = {});
 
      // Convenient array/object construction because initializer_list sucks
@@ -115,8 +116,7 @@ struct Tree {
 
     ///// CONVERSION FROM TREE
      // These throw if the tree is not the right form or if
-     // the requested type cannot store the value, e.g. try to convert to a
-     // u8 a Tree containing the number 257.
+     // the requested type cannot store the value, e.g. u8(Tree(256))
     explicit constexpr operator Null () const;
     explicit constexpr operator bool () const;
     explicit constexpr operator char () const;
