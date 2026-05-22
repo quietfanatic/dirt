@@ -30,7 +30,7 @@ const char* Error::what () const noexcept {
         }
         what_cache = UniqueString(Capacity(len));
         what_cache.append_expect_capacity(code_s);
-        what_cache.append_expect_capacity("; ");
+        what_cache.append_expect_capacity(": ");
         what_cache.append_expect_capacity(details);
         for (usize i = 0; i < tags.size(); i++) {
             what_cache.append_expect_capacity("\n    ");
