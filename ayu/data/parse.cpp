@@ -19,6 +19,12 @@ struct SourcePos {
     u32 col;
 };
 
+struct Macro {
+    Tree name;
+    Tree value;
+    u16 depth;
+};
+
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
 
@@ -26,13 +32,16 @@ struct Parser {
      // data in a structured text format, you're going to have performance
      // problems anyway, and you should offload some of it to binary or flat
      // text formats.
-    static constexpr u32 max_depth = 200;
+    static constexpr u16 max_depth = 200;
 
 ///// TOP
 
     const char* end;
     const char* begin;
-    u32 shallowth;
+    u16 depth;
+    u16 depth_watermark;
+    bool in_macro_name = false;
+    bool in_macro_value = false;
 
     Parser (Str s) :
         end(s.end()),
@@ -40,53 +49,63 @@ struct Parser {
     { }
 
     Tree parse () {
-        shallowth = max_depth + 1;
+        depth_watermark = depth = 0;
         const char* in = begin;
         in = skip_bom(in);
         in = skip_ws(in);
         Tree r;
-        in = parse_term(in, r);
+        in = parse_item(in, r);
         in = skip_ws(in);
         if (in != end) error(in, "Extra stuff at end of document");
-        assume(shallowth == max_depth + 1);
+        assume(depth == 0);
         return r;
     }
 
     UniqueArray<Tree> parse_list () {
+        depth_watermark = depth = 1;
         UniqueArray<Tree> r;
-        shallowth = max_depth;
         const char* in = begin;
         in = skip_bom(in);
         in = skip_ws(in);
         while (in != end) {
             Tree e;
-            in = parse_term(in, e);
+            in = parse_item(in, e);
             r.push_back(move(e));
             in = skip_comma(in);
         }
-        assume(shallowth == max_depth);
+        assume(depth == 1);
         return r;
+    }
+
+    void inc_depth (const char* in) {
+        if (++depth > max_depth) {
+            error(in, "Exceeded limit of 200 nested arrays/objects");
+        }
+        if (depth > depth_watermark) depth_watermark = depth;
+    }
+    void dec_depth () {
+        --depth;
     }
 
 ///// TERM
 
-    NOINLINE const char* parse_term (const char* in, Tree& r) {
+    NOINLINE const char* parse_item (const char* in, Tree& r) {
          // Table has to be inside member function to see functions declared
          // below it.
         static constexpr decltype(&got_word) table [] = {
             &got_error,
             &got_word,
             &got_digit,
-            &got_dot,
             &got_plus,
             &got_minus,
+            &got_dot,
             &got_string,
             &got_array,
             &got_object,
-            &got_shortcut
+            &got_macro
         };
-        if (in >= end) error(in, "Expected term but ran into end of input");
-        auto index = char_term(*in);
+        if (in >= end) error(in, "Expected item but ran into end of input");
+        auto index = char_item(*in);
         assume(u32(index) < sizeof(table) / sizeof(table[0]));
         return table[u32(index)](*this, in, r);
     }
@@ -102,7 +121,9 @@ struct Parser {
             if (char_continues_word(*in)) [[likely]] goto next;
             else if (*in == ':') {
                  // Allow :: for c++ types
-                if (in + 2 < end && in[1] == ':' && char_term(in[2]) == CHAR_TERM_WORD) {
+                if (in + 2 < end && in[1] == ':'
+                 && char_item(in[2]) == CHAR_ITEM_WORD
+                ) {
                     in += 3;
                     goto check;
                 }
@@ -129,77 +150,71 @@ struct Parser {
 
     [[noreturn, gnu::cold]] NOINLINE
     void error_invalid_number (Str word) {
-        if (word.end() < end) {
-            check_error_chars(word.end());
-        }
         error(word.begin(), "Couldn't parse number");
     }
 
-    template <bool hex>
     const char* parse_floating (Str word, Tree& r, bool minus) {
         double floating;
         const char* word_end = word.end();
         auto [num_end, ec] = std::from_chars(
-            word.begin(), word_end, floating,
-            hex ? std::chars_format::hex
-                : std::chars_format::general
+            word.begin(), word_end, floating
         );
         if (num_end == word_end) {
-            TreeFlags f = hex ? TreeFlags::PreferHex : TreeFlags();
-            new (&r) Tree(minus ? -floating : floating, f);
+            new (&r) Tree(minus ? -floating : floating);
             return num_end;
         }
         else error_invalid_number(word);
     }
 
-    template <bool hex>
-    const char* parse_number (Str word, Tree& r, bool minus) {
-         // Using an unsigned integer parser will reject words that start with a
-         // + or -.
-        auto read = hex ? read_hex_digits<u64> : read_decimal_digits<u64>;
-        auto [num_end, integer] = read(word.begin(), word.end());
+    const char* parse_decimal (Str word, Tree& r, bool minus) {
+        auto [num_end, integer] = read_decimal_digits<u64>(word.begin(), word.end());
         if (num_end == word.begin()) {
             error_invalid_number(word);
         }
         if (num_end == word.end()) {
-            TreeFlags f = hex ? TreeFlags::PreferHex : TreeFlags();
             if (minus) {
-                if (integer == 0) new (&r) Tree(-0.0, f);
-                else new (&r) Tree(-integer, f);
+                if (integer == 0) new (&r) Tree(-0.0);
+                else new (&r) Tree(-integer);
             }
-            else new (&r) Tree(integer, f);
+            else new (&r) Tree(integer);
             return num_end;
         }
          // Forbid ending with a .
         if (num_end[0] == '.') {
             if (num_end + 1 >= word.end() ||
-                (num_end[1] | ('a' & ~'A')) == (hex ? 'p' : 'e')
+                (num_end[1] | ('a' & ~'A')) == 'e'
             ) error(num_end, "Number cannot end with a dot.");
         }
-        return parse_floating<hex>(word, r, minus);
+        return parse_floating(word, r, minus);
+    }
+
+    const char* parse_hexadecimal (Str word, Tree& r, bool minus) {
+         // Using an unsigned integer parser will reject words that start with a
+         // + or -.
+        auto [num_end, integer] = read_hex_digits<u64>(word.begin(), word.end());
+        if (num_end != word.end()) {
+            error_invalid_number(word);
+        }
+        if (minus) {
+            if (integer == 0) new (&r) Tree(-0.0);
+            else new (&r) Tree(-integer);
+        }
+        else new (&r) Tree(integer);
+        r.flags |= TreeFlags::PreferHex;
+        return word.end();
     }
 
     NOINLINE const char* parse_number_based (Str word, Tree& r, bool minus) {
          // Detect hex prefix
         if (word.size() >= 2 && (word.chop(2) == "0x" || word.chop(2) == "0X")) {
-            return parse_number<true>(word.slice(2), r, minus);
+            return parse_hexadecimal(word.slice(2), r, minus);
         }
-        else return parse_number<false>(word, r, minus);
+        else return parse_decimal(word, r, minus);
     }
 
     NOINLINE static
     const char* got_digit (Parser& self, const char* in, Tree& r) {
         return self.parse_number_based(self.parse_word(in), r, false);
-    }
-
-    NOINLINE static
-    const char* got_dot (Parser& self, const char* in, Tree& r) {
-        auto word = self.parse_word(in);
-        if (word.size() > 1 && char_illegal_after_dot(word[1])) {
-            self.error(in, "Number cannot start with a dot.");
-        }
-        new (&r) Tree(word);
-        return word.end();
     }
 
     NOINLINE static
@@ -213,7 +228,7 @@ struct Parser {
             new (&r) Tree(std::numeric_limits<double>::infinity());
             return word.end();
         }
-        return self.parse_number_based(word.slice(1), r, false);
+        else return self.parse_number_based(word.slice(1), r, false);
     }
 
     NOINLINE static
@@ -224,7 +239,19 @@ struct Parser {
             new (&r) Tree(-std::numeric_limits<double>::infinity());
             return word.end();
         }
-        return self.parse_number_based(word.slice(1), r, true);
+        else return self.parse_number_based(word.slice(1), r, true);
+    }
+
+    NOINLINE static
+    const char* got_dot (Parser& self, const char* in, Tree& r) {
+        auto word = self.parse_word(in);
+        if (word.size() > 1 && word[1] >= '0' && word[1] <= '9') {
+            self.error(in, "Number cannot start with a dot");
+        }
+        else {
+            new (&r) Tree(word);
+            return word.end();
+        }
     }
 
 ///// STRINGS (quoted)
@@ -266,22 +293,21 @@ struct Parser {
                 assume(in < p);
                 c = *in++;
                 if (u8(c) <= ' ' || u8(c) >= char_escape_table.size()) {
-                    goto invalid_escape;
+                    if (c == 'x') {
+                        c = self.got_x_escape(in);
+                        in += 2;
+                        goto push;
+                    }
+                    else if (c == 'u') {
+                        in = self.got_u_escape(in, out);
+                        continue;
+                    }
                 }
                 else if (char repl = char_escape_table[u8(c)]) {
                     c = repl;
                     goto push;
                 }
-                else if (c == 'x') {
-                    c = self.got_x_escape(in);
-                    in += 2;
-                    goto push;
-                }
-                else if (c == 'u') {
-                    in = self.got_u_escape(in, out);
-                    continue;
-                }
-                invalid_escape: self.error(in-1, "Unknown escape sequence");
+                self.error(in-1, "Unknown escape sequence");
             }
             push: out.push_back_assume_capacity(c);
         }
@@ -335,17 +361,17 @@ struct Parser {
 
     NOINLINE static
     const char* got_array (Parser& self, const char* in, Tree& r) {
-        if (!--self.shallowth) self.error(in, "Exceeded limit of 200 nested arrays/objects");
+        self.inc_depth(in);
         in++;  // for the [
         in = self.skip_ws(in);
         UniqueArray<Tree> a;
         while (in < self.end) {
             if (*in == ']') {
                 new (&r) Tree(move(a));
-                ++self.shallowth;
+                self.dec_depth();
                 return in + 1;
             }
-            in = self.parse_term(in, a.emplace_back());
+            in = self.parse_item(in, a.emplace_back());
             in = self.skip_comma(in);
         }
         self.error(in, "Missing ]");
@@ -353,79 +379,111 @@ struct Parser {
 
     NOINLINE static
     const char* got_object (Parser& self, const char* in, Tree& r) {
-        if (!--self.shallowth) self.error(in, "Exceeded limit of 200 nested arrays/objects");
+        self.inc_depth(in);
         in++;  // for the {
         in = self.skip_ws(in);
         UniqueArray<TreePair> o;
         while (in < self.end) {
             if (*in == '}') {
                 new (&r) Tree(move(o));
-                ++self.shallowth;
+                self.dec_depth();
                 return in + 1;
             }
             Tree key;
-            in = self.parse_term(in, key);
+            in = self.parse_item(in, key);
             if (key.form != Form::String) {
-                self.error(in, "Can't use non-string as key in object");
+                self.error(in, "Key in object is not string");
             }
             in = self.skip_ws(in);
             if (in >= self.end) break;
             if (*in == ':') in++;
             else [[unlikely]] {
-                self.check_error_chars(in);
-                self.error(in, "Missing : after name in object");
+                self.error(in, "Missing : after key in object");
             }
             in = self.skip_ws(in);
             if (in >= self.end) break;
+            assume(key.form == Form::String);
             Tree& value = o.emplace_back(SharedString(move(key)), Tree()).second;
-            in = self.parse_term(in, value);
+            in = self.parse_item(in, value);
             in = self.skip_comma(in);
         }
         self.error(in, "Missing }");
     }
 
-///// SHORTCUTS
+///// MACROS
 
      // std::unordered_map is supposedly slow, so we'll use an array instead.
-     // We'll rethink if we ever need to parse a document with a large amount
-     // of shortcuts (I can't imagine for my use cases having more than 20
-     // or so).
-    UniqueArray<TreePair> shortcuts;
+     // We'll rethink if we ever need to parse a document with a large amount of
+     // macros (I can't imagine for my use cases having more than 20 or so).
+    UniqueArray<Macro> macros;
 
     NOINLINE static
-    const char* got_shortcut (Parser& self, const char* in, Tree& r) {
-        Str name = self.parse_word(in);
-        in += name.size();
+    const char* got_macro (Parser& self, const char* in, Tree& r) {
+        if (self.in_macro_name) {
+            self.error(in, "Cannot use macro in name of macro");
+        }
+        in++; // For the (
         in = self.skip_ws(in);
-        if (in < self.end && *in == '=') {
-             // Declaration
-            in++;
+        { // Reduce scope of name to allow tail call
+            Tree name;
+            self.in_macro_name = true;
+            in = self.parse_item(in, name);
+            self.in_macro_name = false;
+            if (name.form != Form::String) {
+                self.error(in, "Macro name is not string");
+            }
             in = self.skip_ws(in);
-            {
-                Tree value;
-                in = self.parse_term(in, value);
-                for (auto& sc : self.shortcuts) {
-                    if (sc.first == name) {
-                        sc.second = move(value);
-                        goto found;
+            if (in < self.end && *in == ')') {
+                in++;
+                 // Invocation
+                 // Search macros backwards to allow overriding
+                for (auto m = self.macros.rbegin(); m != self.macros.rend(); m++) {
+                    assume(name.form == Form::String);
+                    assume(m->name.form == Form::String);
+                    if (Str(m->name) == Str(name)) {
+                        if (self.depth + m->depth > max_depth) {
+                            self.error(in, "Exceeded limit of 200 nested arrays/objects after expanding macro");
+                        }
+                        new (&r) Tree(m->value);
+                        return in;
                     }
                 }
-                self.shortcuts.emplace_back(name, move(value));
-            } // Destroy value so we can tail call
-            found:
-            in = self.skip_comma(in);
-            return self.parse_term(in, r);
-        }
-        else {
-             // Reference
-            for (auto& sc : self.shortcuts) {
-                if (sc.first == name) {
-                    new (&r) Tree(sc.second);
-                    return in;
-                }
+                assume(name.form == Form::String);
+                self.error(in, cat("Undefined macro ", Str(name)));
             }
-            self.error(in, cat("Unknown shortcut ", name));
+            else if (in < self.end && *in == ':') {
+                 // Definition
+                if (self.in_macro_name) {
+                    self.error(in, "Cannot define macro in name of macro");
+                }
+                if (self.in_macro_value) {
+                    self.error(in, "Cannot define macro while defining macro");
+                }
+                in++;
+                in = self.skip_ws(in);
+                {
+                    u16 old_watermark = self.depth_watermark;
+                    Tree value;
+                    self.in_macro_value = true;
+                    in = self.parse_item(in, value);
+                    self.in_macro_value = false;
+                    self.macros.emplace_back(
+                        move(name), move(value), self.depth_watermark - self.depth
+                    );
+                    self.depth_watermark = old_watermark;
+                }
+                in = self.skip_ws(in);
+                if (in >= self.end || *in != ')') {
+                    self.error(in, "Expected )");
+                }
+                in++;
+            }
+            else {
+                self.error(in, "Expected ) or :");
+            }
         }
+        in = self.skip_ws(in);
+        return self.parse_item(in, r);
     }
 
 ///// NON-SEMANTIC CONTENT
@@ -491,21 +549,7 @@ struct Parser {
 
     [[gnu::cold]] NOINLINE static
     const char* got_error (Parser& self, const char* in, Tree&) {
-        self.check_error_chars(in);
-        self.error(in, cat("Expected term but got ", *in));
-    }
-
-    [[gnu::cold]] NOINLINE
-    void check_error_chars (const char* in) {
-        if (*in < ' ' || *in >= 127) {
-            error(in, cat(
-                "Unrecognized byte <", to_hex_digit(u8(*in) >> 4),
-                to_hex_digit(*in & 0xf), '>'
-            ));
-        }
-        if (char_reserved(*in)) {
-            error(in, cat("Reserved symbol ", *in));
-        }
+        self.error(in, cat("Expected item"));
     }
 
     [[noreturn, gnu::cold]] NOINLINE
@@ -579,9 +623,9 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("4.");
     n(".4");
     n("0.e4");
-    y("0xdead.beefP30", Tree(0xdead.beefP30));
-    y("+0xdead.beefP30", Tree(0xdead.beefP30));
-    y("-0xdead.beefP30", Tree(-0xdead.beefP30));
+    n(".0e4");
+    y(".+4", Tree(".+4"));
+    y(".-4", Tree(".-4"));
     n("++0");
     n("-+0");
     n("+-0");
@@ -629,31 +673,29 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     y("[0,1,]", Tree::array(Tree(0), Tree(1)));
     n("[0,,1,]");
     n("[0,1,,]");
-    todo(1, "in-place assignment NYI");
-    y("($foo=1)", Tree(1));
-    y("$foo=1 $foo", Tree(1));
-    n("$\"null\"=4 $\"null\"");
-    y("$null=4 $null", Tree(4));
-    y("$5=40 $5", Tree(40));
-    todo(1, "in-place assignment NYI");
-    y("[($foo=1) $foo]", Tree::array(Tree(1), Tree(1)));
-    y("[$foo=1 $foo]", Tree::array(Tree(1)));
-    todo(1, "in-place assignment NYI");
-    y("{($key=asdf):$key}", Tree::object(TreePair{"asdf", Tree("asdf")}));
-    y("{$borp=\"bump\" $borp:$borp}", Tree::object(TreePair{"bump", Tree("bump")}));
+    y("(foo:1) ( foo )", Tree(1));
+    y("( foo : 1 ) (foo)", Tree(1));
+    y("(foo:foo) (foo)", Tree("foo"));
+    n("(null:4) (null");
+    y("(\"null\":4) (\"null\")", Tree(4));
+    n("(5:40) (5)");
+    y("(\"5\":40) (\"5\")", Tree(40));
+    y("[(foo:1) (foo)]", Tree::array(Tree(1)));
+    y("{(key:asdf) (key):(key)}", Tree::object(TreePair{"asdf", Tree("asdf")}));
     y("3 --4", Tree(3));
     y("#", Tree("#"));
     y("#foo", Tree("#foo"));
-    n("{$borp:44 $borp:$borp}");
-    n("$foo=");
-    n("$foo=1");
-    n("$foo");
-    n("4 $foo=4");
-    n("$foo=$foo");
-    n("$foo=$foo 1");
-    n("$$a=1 $a");
-    y("$$a=1 $$a", Tree(1));
-    n("$ a=1 $a");
+    y("{$borp:$borp}", Tree::object(TreePair{"$borp", Tree("$borp")}));
+    n("{borp:44 (borp):(borp)}");
+    n("(foo:)");
+    n("(foo:1)");
+    n("(foo)");
+    n("4 (foo:4)");
+    n("(foo:(foo)) 1");
+    y("(foo:2) (foo:[(foo) (foo)]) (foo)", Tree::array(Tree(2), Tree(2)));
+    n("((a):1) (a)");
+    n("(a:(b:b) a) (a)");
+    n("(a:(b:b) a) (b)");
     n("[+nana]");
      // Test depth limit
     auto big = UniqueString(Capacity(402));

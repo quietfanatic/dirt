@@ -2,12 +2,12 @@
     image: [glow::FileImage {
         size: [7 5]
         pixels: [
-            $=0x2674dbf0
-            $ $ $ $ $ $ $
-            $ $ $ $ $ $ $
-            $ $ $ $ $ $ $
-            $ $ $ $ $ $ $
-            $ $ $ $ $ $ $
+            (p:0x2674dbf0)
+           (p)(p)(p)(p)(p)(p)(p)
+           (p)(p)(p)(p)(p)(p)(p)
+           (p)(p)(p)(p)(p)(p)(p)
+           (p)(p)(p)(p)(p)(p)(p)
+           (p)(p)(p)(p)(p)(p)(p)
         ]
     }]
     texture: [glow::ImageTexture {

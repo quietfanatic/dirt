@@ -129,9 +129,9 @@ struct Printer {
         double v = t.data.as_double;
         if (!std::isfinite(v)) {
             if (opts % O::Json) {
-                if (v > 0) return pstr_reserved(p, "1e999");
-                else if (v < 0) return pstr_reserved(p, "-1e999");
-                else return pstr_reserved(p, "null");
+                if (v > 0) return pstr_reserved(p, "\"Infinity\"");
+                else if (v < 0) return pstr_reserved(p, "\"-Infinity\"");
+                else return pstr_reserved(p, "\"NaN\"");
             }
             else {
                 u32 repr = *(u32*)(
@@ -147,22 +147,8 @@ struct Printer {
             *p++ = '0';
             return p;
         }
-
-        bool hex = !(opts % O::Json) && t.flags % TreeFlags::PreferHex;
-        if (hex) {
-            if (v < 0) {
-                *p++ = '-';
-                v = -v;
-            }
-            *p++ = '0';
-            *p++ = 'x';
-        }
          // Not even gonna try beating the stdlib's floating point to_chars.
-        auto [ptr, ec] = std::to_chars(
-            p, p+24, v, hex
-                ? std::chars_format::hex
-                : std::chars_format::general
-        );
+        auto [ptr, ec] = std::to_chars(p, p+24, v);
         assume(ec == std::errc());
         return ptr;
     }
@@ -186,22 +172,19 @@ struct Printer {
     NOINLINE
     char* print_string_s (char* p, Str s, const Tree* t) {
         p = reserve(p, 2 + s.size());
+        auto sp = s.begin();
         if (opts % O::Json) goto quoted;
         if (s == "" || s == "null" || s == "true" || s == "false") goto quoted;
-        if (s[0] == '.') {
-            if (s.size() > 1 && char_illegal_after_dot(s[1])) {
-                goto quoted;
-            }
-        }
-        else if (char_term(s[0]) != CHAR_TERM_WORD) {
+      start:
+        if (sp[0] == '.' && sp + 1 < s.end() && sp[1] >= '0' && sp[1] <= '9') {
             goto quoted;
         }
-
-        for (auto sp = s.begin() + 1; sp != s.end(); sp++) {
+        if (char_item(sp[0]) != CHAR_ITEM_WORD) goto quoted;
+        for (sp++; sp != s.end(); sp++) {
             if (sp[0] == ':') {
-                if (sp + 1 != s.end() && sp[1] == ':') {
-                    sp++;
-                    continue;
+                if (sp + 3 < s.end() && sp[1] == ':') {
+                    sp += 2;
+                    goto start;
                 }
                 else goto quoted;
             }
@@ -222,18 +205,13 @@ struct Printer {
                     : t->size > 50;
         *p++ = '"';
         for (u32 i = 0; i < s.size(); i++) {
-            if (!char_needs_escape(s[i])) [[likely]] {
-                *p++ = s[i];
-            }
-             // Don't quite have enough bits in the char prop table to
-             // differentiate these.  Fortunately \n and \t are one apart so
-             // they can be checked with one comparison.
-            else if ((s[i] == '\n' || s[i] == '\t') && expand) {
+            if (!char_needs_escape(s[i], expand)) [[likely]] {
                 *p++ = s[i];
             }
             else {
                  // +6 for \u00xx, +1 for ", -1 for original char
                 p = reserve(p, 6 + s.size() - i);
+                 // Won't be out of bounds because of char_needs_escape above
                 char repl = char_escape_table[u8(s[i])];
                 if (repl) {
                     *p++ = '\\'; *p++ = repl;
