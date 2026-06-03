@@ -28,8 +28,7 @@ T&& require (
  // This is more likely if there are many assume()s in a row, or if the return
  // value is used, or if there's a branch in the argument that's similar to
  // another branch outside (which can affect that branch even if the argument is
- // optimized away).  TODO: check if this is still the case now that we're using
- // [[assume]] internally.
+ // optimized away).
  //
  // If you want to have a debug assert that completely disappears in release
  // builds, then just use assert().
@@ -47,7 +46,12 @@ T&& assume (
 #else
 template <class T> ALWAYS_INLINE static constexpr
 T&& assume (T&& v) {
+#ifdef __GNUC__
+     // GCC doesn't seem to optimize [[assume]] properly yet
+    if (!v) { __builtin_unreachable(); }
+#else
     [[assume(!!v)]];
+#endif
     return std::forward<T>(v);
 }
 #endif
@@ -60,7 +64,7 @@ void never (std::source_location loc = std::source_location::current()) {
 }
 #else
 [[noreturn]] ALWAYS_INLINE static
-void never () { [[assume(false)]]; }
+void never () { assume(false); }
 #endif
 
 } // uni
