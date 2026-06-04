@@ -4,11 +4,11 @@ namespace ayu::in {
 
 enum CharProps : u8 {
     CHAR_ITEM_ERROR = 0,
-    CHAR_ITEM_WORD = 1,
-    CHAR_ITEM_DIGIT = 2,
+    CHAR_ITEM_DIGIT = 1,
+    CHAR_ITEM_MINUS = 2,
     CHAR_ITEM_PLUS = 3,
-    CHAR_ITEM_MINUS = 4,
-    CHAR_ITEM_DOT = 5,
+    CHAR_ITEM_DOT = 4,
+    CHAR_ITEM_WORD = 5,
     CHAR_ITEM_STRING = 6,
     CHAR_ITEM_ARRAY = 7,
     CHAR_ITEM_OBJECT = 8,
@@ -21,31 +21,30 @@ enum CharProps : u8 {
 };
 constexpr std::array<u8, 256> char_props_table = []{
     std::array<u8, 256> r = {};
-    for (char c = 0; c < ' '; c++) {
-        r[c] = CHAR_ESCAPED | CHAR_ESCAPED_EXPANDED;
-    }
-    for (char c : {'\f', '\r', '\v'}) {
-        r[c] = CHAR_IS_WS | CHAR_ESCAPED | CHAR_ESCAPED_EXPANDED;
-    }
-    for (char c : {'\n', '\t'}) {
-        r[c] = CHAR_IS_WS | CHAR_ESCAPED;
-    }
-    r[' '] = CHAR_IS_WS;
-    for (char c = '0'; c <= '9'; c++) r[c] = CHAR_ITEM_DIGIT | CHAR_CONTINUES_WORD;
-    for (char c = 'a'; c <= 'z'; c++) r[c] = CHAR_ITEM_WORD | CHAR_CONTINUES_WORD;
-    for (char c = 'A'; c <= 'Z'; c++) r[c] = CHAR_ITEM_WORD | CHAR_CONTINUES_WORD;
+
+    for (char c = '0'; c <= '9'; c++) r[c] = CHAR_ITEM_DIGIT|CHAR_CONTINUES_WORD;
+    r['+'] = CHAR_ITEM_PLUS|CHAR_CONTINUES_WORD;
+    r['-'] = CHAR_ITEM_MINUS|CHAR_CONTINUES_WORD;
+    r['.'] = CHAR_ITEM_DOT|CHAR_CONTINUES_WORD;
+
+    for (char c = 'a'; c <= 'z'; c++) r[c] = CHAR_ITEM_WORD|CHAR_CONTINUES_WORD;
+    for (char c = 'A'; c <= 'Z'; c++) r[c] = CHAR_ITEM_WORD|CHAR_CONTINUES_WORD;
     for (char c : {
         '!','#','$','%','&','*','/','<','=','>','?','@','^','_','|','~',
-    }) r[c] = CHAR_ITEM_WORD | CHAR_CONTINUES_WORD;
-    r['.'] = CHAR_ITEM_DOT | CHAR_CONTINUES_WORD;
-    r['+'] = CHAR_ITEM_PLUS | CHAR_CONTINUES_WORD;
-    r['-'] = CHAR_ITEM_MINUS | CHAR_CONTINUES_WORD;
-    r['"'] = CHAR_ITEM_STRING | CHAR_ESCAPED | CHAR_ESCAPED_EXPANDED;
+    }) r[c] = CHAR_ITEM_WORD|CHAR_CONTINUES_WORD;
+    for (int c = 128; c < 256; c++) r[c] = CHAR_ITEM_WORD|CHAR_CONTINUES_WORD;
+
+    r['"'] = CHAR_ITEM_STRING|CHAR_ESCAPED|CHAR_ESCAPED_EXPANDED;
     r['['] = CHAR_ITEM_ARRAY;
     r['{'] = CHAR_ITEM_OBJECT;
-    r['('] = CHAR_ITEM_MACRO | CHAR_CONTINUES_WORD;
-    r['\\'] = CHAR_ESCAPED | CHAR_ESCAPED_EXPANDED;
-    for (int c = 128; c < 256; c++) r[c] = CHAR_ITEM_WORD | CHAR_CONTINUES_WORD;
+    r['('] = CHAR_ITEM_MACRO|CHAR_CONTINUES_WORD;
+
+    r['\\'] = CHAR_ESCAPED|CHAR_ESCAPED_EXPANDED;
+    for (char c = 0; c < ' '; c++) r[c] = CHAR_ESCAPED|CHAR_ESCAPED_EXPANDED;
+    for (char c : {'\f', '\r', '\v'}) r[c] = CHAR_IS_WS|CHAR_ESCAPED|CHAR_ESCAPED_EXPANDED;
+    for (char c : {'\n', '\t'}) r[c] = CHAR_IS_WS|CHAR_ESCAPED;
+    r[' '] = CHAR_IS_WS;
+
     return r;
 }();
 

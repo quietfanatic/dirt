@@ -250,10 +250,11 @@ struct AYU_DescribeBase {
      //   - no_links_to_children: Forbid other items from linking to child items
      //     of this type and their recursive children.  This item itself can
      //     still be linked.  This allows the link-to-route scanning system to
-     //     save time by skipping this item's children.
+     //     save time by skipping this item's children.  This flag might be
+     //     ignored by scans done for purposes of generating error messages.
      //   - no_link_from_children: Forbid this item's recursive children from
-     //     containing links.  This is not currently enforced, and is for
-     //     documentation purposes only.  There are some types which will cause
+     //     containing links.  Currently this flag is not enforced and only
+     //     serves as documentation.  There are some types which will cause
      //     confusing breakages when they contain links (most notably, std::set
      //     and std::unordered_set).
     static constexpr

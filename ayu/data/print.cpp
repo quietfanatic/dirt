@@ -134,10 +134,9 @@ struct Printer {
                 else return pstr_reserved(p, "\"NaN\"");
             }
             else {
-                u32 repr = *(u32*)(
-                    v > 0 ? "+inf" : v < 0 ? "-inf" : "+nan"
-                );
-                return 4+(char*)std::memcpy(p, &repr, 4);
+                if (v > 0) return pstr_reserved(p, "1/0");
+                else if (v < 0) return pstr_reserved(p, "-1/0");
+                else return pstr_reserved(p, "0/0");
             }
         }
         if (v == 0) {
@@ -172,23 +171,34 @@ struct Printer {
     NOINLINE
     char* print_string_s (char* p, Str s, const Tree* t) {
         p = reserve(p, 2 + s.size());
-        auto sp = s.begin();
         if (opts % O::Json) goto quoted;
         if (s == "" || s == "null" || s == "true" || s == "false") goto quoted;
-      start:
-        if (sp[0] == '.' && sp + 1 < s.end() && sp[1] >= '0' && sp[1] <= '9') {
-            goto quoted;
+        if (s[0] & 0x80) goto quoted;
+        switch (char_item(s[0])) {
+            case CHAR_ITEM_WORD: break;
+            case CHAR_ITEM_MINUS:
+                if (s.size() >= 2 && s[1] == '-') {
+                    goto quoted;
+                }
+                else [[fallthrough]];
+            case CHAR_ITEM_PLUS:
+            case CHAR_ITEM_DOT:
+                if (s.size() >= 2 && s[1] >= '0' && s[1] <= '9') {
+                    goto quoted;
+                }
+                else break;
+            default: goto quoted;
         }
-        if (char_item(sp[0]) != CHAR_ITEM_WORD) goto quoted;
-        for (sp++; sp != s.end(); sp++) {
-            if (sp[0] == ':') {
-                if (sp + 3 < s.end() && sp[1] == ':') {
+        for (auto sp = s.begin() + 1; sp != s.end(); sp++) {
+            if (sp[0] & 0x80 || !char_continues_word(sp[0])) {
+                if (sp + 3 < s.end() && sp[0] == ':' && sp[1] == ':' &&
+                    !(sp[2] & 0x80) && char_continues_word(sp[2])
+                ) {
                     sp += 2;
-                    goto start;
+                    continue;
                 }
                 else goto quoted;
             }
-            else if (!char_continues_word(sp[0])) goto quoted;
         }
          // No need to quote
         return pstr_reserved(p, s);
@@ -217,6 +227,7 @@ struct Printer {
                     *p++ = '\\'; *p++ = repl;
                 }
                 else {
+                     // This path should only happen for \x7f or less.
                     if (opts % O::Json) {
                         *p++ = '\\'; *p++ = 'u'; *p++ = '0'; *p++ = '0';
                     }

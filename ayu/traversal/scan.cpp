@@ -216,35 +216,37 @@ struct TraverseScan {
         for (u32 i = 0; i < elems->n_elems; i++) {
             auto elem = elems->elem(i);
             auto acr = elem->acr();
-            SharedRoute child_rt;
             ScanTraversal<ElemTraversal> child;
-            child.context = trav.context;
-            child.collapse_optional = false;
-            child.collapsed_elem_shift = 0;
-            if (acr->attr_flags % AttrFlags::Collapse) {
-                if (trav.collapse_optional) [[unlikely]] {
-                     // Not sure how this interacts with collapse_optional on
-                     // parent, but I think we can ignore it?
+            {
+                SharedRoute child_rt;
+                child.context = trav.context;
+                child.collapse_optional = false;
+                child.collapsed_elem_shift = 0;
+                if (acr->attr_flags % AttrFlags::Collapse) {
+                    if (trav.collapse_optional) [[unlikely]] {
+                         // Not sure how this interacts with collapse_optional on
+                         // parent, but I think we can ignore it?
+                        if (i >= 1) {
+                            raise(e_General, "collapse_optional on array bigger than 1");
+                        }
+                    }
+                    child.rt = trav.rt;
+                    child.collapsed_elem_shift = i + trav.collapsed_elem_shift;
+                }
+                else if (trav.collapse_optional) [[unlikely]] {
+                     // It'd be weird to specify collapse_optional when the child
+                     // item uses non-computed elems, but it's valid.
                     if (i >= 1) {
                         raise(e_General, "collapse_optional on array bigger than 1");
                     }
+                    child.rt = trav.rt;
                 }
-                child.rt = trav.rt;
-                child.collapsed_elem_shift = i + trav.collapsed_elem_shift;
-            }
-            else if (trav.collapse_optional) [[unlikely]] {
-                 // It'd be weird to specify collapse_optional when the child
-                 // item uses non-computed elems, but it's valid.
-                if (i >= 1) {
-                    raise(e_General, "collapse_optional on array bigger than 1");
+                else {
+                    child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
+                    child.rt = child_rt;
                 }
-                child.rt = trav.rt;
+                trav_elem<visit>(child, trav, acr, i, AC::Read);
             }
-            else {
-                child_rt = SharedRoute(trav.rt, i + trav.collapsed_elem_shift);
-                child.rt = child_rt;
-            }
-            trav_elem<visit>(child, trav, acr, i, AC::Read);
             if (child.context->done) [[unlikely]] return;
         }
     }

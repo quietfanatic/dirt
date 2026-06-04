@@ -28,20 +28,25 @@ struct Macro {
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
 
+///// TOP
+
+    const char* end;
+    const char* begin;
+
+     // std::unordered_map is supposedly slow, so we'll use an array instead.
+     // We'll rethink if we ever need to parse a document with a large amount of
+     // macros (I can't imagine for my use cases having more than 20 or so).
+    UniqueArray<Macro> macros;
+    bool in_macro_name = false;
+    bool in_macro_value = false;
+
      // Limit how many nested arrays and objects we have.  If you have that much
      // data in a structured text format, you're going to have performance
      // problems anyway, and you should offload some of it to binary or flat
      // text formats.
     static constexpr u16 max_depth = 200;
-
-///// TOP
-
-    const char* end;
-    const char* begin;
     u16 depth;
     u16 depth_watermark;
-    bool in_macro_name = false;
-    bool in_macro_value = false;
 
     Parser (Str s) :
         end(s.end()),
@@ -94,11 +99,11 @@ struct Parser {
          // below it.
         static constexpr decltype(&got_word) table [] = {
             &got_error,
-            &got_word,
             &got_digit,
-            &got_plus,
             &got_minus,
+            &got_plus,
             &got_dot,
+            &got_word,
             &got_string,
             &got_array,
             &got_object,
@@ -121,9 +126,7 @@ struct Parser {
             if (char_continues_word(*in)) [[likely]] goto next;
             else if (*in == ':') {
                  // Allow :: for c++ types
-                if (in + 2 < end && in[1] == ':'
-                 && char_item(in[2]) == CHAR_ITEM_WORD
-                ) {
+                if (in + 2 < end && in[1] == ':' && char_continues_word(in[2])) {
                     in += 3;
                     goto check;
                 }
@@ -214,32 +217,59 @@ struct Parser {
 
     NOINLINE static
     const char* got_digit (Parser& self, const char* in, Tree& r) {
-        return self.parse_number_based(self.parse_word(in), r, false);
+        auto word = self.parse_word(in);
+        if (word.size() == 3 && word.slice(1) == "/0") {
+            if (word[0] == '1') {
+                new (&r) Tree(std::numeric_limits<double>::infinity());
+                return word.end();
+            }
+            else if (word[0] == '0') {
+                new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
+                return word.end();
+            }
+        }
+        return self.parse_number_based(word, r, false);
     }
 
     NOINLINE static
     const char* got_plus (Parser& self, const char* in, Tree& r) {
         auto word = self.parse_word(in);
-        if (word == "+nan") {
-            new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
-            return word.end();
-        }
-        else if (word == "+inf") {
+        if (word == "+1/0") {
             new (&r) Tree(std::numeric_limits<double>::infinity());
             return word.end();
         }
-        else return self.parse_number_based(word.slice(1), r, false);
+        else if (word == "+0/0") {
+            new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
+            return word.end();
+        }
+        else if (word.size() > 1 && word[1] >= '0' && word[1] <= '9') {
+            return self.parse_number_based(word.slice(1), r, false);
+        }
+        else {
+            new (&r) Tree(word);
+            return word.end();
+        }
     }
 
     NOINLINE static
     const char* got_minus (Parser& self, const char* in, Tree& r) {
          // Comments should already have been recognized by this point.
         auto word = self.parse_word(in);
-        if (word == "-inf") {
+        if (word == "-1/0") {
             new (&r) Tree(-std::numeric_limits<double>::infinity());
             return word.end();
         }
-        else return self.parse_number_based(word.slice(1), r, true);
+        else if (word == "-0/0") {
+            new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
+            return word.end();
+        }
+        else if (word.size() > 1 && word[1] >= '0' && word[1] <= '9') {
+            return self.parse_number_based(word.slice(1), r, true);
+        }
+        else {
+            new (&r) Tree(word);
+            return word.end();
+        }
     }
 
     NOINLINE static
@@ -380,7 +410,7 @@ struct Parser {
     NOINLINE static
     const char* got_object (Parser& self, const char* in, Tree& r) {
         self.inc_depth(in);
-        in++;  // for the {
+        in++;  // for the 
         in = self.skip_ws(in);
         UniqueArray<TreePair> o;
         while (in < self.end) {
@@ -411,11 +441,6 @@ struct Parser {
     }
 
 ///// MACROS
-
-     // std::unordered_map is supposedly slow, so we'll use an array instead.
-     // We'll rethink if we ever need to parse a document with a large amount of
-     // macros (I can't imagine for my use cases having more than 20 or so).
-    UniqueArray<Macro> macros;
 
     NOINLINE static
     const char* got_macro (Parser& self, const char* in, Tree& r) {
@@ -626,16 +651,30 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n(".0e4");
     y(".+4", Tree(".+4"));
     y(".-4", Tree(".-4"));
-    n("++0");
-    n("-+0");
-    n("+-0");
+    y("..4", Tree("..4"));
+    y("++0", Tree("++0"));
+    y("-+0", Tree("-+0"));
+    y("+-0", Tree("+-0"));
     n("--0"); // String contains nothing but a comment
-    y("+nan", Tree(0.0/0.0));
-    y("+inf", Tree(1.0/0.0));
-    y("-inf", Tree(-1.0/0.0));
+    y("+", Tree("+"));
+    y("-", Tree("-"));
+    y("++", Tree("++"));
+    y("+nan", Tree("+nan"));
+    y("+inf", Tree("+inf"));
+    y("-Infinity", Tree("-Infinity"));
+    y("0/0", Tree(0.0/0.0));
+    y("+0/0", Tree(0.0/0.0));
+    y("-0/0", Tree(0.0/0.0));
+    y("1/0", Tree(1.0/0.0));
+    y("+1/0", Tree(1.0/0.0));
+    y("-1/0", Tree(-1.0/0.0));
+    n("0/0.0");
+    n("0.0/0");
+    n("2/0");
     y("\"\"", Tree(""));
     y("asdf", Tree("asdf"));
     y("../foo", Tree("../foo"));
+    y("//foo", Tree("//foo"));
     y("\"null\"", Tree("null"));
     y("\"true\"", Tree("true"));
     y("\"false\"", Tree("false"));
@@ -696,7 +735,6 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("((a):1) (a)");
     n("(a:(b:b) a) (a)");
     n("(a:(b:b) a) (b)");
-    n("[+nana]");
      // Test depth limit
     auto big = UniqueString(Capacity(402));
     for (u32 i = 0; i < 201; i++) {

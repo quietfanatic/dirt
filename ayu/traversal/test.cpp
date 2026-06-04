@@ -287,7 +287,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     vtt = VTZERO;
     try_to_tree(&vtt, "0", "item_to_tree works with int value");
     vtt = VTNAN;
-    try_to_tree(&vtt, "+nan", "item_to_tree works with double value");
+    try_to_tree(&vtt, "0/0", "item_to_tree works with double value");
     vtt = ValuesTest(999);
     doesnt_throw([&]{ item_from_string(&vtt, "\"vta\""); });
     is(vtt, VTA, "item_from_tree works with string value");
@@ -295,7 +295,7 @@ static tap::TestSet tests ("dirt/ayu/traversal", []{
     is(vtt, VTNULL, "item_from_tree works with null value");
     doesnt_throw([&]{ item_from_string(&vtt, "0"); });
     is(vtt, VTZERO, "item_from_tree works with int value");
-    doesnt_throw([&]{ item_from_string(&vtt, "+nan"); });
+    doesnt_throw([&]{ item_from_string(&vtt, "0/0"); });
     is(vtt, VTNAN, "item_from_tree works with double value");
 
     auto mt = MemberTest(3, 4);

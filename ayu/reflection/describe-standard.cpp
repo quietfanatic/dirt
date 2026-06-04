@@ -80,7 +80,7 @@ AYU_DESCRIBE(std::u16string_view,
 static tap::TestSet tests ("dirt/ayu/reflection/describe-standard", []{
     using namespace tap;
      // Test wstrings
-    std::string s8 = "あいうえお";
+    std::string s8 = "\"あいうえお\"";
     std::u16string s16 = u"あいうえお";
     is(item_to_string(&s16), s8, "Can serialize wstring");
     std::u16string s16_got;
