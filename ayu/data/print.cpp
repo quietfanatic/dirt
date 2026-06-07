@@ -168,42 +168,64 @@ struct Printer {
         return self.print_string_s(p, s, &t);
     }
 
+    static
+    bool string_needs_quoting (Str s) {
+        if (s == "" || s == "null" || s == "true" || s == "false") return true;
+        if (s.size() > 80) return true; // Don't bother with huge strings
+        if (s[0] & 0x80) return true; // Always quote non-ASCII
+        if (s.size() == 1) {
+            switch (char_item(s[0])) {
+                case CHAR_ITEM_WORD:
+                case CHAR_ITEM_DOT:
+                case CHAR_ITEM_MINUS:
+                case CHAR_ITEM_PLUS: return false;
+                default: return true;
+            }
+        }
+        switch (char_item(s[0])) {
+            case CHAR_ITEM_WORD: break;
+            case CHAR_ITEM_DOT:
+                if (char_item(s[1]) == CHAR_ITEM_DIGIT) return true;
+                break;
+            case CHAR_ITEM_MINUS:
+                switch (char_item(s[1])) {
+                    case CHAR_ITEM_DIGIT:
+                    case CHAR_ITEM_DOT:
+                    case CHAR_ITEM_MINUS: return true;
+                    default: break;
+                }
+                break;
+            case CHAR_ITEM_PLUS:
+                switch (char_item(s[1])) {
+                    case CHAR_ITEM_DIGIT:
+                    case CHAR_ITEM_DOT: return true;
+                    default: break;
+                }
+                break;
+            default: return true;
+        }
+        assume(s.size() >= 2);
+        for (auto sp = s.begin() + 1; sp < s.end(); sp++) {
+            if (!(sp[0] & 0x80) && char_continues_word(sp[0])) {
+                continue;
+            }
+            else if (sp + 3 < s.end() && Str(sp, 2) == "::" &&
+                !(sp[2] & 0x80) && char_continues_word(sp[2])
+            ) {
+                sp += 2;
+                continue;
+            }
+            else return true;
+        }
+        return false;
+    }
+
     NOINLINE
     char* print_string_s (char* p, Str s, const Tree* t) {
         p = reserve(p, 2 + s.size());
-        if (opts % O::Json) goto quoted;
-        if (s == "" || s == "null" || s == "true" || s == "false") goto quoted;
-        if (s[0] & 0x80) goto quoted;
-        switch (char_item(s[0])) {
-            case CHAR_ITEM_WORD: break;
-            case CHAR_ITEM_MINUS:
-                if (s.size() >= 2 && s[1] == '-') {
-                    goto quoted;
-                }
-                else [[fallthrough]];
-            case CHAR_ITEM_PLUS:
-            case CHAR_ITEM_DOT:
-                if (s.size() >= 2 && s[1] >= '0' && s[1] <= '9') {
-                    goto quoted;
-                }
-                else break;
-            default: goto quoted;
+        if (!(opts % O::Json) && !string_needs_quoting(s)) {
+            return pstr_reserved(p, s);
         }
-        for (auto sp = s.begin() + 1; sp != s.end(); sp++) {
-            if (sp[0] & 0x80 || !char_continues_word(sp[0])) {
-                if (sp + 3 < s.end() && sp[0] == ':' && sp[1] == ':' &&
-                    !(sp[2] & 0x80) && char_continues_word(sp[2])
-                ) {
-                    sp += 2;
-                    continue;
-                }
-                else goto quoted;
-            }
-        }
-         // No need to quote
-        return pstr_reserved(p, s);
-         // Yes need to quote
-        quoted:
          // The expanded form of a string uses raw newlines and tabs instead of
          // escaping them.  Ironically, this takes fewer characters than the
          // compact form, so expand it when not pretty-printing.

@@ -25,6 +25,10 @@ struct Macro {
     u16 depth;
 };
 
+struct Scope {
+    u32 old_macros_size;
+};
+
  // Parsing is simple enough that we don't need a separate lexer step.
 struct Parser {
 
@@ -82,13 +86,16 @@ struct Parser {
         return r;
     }
 
-    void inc_depth (const char* in) {
+    Scope enter_scope (const char* in) {
         if (++depth > max_depth) {
             error(in, "Exceeded limit of 200 nested arrays/objects");
         }
         if (depth > depth_watermark) depth_watermark = depth;
+        return Scope(macros.size());
     }
-    void dec_depth () {
+
+    void leave_scope (Scope s) {
+        macros.shrink(s.old_macros_size);
         --depth;
     }
 
@@ -98,16 +105,17 @@ struct Parser {
          // Table has to be inside member function to see functions declared
          // below it.
         static constexpr decltype(&got_word) table [] = {
-            &got_error,
             &got_digit,
+            &got_dot,
             &got_minus,
             &got_plus,
-            &got_dot,
             &got_word,
             &got_string,
+            &got_nearly_raw_string,
             &got_array,
             &got_object,
-            &got_macro
+            &got_macro,
+            &got_error
         };
         if (in >= end) error(in, "Expected item but ran into end of input");
         auto index = char_item(*in);
@@ -131,10 +139,7 @@ struct Parser {
                     goto check;
                 }
             }
-            else if (*in == '"') {
-                error(in, "\" cannot occur inside a word");
-            }
-            else [[likely]];
+            else [[likely]] forbid_scalar(in);
         }
         return Str(start, in);
     }
@@ -172,7 +177,8 @@ struct Parser {
     const char* parse_decimal (Str word, Tree& r, bool minus) {
         auto [num_end, integer] = read_decimal_digits<u64>(word.begin(), word.end());
         if (num_end == word.begin()) {
-            error_invalid_number(word);
+             // The only case this can happen is if the number overflowed u64.
+             // TODO: issue a warning.
         }
         if (num_end == word.end()) {
             if (minus) {
@@ -234,54 +240,60 @@ struct Parser {
     NOINLINE static
     const char* got_plus (Parser& self, const char* in, Tree& r) {
         auto word = self.parse_word(in);
-        if (word == "+1/0") {
-            new (&r) Tree(std::numeric_limits<double>::infinity());
-            return word.end();
+        if (word.size() > 1) {
+            if (word == "+1/0") {
+                new (&r) Tree(std::numeric_limits<double>::infinity());
+                return word.end();
+            }
+            else if (word == "+0/0") {
+                new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
+                return word.end();
+            }
+            else if (word[1] >= '0' && word[1] <= '9') {
+                return self.parse_number_based(word.slice(1), r, false);
+            }
+            else if (word[1] == '.') {
+                return self.parse_floating(word.slice(1), r, false);
+            }
         }
-        else if (word == "+0/0") {
-            new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
-            return word.end();
-        }
-        else if (word.size() > 1 && word[1] >= '0' && word[1] <= '9') {
-            return self.parse_number_based(word.slice(1), r, false);
-        }
-        else {
-            new (&r) Tree(word);
-            return word.end();
-        }
+        new (&r) Tree(word);
+        return word.end();
     }
 
     NOINLINE static
     const char* got_minus (Parser& self, const char* in, Tree& r) {
-         // Comments should already have been recognized by this point.
         auto word = self.parse_word(in);
-        if (word == "-1/0") {
-            new (&r) Tree(-std::numeric_limits<double>::infinity());
-            return word.end();
+        if (word.size() > 1) {
+            assume(word[1] != '-');
+            if (word == "-1/0") {
+                new (&r) Tree(-std::numeric_limits<double>::infinity());
+                return word.end();
+            }
+            else if (word == "-0/0") {
+                new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
+                return word.end();
+            }
+            else if (word[1] >= '0' && word[1] <= '9') {
+                return self.parse_number_based(word.slice(1), r, true);
+            }
+            else if (word[1] == '.') {
+                return self.parse_floating(word.slice(1), r, true);
+            }
         }
-        else if (word == "-0/0") {
-            new (&r) Tree(std::numeric_limits<double>::quiet_NaN());
-            return word.end();
-        }
-        else if (word.size() > 1 && word[1] >= '0' && word[1] <= '9') {
-            return self.parse_number_based(word.slice(1), r, true);
-        }
-        else {
-            new (&r) Tree(word);
-            return word.end();
-        }
+        new (&r) Tree(word);
+        return word.end();
     }
 
     NOINLINE static
     const char* got_dot (Parser& self, const char* in, Tree& r) {
         auto word = self.parse_word(in);
-        if (word.size() > 1 && word[1] >= '0' && word[1] <= '9') {
-            self.error(in, "Number cannot start with a dot");
+        if (word.size() > 1) {
+            if (word[1] >= '0' && word[1] <= '9') {
+                return self.parse_floating(word, r, false);
+            }
         }
-        else {
-            new (&r) Tree(word);
-            return word.end();
-        }
+        new (&r) Tree(word);
+        return word.end();
     }
 
 ///// STRINGS (quoted)
@@ -294,7 +306,10 @@ struct Parser {
         u32 extra_input = 0;
         const char* p;
         for (p = in; p < self.end; p++) {
-            if (*p == '"') goto start;
+            if (*p == '"') {
+                self.forbid_scalar(p+1);
+                goto start;
+            }
             else if (*p == '\\') [[unlikely]] {
                 if (p >= self.end) goto unterminated;
                  // We could get away with always adding 1, but then a
@@ -387,18 +402,35 @@ struct Parser {
         invalid_u: error(in, "Invalid \\u escape sequence");
     }
 
+    NOINLINE static
+    const char* got_nearly_raw_string (Parser& self, const char* in, Tree& r) {
+        in++;
+        UniqueString s;
+        for (auto start = in; in < self.end; in++) {
+            if (*in == '`') {
+                s.append(Str(start, in));
+                in++;
+                if (in < self.end && *in == '`') continue;
+                self.forbid_scalar(in);
+                new (&r) Tree(move(s));
+                return in;
+            }
+        }
+        self.error(in, cat("Missing ` before end of input"));
+    }
+
 ///// COMPOUND
 
     NOINLINE static
     const char* got_array (Parser& self, const char* in, Tree& r) {
-        self.inc_depth(in);
+        auto scope = self.enter_scope(in);
         in++;  // for the [
         in = self.skip_ws(in);
         UniqueArray<Tree> a;
         while (in < self.end) {
             if (*in == ']') {
                 new (&r) Tree(move(a));
-                self.dec_depth();
+                self.leave_scope(scope);
                 return in + 1;
             }
             in = self.parse_item(in, a.emplace_back());
@@ -409,14 +441,14 @@ struct Parser {
 
     NOINLINE static
     const char* got_object (Parser& self, const char* in, Tree& r) {
-        self.inc_depth(in);
+        auto scope = self.enter_scope(in);
         in++;  // for the 
         in = self.skip_ws(in);
         UniqueArray<TreePair> o;
         while (in < self.end) {
             if (*in == '}') {
                 new (&r) Tree(move(o));
-                self.dec_depth();
+                self.leave_scope(scope);
                 return in + 1;
             }
             Tree key;
@@ -461,7 +493,7 @@ struct Parser {
             if (in < self.end && *in == ')') {
                 in++;
                  // Invocation
-                 // Search macros backwards to allow overriding
+                 // Search macros backwards
                 for (auto m = self.macros.rbegin(); m != self.macros.rend(); m++) {
                     assume(name.form == Form::String);
                     assume(m->name.form == Form::String);
@@ -474,7 +506,7 @@ struct Parser {
                     }
                 }
                 assume(name.form == Form::String);
-                self.error(in, cat("Undefined macro ", Str(name)));
+                self.error(in, "Undefined macro ");
             }
             else if (in < self.end && *in == ':') {
                  // Definition
@@ -483,6 +515,13 @@ struct Parser {
                 }
                 if (self.in_macro_value) {
                     self.error(in, "Cannot define macro while defining macro");
+                }
+                for (auto m = self.macros.rbegin(); m != self.macros.rend(); m++) {
+                    assume(name.form == Form::String);
+                    assume(m->name.form == Form::String);
+                    if (Str(m->name) == Str(name)) {
+                        self.error(in, "Conflicting definition of macro");
+                    }
                 }
                 in++;
                 in = self.skip_ws(in);
@@ -574,7 +613,7 @@ struct Parser {
 
     [[gnu::cold]] NOINLINE static
     const char* got_error (Parser& self, const char* in, Tree&) {
-        self.error(in, cat("Expected item"));
+        self.error(in, "Expected value");
     }
 
     [[noreturn, gnu::cold]] NOINLINE
@@ -583,6 +622,20 @@ struct Parser {
         raise(e_ParseFailed, cat(
             mess, " at ", pos.line, ':', pos.col
         ));
+    }
+
+    void forbid_scalar (const char* in) {
+        if (in < end) switch (char_item(*in)) {
+            case CHAR_ITEM_DIGIT:
+            case CHAR_ITEM_MINUS:
+            case CHAR_ITEM_PLUS:
+            case CHAR_ITEM_DOT:
+            case CHAR_ITEM_WORD:
+            case CHAR_ITEM_STRING:
+            case CHAR_ITEM_NRS:
+                error(in, "Whitespace or comma is required between these values");
+            default: break;
+        }
     }
 };
 
@@ -646,9 +699,11 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     y("000099", Tree(99));
     y("000", Tree(0));
     n("4.");
-    n(".4");
+    y(".4", Tree(.4));
+    y("+.5", Tree(.5));
+    y("-.5", Tree(-.5));
     n("0.e4");
-    n(".0e4");
+    y(".1e4", Tree(1000));
     y(".+4", Tree(".+4"));
     y(".-4", Tree(".-4"));
     y("..4", Tree("..4"));
@@ -671,6 +726,7 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("0/0.0");
     n("0.0/0");
     n("2/0");
+    n(".0/0");
     y("\"\"", Tree(""));
     y("asdf", Tree("asdf"));
     y("../foo", Tree("../foo"));
@@ -731,7 +787,7 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("(foo)");
     n("4 (foo:4)");
     n("(foo:(foo)) 1");
-    y("(foo:2) (foo:[(foo) (foo)]) (foo)", Tree::array(Tree(2), Tree(2)));
+    n("(foo:2) (foo:[(foo) (foo)]) (foo)");
     n("((a):1) (a)");
     n("(a:(b:b) a) (a)");
     n("(a:(b:b) a) (b)");

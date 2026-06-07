@@ -188,9 +188,19 @@ AYU_INTEGRAL_CONVERSION(i64)
 AYU_INTEGRAL_CONVERSION(u64)
 #undef AYU_INTEGRAL_CONVERSION
 constexpr Tree::operator double () const {
-     // Special case: allow null to represent +nan for JSON compatibility
-    if (form == Form::Null) return uni::nan;
-    else in::check_form(*this, Form::Number);
+     // Accept Javascript-like names for special numbers
+    if (form == Form::String) {
+        if (Str(*this) == "Infinity") {
+            return std::numeric_limits<double>::infinity();
+        }
+        else if (Str(*this) == "-Infinity") {
+            return -std::numeric_limits<double>::infinity();
+        }
+        else if (Str(*this) == "NaN") {
+            return std::numeric_limits<double>::quiet_NaN();
+        }
+    }
+    in::check_form(*this, Form::Number);
     if (floaty) return data.as_double;
     else return data.as_i64;
 }

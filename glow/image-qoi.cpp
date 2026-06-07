@@ -71,6 +71,7 @@ int decode_qoi (
                  // If we have extra room, do it four at a time.
                 if (run_end + 3 < out_end) [[likely]] {
                     u32 four [4] = {px.repr, px.repr, px.repr, px.repr};
+                    #pragma GCC unroll 0
                     do {
                         std::memcpy(out, four, 16);
                         out += 4;
