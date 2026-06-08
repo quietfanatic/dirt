@@ -24,6 +24,8 @@ UniqueString16 to_utf16 (Str) noexcept;
  // Convert a native-endian UTF-16 string into a UTF-8 string.
 UniqueString from_utf16 (Str16) noexcept;
 
+ ///// UTF-8 processing
+
 constexpr bool is_continuation_byte (char c) { return (c & 0xc0) == 0x80; }
 
  // Returns false if there are any invalid sequences.
@@ -39,5 +41,10 @@ SharedString sanitize_utf8 (SharedString s) {
     if (valid_utf8(s)) return s;
     else return sanitize_utf8(s);
 }
+
+ // Encode one Unicode codepoint into UTF-8.  Will advance the output pointer by
+ // one to four bytes.  If the input codepoint is larger than 0x10ffff, encodes
+ // the replacement character U+FFFD instead.
+char* from_utf32_one (char* out, u32 code) noexcept;
 
 } // namespace uni

@@ -258,6 +258,32 @@ UniqueString sanitize_utf8 (Str s) noexcept {
     return r;
 }
 
+char* from_utf32_one (char* out, u32 c) noexcept {
+    if (c < 0x80) {
+        *out++ = c;
+    }
+    else if (c < 0x800) {
+        *out++ = 0b1100'0000 | (c >> 6);
+        *out++ = 0b1000'0000 | (c & 0b0011'1111);
+    }
+    else if (c < 0x10000) {
+        *out++ = 0b1110'0000 | (c >> 12);
+        *out++ = 0b1000'0000 | (c >> 6 & 0b0011'1111);
+        *out++ = 0b1000'0000 | (c & 0b0011'1111);
+    }
+    else if (c < 0x10ffff) {
+        *out++ = 0b1111'0000 | (c >> 18);
+        *out++ = 0b1000'0000 | (c >> 12 & 0b0011'1111);
+        *out++ = 0b1000'0000 | (c >> 6 & 0b0011'1111);
+        *out++ = 0b1000'0000 | (c & 0b0011'1111);
+    }
+    else {
+         // Character out of range, emit replacement character
+        *out++ = 0xef; *out++ = 0xbf; *out++ = 0xbd;
+    }
+    return out;
+}
+
 } using namespace uni;
 
 #ifndef TAP_DISABLE_TESTS
@@ -269,6 +295,10 @@ static tap::TestSet tests ("dirt/uni/utf", []{
     is(to_utf16("ユニコード"), u"ユニコード", "to_utf16");
     is(to_utf16("🌱"), u"🌱", "to_utf16 with two-unit character");
     is(from_utf16(u"🌱"), "🌱", "from_utf16 with two-unit character");
+    char buf [8] = {};
+    char* out = from_utf32_one(buf, 0x1f331);
+    is(out, buf+4, "from_utf32_one");
+    is(Str(buf, 8), Str("🌱\0\0\0\0"), "from_utf32_one");
      // Assuming little-endian
     is(
         reinterpret_cast<const char*>(to_utf16("ユニコード").c_str()),
