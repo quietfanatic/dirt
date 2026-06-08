@@ -28,7 +28,8 @@ it is most similar to Relaxed JSON (rjson).
 
 ### Definitions
 
-These terms are used throughout this documentation.
+These terms are used throughout this documentation.  You can skip this section
+if you just want to get into the meat and potatoes.
 
 - A **document** is a span of text that stores machine-readable data.  It could
   be in a file or in memory or anywhere else.
@@ -206,6 +207,9 @@ following escape sequences:
   a multibyte character.  It is recommended but not required for all unprintable
   characters to be escaped.  It is recommended but not required for strings to
   be valid UTF-8 after decoding all escapes.
+- `\\u{XXX...}` = A unicode codepoint with anywhere from 1 to 6 hexadecimal
+  digits.  The codepoint must be U+10FFFF or less, and will be encoded as one to
+  four UTF-8 bytes.
 
 > _Non-UTF-8 strings are incompatible with conformant JSON, but we support them
 > because POSIX filenames can have arbitrary bytes that aren't valid UTF-8._
@@ -374,6 +378,13 @@ implementation-defined.
 (k) -- ERROR: (k) isn't defined any more
 ```
 
+The default behavior when encountering an undefined macro should be to reject
+the document and emit an error.  A parser may have an API to provide predefined
+macros before parsing a document, but if it's a general-purpose parser it must
+not predefine any macros by default.  It may also have an API to parse a
+document with undefined macros and fill them in later, in the vein of an SQL
+prepared statement.
+
 Macro names are parsed the same as strings, including rules for when they have
 to be quoted, except that a macro name cannot have a macro definition or
 invocation in it.
@@ -381,7 +392,8 @@ invocation in it.
 > _The macro syntax is designed to have as little effect on the rest of the
 > grammar as possible, yet have potential to expand into a more complex macro
 > system in the future.  Macros are scoped to preserve the property that you can
-> insert one document into another without affecting the outer document._
+> insert one document into another without affecting the outer document (don't
+> actually do this with string concatenation though).
 
 If there is a maximum nesting depth, it should apply to the document both before
 and after replacing all macros.
@@ -579,11 +591,11 @@ version.  If they are added, they will probably take the given syntax, and other
 future features are unlikely to conflict with the syntax.
 
 - Rational numbers like `34/56`, expanding the special number syntax.
-- Full unicode codepoint escapes with `\u{XXX...}`.
 - Hexadecimal-only arrays with `0x[XX XX XX]`.  This could be helpful to
   represent blobs.
 - Explicit indexes in arrays with `[0:x 1:y]`.
 - Block comments like `(-- comment --)`.
+- Allowing numeric macro names, to facilitate "prepared statement"-like APIs.
 - Arithmetic operations that distribute over arrays, so that `(16 * [[1 1] [2 2]
   [3 3]])` yields `[[16 16] [32 32] [48 48]]`.  This would only take place
   inside `( )` so it would not conflict with anything else.

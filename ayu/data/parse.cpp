@@ -312,10 +312,12 @@ struct Parser {
             }
             else if (*p == '\\') [[unlikely]] {
                 if (p >= self.end) goto unterminated;
-                 // We could get away with always adding 1, but then a
-                 // string composed entirely of \x would be overallocated by
-                 // a factor of 3.  A UTF-16 \u can emit at most 3 UTF-8
-                 // bytes, so this is the right amount for it as well.
+                 // We could get away with always adding 1, but then a string
+                 // composed entirely of \x would be overallocated by a factor
+                 // of 3.  \uXXXX can emit at most 3 UTF-8 bytes, so this is the
+                 // right amount for it too.  It's an underestimate for
+                 // \u{XXXXXX} with any number of digits but it's not worth
+                 // being any more precise.
                 p++;
                 extra_input += (*p >= 'u' && *p <= 'x') ? 3 : 1;
             }
@@ -339,12 +341,17 @@ struct Parser {
                 c = *in++;
                 if (u8(c) <= ' ' || u8(c) >= char_escape_table.size()) {
                     if (c == 'x') {
-                        c = self.got_x_escape(in);
+                        c = self.got_utf8_escape(in);
                         in += 2;
                         goto push;
                     }
                     else if (c == 'u') {
-                        in = self.got_u_escape(in, out);
+                        if (in < p && *in == '{') {
+                            in = self.got_utf32_escape(in, out);
+                        }
+                        else {
+                            in = self.got_utf16_escape(in, out);
+                        }
                         continue;
                     }
                 }
@@ -361,8 +368,9 @@ struct Parser {
         return in;
     }
 
-    char got_x_escape (const char* in) {
+    char got_utf8_escape (const char* in) {
         {
+             // We know we won't run off the end unless we hit a " first
             if (in + 2 > end) goto invalid_x;
             int n0 = from_hex_digit(in[0]);
             if (n0 < 0) goto invalid_x;
@@ -373,10 +381,24 @@ struct Parser {
         invalid_x: error(in, "Invalid \\x escape sequence");
     }
 
+    NOINLINE
+    const char* got_utf32_escape (const char* in, UniqueString& out) {
+        in++;
+         // We know we won't run off the end unless we hit a " first
+        auto [code_end, code] = read_hex_digits<u32>(in, in + 6);
+        if (code <= 0x10ffff && code_end != in && *code_end == '}') {
+             // Should always have enough room
+            char* out_end = from_utf32_one(out.end(), code);
+            out.impl.size = out_end - out.impl.data;
+            return code_end + 1;
+        }
+        else error(in, "Invalid \\u{} escape sequence");
+    }
+
      // NOINLINE this because it's complicated and we only have it for JSON
      // compatibility.
     NOINLINE
-    const char* got_u_escape (const char* in, UniqueString& out) {
+    const char* got_utf16_escape (const char* in, UniqueString& out) {
         UniqueString16 units (Capacity(1));
          // Process multiple \uXXXX sequences at once so
          // that we can fuse UTF-16 surrogates.
@@ -587,7 +609,7 @@ struct Parser {
     }
 
     const char* skip_bom (const char* in) {
-        if (in + 2 < end && Str(in, 3) == "\xef\xbb\xbf") {
+        if (in + 3 <= end && Str(in, 3) == "\xef\xbb\xbf") {
             in += 3;
         }
         return in;
@@ -791,6 +813,11 @@ static tap::TestSet tests ("dirt/ayu/data/parse", []{
     n("((a):1) (a)");
     n("(a:(b:b) a) (a)");
     n("(a:(b:b) a) (b)");
+//    y("\"\\uFEFF\"", Tree("\xef\xbb\xbf"));
+//    y("\"\\uD83C\\uDF38\"", Tree("🌸"));
+//    y("\"\\u{1F338}\"", Tree("🌸"));
+//    y("\"\\u{4}\"", Tree("\x04"));
+//    y("🌸", Tree("🌸"));
      // Test depth limit
     auto big = UniqueString(Capacity(402));
     for (u32 i = 0; i < 201; i++) {
