@@ -28,8 +28,9 @@ it is most similar to Relaxed JSON (rjson).
 
 ### Definitions
 
-These terms are used throughout this documentation.  You can skip this section
-if you just want to get into the meat and potatoes.
+This section defines some terms that are used throughout the documentation and
+applies some restrictions to software working with AYU.  You can skip this
+section if you just want to get into the meat and potatoes.
 
 - A **document** is a span of text that stores machine-readable data.  It could
   be in a file or in memory or anywhere else.
@@ -40,53 +41,69 @@ if you just want to get into the meat and potatoes.
   items.  An item probably has a **type**.  Items can have a wide variety of
   types depending on the programming language and logical domain of the program.
   Your programming language might have its own terminology, calling them objects
-  or values.
+  or values.  The AYU language imposes no constraints on what an item can be.
+
 - A **parser** transforms a document into a value.
+- A **printer** transforms a value into a document.
 - A **deserializer** transforms a value into an item.
 - A **serializer** transforms an item into a value.
-- A **printer** transforms a value into a document.
+
+- A **general-purpose parser** is one that purports to be able to parse all or
+  nearly all AYU documents.  It supports all features in this specification, to
+  the extent of applicable "must", "should", and "may" language, though it may
+  freely issue warnings for any reason and may be configurable to constrain the
+  documents it will accept.
+- A **special-purpose parser** is one made for a specific program or domain.  It
+  may constrain in any way the values and documents it is willing to parse.  It
+  must reject documents it can't parse.  It must not change their meaning.
+
+General-purpose and special-purpose printers can be defined accordingly, but a
+general-purpose printer is much simpler than a general-purpose parser, because
+it does not need to use macros, comments, or any other non-meaningful features.
+In fact, any general-purpose JSON printer is very nearly a general-purpose AYU
+printer.
+
+Deserializers and serializers are always special-purpose.  They cannot be
+general-purpose because there is no general-purpose system of items for them to
+work with.  Therefore, a lone serializer or deserializer may freely reject or
+transform values in any way they see fit.  The story is different if a
+serializer and deserializer are affiliated and working in the same system of
+items.  In this case, the serializer and deserializer should try to keep stable
+as many properties of their items as they can when they are used together.  If
+you serialize then deserialize an item, the deserialized item should behave the
+same as the original in all meaningful ways.  If you reserialize the
+deserialized item, the outputs of both serializations should be identical.
 
 > _Some programs may prefer to operate directly on values instead of
 > transforming them to and from items.  Such programs only need a parser and a
 > printer.  They do not need a deserializer or serializer.  Alternatively, this
-> could be though of as making items identical to values, types identical to
+> could be thought of as making items identical to values, types identical to
 > forms, and the deserializer and serializer the identity function._
 >
 > _There does not need to be a strict division between parsers/printers and
-> de/serializers.  A program could parse and deserialize at the same time, or it
-> could do so in several interleaved steps, or it could use some other paradigm
-> that transcends the distinction in a way nobody has thought of before._
+> de/serializers.  A program could parse and deserialize at the same time, or in
+> several interleaved steps, or it could use some other paradigm that transcends
+> the distinction in a way nobody has thought of before._
 
-- A **general-purpose parser** is one that purports to be able to parse all or
-  nearly all AYU documents.  It must support all features in the specification,
-  to the extent of applicable "must", "should", and "may" language, though it
-  may freely issue warnings for any reason.
-- A **special-purpose parser** is one made for a specific program or domain.  It
-  may arbitrarily constrain the values and documents it is willing to parse.  It
-  must reject documents it can't parse.  It must not change their meaning.
 - If a property of a value is **preserved**, that means no matter how many times
   the value is printed and parsed back and forth, that property remains
-  unchanged.  Value preservation rules only applies to parsers and printers.
-  Serializers and deserializers are allowed to irreversably transform data in
-  any way they see fit, but they should try to keep stable as many properties of
-  their items as possible.  If you serialize then deserialize an item, the
-  deserialized item should behave the same as the original in all important
-  ways.  If you reserialize the deserialized item, the outputs of both
-  serializations should be identical.
+  unchanged.  Preservation rules only apply to parsers and printers, not
+  deserializers and serializers.
 - If a property of a value or document is **non-meaningful**, that means the
-  property must not have any observable effects on the program's logical
-  behavior.  Parsers and deserializers can still optimize their implementations
-  differently based on the property, and serializers and printers can even
-  change non-meaningful properties of documents they produce based on it, as
-  long as all meaningful properties and logical behavior stay the same.
+  property must not have any observable effects on the behavior of any values
+  and items derived from it.  Parsers and deserializers can still optimize their
+  implementations differently based on the property, and serializers and
+  printers can even change non-meaningful properties of values and documents
+  they produce based on it, as long as all meaningful properties and logical
+  behavior stay the same.
 
 > _The non-meaningful principle means that if a program parses the number
 > `0x1e`, for instance, it must take that as having the same meaning as `30`,
 > because which format a number uses is non-meaningful.  However, if it later
 > prints that number, it may choose to write it as `0x1e` instead of `30`
 > because that was the format it read it in.  For another example, if a program
-> parses, modifies, and prints a document, it may try to preserve comments and
-> macros in that document._
+> parses, modifies, and prints a document, it may try to propagate comments and
+> macros from the input document to the output document._
 
 ### Document specification
 
@@ -99,11 +116,13 @@ An AYU document is text in an ASCII-compatible format.
 > it, as long as you also recognize runs of \xXX escapes and validate those
 > too._
 
-Printers must not put a Unicode byte order mark at the front.  Parsers must skip
+Printers must not put a Unicode Byte Order Mark at the front.  Parsers must skip
 it or reject the document if it's there (check for the bytes `\xef\xbb\xbf`).
 
-> _The BOM is forbidden in JSON, but some editors and tools automatically put it
-> in UTF-8 files, causing confusing errors for inexperienced developers._
+> _The BOM is forbidden in JSON.  We would love to follow their lead but some
+> editors and tools automatically put one in UTF-8 files, causing confusing
+> errors for inexperienced developers.  Parsers must detect a BOM to prevent it
+> from ending up inside an unquoted string.  JSON does not have this problem._
 
 A document contains one value of any form.  It is not restricted to an array or
 an object.
@@ -111,6 +130,7 @@ an object.
 > _JSON hasn't officially had this restriction since 2014._
 
 Every value has one of these forms: null, bool, number, string, array, object.
+Some forms have more than one format
 
 #### Null
 
@@ -142,7 +162,10 @@ Hexadecimal numbers are composed of:
 
 - an optional sign `+` or `-`,
 - the prefix `0x` or `0X`,
-- a run of hexadecimal digits.
+- a run of hexadecimal digits (higits, if you will).
+
+The format of a number is non-meaningful.  `30`, `30.0`, `3e1`, and `0x1e` are
+all the same number.
 
 There are three special numbers with six names:
 
@@ -156,36 +179,33 @@ These are matched exactly and no other variations are accepted.  `0/0.0` and
 > _These names were chosen because they start the same way as ordinary numbers,
 > so they don't add any restrictions to unquoted words._
 
-The format of a number is non-meaningful.  `30`, `30.0`, `3e1`, and `0x1e` are
-all the same value.
-
 What ranges and precisions of numbers are supported is implementation-defined.
-If a parser encounters a number that it can't store in memory exactly, it may
-replace it with a nearby number that it can store.  It may also replace a number
-outside of its supported range with positive or negative infinity.  It must not
-replace any numbers with NaN.  A printer may print a number that is not exactly
-equal to the stored number, as long as no other stored number would result in
-the same number being printed.  A parser and printer that are associated must
-preserve the exact values of all numbers they support, except for negative zero
-and negative NaN.  Negative zero only should be preserved, and negative NaN only
-may be preserved.
-
-> _Negative zero can have observable effects on floating point arithmetic.
-> Negative NaN is usually difficult to detect._
->
-> _It might be wise for a parser to issue a warning when given a number in pure
-> integer format that it can't store exactly._
-
 A general-purpose parser should support at least IEEE 754 binary64 (double)
 range and precision, and it must support at least binary32 (float) range and
 precision along with all integers from -2^31 to 2^31-1.
 
-> _A special-purpose parser that knows its target domain only supports integers
-> may proactively reject decimal points, exponents, and special numbers._
->
 > _The reference C++ implementation supports floating-point numbers of double
-> precision and all integers from -2^63 to 2^63-1.  It preserves negative zero
-> but not negative NaN._
+> precision and all integers from -2^63 to 2^63-1.
+
+If a parser encounters a number that it can't support exactly, it should replace
+it with the next lower or higher number that it can support.  A parser should
+also replace a number outside of its supported range with positive or negative
+infinity.  It should never replace a number with NaN.  A printer may print a
+number that is not exactly equal to its input, as long as no input would result
+in the same number being printed.  A parser and printer that are affiliated and
+support the same numbers must preserve the distinctions between all numbers they
+support, except for negative zero and negative NaN.  Negative zero only should
+be preserved, and negative NaN only may be preserved.
+
+> _Negative zero can have observable effects on floating point arithmetic.
+> Negative NaN is usually difficult to detect.  The reference C++ implementation
+> preserves negative zero but not negative NaN._
+>
+> _It might be wise for a parser to issue a warning when given a number that
+> overflows its range or a number in pure integer format that it can't store
+> exactly.  A special-purpose parser that knows its target domain only supports
+> integers would do better to proactively reject numbers with decimal points and
+> exponents than to silently round them to integers._
 
 #### String
 
@@ -195,38 +215,51 @@ non-meaningful.
 ##### Quoted strings
 
 Double quotes `"` delimit a quoted string.  Quoted strings may span multiple
-lines and have any bytes except for unescaped `"` and `\\`.  They may have the
+lines and have any bytes except for unescaped `"` and `\`.  They may have the
 following escape sequences:
 
-- `\\n` = Newline (LF), equivalent to `\\x0a`
-- `\\r` = Carriage Return (CR), equivalent to `\\x0d`
-- `\\t` = Tab, equivalent to `\\x09`
-- `\\"` = literal quote
-- `\\\\` = literal backslash
-- `\\xXX` = A byte with a two-digit hexadecimal value, which may be part of
-  a multibyte character.  It is recommended but not required for all unprintable
-  characters to be escaped.  It is recommended but not required for strings to
-  be valid UTF-8 after decoding all escapes.
-- `\\u{XXX...}` = A unicode codepoint with anywhere from 1 to 6 hexadecimal
+- `\n` is a Newline (LF), equivalent to `\x0a`.
+- `\r` is a Carriage Return (CR), equivalent to `\x0d`.
+- `\t` is a Tab, equivalent to `\x09`.
+- `\"` is a literal quote.
+- `\\` is a literal backslash.
+- `\xXX` is a byte (not a codepoint) with a two-digit hexadecimal value, which
+  may be part of a multibyte character.
+- `\u{XXX...}` is a unicode codepoint with anywhere from 1 to 6 hexadecimal
   digits.  The codepoint must be U+10FFFF or less, and will be encoded as one to
-  four UTF-8 bytes.
+  four UTF-8 bytes.  This does not recognize UTF-16 surrogates; it will just
+  encode them the same way as any other codepoint.
 
-> _Non-UTF-8 strings are incompatible with conformant JSON, but we support them
-> because POSIX filenames can have arbitrary bytes that aren't valid UTF-8._
+Also these escape sequences are supported for compatibility with JSON.  Their
+use is not recommended.
 
-Also these escape sequences are supported for compatibility with JSON.
-
-- `\\b` = Backspace, equivalent to `\\x08`
-- `\\f` = Form Feed, equivalent to `\\x0b`
-- `\\/` = literal slash, equivalent to just `/`
-- `\\uXXXX` = A UTF-16 code unit.  A sequence of multiple adjacent `\\u` escapes
-  will be converted together from UTF-16 to UTF-8.  Unmatched surrogates are
-  converted to UTF-8 by themselves (in the so-called WTF-8 encoding).  Escaped
-  surrogates do not pair with unescaped surrogates.
+- `\b` is a Backspace, equivalent to `\x08`.
+- `\f` is a Form Feed, equivalent to `\x0b`.
+- `\/` is a literal slash, equivalent to just `/`.
+- `\uXXXX` is a UTF-16 code unit, which may be part of a surrogate pair.  If an
+  escape for a high surrogate (`\uD800` to `\uDBFF`) is immediately followed
+  by an escape for a low surrogate (`\uDCOO` to `\uDFFF`), they will be joined
+  into one codepoint and encoded as a four-byte UTF-8 sequence.  Otherwise, one
+  `\uXXXX` escape will be encoded as a one-to-three byte sequence.  An
+  unmatched surrogates is treated like normal characters and encoded as a
+  three-byte sequence.  Escaped surrogates do not pair with unescaped
+  surrogates.
 
 A backslash followed by anything else, including a line ending, is an error.
 
-Whether a character is in escaped or unescaped format is non-meaningful.
+Whether a character was written in escaped or unescaped format is non-meaningful.
+
+It is recommended but not required for all unprintable characters to be escaped
+and for all strings to be valid UTF-8 after decoding all escapes.
+
+> _Non-UTF-8 strings are incompatible with conformant JSON, but we support them
+> because POSIX filenames and other sources of text can have arbitrary bytes
+> that aren't valid UTF-8._
+>
+> _AYU documents are not required to be UTF-8, but only an ASCII-compatible
+> encoding.  Regardless, `\u` escapes are specced to always output UTF-8.  If
+> an AYU document uses a non-UTF-8 encoding, it should avoid `\u` escapes lest
+> it suffer the curse of mojibake._
 
 ##### Unquoted strings
 
@@ -245,15 +278,15 @@ These are considered word characters:
 
 Conversely, these are not word characters:
 
-- ASCII whitespace or control codes (== `\x7f` or <= `\x1f`)
+- ASCII whitespace and control codes (`\x7f` and anything `\x1f` or less)
 - Things that look like delimiters, separators, quotes, or escapes:
-    - `[` `]` `{` `}` `(` `)` `,` `;` `:` `"` <code>\`</code> `\\`
+    - `[` `]` `{` `}` `(` `)` `,` `;` `:` `"` <code>\`</code> `\`
 
 > _To avoid forcing parsers to decode UTF-8 and import megabytes of Unicode
-> tables, all non-ASCII bytes are allowed in unquoted strings.  Please do not
+> tables, all non-ASCII Unicode is allowed in unquoted strings.  Please do not
 > abuse this privilege.  If it looks like whitespace or syntax, quote it.  A
-> Unicode-aware parser may issue warnings about weird or deceptive characters in
-> unquoted strings._
+> Unicode-aware parser might warn about weird or deceptive characters in
+> unquoted strings.
 
 Words cannot start in a way that makes them look like numbers or comments.
 Specifically, they cannot start with any of:
@@ -275,19 +308,21 @@ Finally, the whole word cannot be any of the keywords `null` `true` `false`.
 > languages.  There is a chance this affordance will disappear before this spec
 > becomes too public to change.
 >
-> _Unquoted strings do not allow any form of escaping.  Their content and their
-> presentation are identical._
+> _Unquoted strings do not allow any form of escaping.  They are the same on
+> both the inside and the outside._
 
 Oh, there's one more pesky rule that is technically necessary, but hopefully is
 never relevant.  If an unquoted word is at the very start of the document (byte
 offset 0), it cannot start with the bytes `\xef\xbb\xbf`, which could be
-interpreted as a byte order mark.
+interpreted as a Byte Order Mark.
 
-> _This rule is necessary to avoid ambiguity without either losing error
-> detection or partially losing Unicode support.  Lots of ordinary Unicode word
-> codepoints start with `\xef`.  If a Unicode-unaware printer quotes all strings
-> with non-ASCII bytes, it does not have to worry about this.  A Unicode-aware
-> printer should just add U+FEFF to its set of always-escaped codepoints._
+> _This rule is a necessary consequence of allowing Unicode in unquoted strings.
+> It would be annoying for a parser to have to check for a BOM in every word,
+> because lots of ordinary Unicode word codepoints start with `\xef`, so instead
+> they're only required to check at the beginning of the document.  If a
+> Unicode-unaware printer quotes all strings with non-ASCII bytes, it does not
+> have to worry about this.  A Unicode-aware printer should just add U+FEFF to
+> its set of always-escaped codepoints._
 >
 > _A strict reading of this rule implies that if a document starts with two
 > BOMs, the second one is the start of an unquoted string.  Pray this never
@@ -300,7 +335,7 @@ it allows is a double backtick, which is replaced with a single backtick.
 Backslashes have no special meaning and are passed on as-is.
 
 ```
-`a\`b` -- ERROR: extra word characters after string
+`a\`b` -- ERROR: b is past the end of the string.
 `a\``b` -- Equivalent to "a\\`b"
 `Use "\n" for a newline` -- Equivalent to "Use \"\\n\" for a newline"
 ```
@@ -413,7 +448,8 @@ non-meaningful.
 The only characters considered whitespace for syntactic purposes are space,
 newline, carriage return, and tab.  Exotic ASCII whitespaces like form feed and
 vertical tab are forbidden outside of quoted strings and comments.  Unicode
-whitespace characters are considered word characters.
+whitespace characters are considered word characters, but a Unicode-aware parser
+might warn if they are taken that way.
 
 #### Limits
 
@@ -424,13 +460,11 @@ long if its hardware is capable of it.
 
 Parsers and printers should enforce a maximum nesting depth for arrays and
 objects, which may be configurable.  If a general-purpose parser has a depth
-limit, its default limit should be at least 30.
-
-> _The reference C++ implementation has a depth limit of 200._
+limit, its default limit must be at least 50.
 
 General-purpose parsers and printers should support strings of at least one
-billion bytes, arrays of at least 125 million elements, and objects of at least
-62 million attributes if their hardware is so capable.
+billion bytes, arrays of at least 128 million elements, and objects of at least
+64 million attributes if their hardware is so capable.
 
 #### Compatibility with JSON
 
@@ -461,24 +495,23 @@ data loss because it should prompt a human operator to find and deal with the
 problem at the source.  But in practice, it can cause loss of the entire
 document if a machine silently drops it or the operator gives up on fixing it.
 2. Censor the strings by replacing invalid bytes or sequences with U+FFFD (the
-replacement character).  This is the standard and most commonly recommended
+Replacement Character).  This is the standard and most commonly recommended
 approach for sanitizing UTF-8.  However, this loses the data that was in the
 invalid bytes, leading to potential consequences like filenames that were
 different becoming identical and causing the files to overwrite one another.
 3. Reinterpret the invalid bytes as Latin-1.  This can cause minor data loss
 because the reinterpreted bytes may conflict with legitimate characters between
-U+80 and U+FF, but the likelyhood of conflict between full strings is low.  In
-most cases a human operator should be able to recognize the mojibake and, if
-they care enough, recover the original data.
-4. Change the invalid bytes into other characters that are unlikely or invalid
-in Unicode text.  This in theory can cause less data loss than using the U+80 to
-U+FF range, but it requires a parser on the other end to agree on the same
-embedding scheme, and is unlikely to be understood by a human operator (the
-characters will likely be invisible to them).  And every choice of where to
-embed them also has its own ramifications.
+U+80 and U+FF, but the likelyhood of conflict between full strings is low.
+Hopefully a human operator will notice the mojibake and, if they care enough,
+recover the original data.
+4. Embed the invalid bytes into another character range that is unlikely or
+invalid in Unicode text.  This in theory can cause less data loss than using the
+U+80 to U+FF range, but it requires a parser on the other end to agree on the
+same embedding scheme, and is unlikely to be understood by a human operator.
+Every choice of where to embed them also has its own ramifications.
 5. Replace the string with an array of numbers.  This might preserve the most
-data but requires any serializer that uses the document to understand what it
-means.
+data but it only works with serializers that understand what it means, and it
+removes the human-readability of non-corrupted parts of the string.
 6. Pass the invalid bytes through unaltered.  This produces nonconformant JSON,
 but it's the easiest option if you know that any programs that will read it
 don't care.  If they do care, this pushes the burden of choice onto them.
@@ -591,8 +624,6 @@ version.  If they are added, they will probably take the given syntax, and other
 future features are unlikely to conflict with the syntax.
 
 - Rational numbers like `34/56`, expanding the special number syntax.
-- Hexadecimal-only arrays with `0x[XX XX XX]`.  This could be helpful to
-  represent blobs.
 - Explicit indexes in arrays with `[0:x 1:y]`.
 - Block comments like `(-- comment --)`.
 - Allowing numeric macro names, to facilitate "prepared statement"-like APIs.
@@ -624,10 +655,11 @@ rejected for one reason or another.
   decimal format.
 - Single-quoted strings.  If they work the same as double-quoted strings, they
   don't help enough to be worth it.  If they work as nearly raw strings, then
-  backtick is better because backticks are much rarer.  If they do something
-  different, then we'll end up with four different string formats, and three is
-  already too many.  Furthermore, every language with single-quoted strings
-  treats them differently, so any choice we make will be surprising to someone.
+  backtick is better because backticks are much rarer.  If they do something yet
+  different, then we'll have four different string formats, and three is already
+  too many.  Furthermore, every language with single-quoted strings treats them
+  differently, so any choice we make will be surprising to someone.  Sorry,
+  single-quote lovers.  YAML, JSON5, and Relaxed JSON are still there for you.
 - Indentation-controlled strings.  These are quite complicated to implement.
   Putting a long multi-line string in the middle of a data structure also breaks
   up the structure making it harder to read.  It's better to put the string in a
