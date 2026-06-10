@@ -1,7 +1,7 @@
 AYU DATA LANGUAGE
 =================
 
-## Overview
+## 0. Overview
 
 - Null is `null`.
 - Bools are `true` and `false`.
@@ -15,25 +15,25 @@ AYU DATA LANGUAGE
 - Comments start with `--`.
 - Macros are defined with `(name:value)` and used with `(name)`.
 
-## Introduction
+## 1. Introduction
 
-AYU is a language to store structured data in an easy-to-read format.
+AYU is a data language to store structured data in an easy-to-read format.
 
 The design priorities of AYU are:
 
-1. Ease of reading and writing by humans
+1. **Ease of reading and writing by humans**
     - Familiar without having to read the spec
     - Low memorization burden
     - Avoids surprises, gotchas, and easy mistakes
-2. Ease of reading and writing by computers
+2. **Ease of reading and writing by computers**
     - Reasonably fast to parse and print
     - Relatively straightforward to implement
-3. Semantic simplicity
+3. **Semantic simplicity**
     - Type agnostic
     - Finite set of value forms
-4. Semantic universality
+4. **Semantic universality**
     - Able to represent almost any kind of data
-5. Semantic consistency (AKA why the spec is so long)
+5. **Semantic consistency** (AKA why the spec is so long)
     - Tries to guarantee stability of data
     - Minimal ambiguities and corner cases
 
@@ -45,9 +45,9 @@ JSON.  It has unintrusive macros.
 > _The name AYU does not stand for anything.  It is just a cute-sounding name
 > sitting in the highly saturated namespace of computer languages._
 
-## Definitions
+## 2. Definitions
 
-This section defines some terms that are used throughout this documentation and
+This section defines some terms that are used throughout the specification and
 applies some restrictions to software working with AYU.  This section has a lot
 of legalistic details, so you can skip it if you just want to get into the meat
 and potatoes.
@@ -157,7 +157,7 @@ behavior stay the same.
 > parses, modifies, and prints a document, it may try to propagate comments and
 > macros from the input document to the output document._
 
-## Document Syntax
+## 3. Document Syntax
 
 An AYU document is text in an ASCII-compatible encoding.
 
@@ -184,19 +184,19 @@ an object.
 
 Every value has one of these forms: null, bool, number, string, array, object.
 
-### Null
+### 3.1. Null
 
 Indicated by the keyword `null`.
 
-### Bool
+### 3.2. Bool
 
 Populated by the keywords `true` and `false`.
 
-### Number
+### 3.3. Number
 
 Numbers can be decimal, hexadecimal, or special.
 
-#### Decimal Numbers
+#### 3.3.1. Decimal Numbers
 
 Decimal numbers are composed of:
 
@@ -212,7 +212,7 @@ Decimal numbers are composed of:
 Decimal numbers can have any number of leading zeroes, and they are still
 interpreted as decimal, not octal.
 
-#### Hexadecimal Numbers
+#### 3.3.2. Hexadecimal Numbers
 
 Hexadecimal numbers are composed of:
 
@@ -223,7 +223,7 @@ Hexadecimal numbers are composed of:
 The format of a number is non-meaningful.  `30`, `30.0`, `3e1`, and `0x1e` are
 all the same number.
 
-#### Special Numbers
+#### 3.3.3. Special Numbers
 
 There are three special numbers with six names:
 
@@ -237,7 +237,7 @@ These are matched exactly and no other variations are accepted.  `0/0.0` and
 > _These names were chosen because they start the same way as ordinary numbers,
 > so they don't add any restrictions to unquoted words._
 
-#### Range and Precision of Numbers
+#### 3.3.4. Range and Precision of Numbers
 
 What ranges and precisions of numbers are supported is implementation-defined.
 A general-purpose parser must support at least:
@@ -278,12 +278,12 @@ Negative zero should be preserved, and negative NaN may be preserved.
 > aware that integers beyond ±2^53 may not be preserved when interacting with
 > those languages._
 
-### String
+### 3.4. String
 
 Strings can be quoted, unquoted, or nearly raw.  Which format a string has is
 non-meaningful.
 
-#### Quoted Strings
+#### 3.4.1. Quoted Strings
 
 Double quotes `"` delimit a quoted string.  Quoted strings may span multiple
 lines and have any bytes except for unescaped `"` and `\`.  They may have the
@@ -331,7 +331,7 @@ and for all strings to be valid UTF-8 after decoding all escapes.
 > an AYU document uses a non-UTF-8 encoding, it should avoid `\u` escapes lest
 > it suffer the curse of mojibake._
 
-#### Unquoted Strings
+#### 3.4.2. Unquoted Strings
 
 An unquoted string is also called a word.  These are allowed inside a word:
 
@@ -395,7 +395,7 @@ Byte Order Mark.
 > BOMs, the second one is the start of an unquoted string.  Pray this never
 > happens._
 
-#### Nearly Raw Strings
+#### 3.4.3. Nearly Raw Strings
 
 A nearly raw string is delimited by backticks <code>\`</code>.  It can contain
 anything.  The only escape it allows is a double backtick, which is replaced
@@ -413,7 +413,7 @@ as-is.
 > things susceptible to Leaning Toothpick Syndrome.  AYU nearly didn't include
 > nearly raw strings at all, but that would have been unfair to Windows users._
 
-### Array
+### 3.5. Array
 
 Arrays are delimited by square brackets `[` and `]` and can contain multiple
 values, called elements.
@@ -423,7 +423,7 @@ if quoted) must have whitespace or a comma between one another.  Arrays,
 objects, and macro definitions and invocations can be close and comfy with
 anything.
 
-### Object
+### 3.6. Object
 
 Objects are delimited by curly braces `{` and `}` and contain key-value pairs,
 called attributes.  An attribute is a string (the key), followed by a colon `:`,
@@ -439,7 +439,7 @@ should be preserved for readability.
 > _If you think you want an object with meaningful order or multiple attributes
 > with the same key, use an array of pair-arrays instead._
 
-### Comments
+### 3.7. Comments
 
 A comment starts with a double hyphen `--` and continues to the next newline
 byte or the end of the document.  It can appear anywhere whitespace is allowed
@@ -452,7 +452,7 @@ directives, or anything of that sort.
 > _Don't put a comment right after a `(` because future block comment syntax
 > might look like `(-- comment --)`.
 
-### Macros
+### 3.8. Macros
 
 Macros let you name values to reuse later on.  They fill the same role as
 backreferences in other data languages.
@@ -521,7 +521,7 @@ Macros are transparent, in the sense that they must not be visible to ordinary
 program logic.  Whether a macro was used for a particular value or not is
 non-meaningful.
 
-### Whitespace
+### 3.9. Whitespace
 
 The only characters recognized as whitespace for syntactic purposes are space,
 newline, carriage return, and tab.  Exotic ASCII whitespaces like form feed and
@@ -529,9 +529,9 @@ vertical tab are forbidden outside of quoted strings and comments.  Unicode
 whitespace characters are considered word characters, but a Unicode-aware parser
 might warn if they are taken that way.
 
-## Non-Syntactic Concerns
+## 4. Non-Syntactic Concerns
 
-### Limits
+### 4.1. Limits
 
 Parsers and printers may limit the length and complexity of documents they are
 able to process.  Those limits may depend on the capabilities of the hardware
@@ -559,7 +559,7 @@ binary format.
 > guaranteed to be foolproof.  A maliciously crafted document might be able to
 > make a parser consume much more memory while technically obeying them all.
 
-### Equality of Values
+### 4.2. Equality of Values
 
 The current version of AYU does not require all values to be comparable.  Only
 strings need to be compared in order to look up macro names and enforce
@@ -601,14 +601,14 @@ type implementing AYU values to use this for equality.
 > counting to share memory between values is allowed to equate two values that
 > have the same memory address, without having to descend into them._
 
-## Compatibility With JSON
+## 5. Compatibility With JSON
 
 AYU is almost a compatible superset of JSON.  An AYU parser can parse most JSON,
 and most AYU can be mechanically translated into JSON.  Programs that work with
 both AYU and JSON can use the same value implementation for both.  However,
 there are some corner cases that merit particular consideration.
 
-### Special Numbers
+### 5.1. Special Numbers
 
 JSON does not have infinities or NaN.  When translating AYU to JSON, they should
 be changed to the case-sensitive quoted strings `"Infinity"`, `"-Infinity"`, and
@@ -623,7 +623,7 @@ Hopefully this should be rare in practice.
 > Sometimes `null` is used for NaN, but this is not recommended because many
 > JSON serializers render both NaN and infinities as `null`._
 
-### Non-UTF-8 Strings
+### 5.2. Non-UTF-8 Strings
 
 JSON documents and their strings are required to be UTF-8, and many JSON parsers
 will reject documents with invalid UTF-8.  Because of this, when translating AYU
@@ -660,7 +660,7 @@ don't care.  If they do care, this pushes the burden of choice onto them.
 
 If you can't decide which option to pick, pick option 3.
 
-### Object Attributes
+### 5.3. Object Attributes
 
 The JSON spec does not mandate that objects have unique keys.  In practice,
 there are almost no JSON documents that have objects with duplicate keys, and
@@ -674,7 +674,7 @@ objects is non-meaningful.  Similarly again, there are almost no JSON documents
 where attribute order is meaningful, and many JSON parsers don't even expose the
 order of attributes in their API (again, like ones that use hash maps).
 
-## Security Considerations
+## 6. Security Considerations
 
 AYU is designed for local storage and human-machine communication.  It's not
 designed for network transmission or communication between machines.  It is more
@@ -682,9 +682,9 @@ complex and error-prone than JSON, and therefore it should not be used for
 untrusted data.  AYU data files should be considered nearly as sensitive as
 executable files.
 
-## Non-Normative Notes
+## 7. Non-Normative Notes
 
-### Potential Future Features
+### 7.1. Potential Future Features
 
 These are features that may or may not be added to the language in a future
 version.  If they are added, they will probably take the given syntax, and other
@@ -703,7 +703,7 @@ future features are unlikely to conflict with the syntax.
 - The above two features could be implemented as predefined macros in an
   advanced pattern-matching macro system.
 
-### Rejected Features
+### 7.2. Rejected Features
 
 These are features that were considered for AYU at one point, but ultimately
 rejected for one reason or another.
@@ -760,7 +760,7 @@ rejected for one reason or another.
   file.  You can just put multiple documents separated by whitespace, or embed
   them in another format.
 
-### Tips for Serializing and Deserializing
+### 7.3. Tips for Serializing and Deserializing
 
 For the most part, AYU does not constrain the behavior (or even existence) of
 serializers and deserializers.  Therefore this section is non-normative and
@@ -786,7 +786,7 @@ string or an array of components between 0 and 1.
 Here are a few recommendations on how to serialize some non-straightforward item
 types that don't seem to fit neatly into value forms.
 
-#### Dynamically-Typed Items
+#### 7.3.1. Dynamically-Typed Items
 
 Like JSON, AYU does not have type annotations.  The type of the item represented
 by a value is usually implicit and depends on how the parent item is represented
@@ -813,7 +813,7 @@ If your program works with a lot of documents stored in separate files, it's
 recommended to make each document have a dynamically-typed item at the top level
 to keep track of what's what.
 
-#### Optional and Nullable Types
+#### 7.3.2. Optional and Nullable Types
 
 Types that may or may not contain an item, such as C++'s `std::optional` or
 `std::unique_ptr`, can be serialized as an array of one or zero elements.  If
@@ -822,7 +822,7 @@ represented by the presence or absence of the entire attribute.  If you know
 that the contained item can never be `null`, you can also use `null` to indicate
 a lack of content.
 
-#### Binary Data
+#### 7.3.3. Binary Data
 
 AYU does not have a blob form.  To represent binary data, you can use an array
 of integers or a hexadecimal string.  You could also use a non-UTF-8 string, but
@@ -832,7 +832,7 @@ hexadecimal.  If you have space concerns, use a filepath to an external binary
 file.  If human readability isn't important, perhaps reconsider the choice to
 use a human-readable data language.
 
-#### Exotic Floating Point Numbers
+#### 7.3.4. Exotic Floating Point Numbers
 
 If a program wants to preserve signalling NaNs or NaN payloads, the suggested
 way to do so is to render the binary representation of the number as a
@@ -840,7 +840,7 @@ hexadecimal string starting with `#`, like `#7f800003` to mean a 32-bit
 signalling NaN with a payload of 3.  In a pinch this format can also be used as
 a stand-in for hexadecimal floats.
 
-#### Command-Like Items
+#### 7.3.5. Command-Like Items
 
 Use an array whose head is the name of a command and whose tail is its
 arguments.  You can build a simple imperative DSL this way.
@@ -852,7 +852,7 @@ arguments.  You can build a simple imperative DSL this way.
 ]}
 ```
 
-#### Formatted Text
+#### 7.3.6. Formatted Text
 
 Use an array of tokens, each of which is either a literal (string) or a
 formatting command (array).  Don't forget to put spaces in the literals.
@@ -861,13 +861,13 @@ formatting command (array).  Don't forget to put spaces in the literals.
 ["You have " [unread] " new message" [if_plural [unread] "s"] "."]
 ```
 
-#### XML and HTML
+#### 7.3.7. XML and HTML
 
 These are already fine languages, so you can just put them in strings as-is.
 But I suppose you could also do something like `[a {href:example.com} "this is a
 " [b "link"]]`.
 
-#### Pointers, References, Links, etc
+#### 7.3.8. Pointers, References, Links, etc
 
 The simplest way to serialize pointer-like items is to attach some sort of
 integer or string ID to each item that could be pointed to.  Then, a pointer is
@@ -948,7 +948,7 @@ Alternative syntaxes include:
 - JSONPath: `"$[1].some_object[1].bar[2]"`
 - Arrays: `[# 1 some_object 1 bar 2]`
 
-#### Graph-Like Data Structures
+#### 7.3.9. Graph-Like Data Structures
 
 The AYU language doesn't have any builtin syntax to represent graphs.  If you
 need to serialize a graph-like data structure in AYU, here are three possible
